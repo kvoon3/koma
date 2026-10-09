@@ -192,8 +192,8 @@ body {
 }
 .pane:active { cursor: grabbing; }
 .pane.empty { background: var(--paneEmpty); }
-.pane.dropping { outline: 2px dashed var(--txt); outline-offset: -2px; }
-.pane.focused { outline: 2px solid var(--txt); outline-offset: -2px; z-index: 1; }
+.pane.dropping { outline: 1px dashed var(--txt); outline-offset: -1px; }
+.pane.focused { outline: 1px solid var(--txt); outline-offset: -1px; z-index: 1; }
 .pane img { display: block; will-change: transform; }
 
 .paneHint {
