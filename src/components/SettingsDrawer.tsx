@@ -7,37 +7,23 @@ import { Select } from '@base-ui/react/select'
 import { Slider } from '@base-ui/react/slider'
 import { Toggle } from '@base-ui/react/toggle'
 import { ToggleGroup } from '@base-ui/react/toggle-group'
+import { Check, ChevronDown, Monitor, Moon, Sun, X } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { outputSizeFor } from '../lib/exporter'
 import { isTransparentBg, useStore } from '../store'
 import './drawers.css'
 
 const LONG_SIDE_PRESETS = [1080, 1440, 1920, 2048, 3000, 4096, 6000]
 const PRESET_ITEMS = LONG_SIDE_PRESETS.map(v => ({ label: String(v), value: v }))
-const CUSTOM_BG = '#0f1013'
+const CUSTOM_BG = '#18181b'
 
-const THEMES: { value: Theme, label: string }[] = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' },
+const THEMES: { value: Theme, label: string, icon: typeof Sun }[] = [
+  { value: 'auto', label: 'Auto (system)', icon: Monitor },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
 ]
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
-
-function CaretUpDownIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <path d="M11 10H5l3 3.5zm0-4H5l3-3.5z" />
-    </svg>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true">
-      <path d="m2.5 8.5 4 4 7-9" />
-    </svg>
-  )
-}
 
 export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () => void }) {
   const theme = useStore(s => s.theme)
@@ -87,7 +73,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
               <header className="bui-drawer-head">
                 <Drawer.Title className="bui-drawer-title">Settings</Drawer.Title>
                 <span className="bui-drawer-spacer" />
-                <Drawer.Close className="flat">Hide</Drawer.Close>
+                <Drawer.Close className="flat bui-drawer-close" aria-label="Hide settings"><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Drawer.Close>
               </header>
 
               <div className="bui-drawer-body">
@@ -109,8 +95,8 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                       }}
                     >
                       {THEMES.map(t => (
-                        <Toggle key={t.value} value={t.value} className="bui-drawer-seg-btn">
-                          {t.label}
+                        <Toggle key={t.value} value={t.value} aria-label={t.label} className="bui-drawer-seg-btn">
+                          <MorphIcon icon={t.icon} size={15} strokeWidth={1.75} />
                         </Toggle>
                       ))}
                     </ToggleGroup>
@@ -214,7 +200,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                       <Select.Trigger className="bui-drawer-select" aria-label="Output size preset">
                         <Select.Value placeholder="Custom" />
                         <Select.Icon className="bui-drawer-select-icon">
-                          <CaretUpDownIcon />
+                          <MorphIcon icon={ChevronDown} size={13} strokeWidth={1.75} />
                         </Select.Icon>
                       </Select.Trigger>
                       <Select.Portal>
@@ -229,7 +215,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                               {LONG_SIDE_PRESETS.map(v => (
                                 <Select.Item key={v} value={v} className="bui-drawer-menu-item">
                                   <Select.ItemIndicator className="bui-drawer-item-indicator">
-                                    <CheckIcon />
+                                    <MorphIcon icon={Check} size={13} strokeWidth={2} />
                                   </Select.ItemIndicator>
                                   <Select.ItemText className="bui-drawer-item-text">{v}</Select.ItemText>
                                 </Select.Item>

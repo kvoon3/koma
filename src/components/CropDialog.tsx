@@ -1,4 +1,6 @@
 import { Dialog } from '@base-ui/react/dialog'
+import { X } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { downloadBlob } from '../lib/exporter'
 import { say } from '../lib/toast'
 import './cropdialog.css'
@@ -30,7 +32,7 @@ export function CropDialog({ report, onClose }: { report: string | null, onClose
               >
                 Download crop.sh
               </button>
-              <Dialog.Close className="flat">Close</Dialog.Close>
+              <Dialog.Close className="flat bui-drawer-close" aria-label="Close"><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Dialog.Close>
             </div>
           </header>
           <textarea className="bui-crop-text" readOnly value={report ?? ''} spellCheck={false} />

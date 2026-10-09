@@ -1,4 +1,6 @@
 import { Drawer } from '@base-ui/react/drawer'
+import { X } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { findLeaf, leafList } from '../lib/panes'
 import { useStore } from '../store'
 import { Library } from './Library'
@@ -70,11 +72,11 @@ export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () =>
                   Clear
                 </button>
                 <Drawer.Close
-                  className="flat"
+                  className="flat bui-drawer-close"
                   onClick={cancelStickerPick}
-                  title="Shortcut: L"
+                  aria-label="Hide library · Shortcut: L"
                 >
-                  Hide
+                  <MorphIcon icon={X} size={15} strokeWidth={1.75} />
                 </Drawer.Close>
               </header>
               <Library

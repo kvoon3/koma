@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react'
 import { Tooltip } from '@base-ui/react/tooltip'
+import { CircleHelp, Download, FolderPlus, LayoutGrid, LoaderCircle, Plus, SlidersHorizontal } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { useMemo, useRef } from 'react'
 import { leafList } from '../lib/panes'
 import { useStore } from '../store'
@@ -57,7 +59,8 @@ export function StatusBar({
             label="Add photos"
             trigger={(
               <button className="flat" onClick={() => fileRef.current?.click()} aria-label="Add photos">
-                + Photos
+                <MorphIcon icon={Plus} size={15} strokeWidth={1.75} />
+                <span className="sb-label">Photos</span>
               </button>
             )}
           />
@@ -65,7 +68,8 @@ export function StatusBar({
             label="Load an entire folder at once"
             trigger={(
               <button className="flat" onClick={() => dirRef.current?.click()} aria-label="Load an entire folder at once">
-                + Folder
+                <MorphIcon icon={FolderPlus} size={15} strokeWidth={1.75} />
+                <span className="sb-label">Folder</span>
               </button>
             )}
           />
@@ -73,7 +77,8 @@ export function StatusBar({
             label="Library · Shortcut: L"
             trigger={(
               <button className={`flat${libOpen ? ' on' : ''}`} onClick={onToggleLib} aria-label="Library · Shortcut: L">
-                Library
+                <MorphIcon icon={LayoutGrid} size={15} strokeWidth={1.75} />
+                <span className="sb-label">Library</span>
                 {photos ? <b>{photos}</b> : null}
               </button>
             )}
@@ -85,13 +90,13 @@ export function StatusBar({
             <em>Panes</em>
             {leaves.length}
           </span>
-          <span className="kv">
+          <span className="kv kv-opt">
             <em>Filled</em>
             {filled}
             /
             {leaves.length}
           </span>
-          <span className={`kv${focusIndex >= 0 ? ' loud' : ''}`}>
+          <span className={`kv kv-opt${focusIndex >= 0 ? ' loud' : ''}`}>
             <em>Focus</em>
             {focusIndex >= 0 ? `#${focusIndex + 1}` : '—'}
           </span>
@@ -112,7 +117,8 @@ export function StatusBar({
                 onClick={onToggleSettings}
                 aria-label="Settings · Shortcut: ,"
               >
-                Settings
+                <MorphIcon icon={SlidersHorizontal} size={15} strokeWidth={1.75} />
+                <span className="sb-label">Settings</span>
               </button>
             )}
           />
@@ -120,7 +126,8 @@ export function StatusBar({
             label="Export image"
             trigger={(
               <button className="flat strong" onClick={onExport} disabled={busy || !filled} aria-label="Export image">
-                {busy ? 'Rendering...' : 'Export'}
+                <MorphIcon icon={busy ? LoaderCircle : Download} size={15} strokeWidth={1.75} className={busy ? 'sb-spin' : undefined} />
+                <span className="sb-label">{busy ? 'Rendering' : 'Export'}</span>
               </button>
             )}
           />
@@ -128,7 +135,7 @@ export function StatusBar({
             label="Keyboard shortcuts · Shortcut: ?"
             trigger={(
               <button className="flat" onClick={onToggleHelp} aria-label="Keyboard shortcuts · Shortcut: ?">
-                ?
+                <MorphIcon icon={CircleHelp} size={15} strokeWidth={1.75} />
               </button>
             )}
           />

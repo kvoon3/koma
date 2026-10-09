@@ -15,14 +15,14 @@
   left: 50%;
   top: 50%;
   translate: -50% -50%;
-  width: min(820px, calc(100vw - 72px));
-  max-height: 86vh;
+  width: min(820px, calc(100vw - 24px));
+  max-height: min(86dvh, 720px);
   display: flex;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: var(--radius);
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
   outline: none;
   transition: opacity 150ms ease-out, translate 150ms ease-out, scale 150ms ease-out;

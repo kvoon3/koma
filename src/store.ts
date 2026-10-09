@@ -59,7 +59,7 @@ interface Actions {
 
 export const GAP = 10
 export const RADIUS = 0
-export const BG = '#0f1013'
+export const BG = '#ffffff'
 export const MIN_PANE_PX = 56
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
@@ -77,10 +77,10 @@ const defaultRoot = newLeaf()
 const savedTheme: Theme = (() => {
   try {
     const v = localStorage.getItem('collage:theme')
-    return v === 'dark' || v === 'light' ? v : 'auto'
+    return v === 'dark' || v === 'light' ? v : 'light'
   }
   catch {
-    return 'auto'
+    return 'light'
   }
 })()
 

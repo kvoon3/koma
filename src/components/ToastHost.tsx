@@ -1,4 +1,6 @@
 import { Toast } from '@base-ui/react/toast'
+import { X } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { toastManager } from '../lib/toast'
 import './toast.css'
 
@@ -11,7 +13,7 @@ function ToastList() {
           <Toast.Title className="bui-toast-title" />
           {toast.description != null ? <Toast.Description className="bui-toast-desc" /> : null}
         </div>
-        <Toast.Close className="bui-toast-close" aria-label="Dismiss">×</Toast.Close>
+        <Toast.Close className="bui-toast-close" aria-label="Dismiss"><MorphIcon icon={X} size={13} strokeWidth={1.75} /></Toast.Close>
       </Toast.Content>
     </Toast.Root>
   ))

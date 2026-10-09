@@ -1,4 +1,6 @@
 import { Dialog } from '@base-ui/react/dialog'
+import { X } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import './help.css'
 
 const KEYS: [string, string][] = [
@@ -39,7 +41,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
         <Dialog.Popup className="bui-help-popup">
           <header className="bui-help-header">
             <Dialog.Title className="bui-help-title">How to use</Dialog.Title>
-            <Dialog.Close className="bui-help-close" aria-label="Close">×</Dialog.Close>
+            <Dialog.Close className="bui-help-close" aria-label="Close"><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Dialog.Close>
           </header>
           <p className="bui-help-intro">
             You start with a single pane. Use the two buttons at the top center of a pane to

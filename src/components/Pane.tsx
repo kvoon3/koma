@@ -1,37 +1,11 @@
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, Rect, Sticker } from '../lib/panes'
+import { SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
 import { clampLeaf, photoNorm, placement, stickerRect } from '../lib/panes'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
-
-function IconSplitDown() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
-      <rect x="1.5" y="1.5" width="13" height="13" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  )
-}
-function IconSplitRight() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
-      <rect x="1.5" y="1.5" width="13" height="13" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  )
-}
-
-function IconSticker() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
-      <rect x="2.5" y="2.5" width="11" height="11" rx="3" fill="none" stroke="currentColor" strokeWidth="1.3" />
-      <circle cx="6.2" cy="6.8" r="1.05" fill="currentColor" />
-      <circle cx="9.8" cy="6.8" r="1.05" fill="currentColor" />
-      <path d="M5.6 10.1q2.4 1.7 4.8 0" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-    </svg>
-  )
-}
 
 function StickerView({
   paneId,
@@ -395,7 +369,7 @@ function PaneImpl({
             onSplit(leaf.id, 'column')
           }}
         >
-          <IconSplitDown />
+          <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
         </button>
         <button
           className="paneBtn"
@@ -405,7 +379,7 @@ function PaneImpl({
             onSplit(leaf.id, 'row')
           }}
         >
-          <IconSplitRight />
+          <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
         </button>
         {leaf.photoId && (
           <button
@@ -426,7 +400,7 @@ function PaneImpl({
               onFocus(leaf.id)
             }}
           >
-            <IconSticker />
+            <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
           </button>
         )}
       </div>
@@ -441,7 +415,7 @@ function PaneImpl({
             onClose(leaf.id)
           }}
         >
-          ×
+          <MorphIcon icon={X} size={14} strokeWidth={1.75} />
         </button>
       )}
     </div>

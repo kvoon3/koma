@@ -2,10 +2,11 @@
   position: fixed;
   z-index: 60;
   right: 10px;
-  bottom: calc(var(--statusH, 31px) + 10px);
+  bottom: calc(var(--statusH, 31px) + env(safe-area-inset-bottom, 0px) + 10px);
   left: auto;
   top: auto;
   width: min(340px, calc(100vw - 20px));
+  border-radius: var(--radius-s, 8px);
   margin: 0;
   outline: 0;
 }
@@ -35,7 +36,7 @@
   color: var(--txt);
   font-size: 12px;
   padding: 8px 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.24);
+  box-shadow: var(--shadow-pop, 0 6px 20px rgba(0, 0, 0, 0.2));
   transform: translateX(var(--toast-swipe-movement-x))
     translateY(
       calc(

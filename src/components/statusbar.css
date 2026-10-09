@@ -1,9 +1,9 @@
 .statusbar {
-  flex: 0 0 var(--statusH);
+  flex: 0 0 auto;
   display: flex;
   align-items: stretch;
-  height: var(--statusH);
-  padding: 0 6px;
+  height: calc(var(--statusH) + env(safe-area-inset-bottom));
+  padding: 0 6px env(safe-area-inset-bottom) 6px;
   background: var(--statusbar);
   border-top: 1px solid var(--line);
   font-size: 11.5px;
@@ -34,6 +34,24 @@
 .flat.strong { color: var(--txt); background: var(--chipStrong); }
 .flat.strong:hover:not(:disabled) { background: var(--accent); color: var(--onAccent); }
 .flat b { font-weight: 600; color: var(--accent2); font-variant-numeric: tabular-nums; }
+
+.sb-spin { animation: sb-rotate 900ms linear infinite; }
+@keyframes sb-rotate {
+  to { rotate: 360deg; }
+}
+
+@media (pointer: coarse), (max-width: 640px) {
+  .statusbar { font-size: 12px; }
+  .flat { padding: 0 10px; }
+  .sb-label { display: none; }
+  .kv-opt { display: none; }
+  .zone.mid { gap: 12px; }
+}
+
+@media (max-width: 380px) {
+  .kv em { margin-right: 3px; }
+  .zone.mid { gap: 8px; }
+}
 
 .kv { color: var(--txt); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .kv em {

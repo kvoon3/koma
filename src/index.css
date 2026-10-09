@@ -1,114 +1,122 @@
 :root {
-  color-scheme: dark;
-  --bg: #0d0e12;
-  --panel: #16181f;
-  --panel2: #1f222c;
-  --line: #2b2f3d;
-  --txt: #e9ebf1;
-  --dim: #868da3;
-  --faint: #6b7188;
-  --accent: #5b8cff;
-  --accent2: #39d3a0;
+  color-scheme: light;
+  --bg: #f7f7f8;
+  --panel: #ffffff;
+  --panel2: #f4f4f5;
+  --line: #e6e6e9;
+  --txt: #111113;
+  --dim: #71717a;
+  --faint: #a1a1aa;
+  --accent: #18181b;
+  --accent2: #18181b;
   --statusH: 31px;
 
-  --statusbar: #14161d;
-  --drawerBg: #12141a;
+  --statusbar: #ffffff;
+  --drawerBg: #ffffff;
 
-  --chipHover: #222735;
-  --chipOn: #29304a;
-  --chipOnTxt: #cddcff;
-  --chipStrong: #242a3d;
+  --chipHover: #f4f4f5;
+  --chipOn: #f4f4f5;
+  --chipOnTxt: #111113;
+  --chipStrong: #efeff1;
 
-  --stageA: #15171e;
-  --stageB: #101218;
-  --stageClear: #2b2f38;
-  --stageClearSq: #23262e;
+  --stageA: #f2f2f4;
+  --stageB: #f2f2f4;
+  --stageClear: #d9d9de;
+  --stageClearSq: #e9e9ec;
 
-  --paneBg: #181a21;
-  --paneEmpty: #14161c;
-  --paneHint: rgba(150, 158, 185, 0.55);
+  --paneBg: #ffffff;
+  --paneEmpty: #fafafa;
+  --paneHint: rgba(24, 24, 27, 0.5);
 
-  --floatBg: rgba(12, 13, 18, 0.76);
-  --floatLine: rgba(255, 255, 255, 0.09);
-  --floatBg2: rgba(12, 13, 18, 0.86);
-  --floatLine2: rgba(255, 255, 255, 0.14);
-  --floatIcon: #b9c1d6;
-  --handleTxt: #9aa3bb;
-  --danger: #d9544d;
-  --onAccent: #fff;
+  --floatBg: rgba(255, 255, 255, 0.92);
+  --floatLine: rgba(0, 0, 0, 0.08);
+  --floatBg2: rgba(255, 255, 255, 0.96);
+  --floatLine2: rgba(0, 0, 0, 0.12);
+  --floatIcon: #3f3f46;
+  --handleTxt: #71717a;
+  --danger: #dc2626;
+  --onAccent: #ffffff;
 
-  --badgeBg: rgba(10, 11, 15, 0.84);
-  --welcomeBg: rgba(20, 22, 30, 0.95);
-  --overlayDim: rgba(0, 0, 0, 0.66);
-  --toastBg: #232840;
-
-  --stripThumb: #333a4d;
-  --thumbBg: #20242f;
-  --thumbHover: #4a5372;
-
-  --kbdBg: #232838;
-  --kbdLine: #343b52;
-  --kbdTxt: #c7cee2;
-  --codeBg: #0a0b0e;
-  --codeTxt: #cfe3ff;
-}
-
-:root[data-theme='light'] {
-  color-scheme: light;
-  --bg: #eef0f4;
-  --panel: #ffffff;
-  --panel2: #f2f4f8;
-  --line: #d9dce5;
-  --txt: #1d2027;
-  --dim: #5a6172;
-  --faint: #8b91a2;
-  --accent: #5b8cff;
-  --accent2: #39d3a0;
-
-  --statusbar: #e9ebf1;
-  --drawerBg: #eceef3;
-
-  --chipHover: #e4e8f0;
-  --chipOn: #dbe6ff;
-  --chipOnTxt: #2f5fd6;
-  --chipStrong: #e2e7f2;
-
-  --stageA: #e3e6ec;
-  --stageB: #dfe2e9;
-  --stageClear: #e9ecf2;
-  --stageClearSq: #e1e4ea;
-
-  --paneBg: #e7eaf0;
-  --paneEmpty: #e3e7ee;
-  --paneHint: rgba(90, 97, 114, 0.55);
-
-  --floatBg: rgba(255, 255, 255, 0.82);
-  --floatLine: rgba(20, 24, 35, 0.1);
-  --floatBg2: rgba(255, 255, 255, 0.9);
-  --floatLine2: rgba(20, 24, 35, 0.16);
-  --floatIcon: #4a5266;
-  --handleTxt: #5a6172;
-  --danger: #d9544d;
-  --onAccent: #fff;
-
-  --badgeBg: rgba(255, 255, 255, 0.86);
-  --welcomeBg: rgba(255, 255, 255, 0.97);
-  --overlayDim: rgba(30, 34, 44, 0.42);
+  --badgeBg: rgba(255, 255, 255, 0.92);
+  --welcomeBg: #ffffff;
+  --overlayDim: rgba(24, 24, 27, 0.32);
   --toastBg: #ffffff;
 
-  --stripThumb: #c3c8d4;
-  --thumbBg: #e7eaf0;
-  --thumbHover: #aab2c6;
+  --stripThumb: #d4d4d8;
+  --thumbBg: #f4f4f5;
+  --thumbHover: #c9c9cf;
 
-  --kbdBg: #eef0f5;
-  --kbdLine: #d2d6e0;
-  --kbdTxt: #3a4055;
-  --codeBg: #0a0b0e;
-  --codeTxt: #cfe3ff;
+  --kbdBg: #f4f4f5;
+  --kbdLine: #e4e4e7;
+  --kbdTxt: #3f3f46;
+  --codeBg: #18181b;
+  --codeTxt: #e4e4e7;
+
+  --radius: 10px;
+  --radius-s: 8px;
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(0, 0, 0, 0.1);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #101012;
+  --panel: #17171a;
+  --panel2: #202023;
+  --line: #2a2a2f;
+  --txt: #f4f4f5;
+  --dim: #8e8e96;
+  --faint: #63636b;
+  --accent: #f4f4f5;
+  --accent2: #f4f4f5;
+  --statusbar: #131316;
+  --drawerBg: #131316;
+
+  --chipHover: #232327;
+  --chipOn: #2a2a2f;
+  --chipOnTxt: #fafafa;
+  --chipStrong: #26262b;
+
+  --stageA: #161618;
+  --stageB: #161618;
+  --stageClear: #3a3a41;
+  --stageClearSq: #232327;
+
+  --paneBg: #1b1b1f;
+  --paneEmpty: #17171a;
+  --paneHint: rgba(244, 244, 245, 0.5);
+
+  --floatBg: rgba(23, 23, 26, 0.92);
+  --floatLine: rgba(255, 255, 255, 0.1);
+  --floatBg2: rgba(23, 23, 26, 0.96);
+  --floatLine2: rgba(255, 255, 255, 0.16);
+  --floatIcon: #d4d4d8;
+  --handleTxt: #a1a1aa;
+  --danger: #ef4444;
+  --onAccent: #111113;
+
+  --badgeBg: rgba(19, 19, 22, 0.92);
+  --welcomeBg: #1b1b1e;
+  --overlayDim: rgba(0, 0, 0, 0.55);
+  --toastBg: #202024;
+
+  --stripThumb: #3f3f46;
+  --thumbBg: #232327;
+  --thumbHover: #52525b;
+
+  --kbdBg: #202024;
+  --kbdLine: #333338;
+  --kbdTxt: #d4d4d8;
+  --codeBg: #111113;
+  --codeTxt: #e4e4e7;
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
+@supports (height: 100dvh) {
+  html, body, #root { height: 100dvh; }
+}
+
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
 body {
   background: var(--bg);
@@ -116,11 +124,17 @@ body {
   font: 13px/1.55 -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
   position: relative;
   overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
 }
 
-.app { display: flex; flex-direction: column; height: 100%; position: relative; isolation: isolate; }
+@media (pointer: coarse) {
+  :root { --statusH: 44px; }
+}
+
+.app { display: flex; flex-direction: column; height: 100%; height: 100dvh; position: relative; isolation: isolate; }
 
 .main {
   flex: 1;
@@ -199,8 +213,8 @@ body {
 .pane.empty .paneBar { opacity: 1; }
 
 .paneBtn {
-  width: 24px;
-  height: 22px;
+  width: 26px;
+  height: 24px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -295,12 +309,12 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(480px, 84%);
-  padding: 24px 28px;
-  border-radius: 14px;
+  width: min(480px, calc(100vw - 32px));
+  padding: 22px 26px;
+  border-radius: var(--radius);
   background: var(--welcomeBg);
   border: 1px solid var(--line);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-pop);
 }
 .welcome h2 { margin: 0 0 6px; font-size: 17px; }
 .welcome p { margin: 0 0 14px; color: var(--dim); font-size: 12.5px; }
@@ -442,3 +456,8 @@ input.num {
 .sticker:hover .stickerResize,
 .sticker:hover .stickerDel { opacity: 1; }
 .paneBtn.on { background: var(--accent); color: var(--onAccent); }
+
+@media (pointer: coarse) {
+  .paneBtn { width: 32px; height: 30px; }
+  .paneClose { width: 30px; height: 30px; }
+}

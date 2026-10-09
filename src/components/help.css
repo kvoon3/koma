@@ -25,7 +25,7 @@
   background: var(--panel);
   color: var(--txt);
   border: 1px solid var(--line);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-pop);
   outline: none;
   transition:
     transform 120ms ease,
