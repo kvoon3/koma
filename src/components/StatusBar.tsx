@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react'
 import { Tooltip } from '@base-ui/react/tooltip'
-import { CircleHelp, Download, FolderPlus, LayoutGrid, LoaderCircle, Plus, SlidersHorizontal } from 'lucide'
+import { CircleHelp, Download, FolderPlus, LayoutGrid, LoaderCircle, Moon, Plus, SlidersHorizontal, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useSyncExternalStore } from 'react'
 import { leafList } from '../lib/panes'
 import { useStore } from '../store'
+import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import './statusbar.css'
 
 function Tip({ label, trigger }: { label: string, trigger: ReactElement }) {
@@ -50,6 +51,7 @@ export function StatusBar({
   const leaves = useMemo(() => leafList(root), [root])
   const filled = leaves.filter(l => l.photoId).length
   const focusIndex = leaves.findIndex(l => l.id === focusId)
+  const dark = useSyncExternalStore(subscribeTheme, isDarkSnapshot)
 
   return (
     <Tooltip.Provider delay={300}>
@@ -109,6 +111,18 @@ export function StatusBar({
         </div>
 
         <div className="zone right">
+          <Tip
+            label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+            trigger={(
+              <button
+                className="flat"
+                onClick={toggleDark}
+                aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+              >
+                <MorphIcon icon={dark ? Sun : Moon} size={15} strokeWidth={1.75} />
+              </button>
+            )}
+          />
           <Tip
             label="Settings · Shortcut: ,"
             trigger={(

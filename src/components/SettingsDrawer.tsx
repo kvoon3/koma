@@ -1,13 +1,10 @@
-import type { Theme } from '../store'
 import { Drawer } from '@base-ui/react/drawer'
 import { NumberField } from '@base-ui/react/number-field'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { Select } from '@base-ui/react/select'
 import { Slider } from '@base-ui/react/slider'
-import { Toggle } from '@base-ui/react/toggle'
-import { ToggleGroup } from '@base-ui/react/toggle-group'
-import { Check, ChevronDown, Monitor, Moon, Sun, X } from 'lucide'
+import { Check, ChevronDown, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { outputSizeFor } from '../lib/exporter'
 import { isTransparentBg, useStore } from '../store'
@@ -17,16 +14,9 @@ const LONG_SIDE_PRESETS = [1080, 1440, 1920, 2048, 3000, 4096, 6000]
 const PRESET_ITEMS = LONG_SIDE_PRESETS.map(v => ({ label: String(v), value: v }))
 const CUSTOM_BG = '#18181b'
 
-const THEMES: { value: Theme, label: string, icon: typeof Sun }[] = [
-  { value: 'auto', label: 'Auto (system)', icon: Monitor },
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-]
-
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
 
 export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () => void }) {
-  const theme = useStore(s => s.theme)
   const gap = useStore(s => s.gap)
   const radius = useStore(s => s.radius)
   const bg = useStore(s => s.bg)
@@ -80,27 +70,9 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                 <section className="bui-drawer-group">
                   <h4>Appearance</h4>
                   <p>
-                    Auto follows the system light/dark mode. Gap fill is the background showing between photos; pick Transparent to export as PNG.
+                    Theme follows the system or the toggle in the status bar. Gap fill is the background showing
+                    between photos; pick Transparent to export as PNG.
                   </p>
-                  <div className="bui-drawer-row">
-                    <span className="bui-drawer-lbl">Theme</span>
-                    <ToggleGroup
-                      className="bui-drawer-seg"
-                      aria-label="Theme"
-                      value={[theme]}
-                      onValueChange={(value) => {
-                        const next = value[0] as Theme | undefined
-                        if (next)
-                          patch({ theme: next })
-                      }}
-                    >
-                      {THEMES.map(t => (
-                        <Toggle key={t.value} value={t.value} aria-label={t.label} className="bui-drawer-seg-btn">
-                          <MorphIcon icon={t.icon} size={15} strokeWidth={1.75} />
-                        </Toggle>
-                      ))}
-                    </ToggleGroup>
-                  </div>
                   <div className="bui-drawer-row">
                     <span className="bui-drawer-lbl">Gap fill</span>
                     <RadioGroup

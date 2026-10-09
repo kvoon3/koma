@@ -11,15 +11,16 @@
     <title>koma</title>
     <script>
       try {
-        var t = localStorage.getItem('collage:theme')
-        if (t === 'auto')
-          t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        if (t !== 'dark' && t !== 'light')
-          t = 'light'
-        document.documentElement.dataset.theme = t
-      } catch (e) {
-        document.documentElement.dataset.theme = 'light'
-      }
+        var t = localStorage.getItem('theme')
+        var legacy = localStorage.getItem('collage:theme')
+        if ((t == null || (t !== 'dark' && t !== 'light' && t !== 'auto')) && (legacy === 'dark' || legacy === 'light' || legacy === 'auto')) {
+          localStorage.setItem('theme', legacy)
+          t = legacy
+        }
+        localStorage.removeItem('collage:theme')
+        var os = matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.classList.toggle('dark', t === 'dark' || (t !== 'light' && os))
+      } catch (e) {}
     </script>
   </head>
   <body>

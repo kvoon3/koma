@@ -11,8 +11,8 @@ import { buildCropReport, downloadBlob, outputSizeFor, renderCollage } from './l
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
 import { isTransparentBg, photoMap, useStore } from './store'
+import { initTheme } from './theme'
 import { usePersisted } from './usePersisted'
-import { useTheme } from './useTheme'
 
 function exportOptions(): ExportOptions {
   const s = useStore.getState()
@@ -37,7 +37,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = usePersisted('settingsOpen', false)
   const [helpOpen, setHelpOpen] = useState(false)
 
-  useTheme()
+  initTheme()
 
   const stickerPick = useStore(s => s.stickerPick)
   useEffect(() => {

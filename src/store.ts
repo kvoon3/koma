@@ -31,11 +31,8 @@ export interface State {
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
-  theme: Theme
   stickerPick: { paneId: string, x: number, y: number } | null
 }
-
-export type Theme = 'auto' | 'dark' | 'light'
 
 interface Actions {
   addPhotos: (files: File[], autoFill?: boolean) => Photo[]
@@ -74,16 +71,6 @@ export const isTransparentBg = (bg: string) => bg === 'transparent'
 
 const defaultRoot = newLeaf()
 
-const savedTheme: Theme = (() => {
-  try {
-    const v = localStorage.getItem('collage:theme')
-    return v === 'dark' || v === 'light' ? v : 'light'
-  }
-  catch {
-    return 'light'
-  }
-})()
-
 export const useStore = create<State & Actions>((set, get) => ({
   photos: [],
   root: defaultRoot,
@@ -96,7 +83,6 @@ export const useStore = create<State & Actions>((set, get) => ({
   longSide: 2048,
   format: 'image/jpeg',
   quality: 0.92,
-  theme: savedTheme,
   stickerPick: null,
 
   addPhotos: (files, autoFill = true) => {
