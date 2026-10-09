@@ -1,0 +1,5 @@
+node_modules
+dist
+koma.html
+*.local
+.DS_Store
