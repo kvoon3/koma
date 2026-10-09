@@ -1,0 +1,81 @@
+.statusbar {
+  flex: 0 0 var(--statusH);
+  display: flex;
+  align-items: stretch;
+  height: var(--statusH);
+  padding: 0 6px;
+  background: var(--statusbar);
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  position: relative;
+  z-index: 40;
+}
+.zone { display: flex; align-items: center; gap: 2px; }
+.zone.mid { flex: 1; justify-content: center; gap: 16px; overflow: hidden; }
+.zone.right { justify-content: flex-end; gap: 5px; }
+
+.flat {
+  background: transparent;
+  border: 0;
+  color: var(--dim);
+  padding: 3px 9px;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.flat:hover:not(:disabled) { background: var(--chipHover); color: var(--txt); }
+.flat:disabled { opacity: 0.35; cursor: default; }
+.flat.on { background: var(--chipOn); color: var(--chipOnTxt); }
+.flat.strong { color: var(--txt); background: var(--chipStrong); }
+.flat.strong:hover:not(:disabled) { background: var(--accent); color: var(--onAccent); }
+.flat b { font-weight: 600; color: var(--accent2); font-variant-numeric: tabular-nums; }
+
+.kv { color: var(--txt); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kv em {
+  font-style: normal;
+  color: var(--faint);
+  margin-right: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+.kv.loud { color: var(--accent2); }
+
+select.mini {
+  background: transparent;
+  color: var(--dim);
+  border: 0;
+  border-radius: 5px;
+  padding: 3px 4px;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+select.mini:hover { background: var(--chipHover); color: var(--txt); }
+select.mini option { background: var(--panel2); color: var(--txt); }
+
+.bui-tip-positioner {
+  z-index: 100;
+  pointer-events: none;
+}
+.bui-tip-popup {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--txt);
+  font-size: 11px;
+  padding: 4px 8px;
+  pointer-events: none;
+  transform-origin: var(--transform-origin);
+  transition: opacity 100ms ease-out, transform 100ms ease-out;
+}
+.bui-tip-popup[data-starting-style],
+.bui-tip-popup[data-ending-style] {
+  opacity: 0;
+  transform: translateY(4px);
+}
+.bui-tip-popup[data-instant] { transition: none; }

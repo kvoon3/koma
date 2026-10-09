@@ -1,8 +1,10 @@
+import { Drawer } from '@base-ui/react/drawer'
 import { findLeaf, leafList } from '../lib/panes'
 import { useStore } from '../store'
 import { Library } from './Library'
+import './drawers.css'
 
-export function LibraryDrawer({ onClose }: { onClose: () => void }) {
+export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () => void }) {
   const photos = useStore(s => s.photos)
   const assign = useStore(s => s.assign)
   const focusId = useStore(s => s.focusId)
@@ -35,50 +37,63 @@ export function LibraryDrawer({ onClose }: { onClose: () => void }) {
       : 'No photos yet. Click "+ Photo / + Folder" or drop files into the window.'
 
   return (
-    <div className="drawer">
-      <header>
-        <strong>Library</strong>
-        <span className="hint dim">{hint}</span>
-        <span className="spacer" />
-        {pick && (
-          <button
-            className="flat on"
-            onClick={cancelStickerPick}
-            title="Shortcut: Esc"
-          >
-            Done placing
-          </button>
-        )}
-        <button className="flat" onClick={() => autoFill()} disabled={!photos.length}>
-          Fill empty panes
-        </button>
-        <button className="flat" onClick={clearLibrary} disabled={!photos.length}>
-          Clear
-        </button>
-        <button
-          className="flat"
-          onClick={() => {
-            cancelStickerPick()
-            onClose()
-          }}
-          title="Shortcut: L"
-        >
-          Hide
-        </button>
-      </header>
-      <Library
-        photos={photos}
-        activeId={pick ? null : activeId}
-        layout="row"
-        onPick={(id) => {
-          if (pick) {
-            addSticker(pick.paneId, id)
-          }
-          else if (focusId) {
-            assign(focusId, id)
-          }
-        }}
-      />
-    </div>
+    <Drawer.Root
+      open={open}
+      onOpenChange={(o) => {
+        if (!o)
+          onClose()
+      }}
+      swipeDirection="down"
+    >
+      <Drawer.Portal>
+        <Drawer.Backdrop className="bui-drawer-backdrop" />
+        <Drawer.Viewport className="bui-drawer-viewport">
+          <Drawer.Popup className="bui-drawer-popup bui-drawer-popup-lib">
+            <Drawer.Content className="bui-drawer-content">
+              <header className="bui-drawer-head">
+                <Drawer.Title className="bui-drawer-title">Library</Drawer.Title>
+                <span className="bui-drawer-hint">{hint}</span>
+                <span className="bui-drawer-spacer" />
+                {pick && (
+                  <button
+                    className="flat on"
+                    onClick={cancelStickerPick}
+                    title="Shortcut: Esc"
+                  >
+                    Done placing
+                  </button>
+                )}
+                <button className="flat" onClick={() => autoFill()} disabled={!photos.length}>
+                  Fill empty panes
+                </button>
+                <button className="flat" onClick={clearLibrary} disabled={!photos.length}>
+                  Clear
+                </button>
+                <Drawer.Close
+                  className="flat"
+                  onClick={cancelStickerPick}
+                  title="Shortcut: L"
+                >
+                  Hide
+                </Drawer.Close>
+              </header>
+              <Library
+                photos={photos}
+                activeId={pick ? null : activeId}
+                layout="row"
+                onPick={(id) => {
+                  if (pick) {
+                    addSticker(pick.paneId, id)
+                  }
+                  else if (focusId) {
+                    assign(focusId, id)
+                  }
+                }}
+              />
+            </Drawer.Content>
+          </Drawer.Popup>
+        </Drawer.Viewport>
+      </Drawer.Portal>
+    </Drawer.Root>
   )
 }

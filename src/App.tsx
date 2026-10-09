@@ -1,12 +1,15 @@
 import type { ExportOptions } from './lib/exporter'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CropDialog } from './components/CropDialog'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { Stage } from './components/Stage'
 import { StatusBar } from './components/StatusBar'
+import ToastHost from './components/ToastHost'
 import { buildCropReport, downloadBlob, outputSizeFor, renderCollage } from './lib/exporter'
 import { leafList } from './lib/panes'
+import { say } from './lib/toast'
 import { isTransparentBg, photoMap, useStore } from './store'
 import { usePersisted } from './usePersisted'
 import { useTheme } from './useTheme'
@@ -28,7 +31,6 @@ const sizeFor = outputSizeFor
 
 export default function App() {
   const [busy, setBusy] = useState(false)
-  const [toast, setToast] = useState('')
   const [report, setReport] = useState<string | null>(null)
 
   const [libOpen, setLibOpen] = usePersisted('libOpen', false)
@@ -45,18 +47,10 @@ export default function App() {
     }
   }, [stickerPick, setLibOpen, setSettingsOpen])
 
-  const toastTimerRef = useRef<number | undefined>(undefined)
-
   const longSide = useStore(s => s.longSide)
   const canvasRatio = useStore(s => s.canvasRatio)
   const ratio = canvasRatio ?? 1.5
   const size = useMemo(() => sizeFor(longSide, ratio), [longSide, ratio])
-
-  const say = useCallback((msg: string) => {
-    setToast(msg)
-    window.clearTimeout(toastTimerRef.current)
-    toastTimerRef.current = window.setTimeout(setToast, 2400, '')
-  }, [])
 
   const hasPhotos = useStore(s => s.photos.length > 0)
 
@@ -83,7 +77,7 @@ export default function App() {
     finally {
       setBusy(false)
     }
-  }, [say])
+  }, [])
 
   const doCrops = useCallback(() => setReport(buildCropReport(exportOptions())), [])
 
@@ -179,19 +173,12 @@ export default function App() {
       window.removeEventListener('dragover', over)
       window.removeEventListener('drop', drop)
     }
-  }, [say, setLibOpen])
+  }, [setLibOpen])
 
   const closeHelp = () => setHelpOpen(false)
 
   return (
-    <div
-      className="app"
-      style={
-        {
-          '--drawer-h': libOpen ? '158px' : settingsOpen ? 'min(264px, 46vh)' : '0px',
-        } as React.CSSProperties
-      }
-    >
+    <div className="app">
       <main className="main">
         <Stage />
         {!hasPhotos && !helpOpen && (
@@ -258,42 +245,14 @@ export default function App() {
         size={size}
       />
 
-      {libOpen && <LibraryDrawer onClose={() => setLibOpen(false)} />}
-      {settingsOpen && (
-        <SettingsDrawer onClose={() => setSettingsOpen(false)} computedSize={size} />
-      )}
+      <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} />
+      <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {helpOpen && <HelpOverlay onClose={closeHelp} />}
+      <HelpOverlay open={helpOpen} onClose={closeHelp} />
 
-      {toast && <div className="toast">{toast}</div>}
+      <ToastHost />
 
-      {report != null && (
-        <div className="overlay" onClick={e => e.target === e.currentTarget && setReport(null)}>
-          <div className="card wide">
-            <header>
-              <strong>Per-pane crop parameters</strong>
-              <div className="actions">
-                <button
-                  className="flat"
-                  onClick={() => navigator.clipboard?.writeText(report).then(() => say('Copied'))}
-                >
-                  Copy
-                </button>
-                <button
-                  className="flat"
-                  onClick={() => downloadBlob(new Blob([report], { type: 'text/plain' }), 'crop.sh')}
-                >
-                  Download crop.sh
-                </button>
-                <button className="flat" onClick={() => setReport(null)}>
-                  Close
-                </button>
-              </div>
-            </header>
-            <textarea readOnly value={report} spellCheck={false} />
-          </div>
-        </div>
-      )}
+      <CropDialog report={report} onClose={() => setReport(null)} />
     </div>
   )
 }

@@ -1,3 +1,6 @@
+import { Dialog } from '@base-ui/react/dialog'
+import './help.css'
+
 const KEYS: [string, string][] = [
   ['V', 'Split the focused pane left/right'],
   ['S', 'Split the focused pane top/bottom'],
@@ -22,59 +25,66 @@ const MOUSE: [string, string][] = [
   ['Drop a photo onto a pane', 'It goes straight into that pane (multi-select allowed; the first one is used)'],
 ]
 
-export function HelpOverlay({ onClose }: { onClose: () => void }) {
+export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => void }) {
   return (
-    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="card">
-        <header>
-          <strong>How to use</strong>
-          <button className="flat" onClick={onClose}>
-            Close
-          </button>
-        </header>
-        <p className="intro">
-          You start with a single pane. Use the two buttons at the top center of a pane to
-          {' '}
-          <strong>split</strong>
-          {' '}
-          out more panes,
-          and drag dividers to resize them — like panes in a terminal.
-          Each photo lives in a pane; drag / zoom inside it, and
-          {' '}
-          <strong>whatever falls outside the pane is cropped away</strong>
-          ,
-          so arranging panes and zooming photos is all there is to cropping and stitching.
-          Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo.
-        </p>
-        <div className="cols">
-          <div>
-            <h5>Keyboard</h5>
-            <dl>
-              {KEYS.map(([k, v]) => (
-                <div key={k}>
-                  <dt>
-                    <kbd>{k}</kbd>
-                  </dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(o) => {
+        if (!o)
+          onClose()
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Backdrop className="bui-help-backdrop" />
+        <Dialog.Popup className="bui-help-popup">
+          <header className="bui-help-header">
+            <Dialog.Title className="bui-help-title">How to use</Dialog.Title>
+            <Dialog.Close className="bui-help-close" aria-label="Close">×</Dialog.Close>
+          </header>
+          <p className="bui-help-intro">
+            You start with a single pane. Use the two buttons at the top center of a pane to
+            {' '}
+            <strong>split</strong>
+            {' '}
+            out more panes,
+            and drag dividers to resize them — like panes in a terminal.
+            Each photo lives in a pane; drag / zoom inside it, and
+            {' '}
+            <strong>whatever falls outside the pane is cropped away</strong>
+            ,
+            so arranging panes and zooming photos is all there is to cropping and stitching.
+            Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo.
+          </p>
+          <div className="bui-help-cols">
+            <div>
+              <h5 className="bui-help-h5">Keyboard</h5>
+              <dl className="bui-help-dl">
+                {KEYS.map(([k, v]) => (
+                  <div key={k}>
+                    <dt>
+                      <kbd>{k}</kbd>
+                    </dt>
+                    <dd>{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <div>
+              <h5 className="bui-help-h5">Mouse / Trackpad</h5>
+              <dl className="bui-help-dl">
+                {MOUSE.map(([k, v]) => (
+                  <div key={k}>
+                    <dt>
+                      <kbd>{k}</kbd>
+                    </dt>
+                    <dd>{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           </div>
-          <div>
-            <h5>Mouse / Trackpad</h5>
-            <dl>
-              {MOUSE.map(([k, v]) => (
-                <div key={k}>
-                  <dt>
-                    <kbd>{k}</kbd>
-                  </dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </div>
-    </div>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }
