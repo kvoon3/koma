@@ -1,113 +1,132 @@
 :root {
   color-scheme: light;
-  --bg: #f7f7f8;
+  --bg: #f9f9f9;
   --panel: #ffffff;
-  --panel2: #f4f4f5;
-  --line: #e6e6e9;
-  --txt: #111113;
-  --dim: #71717a;
-  --faint: #a1a1aa;
-  --accent: #18181b;
-  --accent2: #18181b;
+  --panel2: #f3f3f3;
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: #e0e0e0;
+  --txt: #2e2e2e;
+  --dim: #767676;
+  --faint: #8c8c8c;
+  --accent: #036ffc;
+  --accent2: #2660df;
+  --onAccent: #ffffff;
   --statusH: 31px;
 
-  --statusbar: #ffffff;
+  --statusbar: #f9f9f9;
   --drawerBg: #ffffff;
 
-  --chipHover: #f4f4f5;
-  --chipOn: #f4f4f5;
-  --chipOnTxt: #111113;
-  --chipStrong: #efeff1;
+  --chipHover: #f3f3f3;
+  --chipOn: #e6f5ff;
+  --chipOnTxt: #2660df;
+  --chipStrong: #f0f0f0;
 
-  --stageA: #f2f2f4;
-  --stageB: #f2f2f4;
-  --stageClear: #d9d9de;
-  --stageClearSq: #e9e9ec;
+  --stageA: #f0f0f0;
+  --stageB: #f0f0f0;
+  --stageClear: #e0e0e0;
+  --stageClearSq: #ebebeb;
 
   --paneBg: #ffffff;
-  --paneEmpty: #fafafa;
-  --paneHint: rgba(24, 24, 27, 0.5);
+  --paneEmpty: #f9f9f9;
+  --paneHint: rgba(46, 46, 46, 0.5);
 
   --floatBg: rgba(255, 255, 255, 0.92);
   --floatLine: rgba(0, 0, 0, 0.08);
   --floatBg2: rgba(255, 255, 255, 0.96);
-  --floatLine2: rgba(0, 0, 0, 0.12);
-  --floatIcon: #3f3f46;
-  --handleTxt: #71717a;
-  --danger: #dc2626;
-  --onAccent: #ffffff;
+  --floatLine2: rgba(0, 0, 0, 0.14);
+  --floatIcon: #525252;
+  --handleTxt: #767676;
+  --danger: #e43411;
 
   --badgeBg: rgba(255, 255, 255, 0.92);
   --welcomeBg: #ffffff;
-  --overlayDim: rgba(24, 24, 27, 0.32);
+  --overlayDim: rgba(0, 0, 0, 0.4);
   --toastBg: #ffffff;
 
-  --stripThumb: #d4d4d8;
-  --thumbBg: #f4f4f5;
-  --thumbHover: #c9c9cf;
+  --stripThumb: #e0e0e0;
+  --thumbBg: #f3f3f3;
+  --thumbHover: #e0e0e0;
 
-  --kbdBg: #f4f4f5;
-  --kbdLine: #e4e4e7;
-  --kbdTxt: #3f3f46;
-  --codeBg: #18181b;
-  --codeTxt: #e4e4e7;
+  --kbdBg: #f0f0f0;
+  --kbdLine: #e0e0e0;
+  --kbdTxt: #2e2e2e;
+  --codeBg: #fcfcfc;
+  --codeTxt: #2e2e2e;
 
-  --radius: 10px;
-  --radius-s: 8px;
-  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(0, 0, 0, 0.1);
+  --radius: 12px;
+  --radius-s: 6px;
+  --shadow-pop: 0 1px 1px 0 rgba(0, 0, 0, 0.04),
+    0 2px 4px -1px rgba(0, 0, 0, 0.04),
+    0 4px 8px -2px rgba(0, 0, 0, 0.04),
+    0 12px 32px -6px rgba(0, 0, 0, 0.12),
+    0 20px 48px -10px rgba(0, 0, 0, 0.04);
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #101012;
-  --panel: #17171a;
-  --panel2: #202023;
-  --line: #2a2a2f;
-  --txt: #f4f4f5;
-  --dim: #8e8e96;
-  --faint: #63636b;
-  --accent: #f4f4f5;
-  --accent2: #f4f4f5;
-  --statusbar: #131316;
-  --drawerBg: #131316;
+  --bg: #000000;
+  --panel: #131313;
+  --panel2: #1a1a1a;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: #525252;
+  --txt: #e6e6e6;
+  --dim: #b3b3b3;
+  --faint: #999999;
+  --accent: #398cf9;
+  --accent2: #589ef9;
+  --onAccent: #101114;
+  --statusbar: #0a0a0a;
+  --drawerBg: #131313;
 
-  --chipHover: #232327;
-  --chipOn: #2a2a2f;
-  --chipOnTxt: #fafafa;
-  --chipStrong: #26262b;
+  --chipHover: #1a1a1a;
+  --chipOn: #14213d;
+  --chipOnTxt: #b8dbff;
+  --chipStrong: #212121;
 
-  --stageA: #161618;
-  --stageB: #161618;
-  --stageClear: #3a3a41;
-  --stageClearSq: #232327;
+  --stageA: #0d0d0d;
+  --stageB: #0d0d0d;
+  --stageClear: #525252;
+  --stageClearSq: #212121;
 
-  --paneBg: #1b1b1f;
-  --paneEmpty: #17171a;
-  --paneHint: rgba(244, 244, 245, 0.5);
+  --paneBg: #131313;
+  --paneEmpty: #050505;
+  --paneHint: rgba(230, 230, 230, 0.45);
 
-  --floatBg: rgba(23, 23, 26, 0.92);
+  --floatBg: rgba(19, 19, 19, 0.92);
   --floatLine: rgba(255, 255, 255, 0.1);
-  --floatBg2: rgba(23, 23, 26, 0.96);
-  --floatLine2: rgba(255, 255, 255, 0.16);
-  --floatIcon: #d4d4d8;
-  --handleTxt: #a1a1aa;
-  --danger: #ef4444;
-  --onAccent: #111113;
+  --floatBg2: rgba(19, 19, 19, 0.96);
+  --floatLine2: rgba(255, 255, 255, 0.18);
+  --floatIcon: #d4d4d4;
+  --handleTxt: #b3b3b3;
+  --danger: #fb6446;
 
-  --badgeBg: rgba(19, 19, 22, 0.92);
-  --welcomeBg: #1b1b1e;
-  --overlayDim: rgba(0, 0, 0, 0.55);
-  --toastBg: #202024;
+  --badgeBg: rgba(19, 19, 19, 0.92);
+  --welcomeBg: #131313;
+  --overlayDim: rgba(0, 0, 0, 0.6);
+  --toastBg: #131313;
 
-  --stripThumb: #3f3f46;
-  --thumbBg: #232327;
-  --thumbHover: #52525b;
+  --stripThumb: #333333;
+  --thumbBg: #1a1a1a;
+  --thumbHover: #333333;
 
-  --kbdBg: #202024;
-  --kbdLine: #333338;
-  --kbdTxt: #d4d4d8;
-  --codeBg: #111113;
-  --codeTxt: #e4e4e7;
+  --kbdBg: #1a1a1a;
+  --kbdLine: #333333;
+  --kbdTxt: #e6e6e6;
+  --codeBg: #131313;
+  --codeTxt: #e6e6e6;
+
+  --radius: 12px;
+  --radius-s: 6px;
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 12px 32px -6px rgba(0, 0, 0, 0.5);
+}
+
+::selection {
+  background: #ebebeb;
+}
+
+:root[data-theme='dark'] ::selection {
+  background: #2e2e2e;
 }
 
 * { box-sizing: border-box; }
@@ -224,7 +243,7 @@ body {
   color: var(--floatIcon);
   cursor: pointer;
 }
-.paneBtn:hover { background: var(--accent); color: var(--onAccent); }
+.paneBtn:hover { background: var(--chipHover); color: var(--txt); }
 
 .paneClose {
   position: absolute;
@@ -455,7 +474,7 @@ input.num {
 }
 .sticker:hover .stickerResize,
 .sticker:hover .stickerDel { opacity: 1; }
-.paneBtn.on { background: var(--accent); color: var(--onAccent); }
+.paneBtn.on { background: var(--chipOn); color: var(--chipOnTxt); }
 
 @media (pointer: coarse) {
   .paneBtn { width: 32px; height: 30px; }
