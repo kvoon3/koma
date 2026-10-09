@@ -150,7 +150,7 @@ function walk(node: Node, rect: Rect, gap: number, out: TreeLayout) {
 
 export function layoutTree(root: Node, W: number, H: number, gap: number): TreeLayout {
   const out: TreeLayout = { leaves: [], dividers: [] }
-  walk(root, { x: 0, y: 0, w: W, h: H }, gap, out)
+  walk(root, { x: gap, y: gap, w: Math.max(0, W - gap * 2), h: Math.max(0, H - gap * 2) }, gap, out)
   return out
 }
 
