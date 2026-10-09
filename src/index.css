@@ -1,132 +1,127 @@
 :root {
   color-scheme: light;
-  --bg: #f9f9f9;
+  --bg: #fafafa;
   --panel: #ffffff;
-  --panel2: #f3f3f3;
-  --line: rgba(0, 0, 0, 0.08);
-  --line-strong: #e0e0e0;
-  --txt: #2e2e2e;
-  --dim: #767676;
-  --faint: #8c8c8c;
-  --accent: #036ffc;
-  --accent2: #2660df;
+  --panel2: #f5f5f5;
+  --line: #e5e5e5;
+  --line-strong: #d4d4d4;
+  --txt: #171717;
+  --dim: #737373;
+  --faint: #a3a3a3;
+  --ring: #a3a3a3;
+  --accent: #171717;
+  --accent2: #171717;
   --onAccent: #ffffff;
   --statusH: 31px;
 
-  --statusbar: #f9f9f9;
+  --statusbar: #ffffff;
   --drawerBg: #ffffff;
 
-  --chipHover: #f3f3f3;
-  --chipOn: #e6f5ff;
-  --chipOnTxt: #2660df;
-  --chipStrong: #f0f0f0;
+  --chipHover: #f5f5f5;
+  --chipOn: #f5f5f5;
+  --chipOnTxt: #171717;
+  --chipStrong: #f5f5f5;
 
-  --stageA: #f0f0f0;
-  --stageB: #f0f0f0;
-  --stageClear: #e0e0e0;
+  --stageA: #ffffff;
+  --stageB: #f5f5f5;
+  --stageClear: #d4d4d4;
   --stageClearSq: #ebebeb;
 
   --paneBg: #ffffff;
-  --paneEmpty: #f9f9f9;
-  --paneHint: rgba(46, 46, 46, 0.5);
+  --paneEmpty: #fafafa;
+  --paneHint: rgba(23, 23, 23, 0.45);
 
-  --floatBg: rgba(255, 255, 255, 0.92);
-  --floatLine: rgba(0, 0, 0, 0.08);
-  --floatBg2: rgba(255, 255, 255, 0.96);
-  --floatLine2: rgba(0, 0, 0, 0.14);
+  --floatBg: rgba(255, 255, 255, 0.94);
+  --floatLine: #e5e5e5;
+  --floatBg2: #ffffff;
+  --floatLine2: #d4d4d4;
   --floatIcon: #525252;
-  --handleTxt: #767676;
-  --danger: #e43411;
+  --handleTxt: #737373;
+  --danger: #dc2626;
 
-  --badgeBg: rgba(255, 255, 255, 0.92);
-  --welcomeBg: #ffffff;
-  --overlayDim: rgba(0, 0, 0, 0.4);
+  --badgeBg: rgba(255, 255, 255, 0.94);
+  --overlayDim: rgba(23, 23, 23, 0.4);
   --toastBg: #ffffff;
 
-  --stripThumb: #e0e0e0;
-  --thumbBg: #f3f3f3;
-  --thumbHover: #e0e0e0;
+  --stripThumb: #d4d4d4;
+  --thumbBg: #f5f5f5;
+  --thumbHover: #d4d4d4;
 
-  --kbdBg: #f0f0f0;
-  --kbdLine: #e0e0e0;
-  --kbdTxt: #2e2e2e;
-  --codeBg: #fcfcfc;
-  --codeTxt: #2e2e2e;
+  --kbdBg: #f5f5f5;
+  --kbdLine: #e5e5e5;
+  --kbdTxt: #171717;
+  --codeBg: #fafafa;
+  --codeTxt: #171717;
 
-  --radius: 12px;
-  --radius-s: 6px;
-  --shadow-pop: 0 1px 1px 0 rgba(0, 0, 0, 0.04),
-    0 2px 4px -1px rgba(0, 0, 0, 0.04),
-    0 4px 8px -2px rgba(0, 0, 0, 0.04),
-    0 12px 32px -6px rgba(0, 0, 0, 0.12),
-    0 20px 48px -10px rgba(0, 0, 0, 0.04);
+  --radius: 0px;
+  --radius-s: 0px;
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px -6px rgba(0, 0, 0, 0.12);
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #000000;
-  --panel: #131313;
-  --panel2: #1a1a1a;
-  --line: rgba(255, 255, 255, 0.1);
-  --line-strong: #525252;
-  --txt: #e6e6e6;
-  --dim: #b3b3b3;
-  --faint: #999999;
-  --accent: #398cf9;
-  --accent2: #589ef9;
-  --onAccent: #101114;
+  --bg: #0a0a0a;
+  --panel: #171717;
+  --panel2: #262626;
+  --line: #262626;
+  --line-strong: #404040;
+  --txt: #f5f5f5;
+  --dim: #a3a3a3;
+  --faint: #737373;
+  --ring: #737373;
+  --accent: #f5f5f5;
+  --accent2: #f5f5f5;
+  --onAccent: #0a0a0a;
   --statusbar: #0a0a0a;
-  --drawerBg: #131313;
+  --drawerBg: #171717;
 
-  --chipHover: #1a1a1a;
-  --chipOn: #14213d;
-  --chipOnTxt: #b8dbff;
-  --chipStrong: #212121;
+  --chipHover: #262626;
+  --chipOn: #262626;
+  --chipOnTxt: #f5f5f5;
+  --chipStrong: #262626;
 
-  --stageA: #0d0d0d;
-  --stageB: #0d0d0d;
-  --stageClear: #525252;
-  --stageClearSq: #212121;
+  --stageA: #050505;
+  --stageB: #171717;
+  --stageClear: #404040;
+  --stageClearSq: #262626;
 
-  --paneBg: #131313;
-  --paneEmpty: #050505;
-  --paneHint: rgba(230, 230, 230, 0.45);
+  --paneBg: #171717;
+  --paneEmpty: #0a0a0a;
+  --paneHint: rgba(245, 245, 245, 0.4);
 
-  --floatBg: rgba(19, 19, 19, 0.92);
-  --floatLine: rgba(255, 255, 255, 0.1);
-  --floatBg2: rgba(19, 19, 19, 0.96);
-  --floatLine2: rgba(255, 255, 255, 0.18);
+  --floatBg: rgba(23, 23, 23, 0.94);
+  --floatLine: #262626;
+  --floatBg2: #171717;
+  --floatLine2: #404040;
   --floatIcon: #d4d4d4;
-  --handleTxt: #b3b3b3;
-  --danger: #fb6446;
+  --handleTxt: #a3a3a3;
+  --danger: #ef4444;
 
-  --badgeBg: rgba(19, 19, 19, 0.92);
-  --welcomeBg: #131313;
+  --badgeBg: rgba(23, 23, 23, 0.94);
   --overlayDim: rgba(0, 0, 0, 0.6);
-  --toastBg: #131313;
+  --toastBg: #171717;
 
-  --stripThumb: #333333;
-  --thumbBg: #1a1a1a;
-  --thumbHover: #333333;
+  --stripThumb: #404040;
+  --thumbBg: #262626;
+  --thumbHover: #404040;
 
-  --kbdBg: #1a1a1a;
-  --kbdLine: #333333;
-  --kbdTxt: #e6e6e6;
-  --codeBg: #131313;
-  --codeTxt: #e6e6e6;
+  --kbdBg: #262626;
+  --kbdLine: #404040;
+  --kbdTxt: #f5f5f5;
+  --codeBg: #171717;
+  --codeTxt: #f5f5f5;
 
-  --radius: 12px;
-  --radius-s: 6px;
-  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 12px 32px -6px rgba(0, 0, 0, 0.5);
+  --radius: 0px;
+  --radius-s: 0px;
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 24px -6px rgba(0, 0, 0, 0.6);
 }
 
 ::selection {
-  background: #ebebeb;
+  background: #e5e5e5;
 }
 
 :root[data-theme='dark'] ::selection {
-  background: #2e2e2e;
+  background: #262626;
 }
 
 * { box-sizing: border-box; }
@@ -220,7 +215,7 @@ body {
   display: flex;
   gap: 3px;
   padding: 3px;
-  border-radius: 9px;
+  border-radius: 0px;
   background: var(--floatBg);
   border: 1px solid var(--floatLine);
   backdrop-filter: blur(7px);
@@ -238,7 +233,7 @@ body {
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0px;
   background: transparent;
   color: var(--floatIcon);
   cursor: pointer;
@@ -255,7 +250,7 @@ body {
   padding: 0;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: 0px;
   background: var(--floatBg);
   border: 1px solid var(--floatLine);
   color: var(--floatIcon);
@@ -273,7 +268,7 @@ body {
 .divider.h { cursor: row-resize; }
 .divider span {
   position: absolute;
-  border-radius: 99px;
+  border-radius: 0px;
   background: transparent;
   transition: background 0.12s;
 }
@@ -290,7 +285,7 @@ body {
   height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 0px;
   background: var(--floatBg2);
   border: 1px solid var(--floatLine2);
   color: var(--handleTxt);
@@ -312,7 +307,7 @@ body {
   left: 16px;
   bottom: 14px;
   padding: 5px 11px;
-  border-radius: 7px;
+  border-radius: 0px;
   background: var(--badgeBg);
   border: 1px solid var(--line);
   color: var(--dim);
@@ -322,23 +317,6 @@ body {
 }
 .badge.loud { border-color: var(--accent); color: var(--txt); }
 .badge.loud em { color: var(--accent2); font-style: normal; }
-
-.welcome {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(480px, calc(100vw - 32px));
-  padding: 22px 26px;
-  border-radius: var(--radius);
-  background: var(--welcomeBg);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-pop);
-}
-.welcome h2 { margin: 0 0 6px; font-size: 17px; }
-.welcome p { margin: 0 0 14px; color: var(--dim); font-size: 12.5px; }
-.welcome ul { margin: 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; line-height: 2.1; }
-.welcome b { color: var(--txt); font-weight: 600; }
 
 .strip {
   display: flex;
@@ -350,7 +328,7 @@ body {
   align-items: flex-start;
 }
 .strip::-webkit-scrollbar { height: 9px; width: 8px; }
-.strip::-webkit-scrollbar-thumb { background: var(--stripThumb); border-radius: 9px; }
+.strip::-webkit-scrollbar-thumb { background: var(--stripThumb); border-radius: 0px; }
 
 .thumb {
   flex: 0 0 108px;
@@ -358,7 +336,7 @@ body {
   height: 72px;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: 6px;
+  border-radius: 0px;
   overflow: hidden;
   background: var(--thumbBg);
   cursor: pointer;
@@ -380,7 +358,7 @@ body {
   overflow-y: auto;
 }
 .settingsBody::-webkit-scrollbar { width: 8px; }
-.settingsBody::-webkit-scrollbar-thumb { background: var(--stripThumb); border-radius: 8px; }
+.settingsBody::-webkit-scrollbar-thumb { background: var(--stripThumb); border-radius: 0px; }
 .sgroup { display: flex; flex-direction: column; gap: 7px; }
 .sgroup > h4 { margin: 0; font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
 .sgroup .shint { margin: 0; color: var(--faint); font-size: 11.5px; }
@@ -394,7 +372,7 @@ body {
   font-size: 12px;
 }
 .chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.chips button { padding: 4px 11px; font-size: 12px; border-radius: 7px; }
+.chips button { padding: 4px 11px; font-size: 12px; border-radius: 0px; }
 .chips .unit { color: var(--faint); font-size: 11.5px; }
 .chips .outSize {
   color: var(--accent2);
@@ -407,7 +385,7 @@ body {
   height: 27px;
   padding: 0;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 0px;
   background: var(--panel2);
   cursor: pointer;
 }
@@ -416,7 +394,7 @@ input.num {
   background: var(--panel2);
   color: var(--txt);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 0px;
   padding: 5px 7px;
   font: inherit;
   font-size: 12px;

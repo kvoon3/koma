@@ -6,7 +6,7 @@
   left: auto;
   top: auto;
   width: min(340px, calc(100vw - 20px));
-  border-radius: var(--radius-s, 8px);
+  border-radius: 0px;
   margin: 0;
   outline: 0;
 }

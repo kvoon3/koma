@@ -52,8 +52,6 @@ export default function App() {
   const ratio = canvasRatio ?? 1.5
   const size = useMemo(() => sizeFor(longSide, ratio), [longSide, ratio])
 
-  const hasPhotos = useStore(s => s.photos.length > 0)
-
   const doExport = useCallback(async () => {
     setBusy(true)
     say('Rendering at original resolution...')
@@ -181,51 +179,6 @@ export default function App() {
     <div className="app">
       <main className="main">
         <Stage />
-        {!hasPhotos && !helpOpen && (
-          <div className="welcome">
-            <h2>Drop photos here</h2>
-            <p>Or click "+ Photos / + Folder" in the status bar. Photos stay on your device and are never uploaded.</p>
-            <ul>
-              <li>
-                The two buttons at the top center of a pane
-                {' -> '}
-                <b>split top/bottom or left/right</b>
-              </li>
-              <li>
-                Drag the
-                {' '}
-                <b>divider</b>
-                {' '}
-                to resize sections
-              </li>
-              <li>
-                Inside a pane,
-                {' '}
-                <b>drag / scroll to zoom</b>
-                {' -> '}
-                anything outside is cropped automatically
-              </li>
-              <li>
-                <kbd>V</kbd>
-                {' '}
-                split left/right ·
-                <kbd>S</kbd>
-                {' '}
-                split top/bottom ·
-                <kbd>L</kbd>
-                {' '}
-                library ·
-                {' '}
-                <kbd>,</kbd>
-                {' '}
-                settings ·
-                <kbd>?</kbd>
-                {' '}
-                all shortcuts
-              </li>
-            </ul>
-          </div>
-        )}
       </main>
 
       <StatusBar

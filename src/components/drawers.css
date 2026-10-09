@@ -42,7 +42,7 @@
   color: var(--txt);
   border: 1px solid var(--line);
   border-bottom: 0;
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: 0px;
   outline: 0;
   box-shadow: var(--shadow-pop);
   overflow: hidden;
@@ -215,7 +215,7 @@
 .bui-drawer-seg {
   display: inline-flex;
   border: 1px solid var(--line);
-  border-radius: var(--radius-s);
+  border-radius: 0px;
   overflow: hidden;
   background: var(--panel2);
 }
