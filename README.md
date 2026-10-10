@@ -35,7 +35,7 @@ Requires [mise](https://mise.jdx.dev) (provides Bun) — `mise.toml` pins `bun =
 **Not a row/column grid — a binary tree.**
 
 ```
-start                press V              focus right half, press S
+start                press V              focus right half (L), press S
 ┌────────┐        ┌───┬────┐          ┌───┬────┐
 │        │   →    │   │    │    →     │   │    │
 └────────┘        └───┴────┘          │   ├────┤
@@ -74,13 +74,14 @@ rows.
 
 | Key | Action |
 |---|---|
-| `V` | Split focused pane left/right |
-| `S` | Split focused pane top/bottom |
+| `H J K L` | Focus the pane left / down / up / right (vim-style) |
+| `V` | Split focused pane left/right (vsplit) |
+| `S` | Split focused pane top/bottom (split) |
 | `X` | Close focused pane |
 | `Tab` | Cycle focused pane |
 | `R` | Reset focused pane's photo |
-| `L` | Library drawer |
-| `,` | Settings drawer (theme / gap / radius / canvas fill / export size) |
+| `I` | Library drawer |
+| `,` | Settings drawer (gap / radius / canvas fill / export size) |
 | `⌘E` | Export collage |
 | `C` | Export crop report |
 | `?` | Help |

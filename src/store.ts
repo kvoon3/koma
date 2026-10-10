@@ -1,5 +1,5 @@
 import type { Photo } from './lib/imageStore'
-import type { Divider, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
+import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import { create } from 'zustand'
 import { looksHeic, probeHeic } from './lib/heic'
 import { clearImageCaches, probeJpeg } from './lib/imageStore'
@@ -9,9 +9,10 @@ import {
   layoutTree,
 
   leafList,
+  neighborLeaf,
   newLabel,
-  newLeaf,
 
+  newLeaf,
   removeLeaf,
   setSplitRatioIn,
   splitLeaf,
@@ -44,6 +45,7 @@ interface Actions {
   assign: (paneId: string, photoId: string) => void
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
   focus: (paneId: string) => void
+  focusNeighbor: (dir: FocusDir) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
   setCanvasSize: (ratio: number, fill: number) => void
@@ -174,6 +176,24 @@ export const useStore = create<State & Actions>((set, get) => ({
   updateLeaf: (paneId, patch) => set(s => ({ root: updateLeafIn(s.root, paneId, patch) })),
 
   focus: paneId => set({ focusId: paneId }),
+  focusNeighbor: (dir) => {
+    const s = get()
+    if (!s.focusId)
+      return
+    const W = 1200
+    const H = Math.round(W / (s.canvasRatio ?? 1.5))
+    const { leaves } = layoutTree(s.root, W, H, 1)
+    const cur = leaves.find(l => l.node.id === s.focusId)
+    if (!cur)
+      return
+    const next = neighborLeaf(
+      leaves.filter(l => l.node.id !== s.focusId),
+      cur.rect,
+      dir,
+    )
+    if (next)
+      set({ focusId: next.id })
+  },
 
   autoFill: () =>
     set((s) => {
