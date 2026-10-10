@@ -616,9 +616,12 @@ function PaneImpl({
     if (!el)
       return
     const handler = (e: WheelEvent) => {
+      // Pinch/ctrl+wheel must never fall through to browser page zoom, even
+      // when this pane has nothing to zoom (the stage forwards these here).
+      if (e.ctrlKey || (leaf.photoId && iw && ih))
+        e.preventDefault()
       if (!leaf.photoId || !iw || !ih)
         return
-      e.preventDefault()
       const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0012))
       const p = local(e.clientX, e.clientY)
       zoomAbout(leaf, leaf.zoom * factor, p.x, p.y)
@@ -646,6 +649,7 @@ function PaneImpl({
   const paneNode = (
     <div
       ref={elRef}
+      data-pane-id={leaf.id}
       className={
         `group/pane absolute cursor-grab touch-none overflow-hidden bg-pane-bg outline-1 outline-line -outline-offset-1 [contain:paint]${
           focused

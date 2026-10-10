@@ -165,6 +165,26 @@ export function Stage() {
     }
   }, [sizing, setCanvasSize])
 
+  useEffect(() => {
+    // Pinch/ctrl+wheel over the canvas background (or a pane without a photo)
+    // must never zoom the browser page: send it to the focused pane instead.
+    const el = wrapRef.current
+    if (!el)
+      return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey || e.defaultPrevented)
+        return
+      e.preventDefault()
+      const { focusId } = useStore.getState()
+      if (!focusId)
+        return
+      el.querySelector<HTMLElement>(`[data-pane-id="${CSS.escape(focusId)}"]`)
+        ?.dispatchEvent(new WheelEvent('wheel', e))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [wrapRef])
+
   const resetRatio = useCallback(() => {
     const first = photos.find(p => p.trueW)
     patch({ canvasRatio: first ? first.trueW / first.trueH : null, canvasFill: 1 })
@@ -173,7 +193,7 @@ export function Stage() {
   return (
     <div
       ref={wrapRef}
-      className={`stage-checker absolute inset-0 flex items-center justify-center${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
+      className={`stage-checker absolute inset-0 flex touch-none items-center justify-center${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) {
           focus('')
