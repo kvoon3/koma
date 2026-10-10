@@ -62,7 +62,7 @@ export function newLeaf(): Leaf {
 export const DEFAULT_LABEL_SIZE = 42
 
 export function newLabel(): PaneLabel {
-  return { text: 'Label', font: '', x: 0.5, y: 0.09, size: DEFAULT_LABEL_SIZE }
+  return { text: 'Label', font: '', x: 0.5, y: 0.5, size: DEFAULT_LABEL_SIZE }
 }
 
 // Shared by preview and export: white-box rect for a label, centered on (lab.x, lab.y),

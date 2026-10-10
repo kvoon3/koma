@@ -16,7 +16,7 @@ const KEYS: [string, string][] = [
   ['⌘E', 'Export the collage'],
   ['C', 'Export crop params (ImageMagick command)'],
   ['?', 'This help'],
-  ['Esc', 'Close drawer / unfocus'],
+  ['Esc', 'Close drawer / deselect label / unfocus'],
 ]
 
 const MOUSE: [string, string][] = [
@@ -29,7 +29,7 @@ const MOUSE: [string, string][] = [
   ['Right-click an unfocused pane', 'Menu: swap its photo with the focused pane'],
   ['Drop a photo onto a pane', 'It goes straight into that pane (multi-select allowed; the first one is used)'],
   ['Press and hold inside a pane', 'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop — export always uses the still'],
-  ['"Text" button on a pane', 'Add a text label (black on white) — drag to move, corner to resize, double-click to edit; pick a font from the hover toolbar (falls back to system fonts offline)'],
+  ['"Text" button on a pane', 'Add a text label (black on white) — click it to select and pin its toolbar (font picker, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
 ]
 
 export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => void }) {

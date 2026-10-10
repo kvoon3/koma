@@ -35,6 +35,7 @@ export interface State {
   format: 'image/jpeg' | 'image/png'
   quality: number
   stickerPick: { paneId: string, x: number, y: number } | null
+  labelSel: string | null
 }
 
 interface Actions {
@@ -49,6 +50,7 @@ interface Actions {
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
   focus: (paneId: string) => void
   focusNeighbor: (dir: FocusDir) => void
+  selectLabel: (paneId: string | null) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
   setCanvasSize: (ratio: number, fill: number) => void
@@ -93,6 +95,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   format: 'image/jpeg',
   quality: 0.92,
   stickerPick: null,
+  labelSel: null,
 
   addPhotos: (files, autoFill = true) => {
     const { images, videos } = splitLiveFiles(files)
@@ -157,6 +160,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       gap: s.gap,
       radius: s.radius,
       bg: s.bg,
+      labelSel: null,
     }))
   },
 
@@ -176,7 +180,11 @@ export const useStore = create<State & Actions>((set, get) => ({
       if (!next || next === s.root)
         return {}
       const leaves = leafList(next)
-      return { root: next, focusId: leaves.some(l => l.id === s.focusId) ? s.focusId : leaves[0].id }
+      return {
+        root: next,
+        focusId: leaves.some(l => l.id === s.focusId) ? s.focusId : leaves[0].id,
+        labelSel: s.labelSel === paneId ? null : s.labelSel,
+      }
     }),
 
   resizeSplit: (splitId, ratio) => set(s => ({ root: setSplitRatioIn(s.root, splitId, ratio) })),
@@ -242,6 +250,8 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (next)
       set({ focusId: next.id })
   },
+
+  selectLabel: paneId => set({ labelSel: paneId }),
 
   autoFill: () =>
     set((s) => {
@@ -312,9 +322,11 @@ export const useStore = create<State & Actions>((set, get) => ({
   ensureLabel: paneId =>
     set((s) => {
       const pane = findLeaf(s.root, paneId)
-      if (!pane || pane.label)
+      if (!pane)
         return {}
-      return { root: updateLeafIn(s.root, paneId, { label: newLabel() }) }
+      if (pane.label)
+        return { labelSel: paneId }
+      return { root: updateLeafIn(s.root, paneId, { label: newLabel() }), labelSel: paneId }
     }),
 
   setLabel: (paneId, patch) =>
@@ -329,7 +341,10 @@ export const useStore = create<State & Actions>((set, get) => ({
     }),
 
   removeLabel: paneId =>
-    set(s => ({ root: updateLeafIn(s.root, paneId, { label: null }) })),
+    set(s => ({
+      root: updateLeafIn(s.root, paneId, { label: null }),
+      labelSel: s.labelSel === paneId ? null : s.labelSel,
+    })),
 }))
 
 function patchStickerIn(

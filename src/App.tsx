@@ -153,6 +153,9 @@ export default function App() {
           setReport(null)
           s.cancelStickerPick()
         }
+        else if (s.labelSel) {
+          s.selectLabel(null)
+        }
         else {
           s.focus('')
         }

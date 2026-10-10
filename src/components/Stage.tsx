@@ -47,6 +47,7 @@ export function Stage() {
   const longSide = useStore(s => s.longSide)
   const photos = useStore(s => s.photos)
   const focus = useStore(s => s.focus)
+  const selectLabel = useStore(s => s.selectLabel)
   const updateLeaf = useStore(s => s.updateLeaf)
   const split = useStore(s => s.split)
   const closePane = useStore(s => s.closePane)
@@ -174,8 +175,10 @@ export function Stage() {
       ref={wrapRef}
       className={`stageWrap${dragging ? ' dragging' : ''}${sizing ? ' sizing' : ''}`}
       onPointerDown={(e) => {
-        if (e.target === e.currentTarget)
+        if (e.target === e.currentTarget) {
           focus('')
+          selectLabel(null)
+        }
       }}
     >
       <div

@@ -531,6 +531,11 @@ input.num {
 }
 .paneLabel:active { cursor: grabbing; }
 .paneLabel.editing { cursor: text; user-select: text; -webkit-user-select: text; }
+.paneLabel.sel,
+.paneLabel.editing {
+  outline: 1px solid var(--txt);
+  outline-offset: 3px;
+}
 .paneLabelSize {
   position: absolute;
   right: -8px;
@@ -564,8 +569,12 @@ input.num {
   opacity: 0;
   transition: opacity 0.12s;
 }
+.paneLabel.hot .paneLabelSize,
+.paneLabel.hot .paneLabelDel,
 .paneLabel:hover .paneLabelSize,
-.paneLabel:hover .paneLabelDel { opacity: 1; }
+.paneLabel:hover .paneLabelDel,
+.paneLabel.sel .paneLabelSize,
+.paneLabel.sel .paneLabelDel { opacity: 1; }
 
 .paneLabelBar {
   position: absolute;
@@ -588,7 +597,9 @@ input.num {
   bottom: auto;
   top: calc(100% + 10px);
 }
+.paneLabel.hot .paneLabelBar,
 .paneLabel:hover .paneLabelBar,
+.paneLabel.sel .paneLabelBar,
 .paneLabel.editing .paneLabelBar { opacity: 1; pointer-events: auto; }
 
 .paneLabelFont {
