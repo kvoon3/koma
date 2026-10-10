@@ -76,9 +76,9 @@ export function StatusBar({
             )}
           />
           <Tip
-            label="Library · Shortcut: L"
+            label="Library · Shortcut: I"
             trigger={(
-              <button className={`flat${libOpen ? ' on' : ''}`} onClick={onToggleLib} aria-label="Library · Shortcut: L">
+              <button className={`flat${libOpen ? ' on' : ''}`} onClick={onToggleLib} aria-label="Library · Shortcut: I">
                 <MorphIcon icon={LayoutGrid} size={15} strokeWidth={1.75} />
                 <span className="sb-label">Library</span>
                 {photos ? <b>{photos}</b> : null}

@@ -92,6 +92,40 @@ export function findLeaf(root: Node, id: string): Leaf | null {
   return findLeaf(root.a, id) ?? findLeaf(root.b, id)
 }
 
+export type FocusDir = 'left' | 'right' | 'up' | 'down'
+
+export function neighborLeaf(
+  leaves: { node: Leaf, rect: Rect }[],
+  from: Rect,
+  dir: FocusDir,
+): Leaf | null {
+  let best: { node: Leaf, rect: Rect } | null = null
+  let bestScore = Number.POSITIVE_INFINITY
+  for (const l of leaves) {
+    const r = l.rect
+    let main = 0
+    let cross = 0
+    if (dir === 'right' || dir === 'left') {
+      main = dir === 'right' ? r.x - (from.x + from.w) : from.x - (r.x + r.w)
+      if (main < -1)
+        continue
+      cross = Math.max(0, Math.max(from.y, r.y) - Math.min(from.y + from.h, r.y + r.h))
+    }
+    else {
+      main = dir === 'down' ? r.y - (from.y + from.h) : from.y - (r.y + r.h)
+      if (main < -1)
+        continue
+      cross = Math.max(0, Math.max(from.x, r.x) - Math.min(from.x + from.w, r.x + r.w))
+    }
+    const score = Math.max(0, main) + cross * 4
+    if (score < bestScore) {
+      bestScore = score
+      best = l
+    }
+  }
+  return best ? best.node : null
+}
+
 export function leafList(root: Node): Leaf[] {
   if (root.type === 'leaf')
     return [root]

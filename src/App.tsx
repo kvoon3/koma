@@ -89,7 +89,7 @@ export default function App() {
         return
       }
       const t = e.target as HTMLElement
-      if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')
+      if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
         return
 
       const s = useStore.getState()
@@ -108,7 +108,12 @@ export default function App() {
         if (s.focusId)
           s.closePane(s.focusId)
       }
-      else if (k === 'l' || k === 'L') {
+      else if (k === 'h' || k === 'H' || k === 'j' || k === 'J' || k === 'k' || k === 'K' || k === 'l' || k === 'L') {
+        e.preventDefault()
+        const dir = k === 'h' || k === 'H' ? 'left' : k === 'l' || k === 'L' ? 'right' : k === 'k' || k === 'K' ? 'up' : 'down'
+        s.focusNeighbor(dir as 'left' | 'right' | 'up' | 'down')
+      }
+      else if (k === 'i' || k === 'I') {
         e.preventDefault()
         setLibOpen(v => !v)
         setSettingsOpen(false)

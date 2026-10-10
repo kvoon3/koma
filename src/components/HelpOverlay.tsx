@@ -4,12 +4,13 @@ import { MorphIcon } from 'morphicons/react'
 import './help.css'
 
 const KEYS: [string, string][] = [
-  ['V', 'Split the focused pane left/right'],
-  ['S', 'Split the focused pane top/bottom'],
+  ['H J K L', 'Focus the pane left / down / up / right'],
+  ['V', 'Split the focused pane left/right (vsplit)'],
+  ['S', 'Split the focused pane top/bottom (split)'],
   ['X', 'Close the focused pane'],
   ['Tab', 'Focus the next pane'],
   ['R', 'Reset the photo in the focused pane'],
-  ['L', 'Toggle the library drawer'],
+  ['I', 'Toggle the library drawer'],
   [',', 'Settings drawer (gap / radius / gap fill / export size)'],
   ['⌘E', 'Export the collage'],
   ['C', 'Export crop params (ImageMagick command)'],
