@@ -64,7 +64,7 @@ type Node = Leaf | Split
 interface Leaf { type: 'leaf', id, photoId, zoom, cx, cy, stickers: Sticker[], label: PaneLabel | null }
 interface Split { type: 'split', id, dir: 'row' | 'column', ratio, a: Node, b: Node }
 interface Sticker { id, photoId, x, y, s }
-interface PaneLabel { text, font, x, y, size } // x/y: pane-normalized center; size: ‰ of short edge
+interface PaneLabel { text, font, theme: 'dark' | 'light', x, y, size } // x/y: pane-normalized center; size: ‰ of short edge; theme: dark = white on black (default)
 ```
 
 `dir: 'row'` splits left/right, `'column'` splits top/bottom.
@@ -88,7 +88,7 @@ rows.
 | Drop a photo onto a pane | Place it directly into that pane |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop — export uses the still |
 | "Sticker" button on a pane | Pick an image from the library and pin it onto the photo (e.g. to cover faces); drag to move, corner handle to scale, × to delete |
-| "Text" button on a pane | Add a text label (black on white, pinned to the pane): click it to select (the toolbar stays pinned — pick a Google font there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
+| "Text" button on a pane | Add a text label (white on black by default, pinned to the pane): click it to select (the toolbar stays pinned — pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
 | × at pane top right | Close the pane (hidden while only one pane exists) |
 
 | Key | Action |

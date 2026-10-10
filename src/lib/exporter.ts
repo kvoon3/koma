@@ -3,7 +3,7 @@ import type { Leaf, Node, Rect } from './panes'
 import { isTransparentBg } from '../store'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { decodeFull, releaseFull } from './imageStore'
-import { labelRect, layoutTree, placement, stickerRect } from './panes'
+import { labelColors, labelRect, layoutTree, placement, stickerRect } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -148,12 +148,13 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     const lineH = normalLineHeightRatio(meta, lab.text) * fontPx || (m.fontAscent + m.fontDescent)
     const halfLead = Math.max(0, (lineH - (m.fontAscent + m.fontDescent)) / 2)
     const r = labelRect(rect, lab, m.w, lineH, fontPx)
+    const colors = labelColors(lab.theme)
     ctx.save()
     roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
     ctx.clip()
-    ctx.fillStyle = '#ffffff'
+    ctx.fillStyle = colors.bg
     ctx.fillRect(r.x, r.y, r.w, r.h)
-    ctx.fillStyle = '#000000'
+    ctx.fillStyle = colors.fg
     ctx.font = `400 ${fontPx}px ${meta.cssStack}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'alphabetic'

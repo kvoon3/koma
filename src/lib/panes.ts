@@ -13,9 +13,29 @@ export interface Sticker {
   s: number
 }
 
+// A label box is always opaque so it stays readable over any photo. Both
+// themes are plain black/white pairs, drawn identically in the preview and the
+// exporter. `dark` (white on black) is the default.
+export const LABEL_THEMES = {
+  dark: { bg: '#000000', fg: '#ffffff' },
+  light: { bg: '#ffffff', fg: '#000000' },
+} as const
+
+export type LabelTheme = keyof typeof LABEL_THEMES
+
+export const DEFAULT_LABEL_THEME: LabelTheme = 'dark'
+
+export const nextLabelTheme = (theme: LabelTheme): LabelTheme => (theme === 'dark' ? 'light' : 'dark')
+
+// Tolerates a missing/unknown theme (e.g. a hand-built export option).
+export function labelColors(theme?: LabelTheme) {
+  return LABEL_THEMES[theme && theme in LABEL_THEMES ? theme : DEFAULT_LABEL_THEME]
+}
+
 export interface PaneLabel {
   text: string
   font: string
+  theme: LabelTheme
   x: number
   y: number
   size: number
@@ -62,10 +82,10 @@ export function newLeaf(): Leaf {
 export const DEFAULT_LABEL_SIZE = 42
 
 export function newLabel(): PaneLabel {
-  return { text: 'Label', font: '', x: 0.5, y: 0.5, size: DEFAULT_LABEL_SIZE }
+  return { text: 'Label', font: '', theme: DEFAULT_LABEL_THEME, x: 0.5, y: 0.5, size: DEFAULT_LABEL_SIZE }
 }
 
-// Shared by preview and export: white-box rect for a label, centered on (lab.x, lab.y),
+// Shared by preview and export: rect for a label's always-opaque box, centered on (lab.x, lab.y),
 // padded proportionally to the font size.
 export function labelRect(
   cell: Rect,
