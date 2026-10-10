@@ -188,8 +188,8 @@ export default function App() {
   const closeHelp = () => setHelpOpen(false)
 
   return (
-    <div className="app">
-      <main className="main">
+    <div className="relative isolate flex h-full flex-col">
+      <main className="relative min-h-0 flex-1">
         <Stage />
       </main>
 

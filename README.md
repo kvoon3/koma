@@ -31,6 +31,20 @@ bun run lint
 
 Requires [mise](https://mise.jdx.dev) (provides Bun) — `mise.toml` pins `bun = 1`.
 
+### Styling
+
+Tailwind v4 (via `@tailwindcss/vite`) with a token-only color system. Raw palette
+values live on `:root` / `html.dark` in `src/index.css`; `@theme inline` maps them
+to semantic tokens (`bg-panel`, `text-dim`, `border-line`, `bg-accent`, …) so
+`.dark` re-themes every utility at runtime — never reach for `dark:` variants for
+chrome colors. Shared UI primitives live in `src/components/ui/`.
+
+`@shadcn/lint` (see `eslint.config.mjs`) enforces this: `shadcn/no-raw-colors`,
+`shadcn/no-unknown-classes`, and `shadcn/no-restyle` run on `bun run lint`.
+Exceptions: the multi-layer stage/swatch checkerboards stay as component classes
+in `index.css`, and labels/swatches legitimately use literal white/black (export
+fidelity and gap-fill picks).
+
 ---
 
 ## Model: pane tree
