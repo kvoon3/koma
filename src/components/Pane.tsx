@@ -3,13 +3,13 @@ import type { Photo } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
-import { Check, ChevronDown, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
+import { Check, ChevronDown, Contrast, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { getLiveVideoUrl } from '../lib/imageStore'
-import { clampLeaf, photoNorm, placement, stickerRect } from '../lib/panes'
+import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, stickerRect } from '../lib/panes'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 
 const paneBtnCls = 'grid h-6 w-[26px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[30px] pointer-coarse:w-8 hover:bg-chip-hover hover:text-txt'
@@ -227,6 +227,7 @@ function LabelView({
   const selectLabel = useStore(s => s.selectLabel)
   const selected = useStore(s => s.labelSel === paneId)
   const fontTick = useFontReady(lab.font)
+  const colors = labelColors(lab.theme)
   // hover intent: keep the toolbar alive while the pointer crosses the gap to it
   const [hot, setHot] = useState(false)
   const leaveRef = useRef<number | null>(null)
@@ -307,7 +308,7 @@ function LabelView({
 
   return (
     <div
-      className={`group/label absolute z-2 touch-none bg-white px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre text-black${
+      className={`group/label absolute z-2 touch-none px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre${
         editing ? ' cursor-text select-text outline-1 outline-txt outline-offset-3' : ' cursor-grab active:cursor-grabbing'
       }${selected ? ' outline-1 outline-txt outline-offset-3' : ''}`}
       data-font-tick={fontTick}
@@ -317,6 +318,8 @@ function LabelView({
         transform: 'translate(-50%, -50%)',
         fontSize: `${lab.size * unit}px`,
         fontFamily: fontById(lab.font).cssStack,
+        background: colors.bg,
+        color: colors.fg,
       }}
       onPointerDown={onBoxDown}
       onPointerMove={onBoxMove}
@@ -439,6 +442,18 @@ function LabelView({
             </Select.Positioner>
           </Select.Portal>
         </Select.Root>
+        <button
+          className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
+          title={lab.theme === 'dark' ? 'Switch to black text on white' : 'Switch to white text on black'}
+          aria-label={lab.theme === 'dark' ? 'Switch to black text on white' : 'Switch to white text on black'}
+          onPointerDown={e => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            setLabel(paneId, { theme: nextLabelTheme(lab.theme) })
+          }}
+        >
+          <MorphIcon icon={Contrast} size={13} strokeWidth={1.75} />
+        </button>
       </div>
     </div>
   )
