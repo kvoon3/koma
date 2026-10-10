@@ -529,6 +529,11 @@ function PaneImpl({
   )
 
   const onPointerDown = (e: React.PointerEvent) => {
+    // Only the primary button focuses or starts a gesture. A right-click must
+    // leave focus alone, otherwise this pane re-renders as focused and its
+    // ContextMenu.Trigger unmounts before the swap menu can open.
+    if (e.button !== 0)
+      return
     onFocus(leaf.id)
     useStore.getState().selectLabel(null)
     if (!leaf.photoId)
