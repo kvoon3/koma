@@ -651,12 +651,11 @@ function PaneImpl({
       ref={elRef}
       data-pane-id={leaf.id}
       className={
-        `group/pane absolute cursor-grab touch-none overflow-hidden bg-pane-bg outline-1 outline-line -outline-offset-1 [contain:paint]${
+        `group/pane absolute cursor-grab touch-none overflow-hidden bg-pane-bg [contain:paint]${
           focused
-            ? ' z-1 cursor-grab outline-txt'
+            ? ' z-1 cursor-grab'
             : ''
-        }${leaf.photoId ? '' : ' bg-pane-empty'
-        }${dropping ? ' outline-dashed outline-txt' : ''}`
+        }${leaf.photoId ? '' : ' bg-pane-empty'}`
       }
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radius }}
       onPointerDown={onPointerDown}
@@ -841,6 +840,17 @@ function PaneImpl({
           <MorphIcon icon={X} size={14} strokeWidth={1.75} />
         </button>
       )}
+
+      {/* Drawn last so the pane border stays above its photo/stickers. */}
+      <div
+        aria-hidden
+        className={
+          `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1${
+            focused ? ' outline-txt' : ''
+          }${dropping ? ' outline-dashed outline-txt' : ''}`
+        }
+        style={{ borderRadius: radius }}
+      />
     </div>
   )
 
