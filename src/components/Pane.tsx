@@ -308,7 +308,7 @@ function LabelView({
 
   return (
     <div
-      className={`group/label absolute z-2 touch-none px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre${
+      className={`group/label absolute z-2 touch-none px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre ${
         editing ? ' cursor-text select-text outline-1 outline-txt outline-offset-3' : ' cursor-grab active:cursor-grabbing'
       }${selected ? ' outline-1 outline-txt outline-offset-3' : ''}`}
       data-font-tick={fontTick}
@@ -350,7 +350,7 @@ function LabelView({
         : <div>{lab.text}</div>}
       {!editing && (
         <span
-          className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms]${hot || selected ? ' opacity-100' : ''}`}
+          className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
           title="Drag to resize"
           onPointerDown={onSizeDown}
           onPointerMove={onSizeMove}
@@ -360,7 +360,7 @@ function LabelView({
       )}
       {!editing && (
         <button
-          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms]${hot || selected ? ' opacity-100' : ''}`}
+          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
           title="Remove label"
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
@@ -694,7 +694,7 @@ function PaneImpl({
       ref={elRef}
       data-pane-id={leaf.id}
       className={
-        `group/pane absolute cursor-grab touch-none overflow-hidden bg-pane-bg [contain:paint]${
+        `group/pane absolute cursor-grab touch-none overflow-hidden bg-pane-bg [contain:paint] ${
           focused
             ? ' z-1 cursor-grab'
             : ''
@@ -768,7 +768,7 @@ function PaneImpl({
       {liveUrl && place && (
         <video
           ref={liveVideoRef}
-          className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none${live ? ' opacity-100' : ''}`}
+          className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
           src={liveUrl}
           style={{
             left: place.x - rect.x,
@@ -823,7 +823,7 @@ function PaneImpl({
       )}
 
       <div
-        className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100${focused || !leaf.photoId ? ' opacity-100' : ' opacity-0'}`}
+        className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused || !leaf.photoId ? ' opacity-100' : ' opacity-0'}`}
         onPointerDown={e => e.stopPropagation()}
       >
         <button
@@ -905,7 +905,7 @@ function PaneImpl({
       <div
         aria-hidden
         className={
-          `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1${
+          `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1 ${
             focused ? ' outline-txt' : ''
           }${stickerArmed ? ' outline-dashed outline-accent' : ''}${dropping && !stickerArmed ? ' outline-dashed outline-txt' : ''}`
         }
