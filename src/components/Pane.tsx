@@ -355,9 +355,17 @@ function LabelView({
         </button>
       )}
       <div
-        className={`group-hover/label:pointer-events-auto group-hover/label:opacity-100 pointer-events-none absolute left-1/2 z-[4] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] opacity-0 backdrop-blur-[7px] transition-opacity duration-[140ms] ${
+        className={`absolute left-1/2 z-[4] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] ${
           lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
-        }${editing || hot || selected ? ' pointer-events-auto opacity-100' : ''}`}
+        } ${
+          // Mutually exclusive classes: a base `pointer-events-none` plus a
+          // conditional `pointer-events-auto` would both stay in the class
+          // list and `none` wins in Tailwind's output order, silently killing
+          // clicks on a pinned toolbar.
+          editing || hot || selected
+            ? 'pointer-events-auto opacity-100'
+            : 'pointer-events-none opacity-0'
+        }`}
         onPointerDown={(e) => {
           e.stopPropagation()
           selectLabel(paneId)
@@ -367,6 +375,12 @@ function LabelView({
           items={LABEL_FONT_ITEMS}
           value={lab.font}
           onValueChange={value => setLabel(paneId, { font: String(value) })}
+          onOpenChange={(open) => {
+            // Keep the toolbar pinned while the font popup is open, also when
+            // the list was opened from the keyboard instead of a click.
+            if (open)
+              selectLabel(paneId)
+          }}
         >
           <Select.Trigger className="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover" title="Label font" aria-label="Label font">
             <Select.Value />
