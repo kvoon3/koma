@@ -3,6 +3,7 @@ import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/pa
 import { create } from 'zustand'
 import { looksHeic, probeHeic } from './lib/heic'
 import { clearImageCaches, probeJpeg } from './lib/imageStore'
+import { baseKey, splitLiveFiles } from './lib/livephoto'
 import {
 
   findLeaf,
@@ -94,8 +95,15 @@ export const useStore = create<State & Actions>((set, get) => ({
   stickerPick: null,
 
   addPhotos: (files, autoFill = true) => {
-    const imgs = files.filter(f => f.type.startsWith('image/') || looksHeic(f))
-    if (!imgs.length)
+    const { images, videos } = splitLiveFiles(files)
+    const vids = new Map<string, File>()
+    for (const v of videos) {
+      const k = baseKey(v.name)
+      if (!vids.has(k))
+        vids.set(k, v)
+    }
+    const imgs = images.filter(f => f.type.startsWith('image/') || looksHeic(f))
+    if (!imgs.length && !vids.size)
       return []
     imgs.sort((a, b) =>
       (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, {
@@ -107,10 +115,20 @@ export const useStore = create<State & Actions>((set, get) => ({
       id: `${stamp}-${i}-${Math.random().toString(36).slice(2, 7)}`,
       name: f.name,
       file: f,
+      videoFile: vids.get(baseKey(f.name)),
       trueW: 0,
       trueH: 0,
     }))
-    set(s => ({ photos: [...s.photos, ...added] }))
+    // A MOV dropped on its own glues onto an already-imported still with the
+    // same basename (Finder / Photos exports arrive as HEIC + MOV pairs).
+    set(s => ({
+      photos: [
+        ...s.photos.map(p => (!p.videoFile && vids.get(baseKey(p.name))
+          ? { ...p, videoFile: vids.get(baseKey(p.name)) }
+          : p)),
+        ...added,
+      ],
+    }))
 
     added.forEach(async (p) => {
       const d = await (looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file))

@@ -6,6 +6,9 @@ and drop photos into panes where they can be panned, zoomed and cropped.
 
 Photos never leave your machine; nothing is uploaded. Supports JPEG / PNG / WebP /
 HEIC (the iPhone default, decoded locally in the browser via a libheif WASM build).
+**Live Photos** work too: drop an iPhone pair (`IMG_1234.HEIC` + `IMG_1234.MOV`, as
+exported by Photos / Finder / AirDrop) and press-and-hold a pane to play the
+live moment, iOS-style. Export always uses the still frame.
 
 The name comes from the Japanese **コマ**: a single frame of film or a single panel
 of a comic. The tool starts as one frame and grows into a panel layout — literally
@@ -69,6 +72,7 @@ rows.
 | Double-click inside a pane | Reset that pane's photo |
 | Right-click an unfocused pane | Context menu: swap its photo with the focused pane |
 | Drop a photo onto a pane | Place it directly into that pane |
+| Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop — export uses the still |
 | "Sticker" button on a pane | Pick an image from the library and pin it onto the photo (e.g. to cover faces); drag to move, corner handle to scale, × to delete |
 | "Text" button on a pane | Add a text label (black on white, pinned to the pane): drag to move, corner handle to resize, double-click to edit, hover toolbar to pick a Google font |
 | × at pane top right | Close the pane (hidden while only one pane exists) |

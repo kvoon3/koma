@@ -8,6 +8,7 @@ import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
+import { getLiveVideoUrl } from '../lib/imageStore'
 import { clampLeaf, photoNorm, placement, stickerRect } from '../lib/panes'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import './contextmenu.css'
@@ -422,6 +423,41 @@ function PaneImpl({
   const [dropping, setDropping] = useState(false)
   const [editing, setEditing] = useState(false)
 
+  // Live Photo: press and hold to play the paired video, release to stop.
+  // `liveFor` records which photo the hold belongs to, so swapping the pane's
+  // photo invalidates playback without an effect.
+  const [liveFor, setLiveFor] = useState<string | null>(null)
+  const liveVideoRef = useRef<HTMLVideoElement | null>(null)
+  const holdTimerRef = useRef<number | null>(null)
+  const downAtRef = useRef<{ x: number, y: number } | null>(null)
+  const liveUrl = photo?.videoFile ? getLiveVideoUrl(photo) : null
+  const live = liveFor != null && liveFor === (photo?.id ?? null) && !!liveUrl
+
+  const clearHold = useCallback(() => {
+    if (holdTimerRef.current != null) {
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => () => clearHold(), [clearHold])
+
+  useEffect(() => {
+    const v = liveVideoRef.current
+    if (!v)
+      return
+    if (live) {
+      v.currentTime = 0
+      v.play().catch(() => {
+        v.muted = true
+        v.play().catch(() => {})
+      })
+    }
+    else {
+      v.pause()
+    }
+  }, [live, liveUrl])
+
   const iw = preview?.w ?? 0
   const ih = preview?.h ?? 0
   const cell: Rect = rect
@@ -464,6 +500,7 @@ function PaneImpl({
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const p = local(e.clientX, e.clientY)
     if (pointersRef.current.size >= 2) {
+      clearHold()
       const [a, b] = [...pointersRef.current.values()]
       gestureRef.current = {
         mode: 'pinch',
@@ -475,6 +512,14 @@ function PaneImpl({
     }
     else {
       gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...leaf } }
+      if (liveUrl) {
+        downAtRef.current = { x: e.clientX, y: e.clientY }
+        holdTimerRef.current = window.setTimeout(() => {
+          holdTimerRef.current = null
+          downAtRef.current = null
+          setLiveFor(photo?.id ?? null)
+        }, 320)
+      }
     }
   }
 
@@ -488,6 +533,11 @@ function PaneImpl({
 
     if (g.mode === 'pan' && pointersRef.current.size === 1) {
       const p = local(e.clientX, e.clientY)
+      // Dragging means panning, not holding — cancel the Live Photo timer.
+      if (holdTimerRef.current != null && downAtRef.current
+        && Math.hypot(e.clientX - downAtRef.current.x, e.clientY - downAtRef.current.y) > 5) {
+        clearHold()
+      }
       const dx = p.x - g.lastX
       const dy = p.y - g.lastY
       g.lastX = p.x
@@ -508,6 +558,9 @@ function PaneImpl({
     pointersRef.current.delete(e.pointerId)
     if (pointersRef.current.size === 0) {
       gestureRef.current = null
+      clearHold()
+      downAtRef.current = null
+      setLiveFor(null)
     }
     else {
       const only = [...pointersRef.current.values()][0]
@@ -572,7 +625,7 @@ function PaneImpl({
       }}
       onDragLeave={() => setDropping(false)}
       onDrop={(e) => {
-        const files = [...(e.dataTransfer?.files ?? [])].filter(f => f.type.startsWith('image/'))
+        const files = [...(e.dataTransfer?.files ?? [])]
         setDropping(false)
         if (!files.length)
           return
@@ -609,6 +662,28 @@ function PaneImpl({
           : (
               <div className="paneHint">Drop a photo here</div>
             )}
+
+      {liveUrl && place && (
+        <video
+          ref={liveVideoRef}
+          className={`liveVideo${live ? ' on' : ''}`}
+          src={liveUrl}
+          style={{
+            left: place.x - rect.x,
+            top: place.y - rect.y,
+            width: place.w,
+            height: place.h,
+          }}
+          loop
+          playsInline
+          preload="auto"
+          draggable={false}
+        />
+      )}
+
+      {photo?.videoFile && !live && (
+        <span className="liveBadge" title="Live Photo — press and hold to play">LIVE</span>
+      )}
 
       {place
         && leaf.stickers.map((st) => {
