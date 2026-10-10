@@ -98,7 +98,7 @@ export function StatusBar({
             /
             {leaves.length}
           </span>
-          <span className={`whitespace-nowrap tabular-nums text-txt pointer-coarse:hidden max-sm:hidden [&_em]:mr-[5px] [&_em]:text-[10.5px] [&_em]:tracking-[0.06em] [&_em]:not-italic [&_em]:text-faint max-[380px]:[&_em]:mr-[3px]${focusIndex >= 0 ? ' text-accent' : ''}`}>
+          <span className={`whitespace-nowrap tabular-nums text-txt pointer-coarse:hidden max-sm:hidden [&_em]:mr-[5px] [&_em]:text-[10.5px] [&_em]:tracking-[0.06em] [&_em]:not-italic [&_em]:text-faint max-[380px]:[&_em]:mr-[3px] ${focusIndex >= 0 ? ' text-accent' : ''}`}>
             <em>Focus</em>
             {focusIndex >= 0 ? `#${focusIndex + 1}` : '—'}
           </span>

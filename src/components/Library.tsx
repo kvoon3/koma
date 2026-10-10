@@ -20,7 +20,7 @@ export const Thumb = memo(({
     <button
       ref={ref}
       type="button"
-      className={`relative h-[72px] w-[108px] flex-none basis-[108px] cursor-pointer overflow-hidden rounded-none border-2 bg-thumb-bg p-0 opacity-82 transition-[opacity,border-color] duration-[120ms] hover:border-thumb-hover hover:opacity-100${active ? ' border-accent opacity-100' : ' border-transparent'}`}
+      className={`relative h-[72px] w-[108px] flex-none basis-[108px] cursor-pointer overflow-hidden rounded-none border-2 bg-thumb-bg p-0 opacity-82 transition-[opacity,border-color] duration-[120ms] hover:border-thumb-hover hover:opacity-100 ${active ? ' border-accent opacity-100' : ' border-transparent'}`}
       onClick={() => onPick(photo.id)}
       title={photo.name}
       data-size={size}
