@@ -1,8 +1,10 @@
 import type { Photo } from './imageStore'
 import type { Leaf, Node, Rect } from './panes'
 import { isTransparentBg } from '../store'
+import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { decodeFull, releaseFull } from './imageStore'
-import { layoutTree, placement, stickerRect } from './panes'
+import { labelRect, layoutTree, placement, stickerRect } from './panes'
+import { say } from './toast'
 
 export interface ExportOptions {
   root: Node
@@ -57,9 +59,11 @@ function roundRect(
 interface Prepared {
   W: number
   H: number
+  u: number
   gap: number
   radius: number
   cells: { leaf: Leaf, rect: Rect, photo: Photo }[]
+  labelCells: { leaf: Leaf, rect: Rect }[]
 }
 
 function prepare(opts: ExportOptions, W: number, H: number): Prepared {
@@ -67,7 +71,10 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
   const gap = opts.gap * u
   const l = layoutTree(opts.root, W, H, gap)
   const cells: Prepared['cells'] = []
+  const labelCells: Prepared['labelCells'] = []
   for (const { node, rect } of l.leaves) {
+    if (node.label)
+      labelCells.push({ leaf: node, rect })
     if (!node.photoId)
       continue
     const photo = opts.photos.get(node.photoId)
@@ -75,7 +82,7 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
       continue
     cells.push({ leaf: node, rect, photo })
   }
-  return { W, H, gap, radius: opts.radius * u, cells }
+  return { W, H, u, gap, radius: opts.radius * u, cells, labelCells }
 }
 
 export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElement> {
@@ -119,6 +126,40 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     releaseFull(src)
   }
   stickerSrcs.forEach(s2 => releaseFull(s2))
+
+  // Labels draw on top of photos, clipped to their pane (but not to the photo).
+  if (prep.labelCells.length) {
+    const ids = [...new Set(prep.labelCells.map(({ leaf }) => leaf.label!.font))]
+    const failed = await ensureFonts(ids)
+    if (failed.length) {
+      const names = failed.map(id => fontById(id).label).join(', ')
+      say(`Fonts unavailable, used system fallback: ${names}`)
+    }
+  }
+  for (const { leaf, rect } of prep.labelCells) {
+    const lab = leaf.label!
+    if (!lab.text.trim())
+      continue
+    const meta = fontById(lab.font)
+    const fontPx = lab.size * prep.u
+    const m = measureLabel(meta, fontPx, lab.text)
+    // Reproduce the DOM preview's `line-height: normal` line box exactly:
+    // box height = measured line box, baseline offset follows the half-leading model.
+    const lineH = normalLineHeightRatio(meta, lab.text) * fontPx || (m.fontAscent + m.fontDescent)
+    const halfLead = Math.max(0, (lineH - (m.fontAscent + m.fontDescent)) / 2)
+    const r = labelRect(rect, lab, m.w, lineH, fontPx)
+    ctx.save()
+    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
+    ctx.clip()
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(r.x, r.y, r.w, r.h)
+    ctx.fillStyle = '#000000'
+    ctx.font = `400 ${fontPx}px ${meta.cssStack}`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillText(lab.text, r.x + r.w / 2, r.y + fontPx * 0.22 + halfLead + m.fontAscent)
+    ctx.restore()
+  }
   return canvas
 }
 
