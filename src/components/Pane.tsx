@@ -74,6 +74,8 @@ function StickerView({
 
   const onMoveDown = (e: React.PointerEvent) => {
     e.stopPropagation()
+    if (e.button !== 0)
+      return
     useStore.getState().selectLabel(null)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     gestureRef.current = { mode: 'move', ocX: 0, ocY: 0, d0: 0, s0: st.s }
@@ -89,6 +91,8 @@ function StickerView({
   }
 
   const onResizeDown = (e: React.PointerEvent) => {
+    if (e.button !== 0)
+      return
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     const corner = toCanvas(e.clientX, e.clientY)
@@ -240,7 +244,9 @@ function LabelView({
 
   const onBoxDown = (e: React.PointerEvent) => {
     e.stopPropagation()
-    if (editing)
+    // A right-click on the label must not steal focus: the pane needs to stay
+    // unfocused so its context menu (swap with focused pane) can open.
+    if (editing || e.button !== 0)
       return
     onFocus(paneId)
     selectLabel(paneId)
