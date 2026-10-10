@@ -11,7 +11,8 @@ import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { getLiveVideoUrl } from '../lib/imageStore'
 import { clampLeaf, photoNorm, placement, stickerRect } from '../lib/panes'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
-import './contextmenu.css'
+
+const paneBtnCls = 'grid h-6 w-[26px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[30px] pointer-coarse:w-8 hover:bg-chip-hover hover:text-txt'
 
 const LABEL_FONT_ITEMS = [
   { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
@@ -120,7 +121,7 @@ function StickerView({
 
   return (
     <div
-      className="sticker"
+      className="group/sticker absolute z-2 cursor-grab touch-none active:cursor-grabbing"
       style={{ left: r.x - paneRect.x, top: r.y - paneRect.y, width: r.w, height: r.h }}
       title={photo.name}
       onPointerDown={onMoveDown}
@@ -128,9 +129,9 @@ function StickerView({
       onPointerUp={endGesture}
       onPointerCancel={endGesture}
     >
-      <img src={preview.url} alt="" draggable={false} />
+      <img src={preview.url} alt="" draggable={false} className="block h-full w-full max-w-none pointer-events-none shadow-[0_2px_10px_rgba(0,0,0,0.35)]" />
       <span
-        className="stickerResize"
+        className="group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-full border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms]"
         title="Drag to resize"
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
@@ -138,7 +139,7 @@ function StickerView({
         onPointerCancel={endGesture}
       />
       <button
-        className="stickerDel"
+        className="group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-full border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms]"
         title="Remove sticker"
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
@@ -286,7 +287,9 @@ function LabelView({
 
   return (
     <div
-      className={`paneLabel${editing ? ' editing' : ''}${selected ? ' sel' : ''}${hot ? ' hot' : ''}`}
+      className={`group/label absolute z-2 touch-none bg-white px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre text-black${
+        editing ? ' cursor-text select-text outline-1 outline-txt outline-offset-3' : ' cursor-grab active:cursor-grabbing'
+      }${selected ? ' outline-1 outline-txt outline-offset-3' : ''}`}
       data-font-tick={fontTick}
       style={{
         left: `${lab.x * 100}%`,
@@ -330,7 +333,7 @@ function LabelView({
       </div>
       {!editing && (
         <span
-          className="paneLabelSize"
+          className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms]${hot || selected ? ' opacity-100' : ''}`}
           title="Drag to resize"
           onPointerDown={onSizeDown}
           onPointerMove={onSizeMove}
@@ -340,7 +343,7 @@ function LabelView({
       )}
       {!editing && (
         <button
-          className="paneLabelDel"
+          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms]${hot || selected ? ' opacity-100' : ''}`}
           title="Remove label"
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
@@ -352,7 +355,9 @@ function LabelView({
         </button>
       )}
       <div
-        className={`paneLabelBar${lab.y < 0.3 ? ' below' : ''}`}
+        className={`group-hover/label:pointer-events-auto group-hover/label:opacity-100 pointer-events-none absolute left-1/2 z-[4] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] opacity-0 backdrop-blur-[7px] transition-opacity duration-[140ms] ${
+          lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
+        }${editing || hot || selected ? ' pointer-events-auto opacity-100' : ''}`}
         onPointerDown={(e) => {
           e.stopPropagation()
           selectLabel(paneId)
@@ -363,39 +368,39 @@ function LabelView({
           value={lab.font}
           onValueChange={value => setLabel(paneId, { font: String(value) })}
         >
-          <Select.Trigger className="paneLabelFont" title="Label font" aria-label="Label font">
+          <Select.Trigger className="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover" title="Label font" aria-label="Label font">
             <Select.Value />
-            <Select.Icon className="paneLabelFontIcon">
+            <Select.Icon className="flex flex-none text-dim">
               <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
             </Select.Icon>
           </Select.Trigger>
           <Select.Portal>
             <Select.Positioner
-              className="paneLabelPositioner"
+              className="z-[260] select-none outline-0"
               sideOffset={4}
               align="start"
               alignItemWithTrigger={false}
             >
-              <Select.Popup className="paneLabelMenu">
-                <Select.List className="paneLabelMenuList">
+              <Select.Popup className="box-border min-w-[var(--anchor-width)] rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+                <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
                   {FONT_CATS.map((cat) => {
                     const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
                     if (!items.length)
                       return null
                     return (
-                      <Select.Group key={cat.id} className="paneLabelMenuGroup">
-                        <Select.GroupLabel className="paneLabelMenuGroupLabel">{cat.label}</Select.GroupLabel>
+                      <Select.Group key={cat.id}>
+                        <Select.GroupLabel className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{cat.label}</Select.GroupLabel>
                         {items.map(item => (
                           <Select.Item
                             key={item.value || 'system'}
                             value={item.value}
-                            className="paneLabelMenuItem"
+                            className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-[13px] outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent"
                             style={{ fontFamily: fontById(item.value).cssStack }}
                           >
-                            <Select.ItemIndicator className="paneLabelItemIndicator">
+                            <Select.ItemIndicator className="flex w-3.5 text-current">
                               <MorphIcon icon={Check} size={12} strokeWidth={2} />
                             </Select.ItemIndicator>
-                            <Select.ItemText className="paneLabelItemText">{item.label}</Select.ItemText>
+                            <Select.ItemText className="flex-1">{item.label}</Select.ItemText>
                           </Select.Item>
                         ))}
                       </Select.Group>
@@ -637,10 +642,12 @@ function PaneImpl({
     <div
       ref={elRef}
       className={
-        `pane${
-          focused ? ' focused' : ''
-        }${leaf.photoId ? '' : ' empty'
-        }${dropping ? ' dropping' : ''}`
+        `group/pane absolute cursor-grab touch-none overflow-hidden bg-pane-bg outline-1 outline-line -outline-offset-1 [contain:paint]${
+          focused
+            ? ' z-1 cursor-grab outline-txt'
+            : ''
+        }${leaf.photoId ? '' : ' bg-pane-empty'
+        }${dropping ? ' outline-dashed outline-txt' : ''}`
       }
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radius }}
       onPointerDown={onPointerDown}
@@ -677,6 +684,7 @@ function PaneImpl({
               src={preview.url}
               alt=""
               draggable={false}
+              className="block max-w-none will-change-transform"
               style={{
                 position: 'absolute',
                 left: 0,
@@ -689,16 +697,16 @@ function PaneImpl({
           )
         : leaf.photoId
           ? (
-              <div className="paneHint">Loading...</div>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Loading...</div>
             )
           : (
-              <div className="paneHint">Drop a photo here</div>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Drop a photo here</div>
             )}
 
       {liveUrl && place && (
         <video
           ref={liveVideoRef}
-          className={`liveVideo${live ? ' on' : ''}`}
+          className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none${live ? ' opacity-100' : ''}`}
           src={liveUrl}
           style={{
             left: place.x - rect.x,
@@ -714,7 +722,12 @@ function PaneImpl({
       )}
 
       {photo?.videoFile && !live && (
-        <span className="liveBadge" title="Live Photo — press and hold to play">LIVE</span>
+        <span
+          className="pointer-events-none absolute left-[9px] top-[9px] z-[3] flex items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] text-float-icon backdrop-blur-[7px] [&::before]:h-2 [&::before]:w-2 [&::before]:content-[''] [&::before]:rounded-full [&::before]:border-[1.5px] [&::before]:border-current [&::before]:shadow-[inset_0_0_0_2.5px_var(--floatBg),inset_0_0_0_3.5px_currentColor]"
+          title="Live Photo — press and hold to play"
+        >
+          LIVE
+        </span>
       )}
 
       {place
@@ -747,9 +760,12 @@ function PaneImpl({
         />
       )}
 
-      <div className="paneBar" onPointerDown={e => e.stopPropagation()}>
+      <div
+        className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100${focused || !leaf.photoId ? ' opacity-100' : ' opacity-0'}`}
+        onPointerDown={e => e.stopPropagation()}
+      >
         <button
-          className="paneBtn"
+          className={paneBtnCls}
           title="Split top/bottom"
           onClick={(e) => {
             e.stopPropagation()
@@ -759,7 +775,7 @@ function PaneImpl({
           <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
         </button>
         <button
-          className="paneBtn"
+          className={paneBtnCls}
           title="Split left/right"
           onClick={(e) => {
             e.stopPropagation()
@@ -770,7 +786,7 @@ function PaneImpl({
         </button>
         {leaf.photoId && (
           <button
-            className={`paneBtn${pickingHere ? ' on' : ''}`}
+            className={`${paneBtnCls}${pickingHere ? ' bg-chip-on text-chip-on-txt' : ''}`}
             title="Add a sticker (e.g. to cover a face)"
             onClick={(e) => {
               e.stopPropagation()
@@ -791,7 +807,7 @@ function PaneImpl({
           </button>
         )}
         <button
-          className={`paneBtn${editing ? ' on' : ''}`}
+          className={`${paneBtnCls}${editing ? ' bg-chip-on text-chip-on-txt' : ''}`}
           title="Add a text label"
           onClick={(e) => {
             e.stopPropagation()
@@ -805,7 +821,7 @@ function PaneImpl({
 
       {canClose && (
         <button
-          className="paneClose"
+          className="group-hover/pane:opacity-100 absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-[15px] leading-none text-float-icon opacity-0 transition-opacity duration-[140ms] hover:border-danger hover:bg-danger hover:text-on-accent pointer-coarse:h-[30px] pointer-coarse:w-[30px]"
           title="Close this pane"
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
@@ -826,10 +842,10 @@ function PaneImpl({
     <ContextMenu.Root>
       <ContextMenu.Trigger render={paneNode} />
       <ContextMenu.Portal>
-        <ContextMenu.Positioner className="bui-ctx-positioner">
-          <ContextMenu.Popup className="bui-ctx-popup">
+        <ContextMenu.Positioner className="z-90">
+          <ContextMenu.Popup className="min-w-[180px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-100 ease-out data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
             <ContextMenu.Item
-              className="bui-ctx-item"
+              className="flex w-full cursor-pointer items-center whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt"
               onClick={() => swapWithFocused(leaf.id, useStore.getState().focusId)}
             >
               Swap with focused pane

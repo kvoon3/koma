@@ -173,7 +173,7 @@ export function Stage() {
   return (
     <div
       ref={wrapRef}
-      className={`stageWrap${dragging ? ' dragging' : ''}${sizing ? ' sizing' : ''}`}
+      className={`stage-checker absolute inset-0 flex items-center justify-center${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) {
           focus('')
@@ -183,7 +183,7 @@ export function Stage() {
     >
       <div
         ref={stageRef}
-        className={`stage${transparent ? ' clear' : ''}`}
+        className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)]${transparent ? ' stage-clear' : ''}`}
         style={{ width: view.W, height: view.H, background: transparent ? undefined : bg }}
       >
         {view.leaves.map(({ node, rect }) => (
@@ -214,17 +214,24 @@ export function Stage() {
           return (
             <div
               key={d.id}
-              className={`divider ${d.dir === 'row' ? 'v' : 'h'}`}
+              className={`group/divider absolute z-[5] touch-none ${d.dir === 'row' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
               style={style}
               onPointerDown={beginDrag(d)}
             >
-              <span />
+              <span
+                className={
+                  `absolute rounded-none bg-transparent transition-colors duration-[120ms] group-hover/divider:bg-accent ${
+                    d.dir === 'row'
+                      ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
+                      : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'}`
+                }
+              />
             </div>
           )
         })}
 
         <div
-          className={`canvasHandle${sizing ? ' active' : ''}`}
+          className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-colors duration-[120ms] hover:border-accent hover:bg-accent hover:text-on-accent${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
           onPointerDown={beginResize}
           onDoubleClick={resetRatio}
           title="Drag to change canvas aspect · double-click to reset"
@@ -233,7 +240,7 @@ export function Stage() {
         </div>
       </div>
 
-      <div className={`badge${sizing ? ' loud' : ''}`}>
+      <div className={`pointer-events-none absolute bottom-3.5 left-4 rounded-none border bg-badge-bg px-[11px] py-[5px] text-[11.5px] tabular-nums text-dim${sizing ? ' border-accent text-txt [&_em]:text-accent [&_em]:not-italic' : ''}`}>
         {sizing
           ? (
               <>
