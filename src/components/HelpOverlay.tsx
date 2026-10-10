@@ -25,6 +25,7 @@ const MOUSE: [string, string][] = [
   ['Scroll / pinch', 'Zoom the photo around the cursor'],
   ['Double-click inside a pane', 'Reset the photo in that pane'],
   ['Drop a photo onto a pane', 'It goes straight into that pane (multi-select allowed; the first one is used)'],
+  ['"Text" button on a pane', 'Add a text label (black on white) — drag to move, corner to resize, double-click to edit; pick a font from the hover toolbar (falls back to system fonts offline)'],
 ]
 
 export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => void }) {

@@ -13,6 +13,14 @@ export interface Sticker {
   s: number
 }
 
+export interface PaneLabel {
+  text: string
+  font: string
+  x: number
+  y: number
+  size: number
+}
+
 export interface Leaf {
   type: 'leaf'
   id: string
@@ -21,6 +29,7 @@ export interface Leaf {
   cx: number
   cy: number
   stickers: Sticker[]
+  label: PaneLabel | null
 }
 
 export interface Split {
@@ -46,6 +55,34 @@ export function newLeaf(): Leaf {
     cx: 0.5,
     cy: 0.5,
     stickers: [],
+    label: null,
+  }
+}
+
+export const DEFAULT_LABEL_SIZE = 42
+
+export function newLabel(): PaneLabel {
+  return { text: 'Label', font: '', x: 0.5, y: 0.09, size: DEFAULT_LABEL_SIZE }
+}
+
+// Shared by preview and export: white-box rect for a label, centered on (lab.x, lab.y),
+// padded proportionally to the font size.
+export function labelRect(
+  cell: Rect,
+  lab: PaneLabel,
+  textW: number,
+  textH: number,
+  fontPx: number,
+): Rect {
+  const padX = fontPx * 0.38
+  const padY = fontPx * 0.22
+  const w = textW + padX * 2
+  const h = textH + padY * 2
+  return {
+    x: cell.x + lab.x * cell.w - w / 2,
+    y: cell.y + lab.y * cell.h - h / 2,
+    w,
+    h,
   }
 }
 

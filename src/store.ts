@@ -1,5 +1,5 @@
 import type { Photo } from './lib/imageStore'
-import type { Divider, Leaf, Node, Sticker } from './lib/panes'
+import type { Divider, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import { create } from 'zustand'
 import { looksHeic, probeHeic } from './lib/heic'
 import { clearImageCaches, probeJpeg } from './lib/imageStore'
@@ -9,6 +9,7 @@ import {
   layoutTree,
 
   leafList,
+  newLabel,
   newLeaf,
 
   removeLeaf,
@@ -52,6 +53,9 @@ interface Actions {
   moveSticker: (paneId: string, stickerId: string, x: number, y: number) => void
   scaleSticker: (paneId: string, stickerId: string, s: number) => void
   removeSticker: (paneId: string, stickerId: string) => void
+  ensureLabel: (paneId: string) => void
+  setLabel: (paneId: string, patch: Partial<PaneLabel>) => void
+  removeLabel: (paneId: string) => void
 }
 
 export const GAP = 10
@@ -236,6 +240,28 @@ export const useStore = create<State & Actions>((set, get) => ({
         }),
       }
     }),
+
+  ensureLabel: paneId =>
+    set((s) => {
+      const pane = findLeaf(s.root, paneId)
+      if (!pane || pane.label)
+        return {}
+      return { root: updateLeafIn(s.root, paneId, { label: newLabel() }) }
+    }),
+
+  setLabel: (paneId, patch) =>
+    set((s) => {
+      const pane = findLeaf(s.root, paneId)
+      if (!pane?.label)
+        return {}
+      const label: PaneLabel = { ...pane.label, ...patch }
+      if (patch.size !== undefined)
+        label.size = Math.min(160, Math.max(12, patch.size))
+      return { root: updateLeafIn(s.root, paneId, { label }) }
+    }),
+
+  removeLabel: paneId =>
+    set(s => ({ root: updateLeafIn(s.root, paneId, { label: null }) })),
 }))
 
 function patchStickerIn(
@@ -261,6 +287,7 @@ export interface Derived {
   dividers: Divider[]
   gap: number
   radius: number
+  unit: number
 }
 
 export function fitCanvas(
@@ -293,5 +320,5 @@ export function computeLayout(
   const u = Math.min(W, H) / 1000
   const gap = gapValue * u
   const l = layoutTree(root, W, H, gap)
-  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u }
+  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, unit: u }
 }
