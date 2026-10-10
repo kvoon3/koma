@@ -73,6 +73,7 @@ function StickerView({
 
   const onMoveDown = (e: React.PointerEvent) => {
     e.stopPropagation()
+    useStore.getState().selectLabel(null)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     gestureRef.current = { mode: 'move', ocX: 0, ocY: 0, d0: 0, s0: st.s }
   }
@@ -170,7 +171,16 @@ function LabelView({
 }) {
   const setLabel = useStore(s => s.setLabel)
   const removeLabel = useStore(s => s.removeLabel)
+  const selectLabel = useStore(s => s.selectLabel)
+  const selected = useStore(s => s.labelSel === paneId)
   const fontTick = useFontReady(lab.font)
+  // hover intent: keep the toolbar alive while the pointer crosses the gap to it
+  const [hot, setHot] = useState(false)
+  const leaveRef = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (leaveRef.current != null)
+      window.clearTimeout(leaveRef.current)
+  }, [])
   const textRef = useRef<HTMLDivElement | null>(null)
   const gestureRef = useRef<{
     mode: 'move' | 'resize'
@@ -201,6 +211,7 @@ function LabelView({
     if (editing)
       return
     onFocus(paneId)
+    selectLabel(paneId)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     gestureRef.current = { mode: 'move', cx: 0, cy: 0, d0: 0, s0: lab.size }
   }
@@ -265,6 +276,8 @@ function LabelView({
       return
     if (e.key !== 'Enter' && e.key !== 'Escape')
       return
+    // keep Esc/Enter from reaching the global handler (Esc would deselect)
+    e.stopPropagation()
     const el = e.currentTarget as HTMLElement
     if (e.key === 'Enter')
       e.preventDefault()
@@ -273,7 +286,7 @@ function LabelView({
 
   return (
     <div
-      className={`paneLabel${editing ? ' editing' : ''}`}
+      className={`paneLabel${editing ? ' editing' : ''}${selected ? ' sel' : ''}${hot ? ' hot' : ''}`}
       data-font-tick={fontTick}
       style={{
         left: `${lab.x * 100}%`,
@@ -286,6 +299,21 @@ function LabelView({
       onPointerMove={onBoxMove}
       onPointerUp={endGesture}
       onPointerCancel={endGesture}
+      onPointerEnter={() => {
+        if (leaveRef.current != null) {
+          window.clearTimeout(leaveRef.current)
+          leaveRef.current = null
+        }
+        setHot(true)
+      }}
+      onPointerLeave={() => {
+        if (leaveRef.current != null)
+          window.clearTimeout(leaveRef.current)
+        leaveRef.current = window.setTimeout(() => {
+          leaveRef.current = null
+          setHot(false)
+        }, 220)
+      }}
       onDoubleClick={(e) => {
         e.stopPropagation()
         setEditing(true)
@@ -325,7 +353,10 @@ function LabelView({
       )}
       <div
         className={`paneLabelBar${lab.y < 0.3 ? ' below' : ''}`}
-        onPointerDown={e => e.stopPropagation()}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+          selectLabel(paneId)
+        }}
       >
         <Select.Root
           items={LABEL_FONT_ITEMS}
@@ -494,6 +525,7 @@ function PaneImpl({
 
   const onPointerDown = (e: React.PointerEvent) => {
     onFocus(leaf.id)
+    useStore.getState().selectLabel(null)
     if (!leaf.photoId)
       return
     elRef.current?.setPointerCapture(e.pointerId)

@@ -74,7 +74,7 @@ rows.
 | Drop a photo onto a pane | Place it directly into that pane |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop — export uses the still |
 | "Sticker" button on a pane | Pick an image from the library and pin it onto the photo (e.g. to cover faces); drag to move, corner handle to scale, × to delete |
-| "Text" button on a pane | Add a text label (black on white, pinned to the pane): drag to move, corner handle to resize, double-click to edit, hover toolbar to pick a Google font |
+| "Text" button on a pane | Add a text label (black on white, pinned to the pane): click it to select (the toolbar stays pinned — pick a Google font there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
 | × at pane top right | Close the pane (hidden while only one pane exists) |
 
 | Key | Action |
@@ -91,7 +91,7 @@ rows.
 | `⌘E` | Export collage |
 | `C` | Export crop report |
 | `?` | Help |
-| `Esc` | Close overlay / clear focus / exit sticker mode |
+| `Esc` | Close overlay / deselect label / clear focus / exit sticker mode |
 
 **Canvas aspect ratio** initially follows the first photo added. Drag the
 bottom-right handle to change it (double-click to follow again).
