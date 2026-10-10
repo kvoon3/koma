@@ -642,7 +642,7 @@ function PaneImpl({
     [rect.x, rect.y],
   )
 
-  const pickingHere = useStore(s => s.stickerPick?.paneId === leaf.id)
+  const stickerArmed = useStore(s => s.stickerPaneId === leaf.id)
 
   const swapWithFocused = useStore(s => s.swapPhotos)
 
@@ -680,6 +680,17 @@ function PaneImpl({
         e.stopPropagation()
         const s = useStore.getState()
         const created = s.addPhotos(files, false)
+        if (!created.length)
+          return
+        // Sticker mode: drops land as stickers at the drop point instead of
+        // replacing the pane's photo.
+        if (s.stickerPaneId === leaf.id && place) {
+          const pt = toCanvas(e.clientX, e.clientY)
+          const n = photoNorm(place, pt.x, pt.y)
+          for (const ph of created)
+            s.addSticker(leaf.id, ph.id, n.x, n.y)
+          return
+        }
         const first = created[0]
         if (first)
           s.assign(leaf.id, first.id)
@@ -794,20 +805,14 @@ function PaneImpl({
         </button>
         {leaf.photoId && (
           <button
-            className={`${paneBtnCls}${pickingHere ? ' bg-chip-on text-chip-on-txt' : ''}`}
-            title="Add a sticker (e.g. to cover a face)"
+            className={`${paneBtnCls}${stickerArmed ? ' bg-chip-on text-chip-on-txt' : ''}`}
+            title={stickerArmed
+              ? 'Sticker mode on — drop images on this pane to add stickers · click again or Esc to stop'
+              : 'Sticker mode — then drop images on this pane to add stickers'}
             onClick={(e) => {
               e.stopPropagation()
               const s = useStore.getState()
-              if (s.stickerPick?.paneId === leaf.id) {
-                s.cancelStickerPick()
-                return
-              }
-              if (!place)
-                return
-              const nx = (rect.x + rect.w / 2 - place.x) / place.w
-              const ny = (rect.y + rect.h / 2 - place.y) / place.h
-              s.beginStickerPick(leaf.id, nx, ny)
+              s.setStickerPane(s.stickerPaneId === leaf.id ? null : leaf.id)
               onFocus(leaf.id)
             }}
           >
@@ -826,6 +831,18 @@ function PaneImpl({
           <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
         </button>
       </div>
+
+      {stickerArmed && !dropping && (
+        <span className="pointer-events-none absolute bottom-[9px] left-1/2 z-[3] -translate-x-1/2 border border-float-line bg-float-bg py-[3px] pl-2 pr-[9px] text-[10.5px] font-semibold whitespace-nowrap text-float-icon backdrop-blur-[7px]">
+          Drop images to add stickers
+        </span>
+      )}
+
+      {stickerArmed && dropping && (
+        <span className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center bg-accent/10 text-[12.5px] font-semibold text-pane-hint">
+          Drop to add sticker
+        </span>
+      )}
 
       {canClose && (
         <button
@@ -847,7 +864,7 @@ function PaneImpl({
         className={
           `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1${
             focused ? ' outline-txt' : ''
-          }${dropping ? ' outline-dashed outline-txt' : ''}`
+          }${stickerArmed ? ' outline-dashed outline-accent' : ''}${dropping && !stickerArmed ? ' outline-dashed outline-txt' : ''}`
         }
         style={{ borderRadius: radius }}
       />
