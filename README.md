@@ -44,9 +44,10 @@ start                press V              focus right half, press S
 
 ```ts
 type Node = Leaf | Split
-interface Leaf { type: 'leaf', id, photoId, zoom, cx, cy, stickers: Sticker[] }
+interface Leaf { type: 'leaf', id, photoId, zoom, cx, cy, stickers: Sticker[], label: PaneLabel | null }
 interface Split { type: 'split', id, dir: 'row' | 'column', ratio, a: Node, b: Node }
 interface Sticker { id, photoId, x, y, s }
+interface PaneLabel { text, font, x, y, size } // x/y: pane-normalized center; size: ‰ of short edge
 ```
 
 `dir: 'row'` splits left/right, `'column'` splits top/bottom.
@@ -68,6 +69,7 @@ rows.
 | Double-click inside a pane | Reset that pane's photo |
 | Drop a photo onto a pane | Place it directly into that pane |
 | "Sticker" button on a pane | Pick an image from the library and pin it onto the photo (e.g. to cover faces); drag to move, corner handle to scale, × to delete |
+| "Text" button on a pane | Add a text label (black on white, pinned to the pane): drag to move, corner handle to resize, double-click to edit, hover toolbar to pick a Google font |
 | × at pane top right | Close the pane (hidden while only one pane exists) |
 
 | Key | Action |
@@ -119,6 +121,7 @@ Settings; the ratio comes from `ratio`).
 | Photo radius | Corner radius of each pane, 0–20% |
 | Canvas fill | Black / white / custom color / **transparent** |
 | Export size | Long-edge pixels (presets + custom), with a live W×H readout |
+| Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
 **Gap and radius are per-mille of the canvas short edge, not pixels.** Once set,
 exporting at 1080 or 6000 looks identical — preview and export share the same
@@ -138,7 +141,10 @@ the renderer and the exporter, with different W/H. Decorative sizes (gap, radius
 scale by `canvas short edge / 1000`, so export scales them proportionally.
 Result: **preview and export match exactly, no export drift** — including
 stickers, which are anchored in photo-normalized coordinates and follow the
-photo's pan/zoom, landing in the same spot at export time.
+photo's pan/zoom, landing in the same spot at export time. Text labels follow the
+same rule — the exporter draws them through the shared `labelRect()` and sizes
+them in ‰ of the short edge, so a label sits identically at any export
+resolution, including on panes with no photo at all.
 
 Key invariant:
 
@@ -186,6 +192,7 @@ src/
   lib/imageStore.ts  three-tier image assets + JPEG/HEIC header probing
   lib/heic.ts        HEIC: meta box probing + WASM decoding (heic-to)
   lib/exporter.ts    high-res rendering + crop report export
+  lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
   components/
     Stage.tsx        canvas: computes layout, renders panes and dividers
     Pane.tsx         one pane: photo, pan/zoom, split buttons, drop target

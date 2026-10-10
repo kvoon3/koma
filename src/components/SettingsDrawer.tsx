@@ -4,9 +4,12 @@ import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { Select } from '@base-ui/react/select'
 import { Slider } from '@base-ui/react/slider'
+import { Switch } from '@base-ui/react/switch'
 import { Check, ChevronDown, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
+import { useState } from 'react'
 import { outputSizeFor } from '../lib/exporter'
+import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
 import { isTransparentBg, useStore } from '../store'
 import './drawers.css'
 
@@ -23,6 +26,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
   const longSide = useStore(s => s.longSide)
   const canvasRatio = useStore(s => s.canvasRatio)
   const patch = useStore(s => s.patch)
+  const [mirror, setMirror] = useState(() => mirrorEnabled())
 
   const ratio = canvasRatio ?? 1.5
   const size = outputSizeFor(longSide, ratio)
@@ -153,6 +157,25 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                       %
                     </span>
                   </div>
+                </section>
+
+                <section className="bui-drawer-group">
+                  <h4>Fonts</h4>
+                  <div className="bui-drawer-row">
+                    <span className="bui-drawer-lbl-wide">Font mirror (fonts.loli.net)</span>
+                    <Switch.Root
+                      className="bui-drawer-switch"
+                      aria-label="Font mirror"
+                      checked={mirror}
+                      onCheckedChange={(checked) => {
+                        setMirror(checked)
+                        setMirrorEnabled(checked)
+                      }}
+                    >
+                      <Switch.Thumb className="bui-drawer-switch-thumb" />
+                    </Switch.Root>
+                  </div>
+                  <p>Fallback CDN for Google Fonts when fonts.googleapis.com is unreachable.</p>
                 </section>
 
                 <section className="bui-drawer-group">

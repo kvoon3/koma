@@ -189,6 +189,7 @@ export function Stage() {
             leaf={node}
             rect={rect}
             radius={view.radius}
+            unit={view.unit}
             photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
             photoById={photoById}
             focused={focusId === node.id}

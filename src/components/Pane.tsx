@@ -1,11 +1,42 @@
+import type { FontMeta } from '../lib/fonts'
 import type { Photo } from '../lib/imageStore'
-import type { Leaf, Rect, Sticker } from '../lib/panes'
-import { SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
+import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
+import { Select } from '@base-ui/react/select'
+import { Check, ChevronDown, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
+import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { clampLeaf, photoNorm, placement, stickerRect } from '../lib/panes'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
+
+const LABEL_FONT_ITEMS = [
+  { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
+  ...FONT_CATALOG.map(f => ({ value: f.id, label: f.label, cat: f.cat })),
+]
+
+const FONT_CATS: { id: FontMeta['cat'], label: string }[] = [
+  { id: 'system', label: 'System' },
+  { id: 'sans', label: 'Sans' },
+  { id: 'serif', label: 'Serif' },
+  { id: 'display', label: 'Display' },
+  { id: 'hand', label: 'Handwriting' },
+  { id: 'mono', label: 'Mono' },
+]
+
+// Loads a Google font for the preview and bumps a counter once a web font finishes
+// loading, so the label re-renders with the real metrics.
+function useFontReady(font: string): number {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (fontById(font).gfFamily)
+      void ensureFonts([font])
+    const onDone = () => setTick(t => t + 1)
+    document.fonts.addEventListener('loadingdone', onDone)
+    return () => document.fonts.removeEventListener('loadingdone', onDone)
+  }, [font])
+  return tick
+}
 
 function StickerView({
   paneId,
@@ -117,10 +148,240 @@ function StickerView({
   )
 }
 
+function LabelView({
+  paneId,
+  lab,
+  unit,
+  editing,
+  setEditing,
+  elRef,
+  onFocus,
+}: {
+  paneId: string
+  lab: PaneLabel
+  unit: number
+  editing: boolean
+  setEditing: (v: boolean) => void
+  elRef: React.RefObject<HTMLDivElement | null>
+  onFocus: (id: string) => void
+}) {
+  const setLabel = useStore(s => s.setLabel)
+  const removeLabel = useStore(s => s.removeLabel)
+  const fontTick = useFontReady(lab.font)
+  const textRef = useRef<HTMLDivElement | null>(null)
+  const gestureRef = useRef<{
+    mode: 'move' | 'resize'
+    cx: number
+    cy: number
+    d0: number
+    s0: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!editing)
+      return
+    const el = textRef.current
+    if (!el)
+      return
+    el.focus()
+    const sel = window.getSelection()
+    if (!sel)
+      return
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }, [editing])
+
+  const onBoxDown = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    if (editing)
+      return
+    onFocus(paneId)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    gestureRef.current = { mode: 'move', cx: 0, cy: 0, d0: 0, s0: lab.size }
+  }
+  const onBoxMove = (e: React.PointerEvent) => {
+    const g = gestureRef.current
+    if (!g || g.mode !== 'move')
+      return
+    e.stopPropagation()
+    const r = elRef.current?.getBoundingClientRect()
+    if (!r)
+      return
+    setLabel(paneId, {
+      x: (e.clientX - r.left) / r.width,
+      y: (e.clientY - r.top) / r.height,
+    })
+  }
+
+  const onSizeDown = (e: React.PointerEvent) => {
+    e.stopPropagation()
+    const r = elRef.current?.getBoundingClientRect()
+    if (!r)
+      return
+    const target = e.currentTarget as HTMLElement
+    target.setPointerCapture(e.pointerId)
+    const cx = r.left + lab.x * r.width
+    const cy = r.top + lab.y * r.height
+    gestureRef.current = {
+      mode: 'resize',
+      cx,
+      cy,
+      d0: Math.max(4, Math.hypot(e.clientX - cx, e.clientY - cy)),
+      s0: lab.size,
+    }
+  }
+  const onSizeMove = (e: React.PointerEvent) => {
+    const g = gestureRef.current
+    if (!g || g.mode !== 'resize')
+      return
+    e.stopPropagation()
+    const dist = Math.hypot(e.clientX - g.cx, e.clientY - g.cy)
+    setLabel(paneId, { size: g.s0 * (dist / g.d0) })
+  }
+
+  const endGesture = () => {
+    gestureRef.current = null
+  }
+
+  const commit = () => {
+    const el = textRef.current
+    setEditing(false)
+    if (!el)
+      return
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+    if (!text)
+      removeLabel(paneId)
+    else
+      setLabel(paneId, { text })
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing)
+      return
+    if (e.key !== 'Enter' && e.key !== 'Escape')
+      return
+    const el = e.currentTarget as HTMLElement
+    if (e.key === 'Enter')
+      e.preventDefault()
+    el.blur()
+  }
+
+  return (
+    <div
+      className={`paneLabel${editing ? ' editing' : ''}`}
+      data-font-tick={fontTick}
+      style={{
+        left: `${lab.x * 100}%`,
+        top: `${lab.y * 100}%`,
+        transform: 'translate(-50%, -50%)',
+        fontSize: `${lab.size * unit}px`,
+        fontFamily: fontById(lab.font).cssStack,
+      }}
+      onPointerDown={onBoxDown}
+      onPointerMove={onBoxMove}
+      onPointerUp={endGesture}
+      onPointerCancel={endGesture}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        setEditing(true)
+      }}
+    >
+      <div
+        ref={textRef}
+        contentEditable={editing}
+        suppressContentEditableWarning
+        onBlur={commit}
+        onKeyDown={onKeyDown}
+      >
+        {lab.text}
+      </div>
+      {!editing && (
+        <span
+          className="paneLabelSize"
+          title="Drag to resize"
+          onPointerDown={onSizeDown}
+          onPointerMove={onSizeMove}
+          onPointerUp={endGesture}
+          onPointerCancel={endGesture}
+        />
+      )}
+      {!editing && (
+        <button
+          className="paneLabelDel"
+          title="Remove label"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            removeLabel(paneId)
+          }}
+        >
+          ×
+        </button>
+      )}
+      <div
+        className={`paneLabelBar${lab.y < 0.3 ? ' below' : ''}`}
+        onPointerDown={e => e.stopPropagation()}
+      >
+        <Select.Root
+          items={LABEL_FONT_ITEMS}
+          value={lab.font}
+          onValueChange={value => setLabel(paneId, { font: String(value) })}
+        >
+          <Select.Trigger className="paneLabelFont" title="Label font" aria-label="Label font">
+            <Select.Value />
+            <Select.Icon className="paneLabelFontIcon">
+              <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
+            </Select.Icon>
+          </Select.Trigger>
+          <Select.Portal>
+            <Select.Positioner
+              className="paneLabelPositioner"
+              sideOffset={4}
+              align="start"
+              alignItemWithTrigger={false}
+            >
+              <Select.Popup className="paneLabelMenu">
+                <Select.List className="paneLabelMenuList">
+                  {FONT_CATS.map((cat) => {
+                    const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
+                    if (!items.length)
+                      return null
+                    return (
+                      <Select.Group key={cat.id} className="paneLabelMenuGroup">
+                        <Select.GroupLabel className="paneLabelMenuGroupLabel">{cat.label}</Select.GroupLabel>
+                        {items.map(item => (
+                          <Select.Item
+                            key={item.value || 'system'}
+                            value={item.value}
+                            className="paneLabelMenuItem"
+                            style={{ fontFamily: fontById(item.value).cssStack }}
+                          >
+                            <Select.ItemIndicator className="paneLabelItemIndicator">
+                              <MorphIcon icon={Check} size={12} strokeWidth={2} />
+                            </Select.ItemIndicator>
+                            <Select.ItemText className="paneLabelItemText">{item.label}</Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.Group>
+                    )
+                  })}
+                </Select.List>
+              </Select.Popup>
+            </Select.Positioner>
+          </Select.Portal>
+        </Select.Root>
+      </div>
+    </div>
+  )
+}
+
 interface Props {
   leaf: Leaf
   rect: Rect
   radius: number
+  unit: number
   photo: Photo | null
   photoById: Map<string, Photo>
   focused: boolean
@@ -135,6 +396,7 @@ function PaneImpl({
   leaf,
   rect,
   radius,
+  unit,
   photo,
   photoById,
   focused,
@@ -156,6 +418,7 @@ function PaneImpl({
     base: Leaf
   } | null>(null)
   const [dropping, setDropping] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const iw = preview?.w ?? 0
   const ih = preview?.h ?? 0
@@ -360,6 +623,18 @@ function PaneImpl({
             : null
         })}
 
+      {leaf.label && (
+        <LabelView
+          paneId={leaf.id}
+          lab={leaf.label}
+          unit={unit}
+          editing={editing}
+          setEditing={setEditing}
+          elRef={elRef}
+          onFocus={onFocus}
+        />
+      )}
+
       <div className="paneBar" onPointerDown={e => e.stopPropagation()}>
         <button
           className="paneBtn"
@@ -403,6 +678,17 @@ function PaneImpl({
             <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
           </button>
         )}
+        <button
+          className={`paneBtn${editing ? ' on' : ''}`}
+          title="Add a text label"
+          onClick={(e) => {
+            e.stopPropagation()
+            useStore.getState().ensureLabel(leaf.id)
+            setEditing(true)
+          }}
+        >
+          <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
+        </button>
       </div>
 
       {canClose && (
