@@ -158,7 +158,7 @@ export function StatusBar({
         <input
           ref={fileRef}
           type="file"
-          accept="image/*,.heic,.heif,.hif"
+          accept="image/*,.heic,.heif,.hif,.mov"
           multiple
           hidden
           onChange={(e) => {

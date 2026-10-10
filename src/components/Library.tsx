@@ -26,6 +26,7 @@ export const Thumb = memo(({
       data-size={size}
     >
       {url ? <img src={url} alt="" draggable={false} /> : <span className="ph" />}
+      {photo.videoFile && <span className="liveBadge" title="Live Photo">LIVE</span>}
     </button>
   )
 })

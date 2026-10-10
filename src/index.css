@@ -268,6 +268,45 @@ body {
 .divider { position: absolute; z-index: 5; touch-action: none; }
 .divider.v { cursor: col-resize; }
 .divider.h { cursor: row-resize; }
+
+.liveBadge {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 6px;
+  background: var(--floatBg);
+  border: 1px solid var(--floatLine);
+  color: var(--floatIcon);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  pointer-events: none;
+  backdrop-filter: blur(7px);
+}
+.liveBadge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  box-shadow: inset 0 0 0 2.5px var(--floatBg), inset 0 0 0 3.5px currentColor;
+}
+
+.liveVideo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--paneBg);
+}
+.liveVideo.on { opacity: 1; }
 .divider span {
   position: absolute;
   border-radius: 0px;
@@ -333,6 +372,7 @@ body {
 .strip::-webkit-scrollbar-thumb { background: var(--stripThumb); border-radius: 0px; }
 
 .thumb {
+  position: relative;
   flex: 0 0 108px;
   width: 108px;
   height: 72px;
@@ -349,6 +389,27 @@ body {
 .thumb.on { opacity: 1; border-color: var(--accent2); }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb .ph { display: block; width: 100%; height: 100%; }
+
+.thumb .liveBadge {
+  top: auto;
+  left: 4px;
+  bottom: 4px;
+  z-index: 1;
+  padding: 1px 4px 1px 3px;
+  gap: 3px;
+  font-size: 7.5px;
+  letter-spacing: 0.07em;
+  background: rgba(0, 0, 0, 0.55);
+  border: 0;
+  color: #fff;
+  backdrop-filter: none;
+}
+.thumb .liveBadge::before {
+  width: 6px;
+  height: 6px;
+  border-width: 1px;
+  box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.55), inset 0 0 0 2.5px #fff;
+}
 
 .settingsBody {
   flex: 1;
