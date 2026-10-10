@@ -58,7 +58,7 @@ interface Actions {
   removeLabel: (paneId: string) => void
 }
 
-export const GAP = 10
+export const GAP = 0
 export const RADIUS = 0
 export const BG = '#ffffff'
 export const MIN_PANE_PX = 56
