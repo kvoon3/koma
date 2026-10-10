@@ -108,6 +108,10 @@ export default function App() {
         if (s.focusId)
           s.closePane(s.focusId)
       }
+      else if (k === 'd' || k === 'D') {
+        if (s.focusId)
+          s.removePhoto(s.focusId)
+      }
       else if (k === 'h' || k === 'H' || k === 'j' || k === 'J' || k === 'k' || k === 'K' || k === 'l' || k === 'L') {
         e.preventDefault()
         const dir = k === 'h' || k === 'H' ? 'left' : k === 'l' || k === 'L' ? 'right' : k === 'k' || k === 'K' ? 'up' : 'down'
