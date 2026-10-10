@@ -43,6 +43,8 @@ interface Actions {
   closePane: (paneId: string) => void
   resizeSplit: (splitId: string, ratio: number) => void
   assign: (paneId: string, photoId: string) => void
+  removePhoto: (paneId: string) => void
+  swapPhotos: (a: string, b: string) => void
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
   focus: (paneId: string) => void
   focusNeighbor: (dir: FocusDir) => void
@@ -160,6 +162,34 @@ export const useStore = create<State & Actions>((set, get) => ({
     }),
 
   resizeSplit: (splitId, ratio) => set(s => ({ root: setSplitRatioIn(s.root, splitId, ratio) })),
+
+  removePhoto: paneId =>
+    set(s => ({
+      root: updateLeafIn(s.root, paneId, { photoId: null, zoom: 1, cx: 0.5, cy: 0.5, stickers: [] }),
+    })),
+
+  swapPhotos: (a, b) =>
+    set((s) => {
+      const la = findLeaf(s.root, a)
+      const lb = findLeaf(s.root, b)
+      if (!la || !lb)
+        return s
+      let root = updateLeafIn(s.root, a, {
+        photoId: lb.photoId,
+        zoom: lb.zoom,
+        cx: lb.cx,
+        cy: lb.cy,
+        stickers: lb.stickers,
+      })
+      root = updateLeafIn(root, b, {
+        photoId: la.photoId,
+        zoom: la.zoom,
+        cx: la.cx,
+        cy: la.cy,
+        stickers: la.stickers,
+      })
+      return { root }
+    }),
 
   assign: (paneId, photoId) =>
     set(s => ({

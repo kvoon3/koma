@@ -1,6 +1,7 @@
 import type { FontMeta } from '../lib/fonts'
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
+import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
 import { Check, ChevronDown, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -9,6 +10,7 @@ import { usePreview } from '../hooks'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { clampLeaf, photoNorm, placement, stickerRect } from '../lib/panes'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
+import './contextmenu.css'
 
 const LABEL_FONT_ITEMS = [
   { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
@@ -544,7 +546,9 @@ function PaneImpl({
 
   const pickingHere = useStore(s => s.stickerPick?.paneId === leaf.id)
 
-  return (
+  const swapWithFocused = useStore(s => s.swapPhotos)
+
+  const paneNode = (
     <div
       ref={elRef}
       className={
@@ -580,6 +584,7 @@ function PaneImpl({
         if (first)
           s.assign(leaf.id, first.id)
       }}
+      onContextMenu={e => e.preventDefault()}
     >
       {preview && place
         ? (
@@ -705,6 +710,27 @@ function PaneImpl({
         </button>
       )}
     </div>
+  )
+
+  if (focused)
+    return paneNode
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger render={paneNode} />
+      <ContextMenu.Portal>
+        <ContextMenu.Positioner className="bui-ctx-positioner">
+          <ContextMenu.Popup className="bui-ctx-popup">
+            <ContextMenu.Item
+              className="bui-ctx-item"
+              onClick={() => swapWithFocused(leaf.id, useStore.getState().focusId)}
+            >
+              Swap with focused pane
+            </ContextMenu.Item>
+          </ContextMenu.Popup>
+        </ContextMenu.Positioner>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   )
 }
 

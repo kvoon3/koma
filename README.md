@@ -67,6 +67,7 @@ rows.
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
 | Double-click inside a pane | Reset that pane's photo |
+| Right-click an unfocused pane | Context menu: swap its photo with the focused pane |
 | Drop a photo onto a pane | Place it directly into that pane |
 | "Sticker" button on a pane | Pick an image from the library and pin it onto the photo (e.g. to cover faces); drag to move, corner handle to scale, × to delete |
 | "Text" button on a pane | Add a text label (black on white, pinned to the pane): drag to move, corner handle to resize, double-click to edit, hover toolbar to pick a Google font |
@@ -78,6 +79,7 @@ rows.
 | `V` | Split focused pane left/right (vsplit) |
 | `S` | Split focused pane top/bottom (split) |
 | `X` | Close focused pane |
+| `D` | Remove the photo from the focused pane |
 | `Tab` | Cycle focused pane |
 | `R` | Reset focused pane's photo |
 | `I` | Library drawer |

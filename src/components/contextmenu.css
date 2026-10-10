@@ -1,0 +1,40 @@
+.bui-ctx-positioner {
+  z-index: 90;
+}
+
+.bui-ctx-popup {
+  min-width: 180px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition: opacity 100ms ease-out, scale 100ms ease-out;
+}
+.bui-ctx-popup[data-starting-style],
+.bui-ctx-popup[data-ending-style] {
+  opacity: 0;
+  scale: 0.97;
+}
+
+.bui-ctx-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--txt);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bui-ctx-item[data-highlighted] {
+  background: var(--chipHover);
+}
+.bui-ctx-item:active {
+  background: var(--chipOn);
+  color: var(--chipOnTxt);
+}

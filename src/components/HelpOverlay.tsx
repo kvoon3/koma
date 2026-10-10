@@ -8,6 +8,7 @@ const KEYS: [string, string][] = [
   ['V', 'Split the focused pane left/right (vsplit)'],
   ['S', 'Split the focused pane top/bottom (split)'],
   ['X', 'Close the focused pane'],
+  ['D', 'Remove the photo from the focused pane'],
   ['Tab', 'Focus the next pane'],
   ['R', 'Reset the photo in the focused pane'],
   ['I', 'Toggle the library drawer'],
@@ -25,6 +26,7 @@ const MOUSE: [string, string][] = [
   ['Drag inside a pane', 'Pan the photo — whatever falls outside the pane is cropped'],
   ['Scroll / pinch', 'Zoom the photo around the cursor'],
   ['Double-click inside a pane', 'Reset the photo in that pane'],
+  ['Right-click an unfocused pane', 'Menu: swap its photo with the focused pane'],
   ['Drop a photo onto a pane', 'It goes straight into that pane (multi-select allowed; the first one is used)'],
   ['"Text" button on a pane', 'Add a text label (black on white) — drag to move, corner to resize, double-click to edit; pick a font from the hover toolbar (falls back to system fonts offline)'],
 ]
