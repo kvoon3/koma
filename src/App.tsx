@@ -39,14 +39,6 @@ export default function App() {
 
   initTheme()
 
-  const stickerPick = useStore(s => s.stickerPick)
-  useEffect(() => {
-    if (stickerPick) {
-      setLibOpen(true)
-      setSettingsOpen(false)
-    }
-  }, [stickerPick, setLibOpen, setSettingsOpen])
-
   const longSide = useStore(s => s.longSide)
   const canvasRatio = useStore(s => s.canvasRatio)
   const ratio = canvasRatio ?? 1.5
@@ -157,12 +149,12 @@ export default function App() {
         doCrops()
       }
       else if (k === 'Escape') {
-        if (helpOpen || libOpen || settingsOpen || report != null || s.stickerPick) {
+        if (helpOpen || libOpen || settingsOpen || report != null || s.stickerPaneId) {
           setHelpOpen(false)
           setLibOpen(false)
           setSettingsOpen(false)
           setReport(null)
-          s.cancelStickerPick()
+          s.setStickerPane(null)
         }
         else if (s.labelSel) {
           s.selectLabel(null)

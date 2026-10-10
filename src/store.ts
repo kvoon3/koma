@@ -34,7 +34,7 @@ export interface State {
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
-  stickerPick: { paneId: string, x: number, y: number } | null
+  stickerPaneId: string | null
   labelSel: string | null
 }
 
@@ -54,9 +54,8 @@ interface Actions {
   autoFill: () => void
   patch: (p: Partial<State>) => void
   setCanvasSize: (ratio: number, fill: number) => void
-  beginStickerPick: (paneId: string, x: number, y: number) => void
-  cancelStickerPick: () => void
-  addSticker: (paneId: string, photoId: string) => void
+  setStickerPane: (paneId: string | null) => void
+  addSticker: (paneId: string, photoId: string, x: number, y: number) => void
   moveSticker: (paneId: string, stickerId: string, x: number, y: number) => void
   scaleSticker: (paneId: string, stickerId: string, s: number) => void
   removeSticker: (paneId: string, stickerId: string) => void
@@ -94,7 +93,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   longSide: 2048,
   format: 'image/jpeg',
   quality: 0.92,
-  stickerPick: null,
+  stickerPaneId: null,
   labelSel: null,
 
   addPhotos: (files, autoFill = true) => {
@@ -184,6 +183,7 @@ export const useStore = create<State & Actions>((set, get) => ({
         root: next,
         focusId: leaves.some(l => l.id === s.focusId) ? s.focusId : leaves[0].id,
         labelSel: s.labelSel === paneId ? null : s.labelSel,
+        stickerPaneId: s.stickerPaneId === paneId ? null : s.stickerPaneId,
       }
     }),
 
@@ -192,6 +192,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   removePhoto: paneId =>
     set(s => ({
       root: updateLeafIn(s.root, paneId, { photoId: null, zoom: 1, cx: 0.5, cy: 0.5, stickers: [] }),
+      stickerPaneId: s.stickerPaneId === paneId ? null : s.stickerPaneId,
     })),
 
   swapPhotos: (a, b) =>
@@ -276,21 +277,16 @@ export const useStore = create<State & Actions>((set, get) => ({
       canvasFill: Math.min(1, Math.max(0.15, fill)),
     }),
 
-  beginStickerPick: (paneId, x, y) => set({ stickerPick: { paneId, x, y } }),
+  setStickerPane: paneId => set({ stickerPaneId: paneId }),
 
-  cancelStickerPick: () => set({ stickerPick: null }),
-
-  addSticker: (paneId, photoId) =>
+  addSticker: (paneId, photoId, x, y) =>
     set((s) => {
       const pane = findLeaf(s.root, paneId)
       if (!pane?.photoId)
         return {}
-      const at
-        = s.stickerPick?.paneId === paneId ? s.stickerPick : { paneId, x: 0.5, y: 0.5 }
-      const st: Sticker = { id: uid('t'), photoId, x: at.x, y: at.y, s: 0.25 }
+      const st: Sticker = { id: uid('t'), photoId, x, y, s: 0.25 }
       return {
         root: updateLeafIn(s.root, paneId, { stickers: [...pane.stickers, st] }),
-        stickerPick: { paneId, x: at.x, y: at.y },
       }
     }),
 

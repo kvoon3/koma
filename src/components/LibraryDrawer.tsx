@@ -2,7 +2,6 @@ import { Drawer } from '@base-ui/react/drawer'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
-import { findLeaf, leafList } from '../lib/panes'
 import { useStore } from '../store'
 import { Library } from './Library'
 
@@ -10,12 +9,8 @@ export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () =>
   const photos = useStore(s => s.photos)
   const assign = useStore(s => s.assign)
   const focusId = useStore(s => s.focusId)
-  const root = useStore(s => s.root)
   const clearLibrary = useStore(s => s.clearLibrary)
   const autoFill = useStore(s => s.autoFill)
-  const pick = useStore(s => s.stickerPick)
-  const addSticker = useStore(s => s.addSticker)
-  const cancelStickerPick = useStore(s => s.cancelStickerPick)
 
   const activeId = useStore((s) => {
     const walk = (n: typeof s.root): string | null =>
@@ -27,16 +22,9 @@ export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () =>
     return walk(s.root)
   })
 
-  const pickIndex = pick ? leafList(root).findIndex(l => l.id === pick.paneId) + 1 : 0
-  const pickReady = pick ? !!findLeaf(root, pick.paneId)?.photoId : false
-
-  const hint = pick
-    ? pickReady
-      ? `Pick one to use as a sticker · it lands on pane ${pickIndex}; you can add several in a row`
-      : 'That pane has no photo yet — stickers are placed on photos'
-    : photos.length
-      ? 'Click a thumbnail to place it in the focused pane, or drag photos straight onto a pane'
-      : 'No photos yet. Click "+ Photo / + Folder" or drop files into the window.'
+  const hint = photos.length
+    ? 'Click a thumbnail to place it in the focused pane, or drag photos straight onto a pane'
+    : 'No photos yet. Click "+ Photo / + Folder" or drop files into the window.'
 
   return (
     <Drawer.Root
@@ -56,15 +44,6 @@ export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () =>
                 <Drawer.Title className="m-0 text-[12.5px] font-bold">Library</Drawer.Title>
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px] text-dim">{hint}</span>
                 <span className="flex-1" />
-                {pick && (
-                  <Button
-                    variant="on"
-                    onClick={cancelStickerPick}
-                    title="Shortcut: Esc"
-                  >
-                    Done placing
-                  </Button>
-                )}
                 <Button onClick={() => autoFill()} disabled={!photos.length}>
                   Fill empty panes
                 </Button>
@@ -73,7 +52,6 @@ export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () =>
                 </Button>
                 <Drawer.Close
                   className={`${buttonBase} ${buttonVariants.close}`}
-                  onClick={cancelStickerPick}
                   aria-label="Hide library · Shortcut: L"
                 >
                   <MorphIcon icon={X} size={15} strokeWidth={1.75} />
@@ -81,15 +59,11 @@ export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () =>
               </header>
               <Library
                 photos={photos}
-                activeId={pick ? null : activeId}
+                activeId={activeId}
                 layout="row"
                 onPick={(id) => {
-                  if (pick) {
-                    addSticker(pick.paneId, id)
-                  }
-                  else if (focusId) {
+                  if (focusId)
                     assign(focusId, id)
-                  }
                 }}
               />
             </Drawer.Content>
