@@ -1,6 +1,7 @@
 import antfu from '@antfu/eslint-config'
 import { plugin as shadcn } from '@shadcn/lint'
 import tsParser from '@typescript-eslint/parser'
+import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect'
 
 export default antfu({
   type: 'app',
@@ -31,4 +32,8 @@ export default antfu({
     'shadcn/no-restyle': 'off',
     'react-refresh/only-export-components': 'off',
   },
+}, {
+  // https://github.com/NickvanDyke/eslint-plugin-react-you-might-not-need-an-effect
+  ...reactYouMightNotNeedAnEffect.configs.recommended,
+  name: 'react-you-might-not-need-an-effect/recommended',
 })

@@ -153,6 +153,54 @@ function StickerView({
   )
 }
 
+function LabelEditor({ text, onDone }: { text: string, onDone: (text: string) => void }) {
+  const editorRef = useRef<HTMLDivElement | null>(null)
+
+  // the editor only exists while editing, so focus and select all on mount
+  useEffect(() => {
+    const el = editorRef.current
+    if (!el)
+      return
+    el.focus()
+    const sel = window.getSelection()
+    if (!sel)
+      return
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }, [])
+
+  const finish = (e: React.FocusEvent<HTMLDivElement>) => {
+    onDone((e.currentTarget.textContent ?? '').replace(/\s+/g, ' ').trim())
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing)
+      return
+    if (e.key !== 'Enter' && e.key !== 'Escape')
+      return
+    // keep Esc/Enter from reaching the global handler (Esc would deselect)
+    e.stopPropagation()
+    const el = e.currentTarget as HTMLElement
+    if (e.key === 'Enter')
+      e.preventDefault()
+    el.blur()
+  }
+
+  return (
+    <div
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={finish}
+      onKeyDown={onKeyDown}
+    >
+      {text}
+    </div>
+  )
+}
+
 function LabelView({
   paneId,
   lab,
@@ -182,7 +230,6 @@ function LabelView({
     if (leaveRef.current != null)
       window.clearTimeout(leaveRef.current)
   }, [])
-  const textRef = useRef<HTMLDivElement | null>(null)
   const gestureRef = useRef<{
     mode: 'move' | 'resize'
     cx: number
@@ -190,22 +237,6 @@ function LabelView({
     d0: number
     s0: number
   } | null>(null)
-
-  useEffect(() => {
-    if (!editing)
-      return
-    const el = textRef.current
-    if (!el)
-      return
-    el.focus()
-    const sel = window.getSelection()
-    if (!sel)
-      return
-    const range = document.createRange()
-    range.selectNodeContents(el)
-    sel.removeAllRanges()
-    sel.addRange(range)
-  }, [editing])
 
   const onBoxDown = (e: React.PointerEvent) => {
     e.stopPropagation()
@@ -260,29 +291,12 @@ function LabelView({
     gestureRef.current = null
   }
 
-  const commit = () => {
-    const el = textRef.current
+  const commitEdit = (text: string) => {
     setEditing(false)
-    if (!el)
-      return
-    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim()
     if (!text)
       removeLabel(paneId)
     else
       setLabel(paneId, { text })
-  }
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing)
-      return
-    if (e.key !== 'Enter' && e.key !== 'Escape')
-      return
-    // keep Esc/Enter from reaching the global handler (Esc would deselect)
-    e.stopPropagation()
-    const el = e.currentTarget as HTMLElement
-    if (e.key === 'Enter')
-      e.preventDefault()
-    el.blur()
   }
 
   return (
@@ -322,15 +336,9 @@ function LabelView({
         setEditing(true)
       }}
     >
-      <div
-        ref={textRef}
-        contentEditable={editing}
-        suppressContentEditableWarning
-        onBlur={commit}
-        onKeyDown={onKeyDown}
-      >
-        {lab.text}
-      </div>
+      {editing
+        ? <LabelEditor text={lab.text} onDone={commitEdit} />
+        : <div>{lab.text}</div>}
       {!editing && (
         <span
           className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms]${hot || selected ? ' opacity-100' : ''}`}
