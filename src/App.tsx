@@ -52,6 +52,17 @@ export default function App() {
   const ratio = canvasRatio ?? 1.5
   const size = useMemo(() => sizeFor(longSide, ratio), [longSide, ratio])
 
+  // Pinch/ctrl+wheel zooms the pane under the cursor (handled there); anywhere
+  // else it would zoom the whole browser page, which we never want.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.defaultPrevented)
+        e.preventDefault()
+    }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    return () => window.removeEventListener('wheel', onWheel)
+  }, [])
+
   const doExport = useCallback(async () => {
     setBusy(true)
     say('Rendering at original resolution...')
