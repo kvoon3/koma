@@ -11,7 +11,7 @@ import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { getLiveVideoUrl } from '../lib/imageStore'
 import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, stickerRect } from '../lib/panes'
-import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
+import { activeWs, MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 
 const paneBtnCls = 'grid h-6 w-[26px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[30px] pointer-coarse:w-8 hover:bg-chip-hover hover:text-txt'
 
@@ -725,7 +725,15 @@ function PaneImpl({
       const [a, b] = [...pointersRef.current.values()]
       const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))
       const mid = local((a.x + b.x) / 2, (a.y + b.y) / 2)
-      zoomAbout(g.base, g.base.zoom * (dist / g.startDist), mid.x, mid.y)
+      const ratio = dist / g.startDist
+      // "Pinch past the floor": zoomAbout clamps to MIN_ZOOM, so judge the
+      // raw ratio — shrinking an already-minimum photo out of the pane is the
+      // explicit exit-to-grid gesture, and it must not commit a zoom either.
+      if (g.base.zoom * ratio <= MIN_ZOOM && ratio < 1) {
+        useStore.getState().toggleGrid()
+        return
+      }
+      zoomAbout(g.base, g.base.zoom * ratio, mid.x, mid.y)
     }
   }
 
@@ -782,11 +790,25 @@ function PaneImpl({
       // when this pane has nothing to zoom (the stage forwards these here).
       if (e.ctrlKey || (leaf.photoId && iw && ih))
         e.preventDefault()
+      // Pinching in (shrinking) on a pane without a photo: nothing to zoom,
+      // so the pinch itself is the exit-to-grid gesture.
+      if (!leaf.photoId && e.ctrlKey && e.deltaY > 0) {
+        useStore.getState().toggleGrid()
+        return
+      }
       if (!leaf.photoId || !iw || !ih)
         return
       const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0012))
+      const nextZoom = leaf.zoom * factor
+      // Ctrl+pinch that would shrink below MIN_ZOOM has hit the floor and is
+      // still pushing out: zoom out all the way into the 3×3 grid instead of
+      // clamping. Plain (non-ctrl) wheel is never an exit signal.
+      if (e.ctrlKey && nextZoom <= MIN_ZOOM) {
+        useStore.getState().toggleGrid()
+        return
+      }
       const p = local(e.clientX, e.clientY)
-      zoomAbout(leaf, leaf.zoom * factor, p.x, p.y)
+      zoomAbout(leaf, nextZoom, p.x, p.y)
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
@@ -808,7 +830,7 @@ function PaneImpl({
   // A swap needs a target other than this pane: on desktop that's any right
   // click on an unfocused pane, on touch it's a long-press (focus was
   // deferred, so the previously focused pane is still the target).
-  const focusId = useStore(s => s.focusId)
+  const focusId = useStore(s => activeWs(s).focusId)
   const swapTargetId = !focused && focusId && focusId !== leaf.id ? focusId : null
 
   const paneNode = (

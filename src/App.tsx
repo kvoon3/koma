@@ -1,6 +1,7 @@
 import type { ExportOptions } from './lib/exporter'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { useCallback, useEffect, useState } from 'react'
+import { ClearConfirm } from './components/ClearConfirm'
 import { CropDialog } from './components/CropDialog'
 import { Footer } from './components/Footer'
 import { HelpOverlay } from './components/HelpOverlay'
@@ -9,18 +10,20 @@ import { SettingsDrawer } from './components/SettingsDrawer'
 import { Stage } from './components/Stage'
 import ToastHost from './components/ToastHost'
 import { TopBar } from './components/TopBar'
+import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { buildCropReport, downloadBlob, renderCollage } from './lib/exporter'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
-import { isTransparentBg, photoMap, useStore } from './store'
+import { activeWs, isTransparentBg, photoMap, useStore } from './store'
 import { initTheme } from './theme'
 import { usePersisted } from './usePersisted'
 
 function exportOptions(): ExportOptions {
   const s = useStore.getState()
+  const ws = activeWs(s)
   return {
-    root: s.root,
-    ratio: s.canvasRatio ?? 1.5,
+    root: ws.root,
+    ratio: ws.canvasRatio ?? 1.5,
     gap: s.gap,
     radius: s.radius,
     bg: s.bg,
@@ -29,13 +32,46 @@ function exportOptions(): ExportOptions {
   }
 }
 
+/** One export per non-empty workspace, in grid order, named by position. */
+async function exportGrid() {
+  const s = useStore.getState()
+  const filled = s.workspaces.filter(w => leafList(w.root).some(l => l.photoId))
+  for (let i = 0; i < filled.length; i++) {
+    const ws = filled[i]
+    say(`Rendering ${i + 1} / ${filled.length}...`)
+    const canvas = await renderCollage({
+      root: ws.root,
+      ratio: ws.canvasRatio ?? 1.5,
+      gap: s.gap,
+      radius: s.radius,
+      bg: s.bg,
+      photos: photoMap(s.photos),
+      longSide: s.longSide,
+    })
+    const format = isTransparentBg(s.bg) ? 'image/png' : s.format
+    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, format, s.quality))
+    if (!blob)
+      throw new Error('Failed to create image')
+    const ext = format === 'image/png' ? 'png' : 'jpg'
+    const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
+    // Position among the filled workspaces at export time, 1-based.
+    const pos = s.workspaces.indexOf(ws) + 1
+    downloadBlob(blob, `collage_${pos}_${canvas.width}x${canvas.height}_${stamp}.${ext}`)
+    canvas.width = canvas.height = 0
+  }
+  say(`Exported ${filled.length} image${filled.length === 1 ? '' : 's'}`)
+}
+
 export default function App() {
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
+  const [clearAsk, setClearAsk] = useState(false)
 
   const [libOpen, setLibOpen] = usePersisted('libOpen', false)
   const [settingsOpen, setSettingsOpen] = usePersisted('settingsOpen', false)
   const [helpOpen, setHelpOpen] = useState(false)
+
+  const view = useStore(s => s.view)
 
   initTheme()
 
@@ -54,18 +90,23 @@ export default function App() {
     setBusy(true)
     say('Rendering at original resolution...')
     try {
-      const opts = exportOptions()
-      const canvas = await renderCollage(opts)
-      const s = useStore.getState()
-      const format = isTransparentBg(s.bg) ? 'image/png' : s.format
-      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, format, s.quality))
-      if (!blob)
-        throw new Error('Failed to create image')
-      const ext = format === 'image/png' ? 'png' : 'jpg'
-      const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
-      downloadBlob(blob, `collage_${canvas.width}x${canvas.height}_${stamp}.${ext}`)
-      say(`Exported ${canvas.width} × ${canvas.height} (${ext.toUpperCase()})`)
-      canvas.width = canvas.height = 0
+      if (useStore.getState().view === 'grid') {
+        await exportGrid()
+      }
+      else {
+        const opts = exportOptions()
+        const canvas = await renderCollage(opts)
+        const s = useStore.getState()
+        const format = isTransparentBg(s.bg) ? 'image/png' : s.format
+        const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, format, s.quality))
+        if (!blob)
+          throw new Error('Failed to create image')
+        const ext = format === 'image/png' ? 'png' : 'jpg'
+        const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
+        downloadBlob(blob, `collage_${canvas.width}x${canvas.height}_${stamp}.${ext}`)
+        say(`Exported ${canvas.width} × ${canvas.height} (${ext.toUpperCase()})`)
+        canvas.width = canvas.height = 0
+      }
     }
     catch (e) {
       say(`Export failed: ${(e as Error).message}`)
@@ -91,24 +132,49 @@ export default function App() {
         return
 
       const s = useStore.getState()
-      const leaves = leafList(s.root)
       const k = e.key
+      const grid = s.view === 'grid'
+
+      if (k === 'G' || k === 'g') {
+        e.preventDefault()
+        s.toggleGrid()
+        return
+      }
+
+      // Grid view is pure navigation: arrows / hjkl / Tab / Enter are handled
+      // by the WorkspaceGrid's own listener (mounted only in grid view);
+      // everything else edit-specific is swallowed here.
+      if (grid) {
+        if (k === ',') {
+          e.preventDefault()
+          setSettingsOpen(v => !v)
+          setLibOpen(false)
+        }
+        else if (k === '?') {
+          e.preventDefault()
+          setHelpOpen(v => !v)
+        }
+        return
+      }
+
+      const ws = activeWs(s)
+      const leaves = leafList(ws.root)
 
       if (k === 'v' || k === 'V') {
-        if (s.focusId)
-          s.split(s.focusId, 'row')
+        if (ws.focusId)
+          s.split(ws.focusId, 'row')
       }
       else if (k === 's' || k === 'S') {
-        if (s.focusId)
-          s.split(s.focusId, 'column')
+        if (ws.focusId)
+          s.split(ws.focusId, 'column')
       }
       else if (k === 'x' || k === 'X') {
-        if (s.focusId)
-          s.closePane(s.focusId)
+        if (ws.focusId)
+          s.closePane(ws.focusId)
       }
       else if (k === 'd' || k === 'D') {
-        if (s.focusId)
-          s.removePhoto(s.focusId)
+        if (ws.focusId)
+          s.removePhoto(ws.focusId)
       }
       else if (k === 'h' || k === 'H' || k === 'j' || k === 'J' || k === 'k' || k === 'K' || k === 'l' || k === 'L') {
         e.preventDefault()
@@ -133,12 +199,12 @@ export default function App() {
         e.preventDefault()
         if (!leaves.length)
           return
-        const i = leaves.findIndex(l => l.id === s.focusId)
+        const i = leaves.findIndex(l => l.id === ws.focusId)
         s.focus(leaves[(i + 1 + leaves.length) % leaves.length].id)
       }
       else if (k === 'r' || k === 'R') {
-        if (s.focusId)
-          s.updateLeaf(s.focusId, { zoom: 1, cx: 0.5, cy: 0.5 })
+        if (ws.focusId)
+          s.updateLeaf(ws.focusId, { zoom: 1, cx: 0.5, cy: 0.5 })
       }
       else if (k === 'c' || k === 'C') {
         doCrops()
@@ -165,6 +231,9 @@ export default function App() {
   useEffect(() => {
     const over = (e: DragEvent) => e.preventDefault()
     const drop = (e: DragEvent) => {
+      // Grid view is pure navigation: drops are ignored there.
+      if (useStore.getState().view === 'grid')
+        return
       const files = [...(e.dataTransfer?.files ?? [])]
       if (!files.length)
         return
@@ -201,15 +270,18 @@ export default function App() {
           onToggleHelp={() => setHelpOpen(v => !v)}
           onExport={doExport}
           onCrops={doCrops}
+          onClearAsk={() => setClearAsk(true)}
         />
 
         <main className="relative min-h-0 flex-1">
-          <Stage />
+          {view === 'grid'
+            ? <WorkspaceGrid />
+            : <Stage />}
         </main>
 
         <Footer />
 
-        <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} />
+        <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} onRequestClear={() => setClearAsk(true)} />
         <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
         <HelpOverlay open={helpOpen} onClose={closeHelp} />
@@ -217,6 +289,16 @@ export default function App() {
         <ToastHost />
 
         <CropDialog report={report} onClose={() => setReport(null)} />
+
+        <ClearConfirm
+          open={clearAsk}
+          onClose={() => setClearAsk(false)}
+          onConfirm={() => {
+            useStore.getState().clearLibrary()
+            setClearAsk(false)
+            say('Library cleared')
+          }}
+        />
       </div>
     </Tooltip.Provider>
   )

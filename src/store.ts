@@ -23,12 +23,22 @@ import {
   updateLeafIn,
 } from './lib/panes'
 
-export interface State {
-  photos: Photo[]
+/** One of the nine collage workspaces. Array order is the grid order. */
+export interface Workspace {
+  id: string
   root: Node
   focusId: string
   canvasRatio: number | null
   canvasFill: number
+}
+
+export interface State {
+  photos: Photo[]
+  workspaces: Workspace[]
+  activeId: string
+  /** 'edit' shows the active workspace canvas; 'grid' shows the 3×3 overview. */
+  view: 'edit' | 'grid'
+  /** The workspace the G key / center button returns to (tracked by id, not position). */
   gap: number
   radius: number
   bg: string
@@ -43,33 +53,6 @@ export interface State {
   // mode; the sequence number lets a pane consume requests render-time, and
   // repeated requests for the same pane still fire.
   labelEditReq: { paneId: string, seq: number } | null
-}
-
-interface Actions {
-  addPhotos: (files: File[], autoFill?: boolean) => Photo[]
-  clearLibrary: () => void
-  split: (paneId: string, dir: 'row' | 'column') => void
-  closePane: (paneId: string) => void
-  resizeSplit: (splitId: string, ratio: number) => void
-  assign: (paneId: string, photoId: string) => void
-  removePhoto: (paneId: string) => void
-  swapPhotos: (a: string, b: string) => void
-  updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
-  focus: (paneId: string) => void
-  focusNeighbor: (dir: FocusDir) => void
-  selectLabel: (paneId: string | null) => void
-  selectSticker: (sel: { paneId: string, stickerId: string } | null) => void
-  requestLabelEdit: (paneId: string) => void
-  autoFill: () => void
-  patch: (p: Partial<State>) => void
-  setCanvasSize: (ratio: number, fill: number) => void
-  addSticker: (paneId: string, photoId: string, x: number, y: number) => void
-  moveSticker: (paneId: string, stickerId: string, x: number, y: number) => void
-  scaleSticker: (paneId: string, stickerId: string, s: number) => void
-  removeSticker: (paneId: string, stickerId: string) => void
-  ensureLabel: (paneId: string) => void
-  setLabel: (paneId: string, patch: Partial<PaneLabel>) => void
-  removeLabel: (paneId: string) => void
 }
 
 export const GAP = 0
@@ -87,16 +70,41 @@ export const BG_PRESETS: { id: string, label: string, value: string }[] = [
 
 export const isTransparentBg = (bg: string) => bg === 'transparent'
 
-const defaultRoot = newLeaf()
+function newWorkspace(): Workspace {
+  const root = newLeaf()
+  return { id: uid('w'), root, focusId: root.id, canvasRatio: null, canvasFill: 1 }
+}
+
+function initialWorkspaces(): Workspace[] {
+  return Array.from({ length: 9 }, newWorkspace)
+}
+
+const bootWorkspaces = initialWorkspaces()
+
+/** Active workspace (never null: activeId always matches a workspace). */
+export function activeWs(s: State): Workspace {
+  return s.workspaces.find(w => w.id === s.activeId) ?? s.workspaces[0]
+}
+
+/** Map over the active workspace, keeping the array order. */
+function mapActive(s: State, fn: (w: Workspace) => Workspace): Workspace[] {
+  return s.workspaces.map(w => (w.id === s.activeId ? fn(w) : w))
+}
 
 let labelEditSeq = 0
 
+/** Clear selection-type state on any workspace / view switch. */
+const clearedSelection = {
+  labelSel: null,
+  stickerSel: null,
+  labelEditReq: null,
+}
+
 export const useStore = create<State & Actions>()(persist((set, get) => ({
   photos: [],
-  root: defaultRoot,
-  focusId: defaultRoot.id,
-  canvasRatio: null,
-  canvasFill: 1,
+  workspaces: bootWorkspaces,
+  activeId: bootWorkspaces[0].id,
+  view: 'edit' as const,
   gap: GAP,
   radius: RADIUS,
   bg: BG,
@@ -112,7 +120,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const vids = new Map<string, File>()
     for (const v of videos) {
       const k = baseKey(v.name)
-      if (!vids.has(k))
+      if (k && !vids.has(k))
         vids.set(k, v)
     }
     const imgs = images.filter(f => f.type.startsWith('image/') || looksHeic(f))
@@ -149,71 +157,88 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         return
       set(s => ({
         photos: s.photos.map(x => (x.id === p.id ? { ...x, trueW: d.w, trueH: d.h } : x)),
-        canvasRatio: s.canvasRatio ?? d.w / d.h,
+        // Auto-set the aspect ratio of the ACTIVE workspace only, and only
+        // while it is still unset.
+        workspaces: s.workspaces.map(w => (w.id === s.activeId && w.canvasRatio == null
+          ? { ...w, canvasRatio: d.w / d.h }
+          : w)),
       }))
     })
 
-    if (autoFill && leafList(get().root).every(l => !l.photoId))
+    if (autoFill && leafList(activeWs(get()).root).every(l => !l.photoId))
       get().autoFill()
     return added
   },
 
   clearLibrary: () => {
     clearImageCaches()
-    const fresh = newLeaf()
     set(s => ({
       photos: [],
-      root: fresh,
-      focusId: fresh.id,
-      canvasRatio: null,
-      canvasFill: 1,
-      gap: s.gap,
-      radius: s.radius,
-      bg: s.bg,
+      // Reset every workspace to a fresh blank canvas, keeping the order.
+      workspaces: s.workspaces.map(() => newWorkspace()),
       labelSel: null,
       stickerSel: null,
+      labelEditReq: null,
     }))
   },
 
   split: (paneId, dir) =>
     set((s) => {
-      const next = splitLeaf(s.root, paneId, dir)
-      if (next === s.root)
+      const ws = activeWs(s)
+      const next = splitLeaf(ws.root, paneId, dir)
+      if (next === ws.root)
         return {}
       const leaves = leafList(next)
-      const created = leaves.find(l => !leafList(s.root).some(o => o.id === l.id))
-      return { root: next, focusId: created?.id ?? s.focusId }
+      const created = leaves.find(l => !leafList(ws.root).some(o => o.id === l.id))
+      return {
+        workspaces: mapActive(s, w => ({
+          ...w,
+          root: next,
+          focusId: created?.id ?? w.focusId,
+        })),
+      }
     }),
 
   closePane: paneId =>
     set((s) => {
-      const next = removeLeaf(s.root, paneId)
-      if (!next || next === s.root)
+      const ws = activeWs(s)
+      const next = removeLeaf(ws.root, paneId)
+      if (!next || next === ws.root)
         return {}
       const leaves = leafList(next)
       return {
-        root: next,
-        focusId: leaves.some(l => l.id === s.focusId) ? s.focusId : leaves[0].id,
-        labelSel: s.labelSel === paneId ? null : s.labelSel,
-        stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
+        workspaces: mapActive(s, w => ({
+          ...w,
+          root: next,
+          focusId: leaves.some(l => l.id === w.focusId) ? w.focusId : leaves[0].id,
+          labelSel: s.labelSel === paneId ? null : s.labelSel,
+          stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
+        })),
       }
     }),
 
-  resizeSplit: (splitId, ratio) => set(s => ({ root: setSplitRatioIn(s.root, splitId, ratio) })),
+  resizeSplit: (splitId, ratio) =>
+    set(s => ({
+      workspaces: mapActive(s, w => ({ ...w, root: setSplitRatioIn(w.root, splitId, ratio) })),
+    })),
 
   removePhoto: paneId =>
     set(s => ({
-      root: updateLeafIn(s.root, paneId, { photoId: null, zoom: 1, cx: 0.5, cy: 0.5, stickers: [] }),
+      workspaces: mapActive(s, w => ({
+        ...w,
+        root: updateLeafIn(w.root, paneId, { photoId: null, zoom: 1, cx: 0.5, cy: 0.5, stickers: [] }),
+      })),
       stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
     })),
 
   swapPhotos: (a, b) =>
     set((s) => {
-      const la = findLeaf(s.root, a)
-      const lb = findLeaf(s.root, b)
+      const ws = activeWs(s)
+      const la = findLeaf(ws.root, a)
+      const lb = findLeaf(ws.root, b)
       if (!la || !lb)
         return s
-      let root = updateLeafIn(s.root, a, {
+      let root = updateLeafIn(ws.root, a, {
         photoId: lb.photoId,
         zoom: lb.zoom,
         cx: lb.cx,
@@ -227,41 +252,47 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         cy: la.cy,
         stickers: la.stickers,
       })
-      return { root }
+      return { workspaces: mapActive(s, w => ({ ...w, root })) }
     }),
 
   assign: (paneId, photoId) =>
     set(s => ({
-      root: updateLeafIn(s.root, paneId, {
-        photoId,
-        zoom: 1,
-        cx: 0.5,
-        cy: 0.5,
-        stickers: [],
-      }),
-      focusId: paneId,
+      workspaces: mapActive(s, w => ({
+        ...w,
+        root: updateLeafIn(w.root, paneId, {
+          photoId,
+          zoom: 1,
+          cx: 0.5,
+          cy: 0.5,
+          stickers: [],
+        }),
+        focusId: paneId,
+      })),
     })),
 
-  updateLeaf: (paneId, patch) => set(s => ({ root: updateLeafIn(s.root, paneId, patch) })),
+  updateLeaf: (paneId, patch) =>
+    set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) })),
 
-  focus: paneId => set({ focusId: paneId }),
+  focus: paneId => set(s => ({ workspaces: mapActive(s, w => ({ ...w, focusId: paneId })) })),
+
   focusNeighbor: (dir) => {
     const s = get()
-    if (!s.focusId)
+    const ws = activeWs(s)
+    if (!ws.focusId)
       return
     const W = 1200
-    const H = Math.round(W / (s.canvasRatio ?? 1.5))
-    const { leaves } = layoutTree(s.root, W, H, 1)
-    const cur = leaves.find(l => l.node.id === s.focusId)
+    const H = Math.round(W / (ws.canvasRatio ?? 1.5))
+    const { leaves } = layoutTree(ws.root, W, H, 1)
+    const cur = leaves.find(l => l.node.id === ws.focusId)
     if (!cur)
       return
     const next = neighborLeaf(
-      leaves.filter(l => l.node.id !== s.focusId),
+      leaves.filter(l => l.node.id !== ws.focusId),
       cur.rect,
       dir,
     )
     if (next)
-      set({ focusId: next.id })
+      set({ workspaces: mapActive(s, w => ({ ...w, focusId: next.id })) })
   },
 
   selectLabel: paneId => set({ labelSel: paneId, stickerSel: null }),
@@ -273,57 +304,102 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       if (!s.photos.length)
         return {}
       let k = 0
-      let next = s.root
-      for (const leaf of leafList(s.root)) {
+      const ws = activeWs(s)
+      let next = ws.root
+      for (const leaf of leafList(ws.root)) {
         if (leaf.photoId)
           continue
         const p = s.photos[k++ % s.photos.length]
         next = updateLeafIn(next, leaf.id, { photoId: p.id, zoom: 1, cx: 0.5, cy: 0.5 })
       }
-      return { root: next }
+      return { workspaces: mapActive(s, w => (w.id === ws.id ? { ...w, root: next } : w)) }
     }),
 
   patch: p => set(p),
 
   setCanvasSize: (ratio, fill) =>
-    set({
-      canvasRatio: Math.min(8, Math.max(0.12, ratio)),
-      canvasFill: Math.min(1, Math.max(0.15, fill)),
+    set(s => ({
+      workspaces: mapActive(s, w => ({
+        ...w,
+        canvasRatio: Math.min(8, Math.max(0.12, ratio)),
+        canvasFill: Math.min(1, Math.max(0.15, fill)),
+      })),
+    })),
+
+  /** Enter a workspace in edit view (clicking a grid cell). */
+  enterWorkspace: id =>
+    set(s => ({
+      activeId: s.workspaces.some(w => w.id === id) ? id : s.activeId,
+      view: 'edit',
+      ...clearedSelection,
+    })),
+
+  /** Toggle between the edit canvas and the 3×3 grid overview. */
+  toggleGrid: () =>
+    set(s => ({
+      view: s.view === 'grid' ? 'edit' : 'grid',
+      ...clearedSelection,
+    })),
+
+  /** Insert-shift reorder: remove `id` from its slot and splice it at `to`. */
+  moveWorkspace: (id, to) =>
+    set((s) => {
+      const from = s.workspaces.findIndex(w => w.id === id)
+      if (from === -1 || to < 0 || to > 8 || from === to)
+        return {}
+      const next = [...s.workspaces]
+      const [ws] = next.splice(from, 1)
+      next.splice(to, 0, ws)
+      return { workspaces: next }
     }),
 
   addSticker: (paneId, photoId, x, y) =>
     set((s) => {
-      const pane = findLeaf(s.root, paneId)
+      const ws = activeWs(s)
+      const pane = findLeaf(ws.root, paneId)
       if (!pane?.photoId)
         return {}
       const st: Sticker = { id: uid('t'), photoId, x, y, s: 0.25 }
       return {
-        root: updateLeafIn(s.root, paneId, { stickers: [...pane.stickers, st] }),
+        workspaces: mapActive(s, w => ({
+          ...w,
+          root: updateLeafIn(w.root, paneId, { stickers: [...pane.stickers, st] }),
+        })),
       }
     }),
 
   moveSticker: (paneId, stickerId, x, y) =>
     set(s => ({
-      root: patchStickerIn(s.root, paneId, stickerId, st => ({ ...st, x, y })),
+      workspaces: mapActive(s, w => ({
+        ...w,
+        root: patchStickerIn(w.root, paneId, stickerId, st => ({ ...st, x, y })),
+      })),
     })),
 
   scaleSticker: (paneId, stickerId, sVal) =>
     set(s => ({
-      root: patchStickerIn(s.root, paneId, stickerId, st => ({
-        ...st,
-        s: Math.min(1.5, Math.max(0.02, sVal)),
+      workspaces: mapActive(s, w => ({
+        ...w,
+        root: patchStickerIn(w.root, paneId, stickerId, st => ({
+          ...st,
+          s: Math.min(1.5, Math.max(0.02, sVal)),
+        })),
       })),
     })),
 
   removeSticker: (paneId, stickerId) =>
     set((s) => {
-      const pane = findLeaf(s.root, paneId)
+      const ws = activeWs(s)
+      const pane = findLeaf(ws.root, paneId)
       if (!pane)
         return {}
       return {
-        root: updateLeafIn(s.root, paneId, {
-          stickers: pane.stickers.filter(t => t.id !== stickerId),
-        }),
+        workspaces: mapActive(s, w => ({
+          ...w,
+          root: updateLeafIn(w.root, paneId, {
+            stickers: pane.stickers.filter(t => t.id !== stickerId),
+          }),
+        })),
         stickerSel: s.stickerSel?.paneId === paneId && s.stickerSel.stickerId === stickerId
           ? null
           : s.stickerSel,
@@ -332,33 +408,43 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   ensureLabel: paneId =>
     set((s) => {
-      const pane = findLeaf(s.root, paneId)
+      const ws = activeWs(s)
+      const pane = findLeaf(ws.root, paneId)
       if (!pane)
         return {}
       if (pane.label)
         return { labelSel: paneId }
-      return { root: updateLeafIn(s.root, paneId, { label: newLabel() }), labelSel: paneId }
+      return {
+        workspaces: mapActive(s, w => ({
+          ...w,
+          root: updateLeafIn(w.root, paneId, { label: newLabel() }),
+        })),
+        labelSel: paneId,
+      }
     }),
 
   setLabel: (paneId, patch) =>
     set((s) => {
-      const pane = findLeaf(s.root, paneId)
+      const ws = activeWs(s)
+      const pane = findLeaf(ws.root, paneId)
       if (!pane?.label)
         return {}
       const label: PaneLabel = { ...pane.label, ...patch }
       if (patch.size !== undefined)
         label.size = Math.min(160, Math.max(12, patch.size))
-      return { root: updateLeafIn(s.root, paneId, { label }) }
+      return {
+        workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { label }) })),
+      }
     }),
 
   removeLabel: paneId =>
     set(s => ({
-      root: updateLeafIn(s.root, paneId, { label: null }),
+      workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { label: null }) })),
       labelSel: s.labelSel === paneId ? null : s.labelSel,
     })),
 }), {
-  // Visual settings survive reloads; the rest of the state (tree, photos)
-  // stays session-only.
+  // Visual settings survive reloads; the rest of the state (workspaces,
+  // photos) stays session-only.
   name: 'collage:settings',
   partialize: state => ({ gap: state.gap, radius: state.radius, bg: state.bg }),
 }))
@@ -420,4 +506,34 @@ export function computeLayout(
   const gap = gapValue * u
   const l = layoutTree(root, W, H, gap)
   return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, unit: u }
+}
+
+interface Actions {
+  addPhotos: (files: File[], autoFill?: boolean) => Photo[]
+  clearLibrary: () => void
+  split: (paneId: string, dir: 'row' | 'column') => void
+  closePane: (paneId: string) => void
+  resizeSplit: (splitId: string, ratio: number) => void
+  assign: (paneId: string, photoId: string) => void
+  removePhoto: (paneId: string) => void
+  swapPhotos: (a: string, b: string) => void
+  updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
+  focus: (paneId: string) => void
+  focusNeighbor: (dir: FocusDir) => void
+  selectLabel: (paneId: string | null) => void
+  selectSticker: (sel: { paneId: string, stickerId: string } | null) => void
+  requestLabelEdit: (paneId: string) => void
+  autoFill: () => void
+  patch: (p: Partial<State>) => void
+  setCanvasSize: (ratio: number, fill: number) => void
+  enterWorkspace: (id: string) => void
+  toggleGrid: () => void
+  moveWorkspace: (id: string, to: number) => void
+  addSticker: (paneId: string, photoId: string, x: number, y: number) => void
+  moveSticker: (paneId: string, stickerId: string, x: number, y: number) => void
+  scaleSticker: (paneId: string, stickerId: string, s: number) => void
+  removeSticker: (paneId: string, stickerId: string) => void
+  ensureLabel: (paneId: string) => void
+  setLabel: (paneId: string, patch: Partial<PaneLabel>) => void
+  removeLabel: (paneId: string) => void
 }

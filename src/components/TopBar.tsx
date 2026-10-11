@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 import { Menu } from '@base-ui/react/menu'
-import { ChevronDown, CircleHelp, Download, FileText, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, SlidersHorizontal, Sun } from 'lucide'
+import { ChevronDown, CircleHelp, Download, FileText, FolderPlus, Grid3x3, ImagePlus, LayoutGrid, LoaderCircle, Moon, SlidersHorizontal, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useRef, useSyncExternalStore } from 'react'
 import { leafList } from '../lib/panes'
-import { useStore } from '../store'
+import { activeWs, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import { Button } from './ui/button'
 import { Tip } from './ui/tip'
@@ -35,8 +35,10 @@ function CatMenu({ label, children }: { label: string, children: ReactNode }) {
 }
 
 /**
- * The top chrome: the category menus (photo / help) on the left, and the
- * settings, export and theme actions on the right.
+ * The top chrome: the category menus (photo / help) on the left, the grid
+ * toggle in the center, and the settings, export and theme actions on the
+ * right. In grid view the photo menu is cut down to library-less navigation
+ * (the grid is a pure overview), and export goes batch-mode.
  */
 export function TopBar({
   busy,
@@ -46,6 +48,7 @@ export function TopBar({
   onToggleHelp,
   onExport,
   onCrops,
+  onClearAsk,
 }: {
   busy: boolean
   settingsOpen: boolean
@@ -54,52 +57,95 @@ export function TopBar({
   onToggleHelp: () => void
   onExport: () => void
   onCrops: () => void
+  onClearAsk: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const dirRef = useRef<HTMLInputElement>(null)
 
   const photos = useStore(s => s.photos.length)
-  const root = useStore(s => s.root)
+  const view = useStore(s => s.view)
+  const root = useStore(s => activeWs(s).root)
+  const anyFilled = useStore(s =>
+    s.workspaces.some(w => leafList(w.root).some(l => l.photoId)))
+  const toggleGrid = useStore(s => s.toggleGrid)
   const dark = useSyncExternalStore(subscribeTheme, isDarkSnapshot)
+  const grid = view === 'grid'
   const filled = useMemo(() => leafList(root).some(l => l.photoId), [root])
 
   return (
     <header className="relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar px-1.5">
-      <CatMenu label="Photo">
-        <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
-          <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-          Add photos…
-        </Menu.Item>
-        <Menu.Item className={itemCls} onClick={() => dirRef.current?.click()}>
-          <MorphIcon icon={FolderPlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-          Add folder…
-        </Menu.Item>
-        <Menu.Item className={itemCls} onClick={onToggleLib}>
-          <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
-          Library
-          <span className={hintCls}>
-            {photos ? `${photos} · ` : ''}
-            I
-          </span>
-        </Menu.Item>
-      </CatMenu>
+      {grid
+        ? (
+          // Grid view is pure navigation: Help only (crop report is an
+          // editing aid, library tools are hidden).
+            <CatMenu label="Help">
+              <Menu.Item className={itemCls} onClick={onToggleHelp}>
+                <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
+                Keyboard shortcuts
+                <span className={hintCls}>?</span>
+              </Menu.Item>
+            </CatMenu>
+          )
+        : (
+            <CatMenu label="Photo">
+              <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
+                <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
+                Add photos…
+              </Menu.Item>
+              <Menu.Item className={itemCls} onClick={() => dirRef.current?.click()}>
+                <MorphIcon icon={FolderPlus} size={13} strokeWidth={1.75} className="flex text-dim" />
+                Add folder…
+              </Menu.Item>
+              <Menu.Item className={itemCls} onClick={onToggleLib}>
+                <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
+                Library
+                <span className={hintCls}>
+                  {photos ? `${photos} · ` : ''}
+                  I
+                </span>
+              </Menu.Item>
+              <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
+              <Menu.Item
+                className={itemCls}
+                onClick={onClearAsk}
+                disabled={!photos}
+              >
+                <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
+                Clear library…
+              </Menu.Item>
+            </CatMenu>
+          )}
 
-      <CatMenu label="Help">
-        <Menu.Item className={itemCls} onClick={onToggleHelp}>
-          <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-          Keyboard shortcuts
-          <span className={hintCls}>?</span>
-        </Menu.Item>
-        <Menu.Item className={itemCls} onClick={onCrops}>
-          <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
-          Crop report
-          <span className={hintCls}>C</span>
-        </Menu.Item>
-      </CatMenu>
+      {!grid && (
+        <CatMenu label="Help">
+          <Menu.Item className={itemCls} onClick={onToggleHelp}>
+            <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
+            Keyboard shortcuts
+            <span className={hintCls}>?</span>
+          </Menu.Item>
+          <Menu.Item className={itemCls} onClick={onCrops}>
+            <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
+            Crop report
+            <span className={hintCls}>C</span>
+          </Menu.Item>
+        </CatMenu>
+      )}
 
       <span className="flex-1" />
 
       <div className="flex items-center gap-[5px]">
+        <Tip
+          label={grid ? 'Back to editing · G' : 'Show the 3×3 workspace grid · G'}
+          trigger={(
+            <Button
+              variant={grid ? 'on' : 'flat'}
+              onClick={toggleGrid}
+              aria-label={grid ? 'Back to editing' : 'Show the workspace grid'}
+            >
+              <MorphIcon icon={grid ? ImagePlus : Grid3x3} size={15} strokeWidth={1.75} />
+            </Button>
+          )}
+        />
         <Tip
           label="Settings · Shortcut: ,"
           trigger={(
@@ -114,12 +160,12 @@ export function TopBar({
           )}
         />
         <Tip
-          label="Export image · ⌘E"
+          label={grid ? 'Export every non-empty workspace · ⌘E' : 'Export image · ⌘E'}
           trigger={(
             <Button
               variant="strong"
               onClick={onExport}
-              disabled={busy || !filled}
+              disabled={busy || (grid ? !anyFilled : !filled)}
               aria-label="Export image"
             >
               <MorphIcon

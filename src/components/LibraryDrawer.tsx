@@ -2,24 +2,24 @@ import { Drawer } from '@base-ui/react/drawer'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
-import { useStore } from '../store'
+import { activeWs, useStore } from '../store'
 import { Library } from './Library'
 
-export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () => void }) {
+export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean, onClose: () => void, onRequestClear: () => void }) {
   const photos = useStore(s => s.photos)
   const assign = useStore(s => s.assign)
-  const focusId = useStore(s => s.focusId)
-  const clearLibrary = useStore(s => s.clearLibrary)
+  const focusId = useStore(s => activeWs(s).focusId)
   const autoFill = useStore(s => s.autoFill)
 
   const activeId = useStore((s) => {
-    const walk = (n: typeof s.root): string | null =>
+    const root = activeWs(s).root
+    const walk = (n: typeof root): string | null =>
       n.type === 'leaf'
-        ? n.id === s.focusId
+        ? n.id === activeWs(s).focusId
           ? n.photoId
           : null
         : (walk(n.a) ?? walk(n.b))
-    return walk(s.root)
+    return walk(root)
   })
 
   const hint = photos.length
@@ -47,7 +47,7 @@ export function LibraryDrawer({ open, onClose }: { open: boolean, onClose: () =>
                 <Button onClick={() => autoFill()} disabled={!photos.length}>
                   Fill empty panes
                 </Button>
-                <Button onClick={clearLibrary} disabled={!photos.length}>
+                <Button onClick={onRequestClear} disabled={!photos.length}>
                   Clear
                 </Button>
                 <Drawer.Close
