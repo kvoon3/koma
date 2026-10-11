@@ -31,7 +31,8 @@ rows.
 
 | Action | Effect |
 |---|---|
-| Two buttons at pane top center | Split top/bottom or left/right (appear on hover, always visible on empty panes) |
+| Two buttons at pane top center | Split top/bottom or left/right (appear on hover or focus) |
+| Sticker / Replace / Text at pane bottom | Appear on hover or focus on panes with a photo: pick stickers onto the photo, replace the pane's photo, add a text label |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
@@ -39,12 +40,12 @@ rows.
 | Double-click inside a pane | Reset that pane's photo |
 | Right-click a pane | Context menu: split, swap with the focused pane (unfocused panes), close |
 | Long-press a pane (touch) | Same context menu as right-click; tap-to-focus happens on release, so "swap with focused pane" targets the previously focused pane |
-| Click an empty pane | Open the file picker and put the chosen photo into that pane |
-| Drop a photo onto a pane | Place it directly into that pane |
+| "Choose a photo" in an empty pane | Open the file picker and put the chosen photo into that pane (dropping a file also works) |
+| Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop — export uses the still |
-| "Sticker" button on a pane | Pick an image from the library and pin it onto the photo (e.g. to cover faces); drag to move, corner handle to scale, × to delete |
-| "Text" button on a pane | Add a text label (white on black by default, pinned to the pane): click it to select (the toolbar stays pinned — pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
-| × at pane top right | Close the pane (hidden while only one pane exists) |
+| Tools bar · "Sticker" | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select — handles stay pinned like labels (drag to move, corner to scale, × to delete) |
+| Tools bar · "Text" | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned — pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
+| × at pane top right | Close the pane (hidden while only one pane exists; appears on hover or focus) |
 
 | Key | Action |
 |---|---|
@@ -60,7 +61,7 @@ rows.
 | `⌘E` | Export collage |
 | `C` | Export crop report |
 | `?` | Help |
-| `Esc` | Close overlay / deselect label / clear focus / exit sticker mode |
+| `Esc` | Close overlay / deselect label / clear focus |
 
 **Canvas aspect ratio** initially follows the first photo added. Drag the
 bottom-right handle to change it (double-click to follow again).
@@ -88,16 +89,38 @@ handle sits precisely under the pointer (measured offset: 0,0). At the bounds,
 not affect export** (export resolution comes from the long-edge setting in
 Settings; the ratio comes from `ratio`).
 
-## Settings drawer (`,` or "Settings" in the status bar)
+## Chrome layout
+
+```
+┌───────────────────────────────────────────────┐
+│ Top: Photo▾ Help▾        [Settings][Export][🌙] │ ← actions at the top right
+├───────────────────────────────────────────────┤
+│                 Stage                         │
+├───────────────────────────────────────────────┤
+│ Footer:   Ratio 1.50 · Output 2048 × 1365 px  │
+└───────────────────────────────────────────────┘
+```
+
+The old status-bar stats (panes / filled / focus) are gone; the footer shows
+the canvas ratio and the output size. Panes show their buttons only on hover
+or focus: the two split buttons at the top center, the × close button at the
+top right, and — on panes with a photo — a horizontal row at the bottom:
+sticker / replace photo / text label. The Photo menu holds add photos / add
+folder / library; Help holds shortcuts + crop report. Settings, Export and
+the theme toggle sit at the top right of the top bar.
+
+## Settings drawer (`,` or the top-right Settings button)
 
 | Setting | Effect |
 |---|---|
-| Theme | Auto (follow system) / Dark / Light |
 | Photo gap | Space between panes, 0–12% |
 | Photo radius | Corner radius of each pane, 0–20% |
 | Canvas fill | Black / white / custom color / **transparent** |
-| Export size | Long-edge pixels (presets + custom), with a live W×H readout |
 | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
+
+The export-size setting was removed — the long edge is fixed at 2048 px; the
+footer shows the resulting resolution. On mobile the drawer scrolls
+vertically only: control rows wrap instead of overflowing horizontally.
 
 **Gap and radius are per-mille of the canvas short edge, not pixels.** Once set,
 exporting at 1080 or 6000 looks identical — preview and export share the same
@@ -182,7 +205,8 @@ src/
   components/
     Stage.tsx        canvas: computes layout, renders panes and dividers
     Pane.tsx         one pane: photo, pan/zoom, split buttons, drop target
-    StatusBar.tsx    31px persistent status bar
+    TopBar.tsx       category menus (photo / canvas / export / help) + hidden file inputs
+    ToolsBar.tsx     bottom bar: text / photo / sticker insertion into the focused pane
     LibraryDrawer.tsx / Library.tsx
     SettingsDrawer.tsx
     HelpOverlay.tsx
@@ -190,7 +214,10 @@ src/
 ```
 
 Fixed defaults (top of `store.ts`; the Settings drawer edits the same-named
-state fields): `GAP = 10`, `RADIUS = 0`, `BG = '#0f1013'`, `MIN_PANE_PX = 56`.
+state fields): `GAP = 0`, `RADIUS = 0`, `BG = '#000000'` (black gap fill),
+`MIN_PANE_PX = 56`. Visual settings (gap / radius / bg) persist to
+localStorage as `collage:settings` via zustand `persist`; the font mirror
+defaults to on and persists as `collage:fontMirror`.
 
 ## Build & deploy
 

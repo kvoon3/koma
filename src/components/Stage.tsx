@@ -1,7 +1,6 @@
 import type { Divider } from '../lib/panes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize } from '../hooks'
-import { outputSizeFor } from '../lib/exporter'
 import { dividerLine, ratioFromPointer } from '../lib/panes'
 import { computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { Pane } from './Pane'
@@ -44,7 +43,6 @@ export function Stage() {
   const gapValue = useStore(s => s.gap)
   const radiusValue = useStore(s => s.radius)
   const bg = useStore(s => s.bg)
-  const longSide = useStore(s => s.longSide)
   const photos = useStore(s => s.photos)
   const focus = useStore(s => s.focus)
   const selectLabel = useStore(s => s.selectLabel)
@@ -72,7 +70,6 @@ export function Stage() {
   )
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
-  const out = outputSizeFor(longSide, canvasRatio ?? 1.5)
 
   const dragRef = useRef<Divider | null>(null)
 
@@ -258,42 +255,6 @@ export function Stage() {
         >
           <ResizeIcon />
         </div>
-      </div>
-
-      <div className={`pointer-events-none absolute bottom-3.5 left-4 rounded-none border bg-badge-bg px-[11px] py-[5px] text-[11.5px] tabular-nums text-dim ${sizing ? ' border-accent text-txt [&_em]:text-accent [&_em]:not-italic' : ''}`}>
-        {sizing
-          ? (
-              <>
-                Canvas ratio
-                {' '}
-                {(view.W / view.H).toFixed(2)}
-                <em>
-                  {' '}
-                  Output
-                  {out.W}
-                  {' '}
-                  ×
-                  {out.H}
-                </em>
-              </>
-            )
-          : (
-              <>
-                Output
-                {' '}
-                {out.W}
-                {' '}
-                ×
-                {' '}
-                {out.H}
-                {' '}
-                px ·
-                {' '}
-                {view.leaves.length}
-                {' '}
-                panes
-              </>
-            )}
       </div>
     </div>
   )

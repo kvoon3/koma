@@ -1,20 +1,15 @@
 import { Drawer } from '@base-ui/react/drawer'
-import { NumberField } from '@base-ui/react/number-field'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
-import { Select } from '@base-ui/react/select'
 import { Slider } from '@base-ui/react/slider'
 import { Switch } from '@base-ui/react/switch'
-import { Check, ChevronDown, X } from 'lucide'
+import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { buttonBase, buttonVariants } from '@/components/ui/button'
-import { outputSizeFor } from '../lib/exporter'
 import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
 import { isTransparentBg, useStore } from '../store'
 
-const LONG_SIDE_PRESETS = [1080, 1440, 1920, 2048, 3000, 4096, 6000]
-const PRESET_ITEMS = LONG_SIDE_PRESETS.map(v => ({ label: String(v), value: v }))
 const CUSTOM_BG = '#18181b'
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
@@ -23,13 +18,8 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
   const gap = useStore(s => s.gap)
   const radius = useStore(s => s.radius)
   const bg = useStore(s => s.bg)
-  const longSide = useStore(s => s.longSide)
-  const canvasRatio = useStore(s => s.canvasRatio)
   const patch = useStore(s => s.patch)
   const [mirror, setMirror] = useState(() => mirrorEnabled())
-
-  const ratio = canvasRatio ?? 1.5
-  const size = outputSizeFor(longSide, ratio)
 
   const mode: BgMode = isTransparentBg(bg)
     ? 'transparent'
@@ -70,17 +60,17 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                 <Drawer.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label="Hide settings"><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Drawer.Close>
               </header>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-[18px] pt-1 pb-3 pointer-coarse:px-3.5 pointer-coarse:pt-3 pointer-coarse:pb-4 max-sm:px-3.5 max-sm:pt-3 max-sm:pb-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-strip-thumb">
+              {/* Vertical scrolling only: rows wrap instead of overflowing. */}
+              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto px-[18px] pt-1 pb-3 pointer-coarse:px-3.5 pointer-coarse:pt-3 pointer-coarse:pb-4 max-sm:px-3.5 max-sm:pt-3 max-sm:pb-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-strip-thumb">
                 <section className="flex flex-col gap-[7px]">
                   <h4 className="m-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint">Appearance</h4>
                   <p className="m-0 text-[11.5px] text-faint">
-                    Theme follows the system or the toggle in the status bar. Gap fill is the background showing
-                    between photos; pick Transparent to export as PNG.
+                    Gap fill is the background showing between photos; pick Transparent to export as PNG.
                   </p>
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
                     <span className="flex-none basis-[68px] text-xs text-dim">Gap fill</span>
                     <RadioGroup
-                      className="flex flex-wrap items-center gap-1.5"
+                      className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
                       aria-label="Gap fill"
                       value={mode}
                       onValueChange={next => setMode(next)}
@@ -115,10 +105,10 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                     <strong>canvas short edge</strong>
                     , and the preview matches the export.
                   </p>
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
                     <span className="flex-none basis-[68px] text-xs text-dim">Photo gap</span>
                     <Slider.Root
-                      className="flex-none basis-[210px]"
+                      className="min-w-[140px] flex-1"
                       min={0}
                       max={120}
                       value={gap}
@@ -136,10 +126,10 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                       %
                     </span>
                   </div>
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
                     <span className="flex-none basis-[68px] text-xs text-dim">Photo radius</span>
                     <Slider.Root
-                      className="flex-none basis-[210px]"
+                      className="min-w-[140px] flex-1"
                       min={0}
                       max={200}
                       value={radius}
@@ -161,7 +151,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
 
                 <section className="flex flex-col gap-[7px]">
                   <h4 className="m-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint">Fonts</h4>
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
                     <span className="flex-none text-xs text-dim">Font mirror (fonts.loli.net)</span>
                     <Switch.Root
                       className="group/switch relative box-border inline-flex h-5 w-[34px] cursor-pointer rounded-none border border-line bg-panel-2 p-0 transition-colors duration-[120ms] data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2"
@@ -176,81 +166,6 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                     </Switch.Root>
                   </div>
                   <p className="m-0 text-[11.5px] text-faint">Fallback CDN for Google Fonts when fonts.googleapis.com is unreachable.</p>
-                </section>
-
-                <section className="flex flex-col gap-[7px]">
-                  <h4 className="m-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint">Export</h4>
-                  <p className="m-0 text-[11.5px] text-faint">Pixel length of the exported image's long edge; the canvas scales proportionally.</p>
-                  <div className="flex items-center gap-3.5">
-                    <span className="flex-none basis-[68px] text-xs text-dim">Output size</span>
-                    <Select.Root
-                      items={PRESET_ITEMS}
-                      value={longSide}
-                      onValueChange={(value) => {
-                        const next = Number(value)
-                        if (Number.isFinite(next))
-                          patch({ longSide: next })
-                      }}
-                    >
-                      <Select.Trigger className="box-border inline-flex h-[26px] min-w-[108px] cursor-pointer items-center justify-between gap-2.5 rounded-none border border-line bg-panel-2 px-2 text-xs text-txt hover:bg-chip-hover focus-visible:outline-1 focus-visible:outline-accent" aria-label="Output size preset">
-                        <Select.Value placeholder="Custom" />
-                        <Select.Icon className="flex text-dim">
-                          <MorphIcon icon={ChevronDown} size={13} strokeWidth={1.75} />
-                        </Select.Icon>
-                      </Select.Trigger>
-                      <Select.Portal>
-                        <Select.Positioner
-                          className="z-[260] select-none outline-0"
-                          sideOffset={4}
-                          align="start"
-                          alignItemWithTrigger={false}
-                        >
-                          <Select.Popup className="box-border min-w-[var(--anchor-width)] rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)] data-starting-style:opacity-0 data-ending-style:opacity-0">
-                            <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
-                              {LONG_SIDE_PRESETS.map(v => (
-                                <Select.Item key={v} value={v} className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-xs outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent">
-                                  <Select.ItemIndicator className="flex w-3.5 text-current">
-                                    <MorphIcon icon={Check} size={13} strokeWidth={2} />
-                                  </Select.ItemIndicator>
-                                  <Select.ItemText className="flex-1">{v}</Select.ItemText>
-                                </Select.Item>
-                              ))}
-                            </Select.List>
-                          </Select.Popup>
-                        </Select.Positioner>
-                      </Select.Portal>
-                    </Select.Root>
-                    <NumberField.Root
-                      value={longSide}
-                      min={200}
-                      max={12000}
-                      step={50}
-                      onValueChange={(value) => {
-                        if (value != null && value >= 200 && value <= 12000)
-                          patch({ longSide: Math.round(value) })
-                      }}
-                    >
-                      <NumberField.Group className="flex h-[26px]">
-                        <NumberField.Decrement className="m-0 grid h-full w-6 cursor-pointer place-items-center rounded-none border border-r-0 border-line bg-panel-2 p-0 text-[13px] text-dim hover:bg-chip-hover hover:text-txt focus-visible:z-1 focus-visible:outline-1 focus-visible:outline-accent" aria-label="Decrease output size">
-                          −
-                        </NumberField.Decrement>
-                        <NumberField.Input className="box-border m-0 w-[74px] rounded-none border border-line bg-panel-2 px-[7px] py-0 text-center text-xs text-txt tabular-nums focus-visible:z-1 focus-visible:outline-1 focus-visible:outline-accent" aria-label="Custom output size" />
-                        <NumberField.Increment className="m-0 grid h-full w-6 cursor-pointer place-items-center rounded-none border border-l-0 border-line bg-panel-2 p-0 text-[13px] text-dim hover:bg-chip-hover hover:text-txt focus-visible:z-1 focus-visible:outline-1 focus-visible:outline-accent" aria-label="Increase output size">
-                          +
-                        </NumberField.Increment>
-                      </NumberField.Group>
-                    </NumberField.Root>
-                    <span className="text-[11.5px] text-faint">px</span>
-                    <span className="ml-0.5 text-xs text-accent tabular-nums">
-                      →
-                      {' '}
-                      {size.W}
-                      {' '}
-                      ×
-                      {' '}
-                      {size.H}
-                    </span>
-                  </div>
                 </section>
               </div>
             </Drawer.Content>

@@ -138,10 +138,12 @@ const MIRROR_KEY = 'collage:fontMirror'
 
 export function mirrorEnabled(): boolean {
   try {
-    return localStorage.getItem(MIRROR_KEY) === '1'
+    // Default to on: it only kicks in when googleapis is unreachable anyway.
+    const v = localStorage.getItem(MIRROR_KEY)
+    return v == null ? true : v === '1'
   }
   catch {
-    return false
+    return true
   }
 }
 

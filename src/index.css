@@ -176,6 +176,25 @@ html.dark {
     -webkit-tap-highlight-color: transparent;
   }
 
+  /*
+   * The whole UI opts out of text selection: a long-press on touch must not
+   * pop the iOS selection loupe/callout over the canvas. Editable fields opt
+   * back in; everything else stays inert.
+   */
+  html {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
   body {
     position: relative;
     overflow: hidden;
@@ -184,8 +203,6 @@ html.dark {
     color: var(--txt);
     font: 13px/1.55 var(--font-sans);
     -webkit-tap-highlight-color: transparent;
-    -webkit-user-select: none;
-    user-select: none;
   }
 
   @media (pointer: coarse) {

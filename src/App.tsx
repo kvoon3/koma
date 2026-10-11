@@ -1,13 +1,15 @@
 import type { ExportOptions } from './lib/exporter'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Tooltip } from '@base-ui/react/tooltip'
+import { useCallback, useEffect, useState } from 'react'
 import { CropDialog } from './components/CropDialog'
+import { Footer } from './components/Footer'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
 import { SettingsDrawer } from './components/SettingsDrawer'
 import { Stage } from './components/Stage'
-import { StatusBar } from './components/StatusBar'
 import ToastHost from './components/ToastHost'
-import { buildCropReport, downloadBlob, outputSizeFor, renderCollage } from './lib/exporter'
+import { TopBar } from './components/TopBar'
+import { buildCropReport, downloadBlob, renderCollage } from './lib/exporter'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
 import { isTransparentBg, photoMap, useStore } from './store'
@@ -27,8 +29,6 @@ function exportOptions(): ExportOptions {
   }
 }
 
-const sizeFor = outputSizeFor
-
 export default function App() {
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
@@ -38,11 +38,6 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false)
 
   initTheme()
-
-  const longSide = useStore(s => s.longSide)
-  const canvasRatio = useStore(s => s.canvasRatio)
-  const ratio = canvasRatio ?? 1.5
-  const size = useMemo(() => sizeFor(longSide, ratio), [longSide, ratio])
 
   // Pinch/ctrl+wheel zooms the pane under the cursor (handled there); anywhere
   // else it would zoom the whole browser page, which we never want.
@@ -149,14 +144,13 @@ export default function App() {
         doCrops()
       }
       else if (k === 'Escape') {
-        if (helpOpen || libOpen || settingsOpen || report != null || s.stickerPaneId) {
+        if (helpOpen || libOpen || settingsOpen || report != null) {
           setHelpOpen(false)
           setLibOpen(false)
           setSettingsOpen(false)
           setReport(null)
-          s.setStickerPane(null)
         }
-        else if (s.labelSel) {
+        else if (s.labelSel || s.stickerSel) {
           s.selectLabel(null)
         }
         else {
@@ -191,36 +185,39 @@ export default function App() {
   const closeHelp = () => setHelpOpen(false)
 
   return (
-    <div className="relative isolate flex h-full flex-col">
-      <main className="relative min-h-0 flex-1">
-        <Stage />
-      </main>
+    <Tooltip.Provider delay={300}>
+      <div className="relative isolate flex h-full flex-col">
+        <TopBar
+          busy={busy}
+          settingsOpen={settingsOpen}
+          onToggleLib={() => {
+            setLibOpen(v => !v)
+            setSettingsOpen(false)
+          }}
+          onToggleSettings={() => {
+            setSettingsOpen(v => !v)
+            setLibOpen(false)
+          }}
+          onToggleHelp={() => setHelpOpen(v => !v)}
+          onExport={doExport}
+          onCrops={doCrops}
+        />
 
-      <StatusBar
-        libOpen={libOpen}
-        settingsOpen={settingsOpen}
-        onToggleLib={() => {
-          setLibOpen(v => !v)
-          setSettingsOpen(false)
-        }}
-        onToggleSettings={() => {
-          setSettingsOpen(v => !v)
-          setLibOpen(false)
-        }}
-        onToggleHelp={() => setHelpOpen(v => !v)}
-        onExport={doExport}
-        busy={busy}
-        size={size}
-      />
+        <main className="relative min-h-0 flex-1">
+          <Stage />
+        </main>
 
-      <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} />
-      <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <Footer />
 
-      <HelpOverlay open={helpOpen} onClose={closeHelp} />
+        <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} />
+        <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      <ToastHost />
+        <HelpOverlay open={helpOpen} onClose={closeHelp} />
 
-      <CropDialog report={report} onClose={() => setReport(null)} />
-    </div>
+        <ToastHost />
+
+        <CropDialog report={report} onClose={() => setReport(null)} />
+      </div>
+    </Tooltip.Provider>
   )
 }
