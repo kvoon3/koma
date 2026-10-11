@@ -1,8 +1,12 @@
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, Node, Rect } from '../lib/panes'
+import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { ImagePlus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
 import { fontById } from '../lib/fonts'
 import { labelColors, layoutTree, leafList, placement } from '../lib/panes'
@@ -115,6 +119,32 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
   )
 }
 
+/** The cell's visible body — shared by the in-grid cell and the drag overlay. */
+function CellBody({ ws, box, photoById, transparent, dimmed }: {
+  ws: { root: Node, canvasRatio: number | null }
+  box: { w: number, h: number }
+  photoById: Map<string, Photo>
+  transparent: boolean
+  dimmed: boolean
+}) {
+  const filled = leafList(ws.root).some(l => l.photoId)
+  return (
+    <div className={`absolute inset-0 transition-opacity duration-[160ms] ${dimmed ? ' opacity-25' : ''}`}>
+      {filled
+        ? (
+            <div className={`absolute inset-0 ${transparent ? ' stage-clear' : ''}`}>
+              <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} />
+            </div>
+          )
+        : (
+            <span className="absolute inset-0 grid place-items-center border border-dashed border-line-strong bg-panel-2 text-faint">
+              <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
+            </span>
+          )}
+    </div>
+  )
+}
+
 function step(from: number, dir: 'left' | 'right' | 'up' | 'down' | 'next') {
   if (dir === 'next')
     return (from + 1) % 9
@@ -132,8 +162,9 @@ function step(from: number, dir: 'left' | 'right' | 'up' | 'down' | 'next') {
 /**
  * The 3×3 workspace overview: read-only square previews of all nine
  * workspaces. Click a cell to edit that workspace, drag a cell onto another
- * to insert-shift reorder, arrows/hjkl/Tab + Enter to navigate by keyboard.
- * Pure navigation view — no photo tools.
+ * to insert-shift reorder (dnd-kit sortable grid: the dragged cell follows
+ * the pointer as an overlay while the rest make room live), arrows/hjkl/Tab
+ * + Enter to navigate by keyboard. Pure navigation view — no photo tools.
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
@@ -144,8 +175,9 @@ export function WorkspaceGrid() {
   const moveWorkspace = useStore(s => s.moveWorkspace)
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
+  const transparent = isTransparentBg(bg)
 
-  // Keyboard highlight: starts on the workspace we just left.
+  // ---- Keyboard highlight (grid navigation) --------------------------------
   const [hl, setHl] = useState(() => {
     const i = workspaces.findIndex(w => w.id === activeId)
     return i === -1 ? 0 : i
@@ -190,57 +222,34 @@ export function WorkspaceGrid() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // ---- Drag-to-reorder (insert-shift) -------------------------------------
-  // Plain click = enter workspace. Drag = pick up on pointerdown, hover
-  // highlights the insertion slot, reorder commits on pointerup if the
-  // pointer moved to a different cell (that click never enters).
-  const [drag, setDrag] = useState<{ from: number, over: number, moved: boolean } | null>(null)
-  const cellElsRef = useRef<(HTMLButtonElement | null)[]>([])
-  const dragStartRef = useRef({ x: 0, y: 0 })
+  // ---- Drag-to-reorder (dnd-kit, insert-shift) -----------------------------
+  // PointerSensor with a distance threshold keeps plain clicks for entering
+  // a workspace; once a drag activates, the dragged cell rides a DragOverlay
+  // that tracks the pointer 1:1 while the remaining cells translate to make
+  // room (rectSortingStrategy), and the drop commits via moveWorkspace.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: { distance: 5 },
+  }))
+  // Suppress the click that follows a finished drag — it must not enter.
+  const dragEndedAtRef = useRef(0)
 
-  const onCellPointerDown = useCallback((idx: number) => (e: React.PointerEvent) => {
-    if (e.button !== 0)
-      return
-    dragStartRef.current = { x: e.clientX, y: e.clientY }
-    setDrag({ from: idx, over: idx, moved: false })
-  }, [])
+  const ids = useMemo(() => workspaces.map(w => w.id), [workspaces])
+  const draggedWs = dragId ? workspaces.find(w => w.id === dragId) : null
 
-  useEffect(() => {
-    if (!drag)
+  const onDragStart = (e: DragStartEvent) => setDragId(String(e.active.id))
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragId(null)
+    dragEndedAtRef.current = Date.now()
+    if (!over || active.id === over.id)
       return
-    const move = (e: PointerEvent) => {
-      const moved = Math.hypot(
-        e.clientX - dragStartRef.current.x,
-        e.clientY - dragStartRef.current.y,
-      ) > 6
-      const hit = cellElsRef.current.findIndex((el) => {
-        if (!el)
-          return false
-        const r = el.getBoundingClientRect()
-        return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
-      })
-      setDrag(d => (d && (moved !== d.moved || (hit >= 0 && hit !== d.over))
-        ? { ...d, moved: d.moved || moved, over: hit >= 0 ? hit : d.over }
-        : d))
-    }
-    const up = () => {
-      const d = drag
-      setDrag(null)
-      if (d && d.moved && d.over !== d.from) {
-        const ws = useStore.getState().workspaces[d.from]
-        if (ws)
-          moveWorkspace(ws.id, d.over)
-      }
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    window.addEventListener('pointercancel', up)
-    return () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      window.removeEventListener('pointercancel', up)
-    }
-  }, [drag, moveWorkspace])
+    const arr = useStore.getState().workspaces
+    const from = arr.findIndex(w => w.id === active.id)
+    const to = arr.findIndex(w => w.id === over.id)
+    if (from !== -1 && to !== -1)
+      moveWorkspace(arr[from].id, to)
+  }
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const GAP_PX = 10
@@ -249,49 +258,88 @@ export function WorkspaceGrid() {
   ))
   const box = { w: cell, h: cell }
 
-  const transparent = isTransparentBg(bg)
-
   return (
     <div ref={wrapRef} className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden">
-      <div
-        className="grid grid-cols-3"
-        style={{ gap: GAP_PX, width: cell * 3 + GAP_PX * 2 }}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => {
+          setDragId(null)
+          dragEndedAtRef.current = Date.now()
+        }}
       >
-        {workspaces.map((ws, i) => {
-          const filled = leafList(ws.root).some(l => l.photoId)
-          const isHl = hl === i
-          const isDragging = drag?.from === i && drag.moved
-          const isOver = drag?.over === i && drag.moved && drag.over !== drag.from
-          return (
-            <button
-              key={ws.id}
-              ref={(el) => { cellElsRef.current[i] = el }}
-              className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,opacity,outline-color] duration-[160ms] ${
-                isDragging ? ' z-10 scale-[0.92] opacity-60' : ''
-              }${isHl || isOver ? ' outline-2 -outline-offset-2' : ''}${isOver ? ' outline-accent' : isHl ? ' outline-txt' : ''}`}
-              style={{ width: cell, height: cell }}
-              onPointerDown={onCellPointerDown(i)}
-              onClick={() => {
-                if (!drag)
-                  enterWorkspace(ws.id)
-              }}
-              title={filled ? 'Edit this workspace' : 'Start a new collage here'}
-            >
-              {filled
-                ? (
-                    <div className={`absolute inset-0 ${transparent ? ' stage-clear' : ''}`}>
-                      <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} />
-                    </div>
-                  )
-                : (
-                    <span className="absolute inset-0 grid place-items-center border border-dashed border-line-strong bg-panel-2 text-faint">
-                      <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
-                    </span>
-                  )}
-            </button>
-          )
-        })}
-      </div>
+        <SortableContext items={ids} strategy={rectSortingStrategy}>
+          <div
+            className="grid grid-cols-3"
+            style={{ gap: GAP_PX, width: cell * 3 + GAP_PX * 2 }}
+          >
+            {workspaces.map((ws, i) => (
+              <SortableCell
+                key={ws.id}
+                ws={ws}
+                cell={cell}
+                box={box}
+                photoById={photoById}
+                transparent={transparent}
+                highlighted={hl === i}
+                onEnter={(id) => {
+                  if (Date.now() - dragEndedAtRef.current > 120)
+                    enterWorkspace(id)
+                }}
+              />
+            ))}
+          </div>
+        </SortableContext>
+
+        <DragOverlay dropAnimation={{ duration: 160, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
+          {draggedWs
+            ? (
+                <div
+                  className="relative cursor-grabbing overflow-hidden bg-panel-2 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+                  style={{ width: cell, height: cell }}
+                >
+                  <CellBody ws={draggedWs} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
+                </div>
+              )
+            : null}
+        </DragOverlay>
+      </DndContext>
     </div>
+  )
+}
+
+function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEnter }: {
+  ws: { id: string, root: Node, canvasRatio: number | null }
+  cell: number
+  box: { w: number, h: number }
+  photoById: Map<string, Photo>
+  transparent: boolean
+  highlighted: boolean
+  onEnter: (id: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ws.id })
+  const filled = leafList(ws.root).some(l => l.photoId)
+  return (
+    <button
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,opacity,outline-color] duration-[160ms] ${
+        highlighted ? ' outline-2 outline-txt -outline-offset-2' : ''
+      }`}
+      style={{
+        width: cell,
+        height: cell,
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      onClick={() => onEnter(ws.id)}
+      title={filled ? 'Edit this workspace' : 'Start a new collage here'}
+    >
+      <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={isDragging} />
+    </button>
   )
 }
