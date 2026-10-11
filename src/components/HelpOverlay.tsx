@@ -12,9 +12,11 @@ const KEYS: [string, string][] = [
   ['R', 'Reset the photo in the focused pane'],
   ['I', 'Toggle the library drawer'],
   [',', 'Settings drawer (gap / radius / gap fill / export size)'],
+  ['G', 'Toggle the 3×3 workspace grid / back'],
   ['⌘E', 'Export the collage'],
   ['C', 'Export crop params (ImageMagick command)'],
   ['?', 'This help'],
+  ['Enter', 'Open the highlighted grid cell (grid view only)'],
   ['Esc', 'Close drawer / deselect label / unfocus'],
 ]
 
@@ -25,6 +27,7 @@ const MOUSE: [string, string][] = [
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo — whatever falls outside the pane is cropped'],
   ['Scroll / pinch', 'Zoom the photo around the cursor'],
+  ['Pinch past the minimum zoom (or pinch an empty pane)', 'Zoom out all the way into the 3×3 grid overview'],
   ['Double-click inside a pane', 'Reset the photo in that pane'],
   ['Right-click a pane', 'Menu: split, swap its photo with the focused pane (unfocused panes), close'],
   ['Long-press a pane (touch)', 'Same menu as right-click — the tap-to-focus happens on release, so “swap with focused pane” works like a right-click'],
@@ -64,6 +67,8 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
             ,
             so arranging panes and zooming photos is all there is to cropping and stitching.
             Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo.
+            {' '}
+            Nine workspaces live behind the G key — the 3×3 grid shows them all, drag to reorder, click one to edit it.
           </p>
           <div className="grid grid-cols-2 gap-[26px] px-5 py-[18px] max-[560px]:grid-cols-1 max-[560px]:gap-[18px]">
             <div>

@@ -2,7 +2,7 @@ import type { Divider } from '../lib/panes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize } from '../hooks'
 import { dividerLine, ratioFromPointer } from '../lib/panes'
-import { computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
+import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { Pane } from './Pane'
 
 const HIT_MIN = 15
@@ -36,10 +36,10 @@ export function Stage() {
   const [dragging, setDragging] = useState(false)
   const [sizing, setSizing] = useState(false)
 
-  const root = useStore(s => s.root)
-  const focusId = useStore(s => s.focusId)
-  const canvasRatio = useStore(s => s.canvasRatio)
-  const canvasFill = useStore(s => s.canvasFill)
+  const root = useStore(s => activeWs(s).root)
+  const focusId = useStore(s => activeWs(s).focusId)
+  const canvasRatio = useStore(s => activeWs(s).canvasRatio)
+  const canvasFill = useStore(s => activeWs(s).canvasFill)
   const gapValue = useStore(s => s.gap)
   const radiusValue = useStore(s => s.radius)
   const bg = useStore(s => s.bg)
@@ -51,7 +51,6 @@ export function Stage() {
   const closePane = useStore(s => s.closePane)
   const resizeSplit = useStore(s => s.resizeSplit)
   const setCanvasSize = useStore(s => s.setCanvasSize)
-  const patch = useStore(s => s.patch)
 
   const transparent = isTransparentBg(bg)
 
@@ -172,7 +171,7 @@ export function Stage() {
       if (!e.ctrlKey || e.defaultPrevented)
         return
       e.preventDefault()
-      const { focusId } = useStore.getState()
+      const focusId = activeWs(useStore.getState()).focusId
       if (!focusId)
         return
       el.querySelector<HTMLElement>(`[data-pane-id="${CSS.escape(focusId)}"]`)
@@ -183,9 +182,12 @@ export function Stage() {
   }, [wrapRef])
 
   const resetRatio = useCallback(() => {
-    const first = photos.find(p => p.trueW)
-    patch({ canvasRatio: first ? first.trueW / first.trueH : null, canvasFill: 1 })
-  }, [photos, patch])
+    const s = useStore.getState()
+    const first = s.photos.find(p => p.trueW)
+    // canvasRatio lives on the workspace now, so reset through setCanvasSize
+    // (which always needs a number: fall back to the current ratio).
+    s.setCanvasSize(first ? first.trueW / first.trueH : (activeWs(s).canvasRatio ?? 1.5), 1)
+  }, [])
 
   return (
     <div
