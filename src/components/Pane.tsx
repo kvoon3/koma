@@ -7,6 +7,7 @@ import { Check, ChevronDown, Contrast, SquareSplitHorizontal, SquareSplitVertica
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
+import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { getLiveVideoUrl } from '../lib/imageStore'
 import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, stickerRect } from '../lib/panes'
@@ -705,6 +706,19 @@ function PaneImpl({
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
+      onClick={() => {
+        // An empty pane treats a plain click as "pick a photo for this pane";
+        // panes with a photo keep clicks for panning.
+        if (leaf.photoId)
+          return
+        pickImageFiles((files) => {
+          const s = useStore.getState()
+          const created = s.addPhotos(files, false)
+          const first = created[0]
+          if (first)
+            s.assign(leaf.id, first.id)
+        })
+      }}
       onDoubleClick={() => leaf.photoId && onUpdate(leaf.id, { zoom: 1, cx: 0.5, cy: 0.5 })}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files'))
