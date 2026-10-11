@@ -19,7 +19,8 @@ const KEYS: [string, string][] = [
 ]
 
 const MOUSE: [string, string][] = [
-  ['Two buttons at the top center of a pane', 'Split top/bottom or left/right (they appear on hover)'],
+  ['Two buttons at the top center of a pane', 'Split top/bottom or left/right (they appear on hover or focus)'],
+  ['Sticker / Replace / Text at the bottom of a pane', 'Appear on hover or focus on panes with a photo: pick stickers onto its photo, replace the pane\'s photo, add a text label'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo — whatever falls outside the pane is cropped'],
@@ -27,10 +28,11 @@ const MOUSE: [string, string][] = [
   ['Double-click inside a pane', 'Reset the photo in that pane'],
   ['Right-click a pane', 'Menu: split, swap its photo with the focused pane (unfocused panes), close'],
   ['Long-press a pane (touch)', 'Same menu as right-click — the tap-to-focus happens on release, so “swap with focused pane” works like a right-click'],
-  ['Click an empty pane', 'Open the file picker and put the chosen photo into that pane'],
-  ['Drop a photo onto a pane', 'It goes straight into that pane (multi-select allowed; the first one is used)'],
+  ['“Choose a photo” in an empty pane', 'Open the file picker and put the chosen photo into that pane (dropping a file also works)'],
+  ['Drop a photo onto a pane', 'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)'],
   ['Press and hold inside a pane', 'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop — export always uses the still'],
-  ['"Text" button on a pane', 'Add a text label (white on black by default) — click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
+  ['"Sticker" on a pane', 'Pick an image and pin it onto that pane\'s photo (e.g. to cover faces); click to select — handles stay pinned like labels; drag to move, corner to scale, × to delete'],
+  ['"Text" on a pane', 'Add a text label (white on black by default) — click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
 ]
 
 export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => void }) {

@@ -3,7 +3,7 @@ import type { Photo } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
-import { ArrowLeftRight, Check, ChevronDown, Contrast, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
+import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
@@ -18,6 +18,8 @@ const paneBtnCls = 'grid h-6 w-[26px] cursor-pointer place-items-center rounded-
 const menuItemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
 const menuSeparatorCls = 'mx-1 my-1 h-px border-0 bg-line'
+
+const dropBtnCls = 'flex w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-2 text-xs text-txt hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
 const LABEL_FONT_ITEMS = [
   { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
@@ -54,6 +56,7 @@ function StickerView({
   place,
   paneRect,
   toCanvas,
+  onFocus,
 }: {
   paneId: string
   st: Sticker
@@ -61,9 +64,20 @@ function StickerView({
   place: { x: number, y: number, w: number, h: number }
   paneRect: Rect
   toCanvas: (clientX: number, clientY: number) => { x: number, y: number }
+  onFocus: (id: string) => void
 }) {
   const preview = usePreview(photo)
   const removeSticker = useStore(s => s.removeSticker)
+  const selectSticker = useStore(s => s.selectSticker)
+  const selected = useStore(s => s.stickerSel?.stickerId === st.id)
+  // hover intent: keep the handles alive while the pointer crosses the gap
+  // to them — the same treatment labels get.
+  const [hot, setHot] = useState(false)
+  const leaveRef = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (leaveRef.current != null)
+      window.clearTimeout(leaveRef.current)
+  }, [])
   const gestureRef = useRef<{
     mode: 'move' | 'resize'
     ocX: number
@@ -81,7 +95,8 @@ function StickerView({
     e.stopPropagation()
     if (e.button !== 0)
       return
-    useStore.getState().selectLabel(null)
+    onFocus(paneId)
+    selectSticker({ paneId, stickerId: st.id })
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     gestureRef.current = { mode: 'move', ocX: 0, ocY: 0, d0: 0, s0: st.s }
   }
@@ -137,10 +152,25 @@ function StickerView({
       onPointerMove={onMoveMove}
       onPointerUp={endGesture}
       onPointerCancel={endGesture}
+      onPointerEnter={() => {
+        if (leaveRef.current != null) {
+          window.clearTimeout(leaveRef.current)
+          leaveRef.current = null
+        }
+        setHot(true)
+      }}
+      onPointerLeave={() => {
+        if (leaveRef.current != null)
+          window.clearTimeout(leaveRef.current)
+        leaveRef.current = window.setTimeout(() => {
+          leaveRef.current = null
+          setHot(false)
+        }, 220)
+      }}
     >
       <img src={preview.url} alt="" draggable={false} className="block h-full w-full max-w-none pointer-events-none shadow-[0_2px_10px_rgba(0,0,0,0.35)]" />
       <span
-        className="group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-full border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms]"
+        className={`group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
         title="Drag to resize"
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
@@ -148,7 +178,7 @@ function StickerView({
         onPointerCancel={endGesture}
       />
       <button
-        className="group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-full border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms]"
+        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
         title="Remove sticker"
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
@@ -512,6 +542,20 @@ function PaneImpl({
   const touchFocusedRef = useRef(true)
   const [dropping, setDropping] = useState(false)
   const [editing, setEditing] = useState(false)
+  // A drop on a pane that already holds a photo asks what the image should
+  // become; `at` is the drop point in pane-normalized coords for stickers.
+  const [dropChoice, setDropChoice] = useState<{ photos: Photo[], at: { x: number, y: number } } | null>(null)
+
+  // The global Text tool (tools bar) asks a pane's label into edit mode via
+  // the store. Consume the request during render — the monotonic sequence
+  // makes even repeated requests for the same pane fire every time.
+  const editReq = useStore(s => s.labelEditReq)
+  const [seenEditSeq, setSeenEditSeq] = useState(0)
+  if (editReq && editReq.seq !== seenEditSeq) {
+    setSeenEditSeq(editReq.seq)
+    if (editReq.paneId === leaf.id)
+      setEditing(true)
+  }
 
   // Live Photo: press and hold to play the paired video, release to stop.
   // `liveFor` records which photo the hold belongs to, so swapping the pane's
@@ -581,6 +625,31 @@ function PaneImpl({
     },
     [iw, ih, commit, cell],
   )
+
+  // Empty panes pick their photo through the centered button; the pane's
+  // "replace" button reuses the same pick-into-this-pane flow.
+  const pickForPane = () => {
+    pickImageFiles((files) => {
+      const s = useStore.getState()
+      const created = s.addPhotos(files, false)
+      const first = created[0]
+      if (first)
+        s.assign(leaf.id, first.id)
+    })
+  }
+
+  // The pane's sticker button picks images and pins them onto this pane's
+  // photo, roughly centered (extra images fan out a little).
+  const pickStickerForPane = () => {
+    pickImageFiles((files) => {
+      const s = useStore.getState()
+      const created = s.addPhotos(files, false)
+      created.forEach((ph, i) => {
+        const n = Math.min(0.8, 0.5 + i * 0.08)
+        s.addSticker(leaf.id, ph.id, n, n)
+      })
+    })
+  }
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Only the primary button focuses or starts a gesture. A right-click must
@@ -735,8 +804,6 @@ function PaneImpl({
     [rect.x, rect.y],
   )
 
-  const stickerArmed = useStore(s => s.stickerPaneId === leaf.id)
-
   const swapWithFocused = useStore(s => s.swapPhotos)
   // A swap needs a target other than this pane: on desktop that's any right
   // click on an unfocused pane, on touch it's a long-press (focus was
@@ -760,19 +827,6 @@ function PaneImpl({
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
-      onClick={() => {
-        // An empty pane treats a plain click as "pick a photo for this pane";
-        // panes with a photo keep clicks for panning.
-        if (leaf.photoId)
-          return
-        pickImageFiles((files) => {
-          const s = useStore.getState()
-          const created = s.addPhotos(files, false)
-          const first = created[0]
-          if (first)
-            s.assign(leaf.id, first.id)
-        })
-      }}
       onDoubleClick={() => leaf.photoId && onUpdate(leaf.id, { zoom: 1, cx: 0.5, cy: 0.5 })}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files'))
@@ -793,13 +847,11 @@ function PaneImpl({
         const created = s.addPhotos(files, false)
         if (!created.length)
           return
-        // Sticker mode: drops land as stickers at the drop point instead of
-        // replacing the pane's photo.
-        if (s.stickerPaneId === leaf.id && place) {
-          const pt = toCanvas(e.clientX, e.clientY)
-          const n = photoNorm(place, pt.x, pt.y)
-          for (const ph of created)
-            s.addSticker(leaf.id, ph.id, n.x, n.y)
+        // A pane with a photo asks what the dropped image should become.
+        if (leaf.photoId) {
+          const pt = place ? toCanvas(e.clientX, e.clientY) : null
+          const at = pt && place ? photoNorm(place, pt.x, pt.y) : { x: 0.5, y: 0.5 }
+          setDropChoice({ photos: created, at })
           return
         }
         const first = created[0]
@@ -830,7 +882,20 @@ function PaneImpl({
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Loading...</div>
             )
           : (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Click or drop a photo here</div>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-[7px]">
+                <button
+                  className="flex cursor-pointer items-center gap-[6px] rounded-none border border-line bg-panel px-2.5 py-[5px] text-[11.5px] font-semibold text-txt transition-colors duration-[120ms] hover:bg-accent hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3 pointer-coarse:py-[7px]"
+                  title="Open the file picker and put the chosen photo into this pane"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    pickForPane()
+                  }}
+                >
+                  <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+                  <span className="max-sm:hidden">Choose a photo</span>
+                </button>
+                <span className="pointer-events-none text-[11px] text-pane-hint max-sm:hidden">or drop one here</span>
+              </div>
             )}
 
       {liveUrl && place && (
@@ -873,6 +938,7 @@ function PaneImpl({
                   place={place}
                   paneRect={rect}
                   toCanvas={toCanvas}
+                  onFocus={onFocus}
                 />
               )
             : null
@@ -891,7 +957,7 @@ function PaneImpl({
       )}
 
       <div
-        className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused || !leaf.photoId ? ' opacity-100' : ' opacity-0'}`}
+        className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
         onPointerDown={e => e.stopPropagation()}
       >
         <button
@@ -914,50 +980,91 @@ function PaneImpl({
         >
           <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
         </button>
-        {leaf.photoId && (
+      </div>
+
+      {/* Bottom actions — sticker / replace / text, on hover or focus only.
+          Laid out horizontally at the pane's bottom edge so they never cover
+          stickers or labels sitting on the photo. */}
+      {leaf.photoId && (
+        <div
+          className={`absolute bottom-[9px] left-1/2 z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
+          onPointerDown={e => e.stopPropagation()}
+        >
           <button
-            className={`${paneBtnCls}${stickerArmed ? ' bg-chip-on text-chip-on-txt' : ''}`}
-            title={stickerArmed
-              ? 'Sticker mode on — drop images on this pane to add stickers · click again or Esc to stop'
-              : 'Sticker mode — then drop images on this pane to add stickers'}
+            className={paneBtnCls}
+            title="Pick images and pin them onto this photo"
             onClick={(e) => {
               e.stopPropagation()
-              const s = useStore.getState()
-              s.setStickerPane(s.stickerPaneId === leaf.id ? null : leaf.id)
-              onFocus(leaf.id)
+              pickStickerForPane()
             }}
           >
             <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
           </button>
-        )}
-        <button
-          className={`${paneBtnCls}${editing ? ' bg-chip-on text-chip-on-txt' : ''}`}
-          title="Add a text label"
-          onClick={(e) => {
-            e.stopPropagation()
-            useStore.getState().ensureLabel(leaf.id)
-            setEditing(true)
-          }}
-        >
-          <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
-        </button>
-      </div>
-
-      {stickerArmed && !dropping && (
-        <span className="pointer-events-none absolute bottom-[9px] left-1/2 z-[3] -translate-x-1/2 border border-float-line bg-float-bg py-[3px] pl-2 pr-[9px] text-[10.5px] font-semibold whitespace-nowrap text-float-icon backdrop-blur-[7px]">
-          Drop images to add stickers
-        </span>
+          <button
+            className={paneBtnCls}
+            title="Pick a photo to replace this pane's photo"
+            onClick={(e) => {
+              e.stopPropagation()
+              pickForPane()
+            }}
+          >
+            <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+          </button>
+          <button
+            className={paneBtnCls}
+            title="Add a text label"
+            onClick={(e) => {
+              e.stopPropagation()
+              useStore.getState().ensureLabel(leaf.id)
+              setEditing(true)
+            }}
+          >
+            <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
+          </button>
+        </div>
       )}
 
-      {stickerArmed && dropping && (
-        <span className="pointer-events-none absolute inset-0 z-[3] flex items-center justify-center bg-accent/10 text-[12.5px] font-semibold text-pane-hint">
-          Drop to add sticker
-        </span>
+      {dropChoice && (
+        <div
+          className="absolute inset-0 z-[5] flex items-center justify-center bg-overlay-dim"
+          onClick={() => setDropChoice(null)}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          <div
+            className="flex w-[min(190px,85%)] flex-col gap-[3px] rounded-none border border-line-strong bg-panel p-1 shadow-pop"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              className={dropBtnCls}
+              onClick={() => {
+                const first = dropChoice.photos[0]
+                if (first)
+                  useStore.getState().assign(leaf.id, first.id)
+                setDropChoice(null)
+              }}
+            >
+              <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="text-dim" />
+              Use as photo
+            </button>
+            <button
+              className={dropBtnCls}
+              onClick={() => {
+                const s = useStore.getState()
+                for (const ph of dropChoice.photos)
+                  s.addSticker(leaf.id, ph.id, dropChoice.at.x, dropChoice.at.y)
+                setDropChoice(null)
+              }}
+            >
+              <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="text-dim" />
+              Use as sticker
+            </button>
+          </div>
+        </div>
       )}
 
       {canClose && (
         <button
-          className="group-hover/pane:opacity-100 absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-[15px] leading-none text-float-icon opacity-0 transition-opacity duration-[140ms] hover:border-danger hover:bg-danger hover:text-on-accent pointer-coarse:h-[30px] pointer-coarse:w-[30px]"
+          className={`group-hover/pane:opacity-100 absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color] duration-[140ms] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${focused ? ' opacity-100' : ' opacity-0'}`}
           title="Close this pane"
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
@@ -975,7 +1082,7 @@ function PaneImpl({
         className={
           `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1 ${
             focused ? ' outline-txt' : ''
-          }${stickerArmed ? ' outline-dashed outline-accent' : ''}${dropping && !stickerArmed ? ' outline-dashed outline-txt' : ''}`
+          }${dropping ? ' outline-dashed outline-txt' : ''}`
         }
         style={{ borderRadius: radius }}
       />

@@ -1,6 +1,7 @@
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { looksHeic, probeHeic } from './lib/heic'
 import { clearImageCaches, probeJpeg } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
@@ -34,8 +35,14 @@ export interface State {
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
-  stickerPaneId: string | null
   labelSel: string | null
+  // The selected sticker, if any; selecting one clears the label selection
+  // and vice versa.
+  stickerSel: { paneId: string, stickerId: string } | null
+  // Set when a tool (not the pane itself) asks a pane's label to enter edit
+  // mode; the sequence number lets a pane consume requests render-time, and
+  // repeated requests for the same pane still fire.
+  labelEditReq: { paneId: string, seq: number } | null
 }
 
 interface Actions {
@@ -51,10 +58,11 @@ interface Actions {
   focus: (paneId: string) => void
   focusNeighbor: (dir: FocusDir) => void
   selectLabel: (paneId: string | null) => void
+  selectSticker: (sel: { paneId: string, stickerId: string } | null) => void
+  requestLabelEdit: (paneId: string) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
   setCanvasSize: (ratio: number, fill: number) => void
-  setStickerPane: (paneId: string | null) => void
   addSticker: (paneId: string, photoId: string, x: number, y: number) => void
   moveSticker: (paneId: string, stickerId: string, x: number, y: number) => void
   scaleSticker: (paneId: string, stickerId: string, s: number) => void
@@ -66,7 +74,7 @@ interface Actions {
 
 export const GAP = 0
 export const RADIUS = 0
-export const BG = '#ffffff'
+export const BG = '#000000'
 export const MIN_PANE_PX = 56
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
@@ -81,7 +89,9 @@ export const isTransparentBg = (bg: string) => bg === 'transparent'
 
 const defaultRoot = newLeaf()
 
-export const useStore = create<State & Actions>((set, get) => ({
+let labelEditSeq = 0
+
+export const useStore = create<State & Actions>()(persist((set, get) => ({
   photos: [],
   root: defaultRoot,
   focusId: defaultRoot.id,
@@ -93,8 +103,9 @@ export const useStore = create<State & Actions>((set, get) => ({
   longSide: 2048,
   format: 'image/jpeg',
   quality: 0.92,
-  stickerPaneId: null,
   labelSel: null,
+  stickerSel: null,
+  labelEditReq: null,
 
   addPhotos: (files, autoFill = true) => {
     const { images, videos } = splitLiveFiles(files)
@@ -160,6 +171,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       radius: s.radius,
       bg: s.bg,
       labelSel: null,
+      stickerSel: null,
     }))
   },
 
@@ -183,7 +195,7 @@ export const useStore = create<State & Actions>((set, get) => ({
         root: next,
         focusId: leaves.some(l => l.id === s.focusId) ? s.focusId : leaves[0].id,
         labelSel: s.labelSel === paneId ? null : s.labelSel,
-        stickerPaneId: s.stickerPaneId === paneId ? null : s.stickerPaneId,
+        stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
       }
     }),
 
@@ -192,7 +204,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   removePhoto: paneId =>
     set(s => ({
       root: updateLeafIn(s.root, paneId, { photoId: null, zoom: 1, cx: 0.5, cy: 0.5, stickers: [] }),
-      stickerPaneId: s.stickerPaneId === paneId ? null : s.stickerPaneId,
+      stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
     })),
 
   swapPhotos: (a, b) =>
@@ -252,7 +264,9 @@ export const useStore = create<State & Actions>((set, get) => ({
       set({ focusId: next.id })
   },
 
-  selectLabel: paneId => set({ labelSel: paneId }),
+  selectLabel: paneId => set({ labelSel: paneId, stickerSel: null }),
+  selectSticker: sel => set({ stickerSel: sel, labelSel: null }),
+  requestLabelEdit: paneId => set({ labelEditReq: { paneId, seq: ++labelEditSeq } }),
 
   autoFill: () =>
     set((s) => {
@@ -276,8 +290,6 @@ export const useStore = create<State & Actions>((set, get) => ({
       canvasRatio: Math.min(8, Math.max(0.12, ratio)),
       canvasFill: Math.min(1, Math.max(0.15, fill)),
     }),
-
-  setStickerPane: paneId => set({ stickerPaneId: paneId }),
 
   addSticker: (paneId, photoId, x, y) =>
     set((s) => {
@@ -312,6 +324,9 @@ export const useStore = create<State & Actions>((set, get) => ({
         root: updateLeafIn(s.root, paneId, {
           stickers: pane.stickers.filter(t => t.id !== stickerId),
         }),
+        stickerSel: s.stickerSel?.paneId === paneId && s.stickerSel.stickerId === stickerId
+          ? null
+          : s.stickerSel,
       }
     }),
 
@@ -341,6 +356,11 @@ export const useStore = create<State & Actions>((set, get) => ({
       root: updateLeafIn(s.root, paneId, { label: null }),
       labelSel: s.labelSel === paneId ? null : s.labelSel,
     })),
+}), {
+  // Visual settings survive reloads; the rest of the state (tree, photos)
+  // stays session-only.
+  name: 'collage:settings',
+  partialize: state => ({ gap: state.gap, radius: state.radius, bg: state.bg }),
 }))
 
 function patchStickerIn(
