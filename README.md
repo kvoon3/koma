@@ -84,7 +84,8 @@ rows.
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
 | Double-click inside a pane | Reset that pane's photo |
-| Right-click an unfocused pane | Context menu: swap its photo with the focused pane |
+| Right-click a pane | Context menu: split, swap with the focused pane (unfocused panes), close |
+| Long-press a pane (touch) | Same context menu as right-click; tap-to-focus happens on release, so "swap with focused pane" targets the previously focused pane |
 | Drop a photo onto a pane | Place it directly into that pane |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop — export uses the still |
 | "Sticker" button on a pane | Pick an image from the library and pin it onto the photo (e.g. to cover faces); drag to move, corner handle to scale, × to delete |

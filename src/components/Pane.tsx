@@ -3,7 +3,7 @@ import type { Photo } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
-import { Check, ChevronDown, Contrast, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
+import { ArrowLeftRight, Check, ChevronDown, Contrast, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
@@ -14,6 +14,10 @@ import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, stickerRe
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 
 const paneBtnCls = 'grid h-6 w-[26px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[30px] pointer-coarse:w-8 hover:bg-chip-hover hover:text-txt'
+
+const menuItemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
+
+const menuSeparatorCls = 'mx-1 my-1 h-px border-0 bg-line'
 
 const LABEL_FONT_ITEMS = [
   { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
@@ -246,8 +250,9 @@ function LabelView({
 
   const onBoxDown = (e: React.PointerEvent) => {
     e.stopPropagation()
-    // A right-click on the label must not steal focus: the pane needs to stay
-    // unfocused so its context menu (swap with focused pane) can open.
+    // A right-click on the label must not steal focus: the swap item in the
+    // pane's context menu targets the focused pane, so the pane must stay
+    // unfocused for it to appear.
     if (editing || e.button !== 0)
       return
     onFocus(paneId)
@@ -500,6 +505,11 @@ function PaneImpl({
     startDist: number
     base: Leaf
   } | null>(null)
+  // Whether the active touch gesture already focused this pane. Touch defers
+  // focus to the first move or the release, so a long-press opens the pane's
+  // context menu with this pane still unfocused — the same state a desktop
+  // right-click produces, which is what makes "Swap with focused pane" work.
+  const touchFocusedRef = useRef(true)
   const [dropping, setDropping] = useState(false)
   const [editing, setEditing] = useState(false)
 
@@ -574,11 +584,14 @@ function PaneImpl({
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Only the primary button focuses or starts a gesture. A right-click must
-    // leave focus alone, otherwise this pane re-renders as focused and its
-    // ContextMenu.Trigger unmounts before the swap menu can open.
+    // leave focus alone so the menu's swap item can target the focused pane;
+    // touch defers focus to the first move or release (see touchFocusedRef).
     if (e.button !== 0)
       return
-    onFocus(leaf.id)
+    const touch = e.pointerType !== 'mouse'
+    touchFocusedRef.current = !touch
+    if (!touch)
+      onFocus(leaf.id)
     useStore.getState().selectLabel(null)
     if (!leaf.photoId)
       return
@@ -612,6 +625,13 @@ function PaneImpl({
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointersRef.current.has(e.pointerId))
       return
+    // A moving touch (pan or pinch starting) means the user is working on
+    // this pane — focus it now; a still press may still become a long-press
+    // menu instead, which must find the pane unfocused.
+    if (!touchFocusedRef.current) {
+      touchFocusedRef.current = true
+      onFocus(leaf.id)
+    }
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const g = gestureRef.current
     if (!g || !iw || !ih)
@@ -641,6 +661,14 @@ function PaneImpl({
   }
 
   const endPointer = (e: React.PointerEvent) => {
+    // A touch that stayed still and never opened the menu is a tap: focus now.
+    // When the long-press menu is open this pointerup lands on the menu
+    // backdrop, so the pane stays unfocused (and onOpenChange already armed
+    // touchFocusedRef against a stray late event).
+    if (!touchFocusedRef.current) {
+      touchFocusedRef.current = true
+      onFocus(leaf.id)
+    }
     pointersRef.current.delete(e.pointerId)
     if (pointersRef.current.size === 0) {
       gestureRef.current = null
@@ -653,6 +681,27 @@ function PaneImpl({
       const p = local(only.x, only.y)
       gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...leaf } }
     }
+  }
+
+  // The menu opens mid-gesture on touch (Base UI long-presses the trigger):
+  // hand the gesture back so the finger moving over the open menu doesn't
+  // keep panning the photo underneath, and stop Live Photo playback.
+  const onMenuOpenChange = (open: boolean) => {
+    if (!open)
+      return
+    const el = elRef.current
+    if (el) {
+      for (const id of [...pointersRef.current.keys()]) {
+        if (el.hasPointerCapture(id))
+          el.releasePointerCapture(id)
+      }
+    }
+    pointersRef.current.clear()
+    gestureRef.current = null
+    clearHold()
+    downAtRef.current = null
+    setLiveFor(null)
+    touchFocusedRef.current = true
   }
 
   useEffect(() => {
@@ -689,13 +738,18 @@ function PaneImpl({
   const stickerArmed = useStore(s => s.stickerPaneId === leaf.id)
 
   const swapWithFocused = useStore(s => s.swapPhotos)
+  // A swap needs a target other than this pane: on desktop that's any right
+  // click on an unfocused pane, on touch it's a long-press (focus was
+  // deferred, so the previously focused pane is still the target).
+  const focusId = useStore(s => s.focusId)
+  const swapTargetId = !focused && focusId && focusId !== leaf.id ? focusId : null
 
   const paneNode = (
     <div
       ref={elRef}
       data-pane-id={leaf.id}
       className={
-        `group/pane absolute cursor-grab touch-none overflow-hidden bg-pane-bg [contain:paint] ${
+        `group/pane absolute cursor-grab touch-none select-none overflow-hidden bg-pane-bg [contain:paint] ${
           focused
             ? ' z-1 cursor-grab'
             : ''
@@ -776,7 +830,7 @@ function PaneImpl({
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Loading...</div>
             )
           : (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Drop a photo here</div>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Click or drop a photo here</div>
             )}
 
       {liveUrl && place && (
@@ -928,21 +982,44 @@ function PaneImpl({
     </div>
   )
 
-  if (focused)
-    return paneNode
-
+  // Every pane keeps its context menu mounted (right-click, or long-press on
+  // touch) — mounting it only on unfocused panes would let a touch's focus
+  // change tear it down before the long-press fires.
   return (
-    <ContextMenu.Root>
+    <ContextMenu.Root onOpenChange={onMenuOpenChange}>
       <ContextMenu.Trigger render={paneNode} />
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-90">
           <ContextMenu.Popup className="min-w-[180px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-100 ease-out data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
-            <ContextMenu.Item
-              className="flex w-full cursor-pointer items-center whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt"
-              onClick={() => swapWithFocused(leaf.id, useStore.getState().focusId)}
-            >
-              Swap with focused pane
+            <ContextMenu.Item className={menuItemCls} onClick={() => onSplit(leaf.id, 'column')}>
+              <MorphIcon icon={SquareSplitVertical} size={13} strokeWidth={1.75} className="text-dim" />
+              Split top/bottom
             </ContextMenu.Item>
+            <ContextMenu.Item className={menuItemCls} onClick={() => onSplit(leaf.id, 'row')}>
+              <MorphIcon icon={SquareSplitHorizontal} size={13} strokeWidth={1.75} className="text-dim" />
+              Split left/right
+            </ContextMenu.Item>
+            {swapTargetId && (
+              <>
+                <ContextMenu.Separator className={menuSeparatorCls} />
+                <ContextMenu.Item className={menuItemCls} onClick={() => swapWithFocused(leaf.id, swapTargetId)}>
+                  <MorphIcon icon={ArrowLeftRight} size={13} strokeWidth={1.75} className="text-dim" />
+                  Swap with focused pane
+                </ContextMenu.Item>
+              </>
+            )}
+            {canClose && (
+              <>
+                <ContextMenu.Separator className={menuSeparatorCls} />
+                <ContextMenu.Item
+                  className="flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-danger data-highlighted:bg-danger data-highlighted:text-on-accent"
+                  onClick={() => onClose(leaf.id)}
+                >
+                  <MorphIcon icon={X} size={13} strokeWidth={1.75} />
+                  Close pane
+                </ContextMenu.Item>
+              </>
+            )}
           </ContextMenu.Popup>
         </ContextMenu.Positioner>
       </ContextMenu.Portal>
