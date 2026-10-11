@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && cp dist/index.html koma.html",
+    "deploy": "bun run build && wrangler deploy",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -41,7 +42,8 @@
     "taze": "^21.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.3.4",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "wrangler": "^4.149.0"
   },
   "simple-git-hooks": {
     "pre-commit": "bunx nano-staged",

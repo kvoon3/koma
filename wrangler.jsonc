@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "koma",
+  "compatibility_date": "2026-10-11",
+  // 纯静态站点，不需要 worker 脚本
+  "assets": {
+    "directory": "./dist",
+    // SPA 回退：所有未匹配路径返回 index.html
+    "not_found_handling": "single-page-application"
+  },
+  // 自定义域名（部署时自动在 kvoon.me zone 里创建 DNS 记录）
+  "routes": [
+    { "pattern": "koma.kvoon.me", "custom_domain": true }
+  ]
+}
