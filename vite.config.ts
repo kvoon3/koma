@@ -16,10 +16,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
     viteSingleFile(),
-    // 本地受信 CA（mkcert）签发证书启用 https：证书自动覆盖本机所有网卡 IP，
-    // 手机安装一次根证书后访问无警告
+    // A locally trusted CA (mkcert) for https: the certificate covers every
+    // NIC IP on this machine, so a phone that trusts the root once gets no
+    // warnings.
     mkcert(),
-    // 只显示局域网地址的二维码（排除 localhost、Tailscale、fake-IP 等虚拟网卡）
+    // QR code for the LAN address only (localhost, Tailscale and fake-IP
+    // virtual adapters are filtered out).
     qrcode({
       filter: (url) => {
         const { hostname } = new URL(url)
