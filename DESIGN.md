@@ -40,8 +40,9 @@ rows.
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
 | Double-click inside a pane | Reset that pane's photo |
-| Right-click a pane | Context menu: split, swap with the focused pane (unfocused panes), close |
-| Long-press a pane (touch) | Same context menu as right-click; tap-to-focus happens on release, so "swap with focused pane" targets the previously focused pane |
+| Right-click a pane | Context menu: split, Move (pick the photo up with the pointer), swap with the focused pane (unfocused panes), close |
+| "Move" in the pane menu | The photo follows the pointer with no button held; clicking another pane swaps the two panes' contents (an empty pane takes the photo in). Clicking the source pane, empty space, or pressing Esc drops it back |
+| Long-press a pane (touch) | Arms a swap: the drag that follows carries the pane's photo onto another pane, and dropping it there swaps the two panes' contents (an empty pane takes the photo in). Moving before the hold fires pans as usual, and releasing without dragging just focuses the pane |
 | An empty pane | Shows a dimmed image icon, not a button: focus it and use "Choose a photo" in the tools panel above the footer, or drop a file straight onto the pane |
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
