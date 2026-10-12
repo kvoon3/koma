@@ -3,6 +3,7 @@ import { Menu } from '@base-ui/react/menu'
 import { ChevronDown, CircleHelp, Download, FileText, FolderPlus, Grid3x3, ImagePlus, LayoutGrid, LoaderCircle, Moon, SlidersHorizontal, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useRef, useSyncExternalStore } from 'react'
+import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
 import { activeWs, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
@@ -55,41 +56,42 @@ function TopBarActions({
   filled: boolean
   dark: boolean
 }) {
+  const t = useT()
   return (
     <div className="flex items-center gap-[5px]">
       <Tip
-        label={grid ? 'Back to editing · G' : 'Show the 3×3 workspace grid · G'}
+        label={grid ? t('Back to editing · G') : t('Show the 3×3 workspace grid · G')}
         trigger={(
           <Button
             variant={grid ? 'on' : 'flat'}
             onClick={toggleGrid}
-            aria-label={grid ? 'Back to editing' : 'Show the workspace grid'}
+            aria-label={grid ? t('Back to editing') : t('Show the workspace grid')}
           >
             <MorphIcon icon={grid ? ImagePlus : Grid3x3} size={15} strokeWidth={1.75} />
           </Button>
         )}
       />
       <Tip
-        label="Settings · Shortcut: ,"
+        label={t('Settings · Shortcut: ,')}
         trigger={(
           <Button
             variant={settingsOpen ? 'on' : 'flat'}
             onClick={onToggleSettings}
-            aria-label="Settings · Shortcut: ,"
+            aria-label={t('Settings · Shortcut: ,')}
           >
             <MorphIcon icon={SlidersHorizontal} size={15} strokeWidth={1.75} />
-            <span className="pointer-coarse:hidden max-sm:hidden">Settings</span>
+            <span className="pointer-coarse:hidden max-sm:hidden">{t('Settings')}</span>
           </Button>
         )}
       />
       <Tip
-        label={grid ? 'Export every non-empty workspace · ⌘E' : 'Export image · ⌘E'}
+        label={grid ? t('Export every non-empty workspace · ⌘E') : t('Export image · ⌘E')}
         trigger={(
           <Button
             variant="strong"
             onClick={onExport}
             disabled={busy || (grid ? !anyFilled : !filled)}
-            aria-label="Export image"
+            aria-label={t('Export image')}
           >
             <MorphIcon
               icon={busy ? LoaderCircle : Download}
@@ -97,16 +99,16 @@ function TopBarActions({
               strokeWidth={1.75}
               className={busy ? 'animate-spin [animation-duration:900ms]' : undefined}
             />
-            <span className="pointer-coarse:hidden max-sm:hidden">{busy ? 'Rendering' : 'Export'}</span>
+            <span className="pointer-coarse:hidden max-sm:hidden">{busy ? t('Rendering') : t('Export')}</span>
           </Button>
         )}
       />
       <Tip
-        label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+        label={dark ? t('Switch to light theme') : t('Switch to dark theme')}
         trigger={(
           <Button
             onClick={toggleDark}
-            aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+            aria-label={dark ? t('Switch to light theme') : t('Switch to dark theme')}
           >
             <MorphIcon icon={dark ? Sun : Moon} size={15} strokeWidth={1.75} />
           </Button>
@@ -150,6 +152,7 @@ export function TopBar({
   const anyFilled = useStore(s =>
     s.workspaces.some(w => leafList(w.root).some(l => l.photoId)))
   const toggleGrid = useStore(s => s.toggleGrid)
+  const t = useT()
   const dark = useSyncExternalStore(subscribeTheme, isDarkSnapshot)
   const grid = view === 'grid'
   const filled = useMemo(() => leafList(root).some(l => l.photoId), [root])
@@ -160,27 +163,27 @@ export function TopBar({
         ? (
           // Grid view is pure navigation: Help only (crop report is an
           // editing aid, library tools are hidden).
-            <CatMenu label="Help">
+            <CatMenu label={t('Help')}>
               <Menu.Item className={itemCls} onClick={onToggleHelp}>
                 <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-                Keyboard shortcuts
+                {t('Keyboard shortcuts')}
                 <span className={hintCls}>?</span>
               </Menu.Item>
             </CatMenu>
           )
         : (
-            <CatMenu label="Photo">
+            <CatMenu label={t('Photo')}>
               <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
                 <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-                Add photos…
+                {t('Add photos…')}
               </Menu.Item>
               <Menu.Item className={itemCls} onClick={() => dirRef.current?.click()}>
                 <MorphIcon icon={FolderPlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-                Add folder…
+                {t('Add folder…')}
               </Menu.Item>
               <Menu.Item className={itemCls} onClick={onToggleLib}>
                 <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
-                Library
+                {t('Library')}
                 <span className={hintCls}>
                   {photos ? `${photos} · ` : ''}
                   I
@@ -193,21 +196,21 @@ export function TopBar({
                 disabled={!photos}
               >
                 <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
-                Clear library…
+                {t('Clear library…')}
               </Menu.Item>
             </CatMenu>
           )}
 
       {!grid && (
-        <CatMenu label="Help">
+        <CatMenu label={t('Help')}>
           <Menu.Item className={itemCls} onClick={onToggleHelp}>
             <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-            Keyboard shortcuts
+            {t('Keyboard shortcuts')}
             <span className={hintCls}>?</span>
           </Menu.Item>
           <Menu.Item className={itemCls} onClick={onCrops}>
             <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
-            Crop report
+            {t('Crop report')}
             <span className={hintCls}>C</span>
           </Menu.Item>
         </CatMenu>

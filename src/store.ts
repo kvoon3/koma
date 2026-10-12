@@ -63,12 +63,6 @@ export const MIN_PANE_PX = 56
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
 
-export const BG_PRESETS: { id: string, label: string, value: string }[] = [
-  { id: 'black', label: 'Black', value: '#000000' },
-  { id: 'white', label: 'White', value: '#ffffff' },
-  { id: 'transparent', label: 'Transparent', value: 'transparent' },
-]
-
 export const isTransparentBg = (bg: string) => bg === 'transparent'
 
 function newWorkspace(): Workspace {

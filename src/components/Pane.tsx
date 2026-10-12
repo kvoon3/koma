@@ -9,6 +9,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
 import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
+import { useT } from '../lib/i18n'
 import { getLiveVideoUrl } from '../lib/imageStore'
 import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, stickerRect } from '../lib/panes'
 import { activeWs, MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
@@ -69,6 +70,7 @@ function StickerView({
   const preview = usePreview(photo)
   const removeSticker = useStore(s => s.removeSticker)
   const selectSticker = useStore(s => s.selectSticker)
+  const t = useT()
   const selected = useStore(s => s.stickerSel?.stickerId === st.id)
   // hover intent: keep the handles alive while the pointer crosses the gap
   // to them, the same treatment labels get.
@@ -171,7 +173,7 @@ function StickerView({
       <img src={preview.url} alt="" draggable={false} className="block h-full w-full max-w-none pointer-events-none shadow-[0_2px_10px_rgba(0,0,0,0.35)]" />
       <span
         className={`group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
-        title="Drag to resize"
+        title={t('Drag to resize')}
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
         onPointerUp={endGesture}
@@ -179,7 +181,7 @@ function StickerView({
       />
       <button
         className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
-        title="Remove sticker"
+        title={t('Remove sticker')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
@@ -260,6 +262,7 @@ function LabelView({
   const setLabel = useStore(s => s.setLabel)
   const removeLabel = useStore(s => s.removeLabel)
   const selectLabel = useStore(s => s.selectLabel)
+  const t = useT()
   const selected = useStore(s => s.labelSel === paneId)
   const fontTick = useFontReady(lab.font)
   const colors = labelColors(lab.theme)
@@ -387,7 +390,7 @@ function LabelView({
       {!editing && (
         <span
           className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
-          title="Drag to resize"
+          title={t('Drag to resize')}
           onPointerDown={onSizeDown}
           onPointerMove={onSizeMove}
           onPointerUp={endGesture}
@@ -397,7 +400,7 @@ function LabelView({
       {!editing && (
         <button
           className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
-          title="Remove label"
+          title={t('Remove label')}
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
@@ -435,7 +438,7 @@ function LabelView({
               selectLabel(paneId)
           }}
         >
-          <Select.Trigger className="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover" title="Label font" aria-label="Label font">
+          <Select.Trigger className="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover" title={t('Label font')} aria-label={t('Label font')}>
             <Select.Value />
             <Select.Icon className="flex flex-none text-dim">
               <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
@@ -456,7 +459,7 @@ function LabelView({
                       return null
                     return (
                       <Select.Group key={cat.id}>
-                        <Select.GroupLabel className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{cat.label}</Select.GroupLabel>
+                        <Select.GroupLabel className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{t(cat.label)}</Select.GroupLabel>
                         {items.map(item => (
                           <Select.Item
                             key={item.value || 'system'}
@@ -467,7 +470,7 @@ function LabelView({
                             <Select.ItemIndicator className="flex w-3.5 text-current">
                               <MorphIcon icon={Check} size={12} strokeWidth={2} />
                             </Select.ItemIndicator>
-                            <Select.ItemText className="flex-1">{item.label}</Select.ItemText>
+                            <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
                           </Select.Item>
                         ))}
                       </Select.Group>
@@ -480,8 +483,8 @@ function LabelView({
         </Select.Root>
         <button
           className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
-          title={lab.theme === 'dark' ? 'Switch to black text on white' : 'Switch to white text on black'}
-          aria-label={lab.theme === 'dark' ? 'Switch to black text on white' : 'Switch to white text on black'}
+          title={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
+          aria-label={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
@@ -510,6 +513,7 @@ function PanePhotoContent({
   photoId: string | null
   onPickFiles: () => void
 }) {
+  const t = useT()
   return preview && place
     ? (
         <img
@@ -529,22 +533,22 @@ function PanePhotoContent({
       )
     : photoId
       ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Loading...</div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">{t('Loading...')}</div>
         )
       : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-[7px]">
             <button
               className="flex cursor-pointer items-center gap-[6px] rounded-none border border-line bg-panel px-2.5 py-[5px] text-[11.5px] font-semibold text-txt transition-colors duration-[120ms] hover:bg-accent hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3 pointer-coarse:py-[7px]"
-              title="Open the file picker and put the chosen photo into this pane"
+              title={t('Open the file picker and put the chosen photo into this pane')}
               onClick={(e) => {
                 e.stopPropagation()
                 onPickFiles()
               }}
             >
               <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-              <span className="max-sm:hidden">Choose a photo</span>
+              <span className="max-sm:hidden">{t('Choose a photo')}</span>
             </button>
-            <span className="pointer-events-none text-[11px] text-pane-hint max-sm:hidden">or drop one here</span>
+            <span className="pointer-events-none text-[11px] text-pane-hint max-sm:hidden">{t('or drop one here')}</span>
           </div>
         )
 }
@@ -558,6 +562,7 @@ function PaneSplitTools({
   focused: boolean
   onSplit: (id: string, dir: 'row' | 'column') => void
 }) {
+  const t = useT()
   return (
     <div
       className={`pointer-coarse:hidden absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
@@ -565,7 +570,7 @@ function PaneSplitTools({
     >
       <button
         className={paneBtnCls}
-        title="Split top/bottom"
+        title={t('Split top/bottom')}
         onClick={(e) => {
           e.stopPropagation()
           onSplit(paneId, 'column')
@@ -575,7 +580,7 @@ function PaneSplitTools({
       </button>
       <button
         className={paneBtnCls}
-        title="Split left/right"
+        title={t('Split left/right')}
         onClick={(e) => {
           e.stopPropagation()
           onSplit(paneId, 'row')
@@ -598,6 +603,7 @@ function PaneBottomTools({
   onPickPhoto: () => void
   onAddLabel: () => void
 }) {
+  const t = useT()
   return (
     <div
       className={`pointer-coarse:hidden absolute bottom-[9px] left-1/2 z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
@@ -605,7 +611,7 @@ function PaneBottomTools({
     >
       <button
         className={paneBtnCls}
-        title="Pick images and pin them onto this photo"
+        title={t('Pick images and pin them onto this photo')}
         onClick={(e) => {
           e.stopPropagation()
           onPickStickers()
@@ -615,7 +621,7 @@ function PaneBottomTools({
       </button>
       <button
         className={paneBtnCls}
-        title="Pick a photo to replace this pane's photo"
+        title={t('Pick a photo to replace this pane\'s photo')}
         onClick={(e) => {
           e.stopPropagation()
           onPickPhoto()
@@ -625,7 +631,7 @@ function PaneBottomTools({
       </button>
       <button
         className={paneBtnCls}
-        title="Add a text label"
+        title={t('Add a text label')}
         onClick={(e) => {
           e.stopPropagation()
           onAddLabel()
@@ -646,10 +652,11 @@ function PaneCloseTool({
   focused: boolean
   onClose: (id: string) => void
 }) {
+  const t = useT()
   return (
     <button
       className={`group-hover/pane:opacity-100 absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color] duration-[140ms] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${focused ? ' opacity-100' : ' opacity-0'}`}
-      title="Close this pane"
+      title={t('Close this pane')}
       onPointerDown={e => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation()
@@ -714,6 +721,7 @@ function PaneImpl({
 }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null)
   const preview = usePreview(photo)
+  const t = useT()
 
   const pointersRef = useRef(new Map<number, { x: number, y: number }>())
   const gestureRef = useRef<{
@@ -1099,7 +1107,7 @@ function PaneImpl({
       {photo?.videoFile && !live && (
         <span
           className="pointer-events-none absolute left-[9px] top-[9px] z-[3] flex items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] text-float-icon backdrop-blur-[7px] [&::before]:h-2 [&::before]:w-2 [&::before]:content-[''] [&::before]:rounded-full [&::before]:border-[1.5px] [&::before]:border-current [&::before]:shadow-[inset_0_0_0_2.5px_var(--floatBg),inset_0_0_0_3.5px_currentColor]"
-          title="Live Photo: press and hold to play"
+          title={t('Live Photo: press and hold to play')}
         >
           LIVE
         </span>
@@ -1175,7 +1183,7 @@ function PaneImpl({
               }}
             >
               <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="text-dim" />
-              Use as photo
+              {t('Use as photo')}
             </button>
             <button
               className={dropBtnCls}
@@ -1187,7 +1195,7 @@ function PaneImpl({
               }}
             >
               <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="text-dim" />
-              Use as sticker
+              {t('Use as sticker')}
             </button>
           </div>
         </div>
@@ -1211,18 +1219,18 @@ function PaneImpl({
           <ContextMenu.Popup className="min-w-[180px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-100 ease-out data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
             <ContextMenu.Item className={menuItemCls} onClick={() => onSplit(leaf.id, 'column')}>
               <MorphIcon icon={SquareSplitVertical} size={13} strokeWidth={1.75} className="text-dim" />
-              Split top/bottom
+              {t('Split top/bottom')}
             </ContextMenu.Item>
             <ContextMenu.Item className={menuItemCls} onClick={() => onSplit(leaf.id, 'row')}>
               <MorphIcon icon={SquareSplitHorizontal} size={13} strokeWidth={1.75} className="text-dim" />
-              Split left/right
+              {t('Split left/right')}
             </ContextMenu.Item>
             {swapTargetId && (
               <>
                 <ContextMenu.Separator className={menuSeparatorCls} />
                 <ContextMenu.Item className={menuItemCls} onClick={() => swapWithFocused(leaf.id, swapTargetId)}>
                   <MorphIcon icon={ArrowLeftRight} size={13} strokeWidth={1.75} className="text-dim" />
-                  Swap with focused pane
+                  {t('Swap with focused pane')}
                 </ContextMenu.Item>
               </>
             )}
@@ -1234,7 +1242,7 @@ function PaneImpl({
                   onClick={() => onClose(leaf.id)}
                 >
                   <MorphIcon icon={X} size={13} strokeWidth={1.75} />
-                  Close pane
+                  {t('Close pane')}
                 </ContextMenu.Item>
               </>
             )}
