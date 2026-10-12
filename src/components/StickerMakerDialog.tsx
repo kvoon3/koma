@@ -50,6 +50,9 @@ const MATERIALS: { value: StickerMaterialType, label: string }[] = [
 ]
 
 const OUTLINE_DEFAULT = 18
+/** Text stickers read as black lettering inside a white die-cut border. */
+const TEXT_COLOR_DEFAULT = '#000000'
+const OUTLINE_COLOR_DEFAULT = '#ffffff'
 const PREVIEW_MAX = 480
 const INSERT_MAX = 960
 
@@ -178,12 +181,12 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
 
   const [tab, setTab] = useState<'text' | 'image'>('text')
   const [text, setText] = useState('')
-  const [color, setColor] = useState('#ffffff')
+  const [color, setColor] = useState(TEXT_COLOR_DEFAULT)
   const [font, setFont] = useState(FONTS[0].id)
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [imageName, setImageName] = useState('')
   const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
-  const [outlineColor, setOutlineColor] = useState('#000000')
+  const [outlineColor, setOutlineColor] = useState(OUTLINE_COLOR_DEFAULT)
   const [material, setMaterial] = useState<StickerMaterialType>('original')
 
   const [inserting, setInserting] = useState(false)

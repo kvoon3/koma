@@ -39,6 +39,7 @@ type ResolvedMaterial = Required<StickerMaterialOptions>
 
 const DEFAULT_OUTLINE_WIDTH = 18
 const DEFAULT_OUTLINE_COLOR = '#ffffff'
+const DEFAULT_TEXT_COLOR = '#000000'
 const DEFAULT_MAX_EDGE = 960
 
 const MAX_TEXTURE_EDGE = 2048
@@ -171,7 +172,7 @@ async function renderTextSource(source: StickerTextSource) {
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`
   context.textBaseline = 'alphabetic'
   context.textAlign = 'center'
-  context.fillStyle = source.color ?? '#19191d'
+  context.fillStyle = source.color ?? DEFAULT_TEXT_COLOR
   const firstBaseline = (height - contentHeight) / 2 + ascent
   lines.forEach((line, i) => {
     context.fillText(line, width / 2, firstBaseline + lineHeight * i)
