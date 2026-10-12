@@ -261,6 +261,16 @@ html.dark {
 }
 
 /*
+ * Live Photo badge, playing state: the ring icon breathes (opacity only,
+ *  compositor thread) while the video plays; the app-wide reduced-motion
+ *  block below freezes it to the lit frame. Color swap (idle → danger red)
+ *  rides the chip's color transition.
+ */
+@keyframes live-blink {
+  50% { opacity: 0.3; }
+}
+
+/*
  * Top-bar menu hand-off: the panel that just took over slides in from the
  * trigger it left (`--menu-hop` is that distance), so the swap reads as one
  * panel travelling along the bar instead of a jump cut.

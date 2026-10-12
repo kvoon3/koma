@@ -15,7 +15,7 @@ import { Stage } from './components/Stage'
 import ToastHost from './components/ToastHost'
 import { TopBar } from './components/TopBar'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
-import { buildCropReport, downloadBlob, renderCollage } from './lib/exporter'
+import { buildCropReport, downloadBlob, hasLiveCells, renderCollage, renderCollageVideo } from './lib/exporter'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
@@ -47,7 +47,7 @@ async function exportGrid() {
   for (let i = 0; i < filled.length; i++) {
     const ws = filled[i]
     say(t('Rendering {n} / {total}...', { n: i + 1, total: filled.length }))
-    const canvas = await renderCollage({
+    const opts: ExportOptions = {
       root: ws.root,
       ratio: ws.canvasRatio ?? 1.5,
       gap: s.gap,
@@ -57,7 +57,8 @@ async function exportGrid() {
       edgeFadeStrength: s.edgeFadeStrength,
       photos: photoMap(s.photos),
       longSide: s.longSide,
-    })
+    }
+    const canvas = await renderCollage(opts)
     const format = isTransparentBg(s.bg) ? 'image/png' : s.format
     const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, format, s.quality))
     if (!blob)
@@ -66,10 +67,30 @@ async function exportGrid() {
     const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
     // Position among the filled workspaces at export time, 1-based.
     const pos = s.workspaces.indexOf(ws) + 1
-    downloadBlob(blob, `collage_${pos}_${canvas.width}x${canvas.height}_${stamp}.${ext}`)
+    const base = `collage_${pos}_${canvas.width}x${canvas.height}_${stamp}`
+    downloadBlob(blob, `${base}.${ext}`)
+    await exportLiveVideo(opts, canvas, base)
     canvas.width = canvas.height = 0
   }
   say(filled.length === 1 ? t('Exported {n} image', { n: 1 }) : t('Exported {n} images', { n: filled.length }))
+}
+
+/**
+ * When any pane holds a Live Photo, export also records a video of the
+ *  collage with those panes playing, named to pair with the still by
+ *  basename (the same convention as Apple's IMG_1234.HEIC + IMG_1234.MOV).
+ */
+async function exportLiveVideo(opts: ExportOptions, still: HTMLCanvasElement, base: string) {
+  if (!hasLiveCells(opts))
+    return
+  say(t('Recording live video...'))
+  const r = await renderCollageVideo(opts, still)
+  if (!r) {
+    say(t('Live video export is not supported in this browser'))
+    return
+  }
+  downloadBlob(r.blob, `${base}.${r.ext}`)
+  say(t('Exported live video ({ext})', { ext: r.ext.toUpperCase() }))
 }
 
 type StoreState = ReturnType<typeof useStore.getState>
@@ -252,8 +273,10 @@ function RootLayout() {
           throw new Error('Failed to create image')
         const ext = format === 'image/png' ? 'png' : 'jpg'
         const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
-        downloadBlob(blob, `collage_${canvas.width}x${canvas.height}_${stamp}.${ext}`)
+        const base = `collage_${canvas.width}x${canvas.height}_${stamp}`
+        downloadBlob(blob, `${base}.${ext}`)
         say(t('Exported {w} × {h} ({ext})', { w: canvas.width, h: canvas.height, ext: ext.toUpperCase() }))
+        await exportLiveVideo(opts, canvas, base)
         canvas.width = canvas.height = 0
       }
     }
