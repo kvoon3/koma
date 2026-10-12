@@ -47,7 +47,7 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-async function dataUrlToFile(dataUrl: string, name: string): Promise<File> {
+export async function dataUrlToFile(dataUrl: string, name: string): Promise<File> {
   const blob = await fetch(dataUrl).then(r => r.blob())
   return new File([blob], name, { type: blob.type || 'application/octet-stream' })
 }

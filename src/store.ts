@@ -4,7 +4,7 @@ import type { SessionMeta } from './lib/sessionStore'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { looksHeic, probeHeic } from './lib/heic'
-import { clearImageCaches, probeJpeg } from './lib/imageStore'
+import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
 import {
 
@@ -158,7 +158,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }))
 
     added.forEach(async (p) => {
-      const d = await (looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file))
+      const d = (await (looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file))) ?? await probePng(p.file)
       if (!d)
         return
       set(s => ({
@@ -203,7 +203,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     for (const p of session.photos) {
       if (p.trueW > 0)
         continue
-      void (looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file)).then((d) => {
+      void ((looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file)).then(d => d ?? probePng(p.file))).then((d) => {
         if (!d)
           return
         set(s => ({
