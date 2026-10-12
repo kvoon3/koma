@@ -1,5 +1,5 @@
 import type { FontMeta } from '../lib/fonts'
-import type { Photo } from '../lib/imageStore'
+import type { Photo, Preview } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
@@ -495,6 +495,194 @@ function LabelView({
   )
 }
 
+// The pane's photo area: the placed preview once loaded, a placeholder note
+// while the preview decodes, or the pick-a-photo call to action for empty panes.
+function PanePhotoContent({
+  preview,
+  place,
+  rect,
+  photoId,
+  onPickFiles,
+}: {
+  preview: Preview | null
+  place: ReturnType<typeof placement> | null
+  rect: Rect
+  photoId: string | null
+  onPickFiles: () => void
+}) {
+  return preview && place
+    ? (
+        <img
+          src={preview.url}
+          alt=""
+          draggable={false}
+          className="block max-w-none will-change-transform"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            transformOrigin: '0 0',
+            transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
+            maxWidth: 'none',
+          }}
+        />
+      )
+    : photoId
+      ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Loading...</div>
+        )
+      : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-[7px]">
+            <button
+              className="flex cursor-pointer items-center gap-[6px] rounded-none border border-line bg-panel px-2.5 py-[5px] text-[11.5px] font-semibold text-txt transition-colors duration-[120ms] hover:bg-accent hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3 pointer-coarse:py-[7px]"
+              title="Open the file picker and put the chosen photo into this pane"
+              onClick={(e) => {
+                e.stopPropagation()
+                onPickFiles()
+              }}
+            >
+              <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+              <span className="max-sm:hidden">Choose a photo</span>
+            </button>
+            <span className="pointer-events-none text-[11px] text-pane-hint max-sm:hidden">or drop one here</span>
+          </div>
+        )
+}
+
+function PaneSplitTools({
+  paneId,
+  focused,
+  onSplit,
+}: {
+  paneId: string
+  focused: boolean
+  onSplit: (id: string, dir: 'row' | 'column') => void
+}) {
+  return (
+    <div
+      className={`pointer-coarse:hidden absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <button
+        className={paneBtnCls}
+        title="Split top/bottom"
+        onClick={(e) => {
+          e.stopPropagation()
+          onSplit(paneId, 'column')
+        }}
+      >
+        <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
+      </button>
+      <button
+        className={paneBtnCls}
+        title="Split left/right"
+        onClick={(e) => {
+          e.stopPropagation()
+          onSplit(paneId, 'row')
+        }}
+      >
+        <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
+      </button>
+    </div>
+  )
+}
+
+function PaneBottomTools({
+  focused,
+  onPickStickers,
+  onPickPhoto,
+  onAddLabel,
+}: {
+  focused: boolean
+  onPickStickers: () => void
+  onPickPhoto: () => void
+  onAddLabel: () => void
+}) {
+  return (
+    <div
+      className={`pointer-coarse:hidden absolute bottom-[9px] left-1/2 z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <button
+        className={paneBtnCls}
+        title="Pick images and pin them onto this photo"
+        onClick={(e) => {
+          e.stopPropagation()
+          onPickStickers()
+        }}
+      >
+        <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
+      </button>
+      <button
+        className={paneBtnCls}
+        title="Pick a photo to replace this pane's photo"
+        onClick={(e) => {
+          e.stopPropagation()
+          onPickPhoto()
+        }}
+      >
+        <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+      </button>
+      <button
+        className={paneBtnCls}
+        title="Add a text label"
+        onClick={(e) => {
+          e.stopPropagation()
+          onAddLabel()
+        }}
+      >
+        <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
+      </button>
+    </div>
+  )
+}
+
+function PaneCloseTool({
+  paneId,
+  focused,
+  onClose,
+}: {
+  paneId: string
+  focused: boolean
+  onClose: (id: string) => void
+}) {
+  return (
+    <button
+      className={`group-hover/pane:opacity-100 absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color] duration-[140ms] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${focused ? ' opacity-100' : ' opacity-0'}`}
+      title="Close this pane"
+      onPointerDown={e => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClose(paneId)
+      }}
+    >
+      <MorphIcon icon={X} size={14} strokeWidth={1.75} />
+    </button>
+  )
+}
+
+function PaneOutline({
+  focused,
+  dropping,
+  radius,
+}: {
+  focused: boolean
+  dropping: boolean
+  radius: number
+}) {
+  return (
+    <div
+      aria-hidden
+      className={
+        `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1 ${
+          focused ? ' outline-txt' : ''
+        }${dropping ? ' outline-dashed outline-txt' : ''}`
+      }
+      style={{ borderRadius: radius }}
+    />
+  )
+}
+
 interface Props {
   leaf: Leaf
   rect: Rect
@@ -882,43 +1070,13 @@ function PaneImpl({
       }}
       onContextMenu={e => e.preventDefault()}
     >
-      {preview && place
-        ? (
-            <img
-              src={preview.url}
-              alt=""
-              draggable={false}
-              className="block max-w-none will-change-transform"
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                transformOrigin: '0 0',
-                transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
-                maxWidth: 'none',
-              }}
-            />
-          )
-        : leaf.photoId
-          ? (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">Loading...</div>
-            )
-          : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-[7px]">
-                <button
-                  className="flex cursor-pointer items-center gap-[6px] rounded-none border border-line bg-panel px-2.5 py-[5px] text-[11.5px] font-semibold text-txt transition-colors duration-[120ms] hover:bg-accent hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3 pointer-coarse:py-[7px]"
-                  title="Open the file picker and put the chosen photo into this pane"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    pickForPane()
-                  }}
-                >
-                  <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-                  <span className="max-sm:hidden">Choose a photo</span>
-                </button>
-                <span className="pointer-events-none text-[11px] text-pane-hint max-sm:hidden">or drop one here</span>
-              </div>
-            )}
+      <PanePhotoContent
+        preview={preview}
+        place={place}
+        rect={rect}
+        photoId={leaf.photoId}
+        onPickFiles={pickForPane}
+      />
 
       {liveUrl && place && (
         <video
@@ -979,73 +1137,22 @@ function PaneImpl({
       )}
 
       {/* Touch: the split tools live in the bar above the canvas (Stage). */}
-      <div
-        className={`pointer-coarse:hidden absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
-        onPointerDown={e => e.stopPropagation()}
-      >
-        <button
-          className={paneBtnCls}
-          title="Split top/bottom"
-          onClick={(e) => {
-            e.stopPropagation()
-            onSplit(leaf.id, 'column')
-          }}
-        >
-          <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
-        </button>
-        <button
-          className={paneBtnCls}
-          title="Split left/right"
-          onClick={(e) => {
-            e.stopPropagation()
-            onSplit(leaf.id, 'row')
-          }}
-        >
-          <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
-        </button>
-      </div>
+      <PaneSplitTools paneId={leaf.id} focused={focused} onSplit={onSplit} />
 
       {/* Bottom actions: sticker / replace / text, on hover or focus only.
           Laid out horizontally at the pane's bottom edge so they never cover
           stickers or labels sitting on the photo. */}
       {leaf.photoId && (
         // Touch: these tools live in the bar below the canvas (Stage).
-        <div
-          className={`pointer-coarse:hidden absolute bottom-[9px] left-1/2 z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
-          onPointerDown={e => e.stopPropagation()}
-        >
-          <button
-            className={paneBtnCls}
-            title="Pick images and pin them onto this photo"
-            onClick={(e) => {
-              e.stopPropagation()
-              pickStickerForPane()
-            }}
-          >
-            <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
-          </button>
-          <button
-            className={paneBtnCls}
-            title="Pick a photo to replace this pane's photo"
-            onClick={(e) => {
-              e.stopPropagation()
-              pickForPane()
-            }}
-          >
-            <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-          </button>
-          <button
-            className={paneBtnCls}
-            title="Add a text label"
-            onClick={(e) => {
-              e.stopPropagation()
-              useStore.getState().ensureLabel(leaf.id)
-              setEditing(true)
-            }}
-          >
-            <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
-          </button>
-        </div>
+        <PaneBottomTools
+          focused={focused}
+          onPickStickers={pickStickerForPane}
+          onPickPhoto={pickForPane}
+          onAddLabel={() => {
+            useStore.getState().ensureLabel(leaf.id)
+            setEditing(true)
+          }}
+        />
       )}
 
       {dropChoice && (
@@ -1086,30 +1193,10 @@ function PaneImpl({
         </div>
       )}
 
-      {canClose && (
-        <button
-          className={`group-hover/pane:opacity-100 absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color] duration-[140ms] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${focused ? ' opacity-100' : ' opacity-0'}`}
-          title="Close this pane"
-          onPointerDown={e => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose(leaf.id)
-          }}
-        >
-          <MorphIcon icon={X} size={14} strokeWidth={1.75} />
-        </button>
-      )}
+      {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
       {/* Drawn last so the pane border stays above its photo/stickers. */}
-      <div
-        aria-hidden
-        className={
-          `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1 ${
-            focused ? ' outline-txt' : ''
-          }${dropping ? ' outline-dashed outline-txt' : ''}`
-        }
-        style={{ borderRadius: radius }}
-      />
+      <PaneOutline focused={focused} dropping={dropping} radius={radius} />
     </div>
   )
 

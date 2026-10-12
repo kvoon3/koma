@@ -62,25 +62,27 @@ function readBox(r: Reader, at: number, limit: number): Box | null {
   return { start: at + hdr, end }
 }
 
+function scanForMeta(r: Reader, buf: Uint8Array): Box | null {
+  let at = 0
+  while (at + 8 <= buf.length) {
+    const hdrCut = at + (r.u32(at) === 1 ? 16 : 8)
+    if (hdrCut > buf.length)
+      break
+    const size = r.u32(at)
+    if (r.type(at + 4) === 'meta')
+      return readBox(r, at, Number.POSITIVE_INFINITY)
+    if (size <= 0)
+      break
+    at += size
+  }
+  return null
+}
+
 async function readMetaBox(file: File): Promise<{ r: Reader, box: Box } | null> {
   let buf = new Uint8Array(await file.slice(0, 65536).arrayBuffer())
   for (;;) {
     const r = new Reader(buf.buffer)
-    let at = 0
-    let meta: Box | null = null
-    while (at + 8 <= buf.length) {
-      const hdrCut = at + (r.u32(at) === 1 ? 16 : 8)
-      if (hdrCut > buf.length)
-        break
-      const size = r.u32(at)
-      if (r.type(at + 4) === 'meta') {
-        meta = readBox(r, at, Number.POSITIVE_INFINITY)
-        break
-      }
-      if (size <= 0)
-        break
-      at += size
-    }
+    const meta = scanForMeta(r, buf)
     if (!meta)
       return null
     if (meta.end <= buf.length)
@@ -90,6 +92,131 @@ async function readMetaBox(file: File): Promise<{ r: Reader, box: Box } | null> 
       return null
     buf = new Uint8Array(await file.slice(0, need).arrayBuffer())
   }
+}
+
+function parsePropBox(r: Reader, pt: string, pb: Box, k: number, ispe: Map<number, Dims>, irot: Map<number, number>): void {
+  if (pt === 'ispe' && pb.start + 12 <= pb.end) {
+    const w = r.u32(pb.start + 4)
+    const h = r.u32(pb.start + 8)
+    if (w > 0 && h > 0)
+      ispe.set(k, { w, h })
+  }
+  else if (pt === 'irot' && pb.start < pb.end) {
+    irot.set(k, r.u8(pb.start) & 3)
+  }
+}
+
+function parseIpco(r: Reader, ib: Box, ispe: Map<number, Dims>, irot: Map<number, number>): void {
+  let k = 0
+  let s = ib.start
+  while (s + 8 <= ib.end) {
+    const pb = readBox(r, s, ib.end)
+    if (!pb)
+      break
+    k++
+    const pt = r.type(s + 4)
+    parsePropBox(r, pt, pb, k, ispe, irot)
+    s = pb.end
+  }
+}
+
+function readPropIdxs(r: Reader, a0: number, n: number, end: number, wide: boolean): { idxs: number[], a: number } {
+  const idxs: number[] = []
+  let a = a0
+  for (let j = 0; j < n; j++) {
+    if (wide) {
+      if (a + 2 > end) {
+        a = end
+        break
+      }
+      idxs.push(r.u16(a) & 0x7FFF)
+      a += 2
+    }
+    else {
+      if (a >= end)
+        break
+      idxs.push(r.u8(a) & 0x7F)
+      a += 1
+    }
+  }
+  return { idxs, a }
+}
+
+function parseIpma(r: Reader, ib: Box, itemProps: Map<number, number[]>): void {
+  const ver = r.u8(ib.start)
+  const flags = (r.u8(ib.start + 1) << 16) | (r.u8(ib.start + 2) << 8) | r.u8(ib.start + 3)
+  const wide = (flags & 1) === 1
+  let a = ib.start + 4
+  const count = a + 4 <= ib.end ? r.u32(a) : 0
+  a += 4
+  for (let i = 0; i < count && a < ib.end; i++) {
+    let itemId: number
+    if (ver < 1) {
+      if (a + 2 > ib.end)
+        break
+      itemId = r.u16(a)
+      a += 2
+    }
+    else {
+      if (a + 4 > ib.end)
+        break
+      itemId = r.u32(a)
+      a += 4
+    }
+    if (a >= ib.end)
+      break
+    const n = r.u8(a)
+    a += 1
+    const res = readPropIdxs(r, a, n, ib.end, wide)
+    itemProps.set(itemId, res.idxs)
+    a = res.a
+  }
+}
+
+function parseIprp(r: Reader, b: Box, ispe: Map<number, Dims>, irot: Map<number, number>, itemProps: Map<number, number[]>): void {
+  let q = b.start
+  while (q + 8 <= b.end) {
+    const ib = readBox(r, q, b.end)
+    if (!ib)
+      break
+    const it = r.type(q + 4)
+
+    if (it === 'ipco')
+      parseIpco(r, ib, ispe, irot)
+    else if (it === 'ipma')
+      parseIpma(r, ib, itemProps)
+    q = ib.end
+  }
+}
+
+function dimsFromProps(idxs: number[], ispe: Map<number, Dims>, irot: Map<number, number>): { dims: Dims | null, rot: number } {
+  let dims: Dims | null = null
+  let rot = 0
+  for (const k of idxs) {
+    if (!dims && ispe.has(k))
+      dims = ispe.get(k)!
+    if (irot.has(k))
+      rot = irot.get(k)!
+  }
+  return { dims, rot }
+}
+
+function resolveMeta(primaryId: number | null, ispe: Map<number, Dims>, irot: Map<number, number>, itemProps: Map<number, number[]>): Dims | null {
+  let dims: Dims | null = null
+  let rot = 0
+  const idxs = primaryId != null ? itemProps.get(primaryId) : null
+  if (idxs) {
+    const fromProps = dimsFromProps(idxs, ispe, irot)
+    dims = fromProps.dims
+    rot = fromProps.rot
+  }
+  else {
+    dims = ispe.values().next().value ?? null
+    rot = irot.values().next().value ?? 0
+  }
+  if (!dims)
+    return null
+  return rot & 1 ? { w: dims.h, h: dims.w } : dims
 }
 
 function parseMeta(r: Reader, box: Box): Dims | null {
@@ -111,103 +238,12 @@ function parseMeta(r: Reader, box: Box): Dims | null {
       primaryId = r.u8(b.start) === 0 ? r.u16(b.start + 4) : r.u32(b.start + 4)
     }
     else if (t === 'iprp') {
-      let q = b.start
-      while (q + 8 <= b.end) {
-        const ib = readBox(r, q, b.end)
-        if (!ib)
-          break
-        const it = r.type(q + 4)
-
-        if (it === 'ipco') {
-          let k = 0
-          let s = ib.start
-          while (s + 8 <= ib.end) {
-            const pb = readBox(r, s, ib.end)
-            if (!pb)
-              break
-            k++
-            const pt = r.type(s + 4)
-            if (pt === 'ispe' && pb.start + 12 <= pb.end) {
-              const w = r.u32(pb.start + 4)
-              const h = r.u32(pb.start + 8)
-              if (w > 0 && h > 0)
-                ispe.set(k, { w, h })
-            }
-            else if (pt === 'irot' && pb.start < pb.end) {
-              irot.set(k, r.u8(pb.start) & 3)
-            }
-            s = pb.end
-          }
-        }
-        else if (it === 'ipma') {
-          const ver = r.u8(ib.start)
-          const flags = (r.u8(ib.start + 1) << 16) | (r.u8(ib.start + 2) << 8) | r.u8(ib.start + 3)
-          const wide = (flags & 1) === 1
-          let a = ib.start + 4
-          const count = a + 4 <= ib.end ? r.u32(a) : 0
-          a += 4
-          for (let i = 0; i < count && a < ib.end; i++) {
-            let itemId: number
-            if (ver < 1) {
-              if (a + 2 > ib.end)
-                break
-              itemId = r.u16(a)
-              a += 2
-            }
-            else {
-              if (a + 4 > ib.end)
-                break
-              itemId = r.u32(a)
-              a += 4
-            }
-            if (a >= ib.end)
-              break
-            const n = r.u8(a)
-            a += 1
-            const idxs: number[] = []
-            for (let j = 0; j < n; j++) {
-              if (wide) {
-                if (a + 2 > ib.end) {
-                  a = ib.end
-                  break
-                }
-                idxs.push(r.u16(a) & 0x7FFF)
-                a += 2
-              }
-              else {
-                if (a >= ib.end)
-                  break
-                idxs.push(r.u8(a) & 0x7F)
-                a += 1
-              }
-            }
-            itemProps.set(itemId, idxs)
-          }
-        }
-        q = ib.end
-      }
+      parseIprp(r, b, ispe, irot, itemProps)
     }
     p = b.end
   }
 
-  let dims: Dims | null = null
-  let rot = 0
-  const idxs = primaryId != null ? itemProps.get(primaryId) : null
-  if (idxs) {
-    for (const k of idxs) {
-      if (!dims && ispe.has(k))
-        dims = ispe.get(k)!
-      if (irot.has(k))
-        rot = irot.get(k)!
-    }
-  }
-  else {
-    dims = ispe.values().next().value ?? null
-    rot = irot.values().next().value ?? 0
-  }
-  if (!dims)
-    return null
-  return rot & 1 ? { w: dims.h, h: dims.w } : dims
+  return resolveMeta(primaryId, ispe, irot, itemProps)
 }
 
 export async function probeHeic(file: File): Promise<Dims | null> {

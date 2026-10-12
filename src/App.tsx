@@ -1,3 +1,4 @@
+import type { Dispatch, SetStateAction } from 'react'
 import type { ExportOptions } from './lib/exporter'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { useCallback, useEffect, useState } from 'react'
@@ -60,6 +61,135 @@ async function exportGrid() {
     canvas.width = canvas.height = 0
   }
   say(`Exported ${filled.length} image${filled.length === 1 ? '' : 's'}`)
+}
+
+type StoreState = ReturnType<typeof useStore.getState>
+type ActiveWorkspace = ReturnType<typeof activeWs>
+
+interface KeyUi {
+  helpOpen: boolean
+  libOpen: boolean
+  settingsOpen: boolean
+  report: string | null
+  doCrops: () => void
+  setHelpOpen: Dispatch<SetStateAction<boolean>>
+  setLibOpen: Dispatch<SetStateAction<boolean>>
+  setSettingsOpen: Dispatch<SetStateAction<boolean>>
+  setReport: Dispatch<SetStateAction<string | null>>
+}
+
+function isTypingTarget(e: KeyboardEvent) {
+  const t = e.target as HTMLElement
+  return t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable
+}
+
+// v/s/x/d/r act on the focused pane, when there is one.
+const paneActions: Record<string, (s: StoreState, paneId: string) => void> = {
+  v: (s, paneId) => s.split(paneId, 'row'),
+  s: (s, paneId) => s.split(paneId, 'column'),
+  x: (s, paneId) => s.closePane(paneId),
+  d: (s, paneId) => s.removePhoto(paneId),
+  r: (s, paneId) => s.updateLeaf(paneId, { zoom: 1, cx: 0.5, cy: 0.5 }),
+}
+
+function paneDir(key: string): 'left' | 'right' | 'up' | 'down' {
+  if (key === 'h')
+    return 'left'
+  if (key === 'l')
+    return 'right'
+  if (key === 'k')
+    return 'up'
+  return 'down'
+}
+
+function focusNextLeaf(s: StoreState, ws: ActiveWorkspace) {
+  const leaves = leafList(ws.root)
+  if (!leaves.length)
+    return
+  const i = leaves.findIndex(l => l.id === ws.focusId)
+  s.focus(leaves[(i + 1 + leaves.length) % leaves.length].id)
+}
+
+function handleEscapeKey(s: StoreState, ui: KeyUi) {
+  if (ui.helpOpen || ui.libOpen || ui.settingsOpen || ui.report != null) {
+    ui.setHelpOpen(false)
+    ui.setLibOpen(false)
+    ui.setSettingsOpen(false)
+    ui.setReport(null)
+  }
+  else if (s.labelSel || s.stickerSel) {
+    s.selectLabel(null)
+  }
+  else {
+    s.focus('')
+  }
+}
+
+function handleGridKey(e: KeyboardEvent, k: string, ui: KeyUi) {
+  if (k === ',') {
+    e.preventDefault()
+    ui.setSettingsOpen(v => !v)
+    ui.setLibOpen(false)
+  }
+  else if (k === '?') {
+    e.preventDefault()
+    ui.setHelpOpen(v => !v)
+  }
+}
+
+// Letter keys match either case, as in v/V, s/S above.
+function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
+  const key = k.toLowerCase()
+  const ws = activeWs(s)
+
+  switch (key) {
+    case 'v':
+    case 's':
+    case 'x':
+    case 'd':
+    case 'r':
+      if (ws.focusId)
+        paneActions[key](s, ws.focusId)
+      break
+
+    case 'h':
+    case 'j':
+    case 'k':
+    case 'l':
+      e.preventDefault()
+      s.focusNeighbor(paneDir(key))
+      break
+
+    case 'i':
+      e.preventDefault()
+      ui.setLibOpen(v => !v)
+      ui.setSettingsOpen(false)
+      break
+
+    case ',':
+      e.preventDefault()
+      ui.setSettingsOpen(v => !v)
+      ui.setLibOpen(false)
+      break
+
+    case '?':
+      e.preventDefault()
+      ui.setHelpOpen(v => !v)
+      break
+
+    case 'Tab':
+      e.preventDefault()
+      focusNextLeaf(s, ws)
+      break
+
+    case 'c':
+      ui.doCrops()
+      break
+
+    case 'Escape':
+      handleEscapeKey(s, ui)
+      break
+  }
 }
 
 export default function App() {
@@ -127,13 +257,23 @@ export default function App() {
         }
         return
       }
-      const t = e.target as HTMLElement
-      if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+      if (isTypingTarget(e))
         return
 
       const s = useStore.getState()
       const k = e.key
       const grid = s.view === 'grid'
+      const ui: KeyUi = {
+        helpOpen,
+        libOpen,
+        settingsOpen,
+        report,
+        doCrops,
+        setHelpOpen,
+        setLibOpen,
+        setSettingsOpen,
+        setReport,
+      }
 
       if (k === 'G' || k === 'g') {
         e.preventDefault()
@@ -145,84 +285,11 @@ export default function App() {
       // by the WorkspaceGrid's own listener (mounted only in grid view);
       // everything else edit-specific is swallowed here.
       if (grid) {
-        if (k === ',') {
-          e.preventDefault()
-          setSettingsOpen(v => !v)
-          setLibOpen(false)
-        }
-        else if (k === '?') {
-          e.preventDefault()
-          setHelpOpen(v => !v)
-        }
+        handleGridKey(e, k, ui)
         return
       }
 
-      const ws = activeWs(s)
-      const leaves = leafList(ws.root)
-
-      if (k === 'v' || k === 'V') {
-        if (ws.focusId)
-          s.split(ws.focusId, 'row')
-      }
-      else if (k === 's' || k === 'S') {
-        if (ws.focusId)
-          s.split(ws.focusId, 'column')
-      }
-      else if (k === 'x' || k === 'X') {
-        if (ws.focusId)
-          s.closePane(ws.focusId)
-      }
-      else if (k === 'd' || k === 'D') {
-        if (ws.focusId)
-          s.removePhoto(ws.focusId)
-      }
-      else if (k === 'h' || k === 'H' || k === 'j' || k === 'J' || k === 'k' || k === 'K' || k === 'l' || k === 'L') {
-        e.preventDefault()
-        const dir = k === 'h' || k === 'H' ? 'left' : k === 'l' || k === 'L' ? 'right' : k === 'k' || k === 'K' ? 'up' : 'down'
-        s.focusNeighbor(dir as 'left' | 'right' | 'up' | 'down')
-      }
-      else if (k === 'i' || k === 'I') {
-        e.preventDefault()
-        setLibOpen(v => !v)
-        setSettingsOpen(false)
-      }
-      else if (k === ',') {
-        e.preventDefault()
-        setSettingsOpen(v => !v)
-        setLibOpen(false)
-      }
-      else if (k === '?') {
-        e.preventDefault()
-        setHelpOpen(v => !v)
-      }
-      else if (k === 'Tab') {
-        e.preventDefault()
-        if (!leaves.length)
-          return
-        const i = leaves.findIndex(l => l.id === ws.focusId)
-        s.focus(leaves[(i + 1 + leaves.length) % leaves.length].id)
-      }
-      else if (k === 'r' || k === 'R') {
-        if (ws.focusId)
-          s.updateLeaf(ws.focusId, { zoom: 1, cx: 0.5, cy: 0.5 })
-      }
-      else if (k === 'c' || k === 'C') {
-        doCrops()
-      }
-      else if (k === 'Escape') {
-        if (helpOpen || libOpen || settingsOpen || report != null) {
-          setHelpOpen(false)
-          setLibOpen(false)
-          setSettingsOpen(false)
-          setReport(null)
-        }
-        else if (s.labelSel || s.stickerSel) {
-          s.selectLabel(null)
-        }
-        else {
-          s.focus('')
-        }
-      }
+      handleEditKey(e, k, s, ui)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

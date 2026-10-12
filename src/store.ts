@@ -46,12 +46,13 @@ export interface State {
   format: 'image/jpeg' | 'image/png'
   quality: number
   labelSel: string | null
-  // The selected sticker, if any; selecting one clears the label selection
-  // and vice versa.
+  /** Selected sticker; selecting one clears labelSel and vice versa. */
   stickerSel: { paneId: string, stickerId: string } | null
-  // Set when a tool (not the pane itself) asks a pane's label to enter edit
-  // mode; the sequence number lets a pane consume requests render-time, and
-  // repeated requests for the same pane still fire.
+  /**
+   * Set when a tool (not the pane itself) asks a pane's label to enter edit
+   * mode; the sequence number lets a pane consume requests render-time, and
+   * repeated requests for the same pane still fire.
+   */
   labelEditReq: { paneId: string, seq: number } | null
 }
 

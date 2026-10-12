@@ -34,6 +34,88 @@ function CatMenu({ label, children }: { label: string, children: ReactNode }) {
   )
 }
 
+function TopBarActions({
+  grid,
+  toggleGrid,
+  settingsOpen,
+  onToggleSettings,
+  busy,
+  onExport,
+  anyFilled,
+  filled,
+  dark,
+}: {
+  grid: boolean
+  toggleGrid: () => void
+  settingsOpen: boolean
+  onToggleSettings: () => void
+  busy: boolean
+  onExport: () => void
+  anyFilled: boolean
+  filled: boolean
+  dark: boolean
+}) {
+  return (
+    <div className="flex items-center gap-[5px]">
+      <Tip
+        label={grid ? 'Back to editing · G' : 'Show the 3×3 workspace grid · G'}
+        trigger={(
+          <Button
+            variant={grid ? 'on' : 'flat'}
+            onClick={toggleGrid}
+            aria-label={grid ? 'Back to editing' : 'Show the workspace grid'}
+          >
+            <MorphIcon icon={grid ? ImagePlus : Grid3x3} size={15} strokeWidth={1.75} />
+          </Button>
+        )}
+      />
+      <Tip
+        label="Settings · Shortcut: ,"
+        trigger={(
+          <Button
+            variant={settingsOpen ? 'on' : 'flat'}
+            onClick={onToggleSettings}
+            aria-label="Settings · Shortcut: ,"
+          >
+            <MorphIcon icon={SlidersHorizontal} size={15} strokeWidth={1.75} />
+            <span className="pointer-coarse:hidden max-sm:hidden">Settings</span>
+          </Button>
+        )}
+      />
+      <Tip
+        label={grid ? 'Export every non-empty workspace · ⌘E' : 'Export image · ⌘E'}
+        trigger={(
+          <Button
+            variant="strong"
+            onClick={onExport}
+            disabled={busy || (grid ? !anyFilled : !filled)}
+            aria-label="Export image"
+          >
+            <MorphIcon
+              icon={busy ? LoaderCircle : Download}
+              size={15}
+              strokeWidth={1.75}
+              className={busy ? 'animate-spin [animation-duration:900ms]' : undefined}
+            />
+            <span className="pointer-coarse:hidden max-sm:hidden">{busy ? 'Rendering' : 'Export'}</span>
+          </Button>
+        )}
+      />
+      <Tip
+        label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+        trigger={(
+          <Button
+            onClick={toggleDark}
+            aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            <MorphIcon icon={dark ? Sun : Moon} size={15} strokeWidth={1.75} />
+          </Button>
+        )}
+      />
+    </div>
+  )
+}
+
 /**
  * The top chrome: the category menus (photo / help) on the left, the grid
  * toggle in the center, and the settings, export and theme actions on the
@@ -133,63 +215,17 @@ export function TopBar({
 
       <span className="flex-1" />
 
-      <div className="flex items-center gap-[5px]">
-        <Tip
-          label={grid ? 'Back to editing · G' : 'Show the 3×3 workspace grid · G'}
-          trigger={(
-            <Button
-              variant={grid ? 'on' : 'flat'}
-              onClick={toggleGrid}
-              aria-label={grid ? 'Back to editing' : 'Show the workspace grid'}
-            >
-              <MorphIcon icon={grid ? ImagePlus : Grid3x3} size={15} strokeWidth={1.75} />
-            </Button>
-          )}
-        />
-        <Tip
-          label="Settings · Shortcut: ,"
-          trigger={(
-            <Button
-              variant={settingsOpen ? 'on' : 'flat'}
-              onClick={onToggleSettings}
-              aria-label="Settings · Shortcut: ,"
-            >
-              <MorphIcon icon={SlidersHorizontal} size={15} strokeWidth={1.75} />
-              <span className="pointer-coarse:hidden max-sm:hidden">Settings</span>
-            </Button>
-          )}
-        />
-        <Tip
-          label={grid ? 'Export every non-empty workspace · ⌘E' : 'Export image · ⌘E'}
-          trigger={(
-            <Button
-              variant="strong"
-              onClick={onExport}
-              disabled={busy || (grid ? !anyFilled : !filled)}
-              aria-label="Export image"
-            >
-              <MorphIcon
-                icon={busy ? LoaderCircle : Download}
-                size={15}
-                strokeWidth={1.75}
-                className={busy ? 'animate-spin [animation-duration:900ms]' : undefined}
-              />
-              <span className="pointer-coarse:hidden max-sm:hidden">{busy ? 'Rendering' : 'Export'}</span>
-            </Button>
-          )}
-        />
-        <Tip
-          label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-          trigger={(
-            <Button
-              onClick={toggleDark}
-              aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-            >
-              <MorphIcon icon={dark ? Sun : Moon} size={15} strokeWidth={1.75} />
-            </Button>
-          )}
-        />
-      </div>
+      <TopBarActions
+        grid={grid}
+        toggleGrid={toggleGrid}
+        settingsOpen={settingsOpen}
+        onToggleSettings={onToggleSettings}
+        busy={busy}
+        onExport={onExport}
+        anyFilled={anyFilled}
+        filled={filled}
+        dark={dark}
+      />
 
       <input
         ref={fileRef}
