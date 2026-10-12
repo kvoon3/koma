@@ -71,7 +71,7 @@ function StickerView({
   const selectSticker = useStore(s => s.selectSticker)
   const selected = useStore(s => s.stickerSel?.stickerId === st.id)
   // hover intent: keep the handles alive while the pointer crosses the gap
-  // to them — the same treatment labels get.
+  // to them, the same treatment labels get.
   const [hot, setHot] = useState(false)
   const leaveRef = useRef<number | null>(null)
   useEffect(() => () => {
@@ -537,7 +537,7 @@ function PaneImpl({
   } | null>(null)
   // Whether the active touch gesture already focused this pane. Touch defers
   // focus to the first move or the release, so a long-press opens the pane's
-  // context menu with this pane still unfocused — the same state a desktop
+  // context menu with this pane still unfocused, the same state a desktop
   // right-click produces, which is what makes "Swap with focused pane" work.
   const touchFocusedRef = useRef(true)
   const [dropping, setDropping] = useState(false)
@@ -547,7 +547,7 @@ function PaneImpl({
   const [dropChoice, setDropChoice] = useState<{ photos: Photo[], at: { x: number, y: number } } | null>(null)
 
   // The global Text tool (tools bar) asks a pane's label into edit mode via
-  // the store. Consume the request during render — the monotonic sequence
+  // the store. Consume the request during render; the monotonic sequence
   // makes even repeated requests for the same pane fire every time.
   const editReq = useStore(s => s.labelEditReq)
   const [seenEditSeq, setSeenEditSeq] = useState(0)
@@ -695,7 +695,7 @@ function PaneImpl({
     if (!pointersRef.current.has(e.pointerId))
       return
     // A moving touch (pan or pinch starting) means the user is working on
-    // this pane — focus it now; a still press may still become a long-press
+    // this pane; focus it now; a still press may still become a long-press
     // menu instead, which must find the pane unfocused.
     if (!touchFocusedRef.current) {
       touchFocusedRef.current = true
@@ -708,7 +708,7 @@ function PaneImpl({
 
     if (g.mode === 'pan' && pointersRef.current.size === 1) {
       const p = local(e.clientX, e.clientY)
-      // Dragging means panning, not holding — cancel the Live Photo timer.
+      // Dragging means panning, not holding; cancel the Live Photo timer.
       if (holdTimerRef.current != null && downAtRef.current
         && Math.hypot(e.clientX - downAtRef.current.x, e.clientY - downAtRef.current.y) > 5) {
         clearHold()
@@ -727,7 +727,7 @@ function PaneImpl({
       const mid = local((a.x + b.x) / 2, (a.y + b.y) / 2)
       const ratio = dist / g.startDist
       // "Pinch past the floor": zoomAbout clamps to MIN_ZOOM, so judge the
-      // raw ratio — shrinking an already-minimum photo out of the pane is the
+      // raw ratio: shrinking an already-minimum photo out of the pane is the
       // explicit exit-to-grid gesture, and it must not commit a zoom either.
       if (g.base.zoom * ratio <= MIN_ZOOM && ratio < 1) {
         useStore.getState().toggleGrid()
@@ -941,7 +941,7 @@ function PaneImpl({
       {photo?.videoFile && !live && (
         <span
           className="pointer-events-none absolute left-[9px] top-[9px] z-[3] flex items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] text-float-icon backdrop-blur-[7px] [&::before]:h-2 [&::before]:w-2 [&::before]:content-[''] [&::before]:rounded-full [&::before]:border-[1.5px] [&::before]:border-current [&::before]:shadow-[inset_0_0_0_2.5px_var(--floatBg),inset_0_0_0_3.5px_currentColor]"
-          title="Live Photo — press and hold to play"
+          title="Live Photo: press and hold to play"
         >
           LIVE
         </span>
@@ -1005,7 +1005,7 @@ function PaneImpl({
         </button>
       </div>
 
-      {/* Bottom actions — sticker / replace / text, on hover or focus only.
+      {/* Bottom actions: sticker / replace / text, on hover or focus only.
           Laid out horizontally at the pane's bottom edge so they never cover
           stickers or labels sitting on the photo. */}
       {leaf.photoId && (
@@ -1114,7 +1114,7 @@ function PaneImpl({
   )
 
   // Every pane keeps its context menu mounted (right-click, or long-press on
-  // touch) — mounting it only on unfocused panes would let a touch's focus
+  // touch); mounting it only on unfocused panes would let a touch's focus
   // change tear it down before the long-press fires.
   return (
     <ContextMenu.Root onOpenChange={onMenuOpenChange}>

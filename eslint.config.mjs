@@ -1,10 +1,22 @@
-import antfu from '@antfu/eslint-config'
+import antfu, { parserPlain } from '@antfu/eslint-config'
 import { plugin as shadcn } from '@shadcn/lint'
 import tsParser from '@typescript-eslint/parser'
 import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect'
 
 export default antfu({
   type: 'app',
+  // antislop preset, scoped to the em-dash rule only
+  antislop: {
+    sonarjs: false,
+    overrides: {
+      'slop/max-comment-length': 'off',
+      'slop/no-chained-type-assertions': 'off',
+      'slop/no-jargon': 'off',
+      'slop/no-trivial-functions': 'off',
+      'slop/no-trivial-type-aliases': 'off',
+      'slop/prefer-jsdoc': 'off',
+    },
+  },
   react: true,
   typescript: true,
 }, {
@@ -36,4 +48,10 @@ export default antfu({
   // https://github.com/NickvanDyke/eslint-plugin-react-you-might-not-need-an-effect
   ...reactYouMightNotNeedAnEffect.configs.recommended,
   name: 'react-you-might-not-need-an-effect/recommended',
+}, {
+  // antislop no-em-dash scans these globs as plain text (no JS parser needed)
+  files: ['**/*.css', '**/*.scss', '**/*.less', '**/*.pcss', '**/*.postcss', '**/*.html', '**/*.htm', '**/*.svelte'],
+  languageOptions: {
+    parser: parserPlain,
+  },
 })

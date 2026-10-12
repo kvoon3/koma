@@ -55,7 +55,7 @@ export function useThumb(photo: Photo, visible: boolean): string | null {
   return url
 }
 
-/** True on touch-primary devices — the JS twin of the `pointer-coarse` CSS variant. */
+/** True on touch-primary devices, the JS twin of the `pointer-coarse` CSS variant. */
 export function useCoarse() {
   const [coarse, setCoarse] = useState(() => matchMedia('(pointer: coarse)').matches)
   useEffect(() => {

@@ -14,7 +14,7 @@ const MIN_CANVAS = 120
 /* Touch chrome: the focused pane's tools don't fit on a phone-size pane, so
    they live in a chip above the canvas (split) and one below (sticker /
    replace / text). Pane.tsx hides its in-pane toolbars with the matching
-   `pointer-coarse:hidden` — keep the two in sync. */
+   `pointer-coarse:hidden`; keep the two in sync. */
 const barRowCls = 'flex w-full flex-none items-center justify-center px-3 py-1.5'
 const barChipCls = 'flex items-center gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px]'
 const barBtnCls = 'grid h-[30px] w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon hover:bg-chip-hover hover:text-txt disabled:cursor-default disabled:opacity-35'
@@ -202,7 +202,7 @@ export function Stage() {
   }, [])
 
   // Same pick flows as the in-pane buttons (Pane.tsx), aimed at the focused
-  // pane — on touch they are reachable from the bar below the canvas.
+  // pane; on touch they are reachable from the bar below the canvas.
   const pickForFocused = () => {
     pickImageFiles((files) => {
       const s = useStore.getState()

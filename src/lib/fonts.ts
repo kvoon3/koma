@@ -217,7 +217,7 @@ export function measureLabel(
   text: string,
 ): { w: number, ascent: number, descent: number, fontAscent: number, fontDescent: number } {
   // fontAscent/fontDescent (fontBoundingBox*) match the DOM `line-height: normal`
-  // line box — the exporter sizes the white box from those so preview and export agree.
+  // line box; the exporter sizes the white box from those so preview and export agree.
   const empty = { w: 0, ascent: 0, descent: 0, fontAscent: 0, fontDescent: 0 }
   const t = text.trim()
   if (!t)
