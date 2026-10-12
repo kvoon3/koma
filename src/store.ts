@@ -202,6 +202,16 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }))
   },
 
+  /**
+   * Reset one workspace to a fresh blank canvas, keeping its id and grid
+   * slot (the photos fall back to the library; everything else is untouched).
+   */
+  resetWorkspace: id =>
+    set(s => ({
+      workspaces: s.workspaces.map(w => (w.id === id ? { ...newWorkspace(), id: w.id } : w)),
+      ...clearedSelection,
+    })),
+
   /** Restore a session saved by `lib/sessionStore` (refresh-safe autosave). */
   hydrate: (session) => {
     set({
@@ -561,6 +571,7 @@ export function computeLayout(
 interface Actions {
   addPhotos: (files: File[], autoFill?: boolean) => Photo[]
   clearLibrary: () => void
+  resetWorkspace: (id: string) => void
   hydrate: (session: { meta: SessionMeta, photos: Photo[] }) => void
   split: (paneId: string, dir: 'row' | 'column') => void
   closePane: (paneId: string) => void

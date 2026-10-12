@@ -3,7 +3,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowLeft, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, Save, SlidersHorizontal, Sun } from 'lucide'
+import { ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, Save, SlidersHorizontal, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useT } from '../lib/i18n'
@@ -11,7 +11,6 @@ import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
 import { clearSession } from '../lib/sessionStore'
 import { say } from '../lib/toast'
-import { viewTransitionOption } from '../lib/viewTransition'
 import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
@@ -116,11 +115,13 @@ function TopBarActions({
 }
 
 /**
- * The top chrome: in edit view a back-to-grid button plus the category menus
- * (photo / help) on the left, and the settings, export and theme actions on
- * the right. Grid view has no back button: click a cell (or press G) to open
- * a workspace. In grid view the photo menu is cut down to library-less
- * navigation (the grid is a pure overview) and export goes batch-mode.
+ * The top chrome: in edit view the category menus (workspace / photo /
+ * help) on the left, and the settings, export and theme actions on the
+ * right; the back-to-grid and reset-workspace buttons float under the top
+ * bar instead (FloatActions). Grid view has no back button: click a cell (or
+ * press G) to open a workspace. In grid view the photo menu is cut down to
+ * library-less navigation (the grid is a pure overview) and export goes
+ * batch-mode.
  */
 export function TopBar({
   busy,
@@ -171,11 +172,6 @@ export function TopBar({
   const dark = useSyncExternalStore(subscribeTheme, isDarkSnapshot)
   const filled = useMemo(() => leafList(root).some(l => l.photoId), [root])
 
-  const goGrid = () => {
-    useStore.getState().clearSelection()
-    void navigate({ to: '/', viewTransition: viewTransitionOption() })
-  }
-
   const doSaveFile = async () => {
     setSaving(true)
     say(t('Saving workspace file…'))
@@ -220,18 +216,6 @@ export function TopBar({
 
   return (
     <header className="relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar px-1.5">
-      {!grid && (
-        <Tip
-          label={t('Back to the grid · G')}
-          trigger={(
-            <Button onClick={goGrid} aria-label={t('Back to the grid')}>
-              <MorphIcon icon={ArrowLeft} size={15} strokeWidth={1.75} />
-              <span className="pointer-coarse:hidden max-sm:hidden">{t('Grid')}</span>
-            </Button>
-          )}
-        />
-      )}
-
       {/* The menubar is what makes a click-opened menu hand over to the next
           trigger on hover: the panel follows the open trigger. */}
       <Menubar className="flex items-stretch">
