@@ -4,13 +4,15 @@ import type { Leaf, Node, Rect } from '../lib/panes'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useNavigate } from '@tanstack/react-router'
 import { ImagePlus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { labelColors, layoutTree, leafList, placement } from '../lib/panes'
+import { viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 
 // Virtual canvas short side for preview layout math. Any value works; the
@@ -187,8 +189,17 @@ export function WorkspaceGrid() {
   const activeId = useStore(s => s.activeId)
   const photos = useStore(s => s.photos)
   const bg = useStore(s => s.bg)
-  const enterWorkspace = useStore(s => s.enterWorkspace)
   const moveWorkspace = useStore(s => s.moveWorkspace)
+  const navigate = useNavigate()
+
+  // Enter a workspace: set activeId before navigating so the stage renders the
+  // right workspace inside the same view-transition commit (the route wrapper
+  // re-syncs it for direct URLs), then morph the cell into the canvas.
+  const enter = useCallback((id: string) => {
+    useStore.getState().patch({ activeId: id })
+    useStore.getState().clearSelection()
+    void navigate({ to: '/w/$wsId', params: { wsId: id }, viewTransition: viewTransitionOption() })
+  }, [navigate])
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
@@ -222,12 +233,12 @@ export function WorkspaceGrid() {
         e.preventDefault()
         const ws = useStore.getState().workspaces[hlRef.current]
         if (ws)
-          useStore.getState().enterWorkspace(ws.id)
+          enter(ws.id)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [enter])
 
   // ---- Drag-to-reorder (dnd-kit, insert-shift) -----------------------------
   // PointerSensor with a distance threshold keeps plain clicks for entering
@@ -294,7 +305,7 @@ export function WorkspaceGrid() {
                 highlighted={hl === i}
                 onEnter={(id) => {
                   if (Date.now() - dragEndedAtRef.current > 120)
-                    enterWorkspace(id)
+                    enter(id)
                 }}
               />
             ))}

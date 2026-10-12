@@ -1,3 +1,4 @@
+import { useRouterState } from '@tanstack/react-router'
 import { outputSizeFor } from '../lib/exporter'
 import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
@@ -9,7 +10,7 @@ import { activeWs, useStore } from '../store'
  * overview it counts how many of the nine workspaces hold a photo.
  */
 export function Footer() {
-  const view = useStore(s => s.view)
+  const grid = useRouterState({ select: s => s.location.pathname === '/' })
   const t = useT()
   const longSide = useStore(s => s.longSide)
   const canvasRatio = useStore(s => activeWs(s).canvasRatio)
@@ -18,7 +19,7 @@ export function Footer() {
 
   return (
     <footer className="relative z-40 flex h-[calc(var(--statusH)+env(safe-area-inset-bottom))] flex-none items-center justify-center gap-3 border-t border-line bg-statusbar px-1.5 pb-[env(safe-area-inset-bottom)] text-[11.5px] tabular-nums text-dim pointer-coarse:text-xs max-sm:text-xs">
-      {view === 'grid'
+      {grid
         ? (
             <span>{t('{filled} / 9 spaces', { filled })}</span>
           )

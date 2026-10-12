@@ -197,19 +197,24 @@ actual HEIC is encountered, costing pure JPEG/PNG users nothing.
 
 ```
 src/
+  router.tsx        code-based routes: / = 3×3 grid, /w/$wsId = editor; hash history (single-file build must work via file://)
+  main.tsx          boot: load session → render → debounced autosave + pagehide flush
   lib/panes.ts       pane tree: split/remove/layout/placement, shared by preview and export
   lib/imageStore.ts  three-tier image assets + JPEG/HEIC header probing
   lib/heic.ts        HEIC: meta box probing + WASM decoding (heic-to)
   lib/exporter.ts    high-res rendering + crop report export
+  lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
+  lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
   components/
     Stage.tsx        canvas: computes layout, renders panes and dividers
     Pane.tsx         one pane: photo, pan/zoom, split buttons, drop target
-    TopBar.tsx       category menus (photo / canvas / export / help) + hidden file inputs
+    TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
     ToolsBar.tsx     bottom bar: text / photo / sticker insertion into the focused pane
     LibraryDrawer.tsx / Library.tsx
     SettingsDrawer.tsx
     HelpOverlay.tsx
+    ConfirmDialog.tsx   generic confirm (clear library, open workspace file)
   store.ts           zustand: tree + photos + visual params + export params
 ```
 
@@ -218,6 +223,27 @@ state fields): `GAP = 0`, `RADIUS = 0`, `BG = '#000000'` (black gap fill),
 `MIN_PANE_PX = 56`. Visual settings (gap / radius / bg) persist to
 localStorage as `collage:settings` via zustand `persist`; the font mirror
 defaults to on and persists as `collage:fontMirror`.
+
+## Routing & persistence
+
+TanStack Router (code-based) with **hash history**: `/` is the 3×3 overview,
+`/w/$wsId` the editor; unknown ids redirect to `/`. The view no longer lives
+in the store: the route is the view; the route param drives `activeId`.
+Grid↔edit navigations pass `viewTransition` so the cell→canvas morph keeps
+working (disabled under prefers-reduced-motion via `viewTransitionOption()`).
+
+The whole session (workspace trees, settings, and the photo library with
+real `File` objects via IndexedDB structured clone) autosaves to the
+`koma-session` database, debounced 800ms with a flush on page hide. Boot
+hydrates from it before the first render, so a refresh lands exactly where
+you left off; photos whose header probe never finished are re-probed on
+hydrate. `clearLibrary` wipes the database too.
+
+**Workspace file** (Workspace menu): the entire board + library export as
+`koma-<date>.koma.json` (photos embedded as data URLs, Live Photo MOVs
+included, ids preserved), and opening one replaces the current board after a
+confirm. Originals inflate ~33% as base64; the upgrade path is an fflate zip
+container.
 
 ## Build & deploy
 

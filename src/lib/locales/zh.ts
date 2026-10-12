@@ -155,6 +155,20 @@ export const zh: Record<string, string> = {
   'Edit this workspace': '编辑这个工作区',
   'Start a new collage here': '在这里开始新的拼图',
 
+  // Workspace file (save / open the whole board)
+  'Workspace': '工作区',
+  'Save workspace file…': '保存工作空间文件…',
+  'Open workspace file…': '打开工作空间文件…',
+  'Saving workspace file…': '正在生成工作空间文件…',
+  'Workspace file saved': '工作空间文件已保存',
+  'Failed to save workspace: {msg}': '保存工作空间失败：{msg}',
+  'Open workspace?': '打开工作空间？',
+  'Opening a workspace file replaces your current board and library. This cannot be undone.': '打开工作空间文件会替换当前的九宫格和素材库，且无法撤销。',
+  'Open': '打开',
+  'Workspace opened': '工作空间已打开',
+  'Failed to open workspace: {msg}': '打开工作空间失败：{msg}',
+  'Not a koma workspace file': '不是 koma 工作空间文件',
+
   // Toasts
   'Rendering {n} / {total}...': '渲染中 {n} / {total}…',
   'Exported {n} image': '已导出 {n} 张图片',

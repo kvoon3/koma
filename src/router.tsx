@@ -1,8 +1,10 @@
+/* eslint-disable react-refresh/only-export-components -- a code-based route module necessarily mixes the exported router instance with its route components. */
 import type { Dispatch, SetStateAction } from 'react'
 import type { ExportOptions } from './lib/exporter'
 import { Tooltip } from '@base-ui/react/tooltip'
+import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
-import { ClearConfirm } from './components/ClearConfirm'
+import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
 import { Footer } from './components/Footer'
 import { HelpOverlay } from './components/HelpOverlay'
@@ -16,6 +18,7 @@ import { buildCropReport, downloadBlob, renderCollage } from './lib/exporter'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
+import { viewTransitionOption } from './lib/viewTransition'
 import { activeWs, isTransparentBg, photoMap, useStore } from './store'
 import { initTheme } from './theme'
 import { usePersisted } from './usePersisted'
@@ -77,6 +80,8 @@ interface KeyUi {
   setLibOpen: Dispatch<SetStateAction<boolean>>
   setSettingsOpen: Dispatch<SetStateAction<boolean>>
   setReport: Dispatch<SetStateAction<string | null>>
+  /** Back out of the editor to the grid overview (`/`). */
+  goGrid: () => void
 }
 
 function isTypingTarget(e: KeyboardEvent) {
@@ -123,7 +128,7 @@ function handleEscapeKey(s: StoreState, ui: KeyUi) {
   }
   else {
     // Nothing left to dismiss: back out of the editor to the grid overview.
-    s.toggleGrid()
+    ui.goGrid()
   }
 }
 
@@ -194,7 +199,11 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
   }
 }
 
-export default function App() {
+/** The app chrome: it wraps every route and renders the active view in `<Outlet />`. */
+function RootLayout() {
+  const navigate = useNavigate()
+  const grid = useRouterState({ select: s => s.location.pathname === '/' })
+
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
   const [clearAsk, setClearAsk] = useState(false)
@@ -202,8 +211,6 @@ export default function App() {
   const [libOpen, setLibOpen] = usePersisted('libOpen', false)
   const [settingsOpen, setSettingsOpen] = usePersisted('settingsOpen', false)
   const [helpOpen, setHelpOpen] = useState(false)
-
-  const view = useStore(s => s.view)
 
   initTheme()
 
@@ -222,7 +229,7 @@ export default function App() {
     setBusy(true)
     say(t('Rendering at original resolution...'))
     try {
-      if (useStore.getState().view === 'grid') {
+      if (grid) {
         await exportGrid()
       }
       else {
@@ -246,7 +253,7 @@ export default function App() {
     finally {
       setBusy(false)
     }
-  }, [])
+  }, [grid])
 
   const doCrops = useCallback(() => setReport(buildCropReport(exportOptions())), [])
 
@@ -264,7 +271,6 @@ export default function App() {
 
       const s = useStore.getState()
       const k = e.key
-      const grid = s.view === 'grid'
       const ui: KeyUi = {
         helpOpen,
         libOpen,
@@ -275,11 +281,19 @@ export default function App() {
         setLibOpen,
         setSettingsOpen,
         setReport,
+        goGrid: () => {
+          useStore.getState().clearSelection()
+          void navigate({ to: '/', viewTransition: viewTransitionOption() })
+        },
       }
 
       if (k === 'G' || k === 'g') {
         e.preventDefault()
-        s.toggleGrid()
+        useStore.getState().clearSelection()
+        if (grid)
+          void navigate({ to: '/w/$wsId', params: { wsId: s.activeId }, viewTransition: viewTransitionOption() })
+        else
+          void navigate({ to: '/', viewTransition: viewTransitionOption() })
         return
       }
 
@@ -295,7 +309,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [helpOpen, libOpen, settingsOpen, report, setLibOpen, setSettingsOpen, doExport, doCrops])
+  }, [helpOpen, libOpen, settingsOpen, report, setLibOpen, setSettingsOpen, doExport, doCrops, grid, navigate])
 
   useEffect(() => {
     const over = (e: DragEvent) => e.preventDefault()
@@ -311,8 +325,10 @@ export default function App() {
         return
       // The overview has no pane to drop into: autoFill has already filled the
       // active workspace's empty panes, so open it where the photos landed.
-      if (s.view === 'grid')
-        s.enterWorkspace(s.activeId)
+      if (grid) {
+        useStore.getState().clearSelection()
+        void navigate({ to: '/w/$wsId', params: { wsId: s.activeId }, viewTransition: viewTransitionOption() })
+      }
       setLibOpen(true)
     }
     window.addEventListener('dragover', over)
@@ -321,7 +337,7 @@ export default function App() {
       window.removeEventListener('dragover', over)
       window.removeEventListener('drop', drop)
     }
-  }, [setLibOpen])
+  }, [setLibOpen, grid, navigate])
 
   const closeHelp = () => setHelpOpen(false)
 
@@ -346,9 +362,7 @@ export default function App() {
         />
 
         <main className="relative min-h-0 flex-1">
-          {view === 'grid'
-            ? <WorkspaceGrid />
-            : <Stage />}
+          <Outlet />
         </main>
 
         <Footer />
@@ -362,8 +376,12 @@ export default function App() {
 
         <CropDialog report={report} onClose={() => setReport(null)} />
 
-        <ClearConfirm
+        <ConfirmDialog
           open={clearAsk}
+          title={t('Clear library?')}
+          description={t('This removes all imported photos and resets all 9 workspaces to blank canvases. This cannot be undone.')}
+          confirmLabel={t('Clear all')}
+          danger
           onClose={() => setClearAsk(false)}
           onConfirm={() => {
             useStore.getState().clearLibrary()
@@ -374,4 +392,54 @@ export default function App() {
       </div>
     </Tooltip.Provider>
   )
+}
+
+/**
+ * `/w/$wsId` → the editing stage. The route param drives the store's
+ * `activeId` (the canvas itself stays store-driven); an unknown id bounces
+ * back to the grid instead of rendering a workspace that does not exist.
+ */
+function WorkspaceRoute() {
+  const { wsId } = useParams({ from: '/w/$wsId' })
+  const navigate = useNavigate()
+  const exists = useStore(s => s.workspaces.some(w => w.id === wsId))
+
+  useEffect(() => {
+    if (exists) {
+      useStore.getState().patch({ activeId: wsId })
+      useStore.getState().clearSelection()
+    }
+    else {
+      void navigate({ to: '/', replace: true })
+    }
+  }, [wsId, exists, navigate])
+
+  return exists ? <Stage /> : null
+}
+
+const rootRoute = createRootRoute({ component: RootLayout })
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: WorkspaceGrid,
+})
+
+const workspaceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/w/$wsId',
+  component: WorkspaceRoute,
+})
+
+const routeTree = rootRoute.addChildren([indexRoute, workspaceRoute])
+
+export const router = createRouter({
+  routeTree,
+  history: createHashHistory(),
+})
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
 }
