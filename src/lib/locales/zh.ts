@@ -75,6 +75,7 @@ export const zh: Record<string, string> = {
   'Show tools': '拉起工具面板',
   'Hide tools': '收起工具面板',
   'Drag to change canvas aspect · double-click to reset': '拖动改变画布比例 · 双击恢复',
+  'Make sticker': '制作贴纸',
   'Make a sticker from text or an image': '用文字或图片制作贴纸',
 
   // StickerMakerDialog
@@ -101,6 +102,12 @@ export const zh: Record<string, string> = {
   'Insert': '插入',
   'Sticker added': '已添加贴纸',
   'Failed to make sticker': '生成贴纸失败',
+  'Remove background': '移除背景',
+  'AI runs locally · nothing is uploaded': 'AI 本地运行 · 图片不会上传',
+  'Restore original': '恢复原图',
+  'Loading AI model…': '正在加载 AI 模型…',
+  'Processing…': '处理中…',
+  'Background removal failed': '背景移除失败',
 
   // Library / LibraryDrawer
   'Live Photo': '实况照片',
@@ -139,7 +146,7 @@ export const zh: Record<string, string> = {
   'Two buttons at the top center of a focused pane': '聚焦窗格顶部中央的两个按钮',
   'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)': '上下或左右拆分（窗格只在聚焦时显示按钮，悬停不再显示）',
   'Tools panel above the footer': '底部栏上方的工具面板',
-  'Pull it open with the handle on its top edge: act on the focused pane by pinning stickers onto its photo, replacing its photo, or adding a text label (an empty pane offers only "Choose a photo")': '用面板上边缘的把手把它拉起，作用对象是聚焦窗格：把贴纸钉到照片上、替换照片、添加文字（空窗格只提供「选择照片」）',
+  'Pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")': '用面板上边缘的把手把它拉起，作用对象是聚焦窗格：把贴纸钉到照片上、用文字或图片制作贴纸、替换照片、添加文字（空窗格只提供「选择照片」）',
   'Drag the divider between panes': '拖动窗格之间的分隔条',
   'Resize that split; only the two adjacent panes are affected': '调整该分割的大小，只影响相邻的两个窗格',
   'Drag the handle at the bottom-right of the canvas': '拖动画布右下角的手柄',
@@ -166,6 +173,8 @@ export const zh: Record<string, string> = {
   'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop; export always uses the still': '播放实况照片的视频（拖入的 IMG_1234.HEIC + IMG_1234.MOV 会自动配对）；松手停止；导出始终使用静帧',
   '"Sticker" in the tools panel': '工具面板里的「贴纸」',
   'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete': '选择一张图片钉到聚焦窗格的照片上（比如遮住人脸）；点击可选中；手柄会像文字一样保持显示；拖动移动，角上缩放，× 删除',
+  '"Make sticker" in the tools panel': '工具面板里的「制作贴纸」',
+  'Open the sticker maker: type text or pick an image, remove its background with a local AI model, pick a die-cut outline and finish, and insert the result onto that pane as a sticker': '打开贴纸制作：输入文字或选一张图片，用本地 AI 模型去掉背景，挑好模切描边后完成，把结果作为贴纸插到该窗格上',
   '"Text" in the tools panel': '工具面板里的「文字」',
   'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect': '给聚焦窗格添加文字（默认黑底白字）；点击可选中并固定它的工具栏（字体选择器 + 黑 / 白切换，离线时回退到系统字体）；拖动移动，角上缩放，双击编辑，点击别处或按 Esc 取消选中',
   'Close': '关闭',

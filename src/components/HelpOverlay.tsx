@@ -24,7 +24,7 @@ const KEYS: [string, string][] = [
 
 const MOUSE: [string, string][] = [
   ['Two buttons at the top center of a focused pane', 'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)'],
-  ['Tools panel above the footer', 'Pull it open with the handle on its top edge: act on the focused pane by pinning stickers onto its photo, replacing its photo, or adding a text label (an empty pane offers only "Choose a photo")'],
+  ['Tools panel above the footer', 'Pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],
@@ -38,6 +38,7 @@ const MOUSE: [string, string][] = [
   ['Drop a photo onto a pane', 'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)'],
   ['Press and hold inside a pane', 'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop; export always uses the still'],
   ['"Sticker" in the tools panel', 'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete'],
+  ['"Make sticker" in the tools panel', 'Open the sticker maker: type text or pick an image, remove its background with a local AI model, pick a die-cut outline and finish, and insert the result onto that pane as a sticker'],
   ['"Text" in the tools panel', 'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
 ]
 
