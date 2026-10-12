@@ -40,7 +40,7 @@ rows.
 | Double-click inside a pane | Reset that pane's photo |
 | Right-click a pane | Context menu: split, swap with the focused pane (unfocused panes), close |
 | Long-press a pane (touch) | Same context menu as right-click; tap-to-focus happens on release, so "swap with focused pane" targets the previously focused pane |
-| "Choose a photo" in an empty pane | Open the file picker and put the chosen photo into that pane (dropping a file also works) |
+| "Choose a photo" in an empty pane | Open the file picker and put the chosen photo into that pane (dropping a file also works). On narrow screens the button fills the pane instead of shrinking to an icon-only chip, centering an icon + "Choose a photo" |
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
 | Tools bar · "Sticker" | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
