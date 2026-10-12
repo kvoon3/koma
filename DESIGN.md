@@ -118,7 +118,7 @@ and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export and the theme toggle sit at
 the top right of the top bar. The back-to-grid button (edit view only) and
 the reset button float just under the top bar's left / right corners, over
-the canvas — reset restores blank canvases (the active workspace in the
+the canvas: reset restores blank canvases (the active workspace in the
 editor, all nine from the grid overview), with the photos falling back to
 the library.
 
