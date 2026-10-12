@@ -19,14 +19,14 @@ const KEYS: [string, string][] = [
   ['C', 'Export crop params (ImageMagick command)'],
   ['?', 'This help'],
   ['Enter', 'Open the highlighted grid cell (grid view only)'],
-  ['Esc', 'Put the tools panel back / close drawer / deselect label / back to the grid'],
+  ['Esc', 'Close drawer / deselect label / back to the grid'],
 ]
 
 const MOUSE: [string, string][] = [
   ['Back button floating at the top left', 'Back to the 3×3 workspace grid (edit view only)'],
   ['Reset button floating at the top right', 'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library'],
   ['Split chip in the top row (between Back and Reset)', 'Split the focused pane top/bottom or left/right; hovering a pane fades the same chip in at that pane\'s top center, so a pane can be split without focusing it first'],
-  ['Tools panel above the footer', 'Opens by itself when the focus moves to another pane; pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")'],
+  ['Tools panel above the footer', 'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label (an empty pane offers only "Choose a photo")'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],
@@ -62,7 +62,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
             <Dialog.Close className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-line bg-transparent p-0 text-[15px] leading-none text-dim transition-colors duration-[120ms] hover:border-danger hover:bg-danger hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1" aria-label={t('Close')}><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Dialog.Close>
           </header>
           <p className="m-0 border-b border-line px-5 py-4 text-[12.5px] leading-[1.85] text-dim [&_strong]:text-txt">
-            <T k="You start with a single pane. **Split** it with the chip in the top row, or hover a pane to fade the same chip in inside that pane, and drag dividers to resize the panes, like panes in a terminal. That pane's tools (sticker / replace photo / text label) live in a panel above the footer, pulled open by the handle on its top edge. Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it." />
+            <T k="You start with a single pane. **Split** it with the chip in the top row, or hover a pane to fade the same chip in inside that pane, and drag dividers to resize the panes, like panes in a terminal. That pane's tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it." />
           </p>
           <div className="grid grid-cols-2 gap-[26px] px-5 py-[18px] max-[560px]:grid-cols-1 max-[560px]:gap-[18px]">
             <div>

@@ -34,7 +34,7 @@ rows.
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
 | Split chip: faded in at the top center of a pane you hover, or in the page row between back and reset for the focused pane | Split it top/bottom or left/right |
-| Tools panel above the footer | An overlay, so it never takes layout space: pulled open by the handle centered on its top edge, collapsed it rests behind the footer with only the handle showing. Focusing another pane pulls it open by itself; a manual collapse sticks until the focus moves. Sticker / Make sticker / Replace / Text act on the focused pane; an empty pane offers only "Choose a photo". The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
+| Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make sticker / Text act on the focused pane; an empty pane offers only "Choose a photo", and with no focus at all the tools grey out. The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
@@ -101,7 +101,7 @@ Settings; the ratio comes from `ratio`).
 ├───────────────────────────────────────────────┤
 │ [←]                  [⌸⌸]                  [↺] │ ← floating under the top bar: back, split chip, reset
 │                 Stage                         │
-│   ⌃ [sticker] [replace] [text] (pull-up)      │
+│   ⌃ [replace] [sticker] [text] (pull-up)      │
 ├───────────────────────────────────────────────┤
 │ Footer:   Ratio 1.50 · Output 2048 × 1365 px  │
 └───────────────────────────────────────────────┘
@@ -114,8 +114,11 @@ focused pane's chip rides in the page row between the back and reset buttons,
 so it never covers the pane it splits. Everything else a pane shows stays
 focus-only, the × close button at the top right. The focused pane's tools
 (sticker / replace photo / text label) live in a panel that overlays the
-canvas above the footer, pulled open by the handle on its top edge or by
-focusing another pane (Esc puts it back).
+canvas above the footer, open by default and moved only by the handle on its
+top edge; the tools act on the focused pane, so they grey out while no pane
+is focused, and switching between an empty and a filled pane folds the tools
+that no longer apply away (width + fade) instead of remounting them, so the
+panel's own width moves with the row.
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export and the theme toggle sit at

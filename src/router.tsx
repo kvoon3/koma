@@ -149,11 +149,6 @@ function handleEscapeKey(s: StoreState, ui: KeyUi) {
     ui.setSettingsOpen(false)
     ui.setReport(null)
   }
-  else if (s.toolsOpen) {
-    // The focused pane's tools panel is the most recently opened thing, so Esc
-    // puts it back before deselecting a label or leaving the editor.
-    s.setToolsOpen(false)
-  }
   else if (s.labelSel || s.stickerSel) {
     s.selectLabel(null)
   }

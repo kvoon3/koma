@@ -58,9 +58,9 @@ export interface State {
    */
   labelEditReq: { paneId: string, seq: number } | null
   /**
-   * Whether the focused pane's tools panel (Stage's overlay) is pulled open.
-   * Focusing another pane pulls it back open; a manual collapse sticks until
-   * the focus moves on.
+   * Whether the tools panel (Stage's overlay) is pulled open. It starts open,
+   * and only its handle changes it: moving the focus never touches it, so a
+   * manual collapse sticks.
    */
   toolsOpen: boolean
 }
@@ -98,15 +98,6 @@ function mapActive(s: State, fn: (w: Workspace) => Workspace): Workspace[] {
   return s.workspaces.map(w => (w.id === s.activeId ? fn(w) : w))
 }
 
-/**
- * Focusing another pane pulls the tools panel open: the panel acts on the
- * focused pane, so a new focus starts expanded. A collapse only sticks while
- * the focus stays put; clearing the focus (`''`) changes nothing.
- */
-function focusPullsTools(prevFocusId: string, focusId: string): Partial<State> {
-  return focusId !== '' && focusId !== prevFocusId ? { toolsOpen: true } : {}
-}
-
 let labelEditSeq = 0
 
 /** Clear selection-type state on any workspace / view switch. */
@@ -132,7 +123,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
-  toolsOpen: false,
+  toolsOpen: true,
 
   addPhotos: (files, autoFill = true) => {
     const { images, videos } = splitLiveFiles(files)
@@ -255,10 +246,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       const leaves = leafList(next)
       const created = leaves.find(l => !leafList(ws.root).some(o => o.id === l.id))
       const focusId = created?.id ?? ws.focusId
-      return {
-        workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
-        ...focusPullsTools(ws.focusId, focusId),
-      }
+      return { workspaces: mapActive(s, w => ({ ...w, root: next, focusId })) }
     }),
 
   closePane: paneId =>
@@ -277,7 +265,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           labelSel: s.labelSel === paneId ? null : s.labelSel,
           stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
         })),
-        ...focusPullsTools(ws.focusId, focusId),
       }
     }),
 
@@ -332,7 +319,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         }),
         focusId: paneId,
       })),
-      ...focusPullsTools(activeWs(s).focusId, paneId),
     })),
 
   updateLeaf: (paneId, patch) =>
@@ -340,7 +326,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   focus: paneId => set(s => ({
     workspaces: mapActive(s, w => ({ ...w, focusId: paneId })),
-    ...focusPullsTools(activeWs(s).focusId, paneId),
   })),
 
   focusNeighbor: (dir) => {
@@ -359,12 +344,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       cur.rect,
       dir,
     )
-    if (next) {
-      set({
-        workspaces: mapActive(s, w => ({ ...w, focusId: next.id })),
-        ...focusPullsTools(ws.focusId, next.id),
-      })
-    }
+    if (next)
+      set({ workspaces: mapActive(s, w => ({ ...w, focusId: next.id })) })
   },
 
   selectLabel: paneId => set({ labelSel: paneId, stickerSel: null }),
