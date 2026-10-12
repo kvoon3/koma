@@ -393,8 +393,12 @@ function BackdropLeaf({ leaf, rect, photo, radius }: {
   )
 }
 
-/** The blurred photo field behind all panes; `opacity` is the blend strength. */
-function SeamBackdrop({ leaves, photoById, radius, opacity }: {
+/**
+ * The blurred photo field behind all panes; `opacity` is the blend strength.
+ * Shared with the 3×3 workspace preview (WorkspaceGrid), which renders it
+ * scaled into the cell.
+ */
+export function SeamBackdrop({ leaves, photoById, radius, opacity }: {
   leaves: { node: Leaf, rect: Rect }[]
   photoById: Map<string, Photo>
   radius: number
