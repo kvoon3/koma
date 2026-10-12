@@ -124,8 +124,10 @@ and lands left-aligned under its own trigger — no cursor tracking.
 | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
 The export-size setting was removed: the long edge is fixed at 2048 px; the
-footer shows the resulting resolution. On mobile the drawer scrolls
-vertically only: control rows wrap instead of overflowing horizontally.
+footer shows the resulting resolution. Every row is one template (label,
+control, value) so every control shares an x; wide screens pair the four
+sections into two columns, which halves the drawer's height and how much of the
+canvas it covers.
 
 **Gap and radius are per-mille of the canvas short edge, not pixels.** Once set,
 exporting at 1080 or 6000 looks identical; preview and export share the same
