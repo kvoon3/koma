@@ -125,14 +125,24 @@ and lands left-aligned under its own trigger, with no cursor tracking.
 |---|---|
 | Photo gap | Space between panes, 0–12% |
 | Photo radius | Corner radius of each pane, 0–20% |
-| Canvas fill | Black / white / custom color / **transparent** |
+| Blend width / strength | How far pane seams fade into the shared blurred backdrop |
+| Pane border | Draw a hairline around each pane |
+| Gap fill | Black / white / custom color / **transparent** |
 | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
 The export-size setting was removed: the long edge is fixed at 2048 px; the
-footer shows the resulting resolution. Every row is one template (label,
-control, value) so every control shares an x; wide screens pair the four
-sections into two columns, which halves the drawer's height and how much of the
-canvas it covers.
+footer shows the resulting resolution.
+
+Every row is one template (label, control, value). From `sm` up the labels sit
+on a shared x, so the sliders line up; below `sm` the value moves onto the label
+line and the control takes the full width beneath it, which gives a phone a
+~320px slider instead of the ~200px the 84px and 46px columns would leave it.
+From `md` up the four sections fill two columns with `Layout` (the tall one)
+pinned to the right and spanning the three rows the others stack in: both
+columns end level, and the drawer covers as little of the canvas it edits as it
+can. Off toggles and swatches draw their outline with `line-strong`, because
+`line` equals the drawer's own color in the dark theme and would leave the
+control a featureless patch of background.
 
 **Gap and radius are per-mille of the canvas short edge, not pixels.** Once set,
 exporting at 1080 or 6000 looks identical; preview and export share the same

@@ -28,7 +28,6 @@ export const zh: Record<string, string> = {
   // SettingsDrawer
   'Hide settings': '隐藏设置',
   'Appearance': '外观',
-  'Gap fill is the background showing between photos; pick Transparent to export as PNG.': '间隙填充是照片之间露出的背景；选择「透明」可以导出为 PNG。',
   'Gap fill': '间隙填充',
   'Black': '黑色',
   'White': '白色',
@@ -36,7 +35,6 @@ export const zh: Record<string, string> = {
   'Custom gap fill': '自定义间隙填充',
   'Pick a custom color': '选择自定义颜色',
   'Layout': '布局',
-  'Gap is the space between photos, radius is how rounded each photo\'s corners are; both scale to the **canvas short edge**, and the preview matches the export.': '间隙是照片之间的留白，圆角是每张照片边角的圆润程度；两者都按**画布短边**缩放，预览与导出效果一致。',
   'Photo gap': '照片间隙',
   'Photo radius': '照片圆角',
   'Blend width': '融合宽度',
@@ -44,7 +42,6 @@ export const zh: Record<string, string> = {
   'Pane border': '面板描边',
   'Fonts': '字体',
   'Font mirror': '字体镜像',
-  'Fallback CDN (fonts.loli.net) when fonts.googleapis.com is unreachable.': 'fonts.googleapis.com 无法访问时，改用备用 CDN fonts.loli.net。',
   'Language': '语言',
 
   // Pane
@@ -136,7 +133,7 @@ export const zh: Record<string, string> = {
   'Focus the next pane': '聚焦下一个窗格',
   'Reset the photo in the focused pane': '重置聚焦窗格里的照片',
   'Toggle the library drawer': '开关素材库抽屉',
-  'Settings drawer (gap / radius / gap fill / export size)': '设置抽屉（间隙 / 圆角 / 间隙填充 / 导出尺寸）',
+  'Settings drawer (gap / radius / blend / gap fill)': '设置抽屉（间隙 / 圆角 / 融合 / 间隙填充）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作区网格和编辑之间切换',
   'Export the collage': '导出拼图',
   'Export crop params (ImageMagick command)': '导出裁剪参数（ImageMagick 命令）',
