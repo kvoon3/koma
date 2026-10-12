@@ -4,12 +4,11 @@ import type { Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
+import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePreview } from '../hooks'
-import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { getLiveVideoUrl } from '../lib/imageStore'
@@ -514,21 +513,20 @@ function LabelView({
 }
 
 // The pane's photo area: the placed preview once loaded, a placeholder note
-// while the preview decodes, or the pick-a-photo call to action for empty panes.
+// while the preview decodes, or the empty pane's placeholder icon (picking a
+// photo lives in the focused pane's tools row, see Stage.tsx).
 function PanePhotoContent({
   preview,
   place,
   rect,
   photoId,
   mask,
-  onPickFiles,
 }: {
   preview: Preview | null
   place: ReturnType<typeof placement> | null
   rect: Rect
   photoId: string | null
   mask?: React.CSSProperties
-  onPickFiles: () => void
 }) {
   const t = useT()
   return preview && place
@@ -557,26 +555,16 @@ function PanePhotoContent({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">{t('Loading...')}</div>
         )
       : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-[7px]">
-            <button
-              // On narrow screens the empty pane itself is the tap target: the
-              // button fills the pane and centers its icon + label (no shrunken
-              // icon-only chip).
-              className="flex cursor-pointer items-center gap-[6px] rounded-none border border-line bg-panel px-2.5 py-[5px] text-[11.5px] font-semibold text-txt transition-colors duration-[120ms] hover:bg-accent hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3 pointer-coarse:py-[7px] max-sm:absolute max-sm:inset-0 max-sm:flex-col max-sm:justify-center max-sm:gap-[9px] max-sm:border-0 max-sm:bg-transparent max-sm:text-[13px]"
-              title={t('Open the file picker and put the chosen photo into this pane')}
-              onClick={(e) => {
-                e.stopPropagation()
-                onPickFiles()
-              }}
-            >
-              <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} className="max-sm:h-5 max-sm:w-5" />
-              <span>{t('Choose a photo')}</span>
-            </button>
-            <span className="pointer-events-none text-[11px] text-pane-hint max-sm:hidden">{t('or drop one here')}</span>
+          // A placeholder, not a button: the pane's tools (including picking a
+          // photo) appear once it is focused.
+          <div className="absolute inset-0 grid place-items-center">
+            <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} className="pointer-events-none text-faint" />
           </div>
         )
 }
 
+// Split buttons, shown only while this pane is focused: a pane's chrome never
+// appears on hover (hover is a pan/zoom surface, not a menu).
 function PaneSplitTools({
   paneId,
   focused,
@@ -589,7 +577,9 @@ function PaneSplitTools({
   const t = useT()
   return (
     <div
-      className={`pointer-coarse:hidden max-sm:hidden absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
+      className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] ${
+        focused ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+      }`}
       onPointerDown={e => e.stopPropagation()}
     >
       <button
@@ -616,57 +606,6 @@ function PaneSplitTools({
   )
 }
 
-function PaneBottomTools({
-  focused,
-  onPickStickers,
-  onPickPhoto,
-  onAddLabel,
-}: {
-  focused: boolean
-  onPickStickers: () => void
-  onPickPhoto: () => void
-  onAddLabel: () => void
-}) {
-  const t = useT()
-  return (
-    <div
-      className={`pointer-coarse:hidden max-sm:hidden absolute bottom-[9px] left-1/2 z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
-      onPointerDown={e => e.stopPropagation()}
-    >
-      <button
-        className={paneBtnCls}
-        title={t('Pick images and pin them onto this photo')}
-        onClick={(e) => {
-          e.stopPropagation()
-          onPickStickers()
-        }}
-      >
-        <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
-      </button>
-      <button
-        className={paneBtnCls}
-        title={t('Pick a photo to replace this pane\'s photo')}
-        onClick={(e) => {
-          e.stopPropagation()
-          onPickPhoto()
-        }}
-      >
-        <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-      </button>
-      <button
-        className={paneBtnCls}
-        title={t('Add a text label')}
-        onClick={(e) => {
-          e.stopPropagation()
-          onAddLabel()
-        }}
-      >
-        <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
-      </button>
-    </div>
-  )
-}
-
 function PaneCloseTool({
   paneId,
   focused,
@@ -679,7 +618,9 @@ function PaneCloseTool({
   const t = useT()
   return (
     <button
-      className={`group-hover/pane:opacity-100 absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color] duration-[140ms] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${focused ? ' opacity-100' : ' opacity-0'}`}
+      className={`absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color] duration-[140ms] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${
+        focused ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+      }`}
       title={t('Close this pane')}
       onPointerDown={e => e.stopPropagation()}
       onClick={(e) => {
@@ -894,31 +835,6 @@ function PaneImpl({
     },
     [iw, ih, commit, cell],
   )
-
-  // Empty panes pick their photo through the centered button; the pane's
-  // "replace" button reuses the same pick-into-this-pane flow.
-  const pickForPane = () => {
-    pickImageFiles((files) => {
-      const s = useStore.getState()
-      const created = s.addPhotos(files, false)
-      const first = created[0]
-      if (first)
-        s.assign(leaf.id, first.id)
-    })
-  }
-
-  // The pane's sticker button picks images and pins them onto this pane's
-  // photo, roughly centered (extra images fan out a little).
-  const pickStickerForPane = () => {
-    pickImageFiles((files) => {
-      const s = useStore.getState()
-      const created = s.addPhotos(files, false)
-      created.forEach((ph, i) => {
-        const n = Math.min(0.8, 0.5 + i * 0.08)
-        s.addSticker(leaf.id, ph.id, n, n)
-      })
-    })
-  }
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Only the primary button focuses or starts a gesture. A right-click must
@@ -1194,7 +1110,6 @@ function PaneImpl({
         rect={rect}
         photoId={leaf.photoId}
         mask={photoMask}
-        onPickFiles={pickForPane}
       />
 
       {liveUrl && place && (
@@ -1257,24 +1172,10 @@ function PaneImpl({
         />
       )}
 
-      {/* Touch: the split tools live in the bar above the canvas (Stage). */}
+      {/* The pane's only chrome: split buttons, shown while it is focused.
+          Everything else (sticker / replace / text) lives in the tools row
+          above the footer, acting on the focused pane (Stage.tsx). */}
       <PaneSplitTools paneId={leaf.id} focused={focused} onSplit={onSplit} />
-
-      {/* Bottom actions: sticker / replace / text, on hover or focus only.
-          Laid out horizontally at the pane's bottom edge so they never cover
-          stickers or labels sitting on the photo. */}
-      {leaf.photoId && (
-        // Touch: these tools live in the bar below the canvas (Stage).
-        <PaneBottomTools
-          focused={focused}
-          onPickStickers={pickStickerForPane}
-          onPickPhoto={pickForPane}
-          onAddLabel={() => {
-            useStore.getState().ensureLabel(leaf.id)
-            setEditing(true)
-          }}
-        />
-      )}
 
       {dropChoice && (
         <div

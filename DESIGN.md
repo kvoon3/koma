@@ -31,8 +31,8 @@ rows.
 
 | Action | Effect |
 |---|---|
-| Two buttons at pane top center | Split top/bottom or left/right (appear on hover or focus) |
-| Sticker / Replace / Text at pane bottom | Appear on hover or focus on panes with a photo: pick stickers onto the photo, replace the pane's photo, add a text label |
+| Two buttons at the top center of a focused pane | Split it top/bottom or left/right (a pane shows its buttons only while focused, never on hover) |
+| Tools row above the footer | Sticker / Replace / Text, acting on the focused pane; an empty pane offers only "Choose a photo". The row's space is reserved either way, so focusing never resizes the canvas |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
@@ -40,12 +40,12 @@ rows.
 | Double-click inside a pane | Reset that pane's photo |
 | Right-click a pane | Context menu: split, swap with the focused pane (unfocused panes), close |
 | Long-press a pane (touch) | Same context menu as right-click; tap-to-focus happens on release, so "swap with focused pane" targets the previously focused pane |
-| "Choose a photo" in an empty pane | Open the file picker and put the chosen photo into that pane (dropping a file also works). On narrow screens the button fills the pane instead of shrinking to an icon-only chip, centering an icon + "Choose a photo" |
+| An empty pane | Shows a dimmed image icon, not a button: focus it and use "Choose a photo" in the tools row above the footer, or drop a file straight onto the pane |
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
-| Tools bar · "Sticker" | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
-| Tools bar · "Text" | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
-| × at pane top right | Close the pane (hidden while only one pane exists; appears on hover or focus) |
+| Tools row · "Sticker" | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
+| Tools row · "Text" | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
+| × at pane top right | Close the pane (hidden while only one pane exists; shown while the pane is focused) |
 
 | Key | Action |
 |---|---|
@@ -96,16 +96,18 @@ Settings; the ratio comes from `ratio`).
 │ Top: Photo▾ Help▾        [Settings][Export][🌙] │ ← actions at the top right
 ├───────────────────────────────────────────────┤
 │                 Stage                         │
+│     [sticker] [replace] [text]  (focused)     │
 ├───────────────────────────────────────────────┤
 │ Footer:   Ratio 1.50 · Output 2048 × 1365 px  │
 └───────────────────────────────────────────────┘
 ```
 
 The old status-bar stats (panes / filled / focus) are gone; the footer shows
-the canvas ratio and the output size. Panes show their buttons only on hover
-or focus: the two split buttons at the top center, the × close button at the
-top right, plus a horizontal row on panes with a photo at the bottom:
-sticker / replace photo / text label. The Photo menu holds add photos / add
+the canvas ratio and the output size. A pane shows its buttons only while it
+is focused, never on hover: the two split buttons at the top center and the
+× close button at the top right. The focused pane's tools (sticker / replace
+photo / text label) sit in one row above the footer, so a phone-sized pane
+needs no second chrome placement. The Photo menu holds add photos / add
 folder / library; Help holds shortcuts + crop report. Settings, Export and
 the theme toggle sit at the top right of the top bar.
 
@@ -214,10 +216,9 @@ src/
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
   components/
-    Stage.tsx        canvas: computes layout, renders panes and dividers
+    Stage.tsx        canvas: computes layout, renders panes, dividers and the focused pane's tools row
     Pane.tsx         one pane: photo, pan/zoom, split buttons, drop target
     TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
-    ToolsBar.tsx     bottom bar: text / photo / sticker insertion into the focused pane
     LibraryDrawer.tsx / Library.tsx
     SettingsDrawer.tsx
     HelpOverlay.tsx
