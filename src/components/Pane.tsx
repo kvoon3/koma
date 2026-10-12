@@ -201,7 +201,7 @@ function StickerView({
         onPointerCancel={endGesture}
       />
       <button
-        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
+        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
         title={t('Remove sticker')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
@@ -209,7 +209,7 @@ function StickerView({
           removeSticker(paneId, st.id)
         }}
       >
-        ×
+        <MorphIcon icon={X} size={12} strokeWidth={2} />
       </button>
     </div>
   )
@@ -420,7 +420,7 @@ function LabelView({
       )}
       {!editing && (
         <button
-          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-xs leading-none text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
+          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
           title={t('Remove label')}
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
@@ -428,7 +428,7 @@ function LabelView({
             removeLabel(paneId)
           }}
         >
-          ×
+          <MorphIcon icon={X} size={12} strokeWidth={2} />
         </button>
       )}
       <div

@@ -1,7 +1,7 @@
 import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Rect } from '../lib/panes'
-import { ChevronDown, ChevronUp, ImagePlus, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
+import { ChevronDown, ChevronUp, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -75,28 +75,6 @@ function ToolButton({ icon, label, altLabel, altOn = false, hint, shown, disable
         </span>
       </button>
     </div>
-  )
-}
-
-function ResizeIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="19" height="19" aria-hidden>
-      <path
-        d="M5 17.5 H17.5 V5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M11 17.5 H17.5 V11"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        opacity="0.45"
-      />
-    </svg>
   )
 }
 
@@ -403,7 +381,7 @@ export function Stage() {
             onDoubleClick={resetRatio}
             title={t('Drag to change canvas aspect · double-click to reset')}
           >
-            <ResizeIcon />
+            <MorphIcon icon={sizing ? Scaling : MoveDiagonal2} size={19} strokeWidth={2.5} />
           </div>
         </div>
       </div>
