@@ -1,6 +1,6 @@
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Rect } from '../lib/panes'
-import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type } from 'lucide'
+import { ImagePlus, Sticker as StickerIcon, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -13,13 +13,12 @@ import { Pane } from './Pane'
 const HIT_MIN = 15
 const MIN_CANVAS = 120
 
-/* Touch chrome: the focused pane's tools don't fit on a phone-size pane, so
-   they live in a chip above the canvas (split) and one below (sticker /
-   replace / text). Shown for coarse pointers (touch) or narrow viewports;
-   Pane.tsx hides its in-pane toolbars with the matching classes. */
-const barRowCls = 'pointer-coarse:flex max-sm:flex hidden w-full flex-none items-center justify-center px-3 py-1.5'
-const barChipCls = 'flex items-center gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px]'
-const barBtnCls = 'grid h-[30px] w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon hover:bg-chip-hover hover:text-txt disabled:cursor-default disabled:opacity-35'
+/* The focused pane's tools: a row above the footer, always reserved so that
+   focusing a pane never resizes the canvas. The chip acts on the focused pane
+   and hides with no focus; split buttons live on the pane itself. */
+const barRowCls = 'flex w-full flex-none items-center justify-center px-3 py-1.5'
+const barChipCls = 'flex items-center gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms]'
+const barBtnCls = 'grid h-[30px] w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon hover:bg-chip-hover hover:text-txt'
 
 function ResizeIcon() {
   return (
@@ -214,8 +213,7 @@ export function Stage() {
     s.setCanvasSize(first ? first.trueW / first.trueH : (activeWs(s).canvasRatio ?? 1.5), 1)
   }, [])
 
-  // Same pick flows as the in-pane buttons (Pane.tsx), aimed at the focused
-  // pane; on touch they are reachable from the bar below the canvas.
+  // Same pick flows as the tools row, aimed at the focused pane.
   const pickForFocused = () => {
     pickImageFiles((files) => {
       const s = useStore.getState()
@@ -252,17 +250,6 @@ export function Stage() {
       ref={wrapRef}
       className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
     >
-      <div className={barRowCls}>
-        <div className={barChipCls}>
-          <button className={barBtnCls} disabled={!focusId} title={t('Split top/bottom')} onClick={() => split(focusId, 'column')}>
-            <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
-          </button>
-          <button className={barBtnCls} disabled={!focusId} title={t('Split left/right')} onClick={() => split(focusId, 'row')}>
-            <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
-          </button>
-        </div>
-      </div>
-
       <div
         className="flex min-h-0 w-full flex-1 items-center justify-center"
         onPointerDown={(e) => {
@@ -345,16 +332,31 @@ export function Stage() {
       </div>
 
       <div className={barRowCls}>
-        <div className={barChipCls}>
-          <button className={barBtnCls} disabled={!hasPhoto} title={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused}>
-            <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
-          </button>
-          <button className={barBtnCls} disabled={!hasPhoto} title={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused}>
-            <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-          </button>
-          <button className={barBtnCls} disabled={!hasPhoto} title={t('Add a text label')} onClick={addLabelToFocused}>
-            <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
-          </button>
+        <div
+          className={`${barChipCls} ${
+            focusLeaf ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        >
+          {focusLeaf && (hasPhoto
+            ? (
+                <>
+                  <button className={barBtnCls} title={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused}>
+                    <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
+                  </button>
+                  <button className={barBtnCls} title={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused}>
+                    <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+                  </button>
+                  <button className={barBtnCls} title={t('Add a text label')} onClick={addLabelToFocused}>
+                    <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
+                  </button>
+                </>
+              )
+            : (
+                // An empty pane has a single tool: put a photo into it.
+                <button className={barBtnCls} title={t('Choose a photo')} onClick={pickForFocused}>
+                  <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+                </button>
+              ))}
         </div>
       </div>
     </div>
