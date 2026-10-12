@@ -1,2 +1,3 @@
 [tools]
 node = "24"
+# CI's bun is pinned by the BUN_VERSION build variable, not here.
