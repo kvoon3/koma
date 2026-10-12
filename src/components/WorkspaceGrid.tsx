@@ -12,7 +12,7 @@ import { fontById } from '../lib/fonts'
 import { labelColors, layoutTree, leafList, placement } from '../lib/panes'
 import { isTransparentBg, useStore } from '../store'
 
-// Virtual canvas short side for preview layout math. Any value works — the
+// Virtual canvas short side for preview layout math. Any value works; the
 // tree layout is resolution-independent, only the ratio matters.
 const PV = 400
 
@@ -93,7 +93,7 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
   const VH = Math.round(PV / (canvasRatio ?? 1.5))
   const view = useMemo(() => layoutTree(root, VW, VH, 0), [root, VW, VH])
   // Cover-fit: scale the workspace's own aspect up so it fills the whole
-  // square cell, centered — the overflow is cropped away (Moments style).
+  // square cell, centered; the overflow is cropped away (Moments style).
   const k = Math.max(box.w / VW, box.h / VH)
   // Center the oversized preview box: negative offsets + half overflow.
   const pw = VW * k
@@ -119,7 +119,7 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
   )
 }
 
-/** The cell's visible body — shared by the in-grid cell and the drag overlay. */
+/** The cell's visible body, shared by the in-grid cell and the drag overlay. */
 function CellBody({ ws, box, photoById, transparent, dimmed }: {
   ws: { root: Node, canvasRatio: number | null }
   box: { w: number, h: number }
@@ -164,7 +164,7 @@ function step(from: number, dir: 'left' | 'right' | 'up' | 'down' | 'next') {
  * workspaces. Click a cell to edit that workspace, drag a cell onto another
  * to insert-shift reorder (dnd-kit sortable grid: the dragged cell follows
  * the pointer as an overlay while the rest make room live), arrows/hjkl/Tab
- * + Enter to navigate by keyboard. Pure navigation view — no photo tools.
+ * + Enter to navigate by keyboard. Pure navigation view, no photo tools.
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
@@ -231,7 +231,7 @@ export function WorkspaceGrid() {
   const sensors = useSensors(useSensor(PointerSensor, {
     activationConstraint: { distance: 5 },
   }))
-  // Suppress the click that follows a finished drag — it must not enter.
+  // Suppress the click that follows a finished drag; it must not enter.
   const dragEndedAtRef = useRef(0)
 
   const ids = useMemo(() => workspaces.map(w => w.id), [workspaces])

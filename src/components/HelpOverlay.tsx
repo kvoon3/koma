@@ -25,17 +25,17 @@ const MOUSE: [string, string][] = [
   ['Sticker / Replace / Text at the bottom of a pane', 'Appear on hover or focus on panes with a photo: pick stickers onto its photo, replace the pane\'s photo, add a text label'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
-  ['Drag inside a pane', 'Pan the photo — whatever falls outside the pane is cropped'],
+  ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],
   ['Scroll / pinch', 'Zoom the photo around the cursor'],
   ['Pinch past the minimum zoom (or pinch an empty pane)', 'Zoom out all the way into the 3×3 grid overview'],
   ['Double-click inside a pane', 'Reset the photo in that pane'],
   ['Right-click a pane', 'Menu: split, swap its photo with the focused pane (unfocused panes), close'],
-  ['Long-press a pane (touch)', 'Same menu as right-click — the tap-to-focus happens on release, so “swap with focused pane” works like a right-click'],
+  ['Long-press a pane (touch)', 'Same menu as right-click; the tap-to-focus happens on release, so “swap with focused pane” works like a right-click'],
   ['“Choose a photo” in an empty pane', 'Open the file picker and put the chosen photo into that pane (dropping a file also works)'],
   ['Drop a photo onto a pane', 'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)'],
-  ['Press and hold inside a pane', 'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop — export always uses the still'],
-  ['"Sticker" on a pane', 'Pick an image and pin it onto that pane\'s photo (e.g. to cover faces); click to select — handles stay pinned like labels; drag to move, corner to scale, × to delete'],
-  ['"Text" on a pane', 'Add a text label (white on black by default) — click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
+  ['Press and hold inside a pane', 'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop; export always uses the still'],
+  ['"Sticker" on a pane', 'Pick an image and pin it onto that pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete'],
+  ['"Text" on a pane', 'Add a text label (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
 ]
 
 export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => void }) {
@@ -60,7 +60,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
             <strong>split</strong>
             {' '}
             out more panes,
-            and drag dividers to resize them — like panes in a terminal.
+            and drag dividers to resize them, like panes in a terminal.
             Each photo lives in a pane; drag / zoom inside it, and
             {' '}
             <strong>whatever falls outside the pane is cropped away</strong>
@@ -68,7 +68,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
             so arranging panes and zooming photos is all there is to cropping and stitching.
             Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo.
             {' '}
-            Nine workspaces live behind the G key — the 3×3 grid shows them all, drag to reorder, click one to edit it.
+            Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.
           </p>
           <div className="grid grid-cols-2 gap-[26px] px-5 py-[18px] max-[560px]:grid-cols-1 max-[560px]:gap-[18px]">
             <div>
