@@ -122,7 +122,8 @@ function handleEscapeKey(s: StoreState, ui: KeyUi) {
     s.selectLabel(null)
   }
   else {
-    s.focus('')
+    // Nothing left to dismiss: back out of the editor to the grid overview.
+    s.toggleGrid()
   }
 }
 
@@ -178,7 +179,7 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
       ui.setHelpOpen(v => !v)
       break
 
-    case 'Tab':
+    case 'tab':
       e.preventDefault()
       focusNextLeaf(s, ws)
       break
@@ -187,7 +188,7 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
       ui.doCrops()
       break
 
-    case 'Escape':
+    case 'escape':
       handleEscapeKey(s, ui)
       break
   }

@@ -19,7 +19,7 @@ const KEYS: [string, string][] = [
   ['C', 'Export crop params (ImageMagick command)'],
   ['?', 'This help'],
   ['Enter', 'Open the highlighted grid cell (grid view only)'],
-  ['Esc', 'Close drawer / deselect label / unfocus'],
+  ['Esc', 'Close drawer / deselect label / back to the grid'],
 ]
 
 const MOUSE: [string, string][] = [

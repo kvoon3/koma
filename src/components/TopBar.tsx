@@ -37,7 +37,6 @@ function CatMenu({ label, children }: { label: string, children: ReactNode }) {
 
 function TopBarActions({
   grid,
-  toggleGrid,
   settingsOpen,
   onToggleSettings,
   busy,
@@ -47,7 +46,6 @@ function TopBarActions({
   dark,
 }: {
   grid: boolean
-  toggleGrid: () => void
   settingsOpen: boolean
   onToggleSettings: () => void
   busy: boolean
@@ -59,16 +57,6 @@ function TopBarActions({
   const t = useT()
   return (
     <div className="flex items-center gap-[5px]">
-      {grid && (
-        <Tip
-          label={t('Back to editing · G')}
-          trigger={(
-            <Button variant="on" onClick={toggleGrid} aria-label={t('Back to editing')}>
-              <MorphIcon icon={ImagePlus} size={15} strokeWidth={1.75} />
-            </Button>
-          )}
-        />
-      )}
       <Tip
         label={t('Settings · Shortcut: ,')}
         trigger={(
@@ -117,11 +105,11 @@ function TopBarActions({
 }
 
 /**
- * The top chrome: the back-to-grid button plus the category menus (photo /
- * help) on the left, and the settings, export and theme actions on the right
- * (in grid view the left button becomes "back to editing"). In grid view the
- * photo menu is cut down to library-less navigation (the grid is a pure
- * overview), and export goes batch-mode.
+ * The top chrome: in edit view a back-to-grid button plus the category menus
+ * (photo / help) on the left, and the settings, export and theme actions on
+ * the right. Grid view has no back button: click a cell (or press G) to open
+ * a workspace. In grid view the photo menu is cut down to library-less
+ * navigation (the grid is a pure overview) and export goes batch-mode.
  */
 export function TopBar({
   busy,
@@ -231,7 +219,6 @@ export function TopBar({
 
       <TopBarActions
         grid={grid}
-        toggleGrid={toggleGrid}
         settingsOpen={settingsOpen}
         onToggleSettings={onToggleSettings}
         busy={busy}
