@@ -1,12 +1,20 @@
 import type { ReactNode } from 'react'
+import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
-import { ArrowLeft, ChevronDown, CircleHelp, Download, FileText, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, SlidersHorizontal, Sun } from 'lucide'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { ArrowLeft, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, Save, SlidersHorizontal, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useMemo, useRef, useSyncExternalStore } from 'react'
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useT } from '../lib/i18n'
+import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
+import { clearSession } from '../lib/sessionStore'
+import { say } from '../lib/toast'
+import { viewTransitionOption } from '../lib/viewTransition'
+import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
+import { ConfirmDialog } from './ConfirmDialog'
 import { Button } from './ui/button'
 import { Tip } from './ui/tip'
 
@@ -132,17 +140,69 @@ export function TopBar({
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const dirRef = useRef<HTMLInputElement>(null)
+  const wsFileRef = useRef<HTMLInputElement>(null)
+
+  const navigate = useNavigate()
+  const grid = useRouterState({ select: s => s.location.pathname === '/' })
+
+  const [saving, setSaving] = useState(false)
+  /** Parsed doc awaiting the replace-current-board confirm. */
+  const [openDoc, setOpenDoc] = useState<{ doc: WorkspaceDocV1, photos: ReturnType<typeof useStore.getState>['photos'] } | null>(null)
 
   const photos = useStore(s => s.photos.length)
-  const view = useStore(s => s.view)
   const root = useStore(s => activeWs(s).root)
   const anyFilled = useStore(s =>
     s.workspaces.some(w => leafList(w.root).some(l => l.photoId)))
-  const toggleGrid = useStore(s => s.toggleGrid)
   const t = useT()
   const dark = useSyncExternalStore(subscribeTheme, isDarkSnapshot)
-  const grid = view === 'grid'
   const filled = useMemo(() => leafList(root).some(l => l.photoId), [root])
+
+  const goGrid = () => {
+    useStore.getState().clearSelection()
+    void navigate({ to: '/', viewTransition: viewTransitionOption() })
+  }
+
+  const doSaveFile = async () => {
+    setSaving(true)
+    say(t('Saving workspace file…'))
+    try {
+      downloadDoc(await buildDoc(useStore.getState()))
+      say(t('Workspace file saved'))
+    }
+    catch (e) {
+      say(t('Failed to save workspace: {msg}', { msg: (e as Error).message }))
+    }
+    finally {
+      setSaving(false)
+    }
+  }
+
+  const applyOpened = () => {
+    if (!openDoc)
+      return
+    const { doc, photos } = openDoc
+    // Same reset semantics as clearLibrary: old previews (keyed by photo id)
+    // and the old autosaved session must not survive the replaced board.
+    clearImageCaches()
+    void clearSession()
+    useStore.setState({
+      photos,
+      workspaces: doc.workspaces,
+      activeId: doc.workspaces.some(w => w.id === doc.activeId) ? doc.activeId : doc.workspaces[0].id,
+      gap: doc.settings.gap,
+      radius: doc.settings.radius,
+      bg: doc.settings.bg,
+      longSide: doc.settings.longSide,
+      format: doc.settings.format,
+      quality: doc.settings.quality,
+      labelSel: null,
+      stickerSel: null,
+      labelEditReq: null,
+    })
+    setOpenDoc(null)
+    say(t('Workspace opened'))
+    void navigate({ to: '/' })
+  }
 
   return (
     <header className="relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar px-1.5">
@@ -150,13 +210,26 @@ export function TopBar({
         <Tip
           label={t('Back to the grid · G')}
           trigger={(
-            <Button onClick={toggleGrid} aria-label={t('Back to the grid')}>
+            <Button onClick={goGrid} aria-label={t('Back to the grid')}>
               <MorphIcon icon={ArrowLeft} size={15} strokeWidth={1.75} />
               <span className="pointer-coarse:hidden max-sm:hidden">{t('Grid')}</span>
             </Button>
           )}
         />
       )}
+
+      {/* Whole-board save/open lives outside the Photo menu: it is available
+          in both views and covers the grid + library, not just photos. */}
+      <CatMenu label={t('Workspace')}>
+        <Menu.Item className={itemCls} onClick={() => void doSaveFile()} disabled={saving || !anyFilled}>
+          <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
+          {t('Save workspace file…')}
+        </Menu.Item>
+        <Menu.Item className={itemCls} onClick={() => wsFileRef.current?.click()}>
+          <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="flex text-dim" />
+          {t('Open workspace file…')}
+        </Menu.Item>
+      </CatMenu>
 
       {grid
         ? (
@@ -250,6 +323,36 @@ export function TopBar({
             useStore.getState().addPhotos([...e.target.files])
           e.target.value = ''
         }}
+      />
+      <input
+        ref={wsFileRef}
+        type="file"
+        accept=".json,.koma.json,application/json"
+        hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (!f)
+            return
+          try {
+            const parsed = await parseWorkspaceFile(f)
+            setOpenDoc({ doc: parsed.doc, photos: parsed.photos })
+          }
+          catch (err) {
+            const msg = (err as Error).message
+            say(t('Failed to open workspace: {msg}', { msg: t(msg) }))
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={openDoc != null}
+        title={t('Open workspace?')}
+        description={t('Opening a workspace file replaces your current board and library. This cannot be undone.')}
+        confirmLabel={t('Open')}
+        danger
+        onClose={() => setOpenDoc(null)}
+        onConfirm={applyOpened}
       />
     </header>
   )

@@ -1,15 +1,11 @@
-import { flushSync } from 'react-dom'
-
 /**
- * Wrap a view switch (grid ⇄ editor) in a same-document View Transition so
- * the cell and the stage canvas morph into each other. No-op (plain update)
- * where the API is unsupported or the user prefers reduced motion.
+ * The TanStack Router `viewTransition` navigation option for grid ⇄ editor
+ * switches, so a grid cell and the stage canvas morph into each other.
+ *
+ * The router already checks `document.startViewTransition` exists, but it does
+ * not honor `prefers-reduced-motion`, so it is disabled here to match the
+ * app's previous behavior.
  */
-export function viewTransition(update: () => void) {
-  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    update()
-    return
-  }
-  // eslint-disable-next-line react/dom-no-flush-sync -- required pattern: force the DOM update inside the startViewTransition callback so the snapshot pairs with the new tree.
-  document.startViewTransition(() => flushSync(update))
+export function viewTransitionOption() {
+  return !matchMedia('(prefers-reduced-motion: reduce)').matches
 }

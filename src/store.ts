@@ -1,5 +1,6 @@
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
+import type { SessionMeta } from './lib/sessionStore'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { looksHeic, probeHeic } from './lib/heic'
@@ -22,7 +23,7 @@ import {
   uid,
   updateLeafIn,
 } from './lib/panes'
-import { viewTransition } from './lib/viewTransition'
+import { clearSession } from './lib/sessionStore'
 
 /** One of the nine collage workspaces. Array order is the grid order. */
 export interface Workspace {
@@ -37,8 +38,6 @@ export interface State {
   photos: Photo[]
   workspaces: Workspace[]
   activeId: string
-  /** 'edit' shows the active workspace canvas; 'grid' shows the 3×3 overview. */
-  view: 'edit' | 'grid'
   /** The workspace the G key / center button returns to (tracked by id, not position). */
   gap: number
   radius: number
@@ -100,7 +99,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   photos: [],
   workspaces: bootWorkspaces,
   activeId: bootWorkspaces[0].id,
-  view: 'grid' as const,
   gap: GAP,
   radius: RADIUS,
   bg: BG,
@@ -168,6 +166,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   clearLibrary: () => {
     clearImageCaches()
+    void clearSession()
     set(s => ({
       photos: [],
       // Reset every workspace to a fresh blank canvas, keeping the order.
@@ -176,6 +175,30 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       stickerSel: null,
       labelEditReq: null,
     }))
+  },
+
+  /** Restore a session saved by `lib/sessionStore` (refresh-safe autosave). */
+  hydrate: (session) => {
+    set({
+      ...session.meta,
+      photos: session.photos,
+      labelSel: null,
+      stickerSel: null,
+      labelEditReq: null,
+    })
+    // Re-probe photos whose header scan never finished before the page
+    // closed (trueW/trueH drive export placement and the crop report).
+    for (const p of session.photos) {
+      if (p.trueW > 0)
+        continue
+      void (looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file)).then((d) => {
+        if (!d)
+          return
+        set(s => ({
+          photos: s.photos.map(x => (x.id === p.id ? { ...x, trueW: d.w, trueH: d.h } : x)),
+        }))
+      })
+    }
   },
 
   split: (paneId, dir) =>
@@ -322,22 +345,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       })),
     })),
 
-  /** Enter a workspace in edit view (clicking a grid cell). */
-  enterWorkspace: id =>
-    viewTransition(() =>
-      set(s => ({
-        activeId: s.workspaces.some(w => w.id === id) ? id : s.activeId,
-        view: 'edit',
-        ...clearedSelection,
-      }))),
-
-  /** Toggle between the edit canvas and the 3×3 grid overview. */
-  toggleGrid: () =>
-    viewTransition(() =>
-      set(s => ({
-        view: s.view === 'grid' ? 'edit' : 'grid',
-        ...clearedSelection,
-      }))),
+  /** Clear selection-type state on any workspace / view switch. */
+  clearSelection: () => set({ ...clearedSelection }),
 
   /** Insert-shift reorder: remove `id` from its slot and splice it at `to`. */
   moveWorkspace: (id, to) =>
@@ -509,6 +518,7 @@ export function computeLayout(
 interface Actions {
   addPhotos: (files: File[], autoFill?: boolean) => Photo[]
   clearLibrary: () => void
+  hydrate: (session: { meta: SessionMeta, photos: Photo[] }) => void
   split: (paneId: string, dir: 'row' | 'column') => void
   closePane: (paneId: string) => void
   resizeSplit: (splitId: string, ratio: number) => void
@@ -524,8 +534,7 @@ interface Actions {
   autoFill: () => void
   patch: (p: Partial<State>) => void
   setCanvasSize: (ratio: number, fill: number) => void
-  enterWorkspace: (id: string) => void
-  toggleGrid: () => void
+  clearSelection: () => void
   moveWorkspace: (id: string, to: number) => void
   addSticker: (paneId: string, photoId: string, x: number, y: number) => void
   moveSticker: (paneId: string, stickerId: string, x: number, y: number) => void

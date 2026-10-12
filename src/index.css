@@ -264,7 +264,8 @@ html.dark {
 /*
  * Grid ⇄ editor zoom: the 3×3 cell and the stage canvas share
  * view-transition-name ws-<id>, so the browser morphs one into the other
- * (store wraps the view switch in document.startViewTransition). Reduced
+ * (the router wraps the grid ⇄ editor navigation in
+ * document.startViewTransition). Reduced
  * motion is handled in JS; the swap falls back to instant.
  */
 ::view-transition-group(*) {

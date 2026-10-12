@@ -3,6 +3,7 @@ import type { Photo, Preview } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
+import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -12,6 +13,7 @@ import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { getLiveVideoUrl } from '../lib/imageStore'
 import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, stickerRect } from '../lib/panes'
+import { viewTransitionOption } from '../lib/viewTransition'
 import { activeWs, MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 
 const paneBtnCls = 'grid h-6 w-[26px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[30px] pointer-coarse:w-8 hover:bg-chip-hover hover:text-txt'
@@ -722,6 +724,13 @@ function PaneImpl({
   const elRef = useRef<HTMLDivElement | null>(null)
   const preview = usePreview(photo)
   const t = useT()
+  const navigate = useNavigate()
+
+  // Exit the editor back to the grid overview, morphing the canvas into its cell.
+  const exitToGrid = useCallback(() => {
+    useStore.getState().clearSelection()
+    void navigate({ to: '/', viewTransition: viewTransitionOption() })
+  }, [navigate])
 
   const pointersRef = useRef(new Map<number, { x: number, y: number }>())
   const gestureRef = useRef<{
@@ -926,7 +935,7 @@ function PaneImpl({
       // raw ratio: shrinking an already-minimum photo out of the pane is the
       // explicit exit-to-grid gesture, and it must not commit a zoom either.
       if (g.base.zoom * ratio <= MIN_ZOOM && ratio < 1) {
-        useStore.getState().toggleGrid()
+        exitToGrid()
         return
       }
       zoomAbout(g.base, g.base.zoom * ratio, mid.x, mid.y)
@@ -989,7 +998,7 @@ function PaneImpl({
       // Pinching in (shrinking) on a pane without a photo: nothing to zoom,
       // so the pinch itself is the exit-to-grid gesture.
       if (!leaf.photoId && e.ctrlKey && e.deltaY > 0) {
-        useStore.getState().toggleGrid()
+        exitToGrid()
         return
       }
       if (!leaf.photoId || !iw || !ih)
@@ -1000,7 +1009,7 @@ function PaneImpl({
       // still pushing out: zoom out all the way into the 3×3 grid instead of
       // clamping. Plain (non-ctrl) wheel is never an exit signal.
       if (e.ctrlKey && nextZoom <= MIN_ZOOM) {
-        useStore.getState().toggleGrid()
+        exitToGrid()
         return
       }
       const p = local(e.clientX, e.clientY)
@@ -1008,7 +1017,7 @@ function PaneImpl({
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
-  }, [leaf, iw, ih, local, zoomAbout])
+  }, [leaf, iw, ih, local, zoomAbout, exitToGrid])
 
   const place = iw && ih ? placement(cell, leaf, iw, ih) : null
 
