@@ -119,6 +119,8 @@ export const zh: Record<string, string> = {
   'Change the canvas aspect ratio (double-click to follow the first photo again)': '改变画布比例（双击可重新跟随第一张照片的宽高比）',
   'Drag inside a pane': '在窗格内拖动',
   'Pan the photo; whatever falls outside the pane is cropped': '平移照片；超出窗格的部分会被裁掉',
+  'Drag a photo out of its pane': '把照片拖出窗格',
+  'Carry it onto another pane to swap the two photos (an empty pane takes it in); release anywhere else to cancel': '拖到另一个窗格上交换两张照片（空窗格会直接接收）；在别处松手即取消',
   'Scroll / pinch': '滚动 / 双指缩放',
   'Zoom the photo around the cursor': '以光标为中心缩放照片',
   'Pinch past the minimum zoom (or pinch an empty pane)': '缩放到最小倍数以下（或在空窗格里捏合）',
