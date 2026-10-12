@@ -109,6 +109,11 @@ sticker / replace photo / text label. The Photo menu holds add photos / add
 folder / library; Help holds shortcuts + crop report. Settings, Export and
 the theme toggle sit at the top right of the top bar.
 
+The Photo and Help menus are a menubar: clicking one and then hovering the
+other hands the panel over without a second click. The incoming panel slides
+across from the trigger it left (160ms, the outgoing one is dropped at once)
+and lands left-aligned under its own trigger — no cursor tracking.
+
 ## Settings drawer (`,` or the top-right Settings button)
 
 | Setting | Effect |
