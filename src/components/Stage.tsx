@@ -50,6 +50,7 @@ export function Stage() {
   const t = useT()
 
   const root = useStore(s => activeWs(s).root)
+  const wsId = useStore(s => s.activeId)
   const focusId = useStore(s => activeWs(s).focusId)
   const canvasRatio = useStore(s => activeWs(s).canvasRatio)
   const canvasFill = useStore(s => activeWs(s).canvasFill)
@@ -266,7 +267,7 @@ export function Stage() {
         <div
           ref={stageRef}
           className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
-          style={{ width: view.W, height: view.H, background: transparent ? undefined : bg }}
+          style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
         >
           {view.leaves.map(({ node, rect }) => (
             <Pane
