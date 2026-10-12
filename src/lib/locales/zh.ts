@@ -30,6 +30,11 @@ export const zh: Record<string, string> = {
   'This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.': '这会清空位置 {n} 的窗格布局和照片摆位。照片仍保留在素材库中，且无法撤销。',
   'Reset': '重置',
   'Workspace reset': '工作区已重置',
+  'Reset all workspaces': '重置所有工作区',
+  'Reset all workspaces?': '重置所有工作区？',
+  'This clears the pane layout and photo placement of all 9 workspaces. Photos stay in the library. This cannot be undone.': '这会清空全部 9 个工作区的窗格布局和照片摆位。照片仍保留在素材库中，且无法撤销。',
+  'Reset all': '全部重置',
+  'All workspaces reset': '所有工作区已重置',
 
   // SettingsDrawer
   'Hide settings': '隐藏设置',
@@ -150,7 +155,7 @@ export const zh: Record<string, string> = {
   'Back button floating at the top left': '悬浮在左上角的返回按钮',
   'Back to the 3×3 workspace grid (edit view only)': '返回 3×3 工作区网格（仅编辑视图）',
   'Reset button floating at the top right': '悬浮在右上角的重置按钮',
-  'Reset the active workspace to a single blank pane (asks first); its photos fall back to the library': '把当前工作区重置为单个空白窗格（会先确认）；照片会回到素材库',
+  'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library': '重置为单个空白窗格：编辑视图里重置当前工作区，九宫格视图里重置全部（会先确认）；照片会回到素材库',
   'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)': '上下或左右拆分（窗格只在聚焦时显示按钮，悬停不再显示）',
   'Tools panel above the footer': '底部栏上方的工具面板',
   'Opens by itself when the focus moves to another pane; pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")': '聚焦项切换时它会自动弹出，也可以用面板上边缘的把手拉起；作用对象是聚焦窗格：把贴纸钉到照片上、用文字或图片制作贴纸、替换照片、添加文字（空窗格只提供「选择照片」）',
