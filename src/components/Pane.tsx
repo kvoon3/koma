@@ -1,6 +1,6 @@
 import type { FontMeta } from '../lib/fonts'
 import type { Photo, Preview } from '../lib/imageStore'
-import type { Leaf, PaneLabel, Rect, Sticker } from '../lib/panes'
+import type { Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
 import { useNavigate } from '@tanstack/react-router'
@@ -12,7 +12,7 @@ import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { getLiveVideoUrl } from '../lib/imageStore'
-import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, stickerRect } from '../lib/panes'
+import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, seamFadeWidth, seamMaskStyle, stickerRect } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { activeWs, MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 
@@ -507,31 +507,37 @@ function PanePhotoContent({
   place,
   rect,
   photoId,
+  mask,
   onPickFiles,
 }: {
   preview: Preview | null
   place: ReturnType<typeof placement> | null
   rect: Rect
   photoId: string | null
+  mask?: React.CSSProperties
   onPickFiles: () => void
 }) {
   const t = useT()
   return preview && place
     ? (
-        <img
-          src={preview.url}
-          alt=""
-          draggable={false}
-          className="block max-w-none will-change-transform"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            transformOrigin: '0 0',
-            transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
-            maxWidth: 'none',
-          }}
-        />
+        // The mask wrapper spans the pane box, so the feather gradients line
+        // up with the pane edges (the placed img itself overflows the pane).
+        <div className="absolute inset-0" style={mask}>
+          <img
+            src={preview.url}
+            alt=""
+            draggable={false}
+            className="block max-w-none will-change-transform"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              transformOrigin: '0 0',
+              transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
+              maxWidth: 'none',
+            }}
+          />
+        </div>
       )
     : photoId
       ? (
@@ -673,19 +679,21 @@ function PaneCloseTool({
 function PaneOutline({
   focused,
   dropping,
+  bordered,
   radius,
 }: {
   focused: boolean
   dropping: boolean
+  bordered: boolean
   radius: number
 }) {
   return (
     <div
       aria-hidden
       className={
-        `pointer-events-none absolute inset-0 z-[4] outline-1 outline-line -outline-offset-1 ${
-          focused ? ' outline-txt' : ''
-        }${dropping ? ' outline-dashed outline-txt' : ''}`
+        `pointer-events-none absolute inset-0 z-[4] -outline-offset-1 ${
+          bordered ? ' outline-1 outline-line' : ''
+        }${focused ? ' outline-1 outline-txt' : ''}${dropping ? ' outline-dashed outline-1 outline-txt' : ''}`
       }
       style={{ borderRadius: radius }}
     />
@@ -696,6 +704,9 @@ interface Props {
   leaf: Leaf
   rect: Rect
   radius: number
+  bordered: boolean
+  fade: number
+  seam?: SeamSides
   unit: number
   photo: Photo | null
   photoById: Map<string, Photo>
@@ -711,6 +722,9 @@ function PaneImpl({
   leaf,
   rect,
   radius,
+  bordered,
+  fade,
+  seam,
   unit,
   photo,
   photoById,
@@ -1020,6 +1034,9 @@ function PaneImpl({
   }, [leaf, iw, ih, local, zoomAbout, exitToGrid])
 
   const place = iw && ih ? placement(cell, leaf, iw, ih) : null
+  // Feather the photo's seam edges (and the Live Photo video that replaces
+  // it visually); stickers/labels stay sharp above it.
+  const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
 
   const toCanvas = useCallback(
     (clientX: number, clientY: number) => {
@@ -1043,11 +1060,11 @@ function PaneImpl({
       ref={elRef}
       data-pane-id={leaf.id}
       className={
-        `group/pane absolute cursor-grab touch-none select-none overflow-hidden bg-pane-bg [contain:paint] ${
+        `group/pane absolute cursor-grab touch-none select-none overflow-hidden [contain:paint] ${
           focused
             ? ' z-1 cursor-grab'
             : ''
-        }${leaf.photoId ? '' : ' bg-pane-empty'}`
+        }${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`
       }
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radius }}
       onPointerDown={onPointerDown}
@@ -1092,25 +1109,28 @@ function PaneImpl({
         place={place}
         rect={rect}
         photoId={leaf.photoId}
+        mask={photoMask}
         onPickFiles={pickForPane}
       />
 
       {liveUrl && place && (
-        <video
-          ref={liveVideoRef}
-          className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
-          src={liveUrl}
-          style={{
-            left: place.x - rect.x,
-            top: place.y - rect.y,
-            width: place.w,
-            height: place.h,
-          }}
-          loop
-          playsInline
-          preload="auto"
-          draggable={false}
-        />
+        <div className="absolute inset-0" style={photoMask}>
+          <video
+            ref={liveVideoRef}
+            className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
+            src={liveUrl}
+            style={{
+              left: place.x - rect.x,
+              top: place.y - rect.y,
+              width: place.w,
+              height: place.h,
+            }}
+            loop
+            playsInline
+            preload="auto"
+            draggable={false}
+          />
+        </div>
       )}
 
       {photo?.videoFile && !live && (
@@ -1213,7 +1233,7 @@ function PaneImpl({
       {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
       {/* Drawn last so the pane border stays above its photo/stickers. */}
-      <PaneOutline focused={focused} dropping={dropping} radius={radius} />
+      <PaneOutline focused={focused} dropping={dropping} bordered={bordered} radius={radius} />
     </div>
   )
 

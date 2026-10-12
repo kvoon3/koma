@@ -1,10 +1,10 @@
 import type { Photo } from './imageStore'
-import type { Leaf, Node, Rect } from './panes'
+import type { Leaf, Node, Rect, SeamSides } from './panes'
 import { isTransparentBg } from '../store'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { decodeFull, releaseFull } from './imageStore'
-import { labelColors, labelRect, layoutTree, placement, stickerRect } from './panes'
+import { labelColors, labelRect, layoutTree, placement, seamFadeWidth, seamSides, stickerRect } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -13,6 +13,8 @@ export interface ExportOptions {
   gap: number
   radius: number
   bg: string
+  edgeFade: number
+  edgeFadeStrength: number
   photos: Map<string, Photo>
   longSide: number
 }
@@ -63,6 +65,8 @@ interface Prepared {
   u: number
   gap: number
   radius: number
+  fade: number
+  seam: Map<string, SeamSides>
   cells: { leaf: Leaf, rect: Rect, photo: Photo }[]
   labelCells: { leaf: Leaf, rect: Rect }[]
 }
@@ -71,6 +75,9 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
   const u = Math.min(W, H) / 1000
   const gap = opts.gap * u
   const l = layoutTree(opts.root, W, H, gap)
+  // Backdrop blend: pane edges feather into the shared blurred field drawn
+  // behind everything; width 0 turns the whole treatment off.
+  const fade = opts.edgeFade * u
   const cells: Prepared['cells'] = []
   const labelCells: Prepared['labelCells'] = []
   for (const { node, rect } of l.leaves) {
@@ -83,12 +90,108 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
       continue
     cells.push({ leaf: node, rect, photo })
   }
-  return { W, H, u, gap, radius: opts.radius * u, cells, labelCells }
+  return {
+    W,
+    H,
+    u,
+    gap,
+    radius: opts.radius * u,
+    fade,
+    seam: fade > 0 ? seamSides(l.leaves, gap) : new Map(),
+    cells,
+    labelCells,
+  }
 }
 
 /**
- * Clip each photo into its pane, draw it placed, then its stickers; each
- *  photo's full bitmap is decoded once and released right after its cell.
+ * Draw one photo with feathered seam edges: painted into a scratch canvas,
+ *  alpha-masked per seam edge with successive destination-in gradient fills
+ *  (each fill multiplies the alpha, so edges combine), then stamped into the
+ *  pane rect. The caller's roundRect clip still rounds the corners.
+ */
+function drawFadedPhoto(
+  ctx: CanvasRenderingContext2D,
+  src: CanvasImageSource,
+  p: { x: number, y: number, w: number, h: number },
+  rect: Rect,
+  seam: SeamSides,
+  fade: number,
+) {
+  const solid = 'rgba(0,0,0,1)'
+  const fw = seamFadeWidth(fade, rect)
+  if (fw <= 0) {
+    ctx.drawImage(src, p.x, p.y, p.w, p.h)
+    return
+  }
+  const cw = Math.max(1, Math.ceil(rect.w))
+  const ch = Math.max(1, Math.ceil(rect.h))
+  const scratch = document.createElement('canvas')
+  scratch.width = cw
+  scratch.height = ch
+  const sc = scratch.getContext('2d')!
+  sc.imageSmoothingQuality = 'high'
+  sc.drawImage(src, p.x - rect.x, p.y - rect.y, p.w, p.h)
+  sc.globalCompositeOperation = 'destination-in'
+  const fadeFill = (g: CanvasGradient) => {
+    sc.fillStyle = g
+    sc.fillRect(0, 0, cw, ch)
+  }
+  if (seam.left) {
+    const g = sc.createLinearGradient(0, 0, fw, 0)
+    g.addColorStop(0, 'rgba(0,0,0,0)')
+    g.addColorStop(1, solid)
+    fadeFill(g)
+  }
+  if (seam.right) {
+    const g = sc.createLinearGradient(cw, 0, cw - fw, 0)
+    g.addColorStop(0, 'rgba(0,0,0,0)')
+    g.addColorStop(1, solid)
+    fadeFill(g)
+  }
+  if (seam.top) {
+    const g = sc.createLinearGradient(0, 0, 0, fw)
+    g.addColorStop(0, 'rgba(0,0,0,0)')
+    g.addColorStop(1, solid)
+    fadeFill(g)
+  }
+  if (seam.bottom) {
+    const g = sc.createLinearGradient(0, ch, 0, ch - fw)
+    g.addColorStop(0, 'rgba(0,0,0,0)')
+    g.addColorStop(1, solid)
+    fadeFill(g)
+  }
+  ctx.drawImage(scratch, rect.x, rect.y, rect.w, rect.h)
+}
+
+/**
+ * The shared blurred backdrop field (backdrop mode): every photo painted
+ *  unclipped and blurred behind the panes, so their feathered edges melt
+ *  into one continuous field. Mirrors the preview's SeamBackdrop layer.
+ */
+async function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions) {
+  if (typeof ctx.filter !== 'string' || prep.fade <= 0)
+    return
+  const R = Math.max(prep.u * 40, prep.fade)
+  ctx.save()
+  ctx.globalAlpha = Math.max(0, Math.min(1, opts.edgeFadeStrength / 100))
+  for (const { leaf, rect, photo } of prep.cells) {
+    const src = await decodeFull(photo)
+    if (!src)
+      continue
+    const p = placement(rect, leaf, photo.trueW, photo.trueH)
+    ctx.save()
+    ctx.filter = `blur(${R}px)`
+    ctx.drawImage(src, p.x, p.y, p.w, p.h)
+    ctx.restore()
+    releaseFull(src)
+  }
+  ctx.restore()
+}
+
+/**
+ * Clip each photo into its pane, draw it placed (feathered at seams), then
+ *  its stickers; each photo's full bitmap is decoded once and released right
+ *  after its cell.
  */
 async function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions) {
   const stickerSrcs = new Map<string, Awaited<ReturnType<typeof decodeFull>>>()
@@ -100,7 +203,11 @@ async function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opt
     ctx.save()
     roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
     ctx.clip()
-    ctx.drawImage(src, p.x, p.y, p.w, p.h)
+    const seam = prep.seam.get(leaf.id)
+    if (seam && (seam.left || seam.right || seam.top || seam.bottom))
+      drawFadedPhoto(ctx, src, p, rect, seam, prep.fade)
+    else
+      ctx.drawImage(src, p.x, p.y, p.w, p.h)
     await drawStickers(ctx, p, leaf, opts.photos, stickerSrcs)
     ctx.restore()
     releaseFull(src)
@@ -186,6 +293,8 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
   ctx.imageSmoothingQuality = 'high'
 
   const prep = prepare(opts, W, H)
+  // The blurred field goes under the panes; their feathered edges melt into it.
+  await drawBackdrop(ctx, prep, opts)
   await drawPhotoCells(ctx, prep, opts)
   await ensureLabelFonts(prep)
   drawLabelCells(ctx, prep)

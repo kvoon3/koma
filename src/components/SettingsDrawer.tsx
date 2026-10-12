@@ -19,6 +19,9 @@ type BgMode = 'black' | 'white' | 'transparent' | 'custom'
 export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () => void }) {
   const gap = useStore(s => s.gap)
   const radius = useStore(s => s.radius)
+  const edgeFade = useStore(s => s.edgeFade)
+  const edgeFadeStrength = useStore(s => s.edgeFadeStrength)
+  const paneBorder = useStore(s => s.paneBorder)
   const bg = useStore(s => s.bg)
   const patch = useStore(s => s.patch)
   const t = useT()
@@ -147,6 +150,59 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                       {(radius / 10).toFixed(1)}
                       %
                     </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Blend width')}</span>
+                    <Slider.Root
+                      className="min-w-[140px] flex-1"
+                      min={0}
+                      max={250}
+                      value={edgeFade}
+                      onValueChange={v => patch({ edgeFade: v })}
+                    >
+                      <Slider.Control className="flex touch-none select-none items-center py-2">
+                        <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
+                          <Slider.Indicator className="bg-accent" />
+                          <Slider.Thumb className="box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2" aria-label={t('Blend width')} />
+                        </Slider.Track>
+                      </Slider.Control>
+                    </Slider.Root>
+                    <span className="flex-none basis-[46px] text-xs text-accent tabular-nums">
+                      {(edgeFade / 10).toFixed(1)}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Blend strength')}</span>
+                    <Slider.Root
+                      className="min-w-[140px] flex-1"
+                      min={0}
+                      max={100}
+                      value={edgeFadeStrength}
+                      onValueChange={v => patch({ edgeFadeStrength: v })}
+                    >
+                      <Slider.Control className="flex touch-none select-none items-center py-2">
+                        <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
+                          <Slider.Indicator className="bg-accent" />
+                          <Slider.Thumb className="box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2" aria-label={t('Blend strength')} />
+                        </Slider.Track>
+                      </Slider.Control>
+                    </Slider.Root>
+                    <span className="flex-none basis-[46px] text-xs text-accent tabular-nums">
+                      {edgeFadeStrength}
+                      %
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Pane border')}</span>
+                    <Switch.Root
+                      className="group/switch relative box-border inline-flex h-5 w-[34px] cursor-pointer rounded-none border border-line bg-panel-2 p-0 transition-colors duration-[120ms] data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2"
+                      aria-label={t('Pane border')}
+                      checked={paneBorder}
+                      onCheckedChange={checked => patch({ paneBorder: checked })}
+                    >
+                      <Switch.Thumb className="block m-0.5 h-3.5 w-3.5 rounded-none bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-[120ms] group-data-checked/switch:translate-x-3.5" />
+                    </Switch.Root>
                   </div>
                 </section>
 

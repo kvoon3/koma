@@ -32,6 +32,8 @@ function exportOptions(): ExportOptions {
     gap: s.gap,
     radius: s.radius,
     bg: s.bg,
+    edgeFade: s.edgeFade,
+    edgeFadeStrength: s.edgeFadeStrength,
     photos: photoMap(s.photos),
     longSide: s.longSide,
   }
@@ -50,6 +52,8 @@ async function exportGrid() {
       gap: s.gap,
       radius: s.radius,
       bg: s.bg,
+      edgeFade: s.edgeFade,
+      edgeFadeStrength: s.edgeFadeStrength,
       photos: photoMap(s.photos),
       longSide: s.longSide,
     })

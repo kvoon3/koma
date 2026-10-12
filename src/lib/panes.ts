@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 export interface Rect {
   x: number
   y: number
@@ -262,6 +264,85 @@ export function dividerLine(d: Divider, gap: number): { x?: number, y?: number }
     return { x: d.area.x + (d.area.w - gap) * d.ratio + gap / 2 }
   }
   return { y: d.area.y + (d.area.h - gap) * d.ratio + gap / 2 }
+}
+
+/** Which edges of a pane face another photo-bearing pane across the gap. */
+export interface SeamSides {
+  left: boolean
+  right: boolean
+  top: boolean
+  bottom: boolean
+}
+
+/** Mark which edges of `ra` face `rb` across the gap. */
+function markSides(sides: SeamSides, ra: Rect, rb: Rect, tol: number) {
+  const overlapY = Math.min(ra.y + ra.h, rb.y + rb.h) - Math.max(ra.y, rb.y)
+  const overlapX = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x)
+  if (overlapY > 0.5) {
+    if (Math.abs(rb.x - (ra.x + ra.w)) <= tol)
+      sides.right = true
+    if (Math.abs(ra.x - (rb.x + rb.w)) <= tol)
+      sides.left = true
+  }
+  if (overlapX > 0.5) {
+    if (Math.abs(rb.y - (ra.y + ra.h)) <= tol)
+      sides.bottom = true
+    if (Math.abs(ra.y - (rb.y + rb.h)) <= tol)
+      sides.top = true
+  }
+}
+
+/**
+ * Seam edges per leaf: an edge counts when another leaf WITH a photo sits
+ *  beside it across the gap (flush at gap=0). Feathers only run between
+ *  photos, never against empty panes or the canvas border.
+ */
+export function seamSides(
+  leaves: { node: Leaf, rect: Rect }[],
+  gap: number,
+): Map<string, SeamSides> {
+  const out = new Map<string, SeamSides>()
+  for (const { node } of leaves)
+    out.set(node.id, { left: false, right: false, top: false, bottom: false })
+  const tol = gap + 0.5
+  for (const { node: a, rect: ra } of leaves) {
+    for (const { node: b, rect: rb } of leaves) {
+      if (a.id === b.id || !b.photoId)
+        continue
+      markSides(out.get(a.id)!, ra, rb, tol)
+    }
+  }
+  return out
+}
+
+/** Feather width for a pane, clamped so opposed fades never eat the whole cell. */
+export function seamFadeWidth(fade: number, rect: Rect) {
+  return Math.max(0, Math.min(fade, rect.w / 2, rect.h / 2))
+}
+
+/** CSS mask feathering a pane's seam edges; undefined when nothing fades. */
+export function seamMaskStyle(seam: SeamSides | undefined, w: number): CSSProperties | undefined {
+  if (!seam || w <= 0)
+    return undefined
+  const solid = '#000'
+  const parts: string[] = []
+  if (seam.left)
+    parts.push(`linear-gradient(to right, transparent, ${solid} ${w}px)`)
+  if (seam.right)
+    parts.push(`linear-gradient(to left, transparent, ${solid} ${w}px)`)
+  if (seam.top)
+    parts.push(`linear-gradient(to bottom, transparent, ${solid} ${w}px)`)
+  if (seam.bottom)
+    parts.push(`linear-gradient(to top, transparent, ${solid} ${w}px)`)
+  if (!parts.length)
+    return undefined
+  const image = parts.join(', ')
+  return {
+    maskImage: image,
+    WebkitMaskImage: image,
+    maskComposite: 'intersect',
+    WebkitMaskComposite: 'source-in',
+  }
 }
 
 export function ratioFromPointer(

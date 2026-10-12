@@ -42,6 +42,9 @@ export interface State {
   gap: number
   radius: number
   bg: string
+  edgeFade: number
+  edgeFadeStrength: number
+  paneBorder: boolean
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
@@ -59,6 +62,9 @@ export interface State {
 export const GAP = 0
 export const RADIUS = 0
 export const BG = '#000000'
+export const EDGE_FADE = 60
+export const EDGE_FADE_STRENGTH = 100
+export const PANE_BORDER = false
 export const MIN_PANE_PX = 56
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
@@ -102,6 +108,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   gap: GAP,
   radius: RADIUS,
   bg: BG,
+  edgeFade: EDGE_FADE,
+  edgeFadeStrength: EDGE_FADE_STRENGTH,
+  paneBorder: PANE_BORDER,
   longSide: 2048,
   format: 'image/jpeg',
   quality: 0.92,
@@ -453,7 +462,14 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // Visual settings survive reloads; the rest of the state (workspaces,
   // photos) stays session-only.
   name: 'collage:settings',
-  partialize: state => ({ gap: state.gap, radius: state.radius, bg: state.bg }),
+  partialize: state => ({
+    gap: state.gap,
+    radius: state.radius,
+    bg: state.bg,
+    edgeFade: state.edgeFade,
+    edgeFadeStrength: state.edgeFadeStrength,
+    paneBorder: state.paneBorder,
+  }),
 }))
 
 function patchStickerIn(
@@ -479,6 +495,7 @@ export interface Derived {
   dividers: Divider[]
   gap: number
   radius: number
+  fade: number
   unit: number
 }
 
@@ -505,6 +522,7 @@ export function computeLayout(
   availH: number,
   gapValue: number,
   radiusValue: number,
+  fadeValue: number,
 ): Derived {
   const fit = fitCanvas(canvasRatio, availW, availH)
   const W = Math.max(80, Math.round(fit.W * canvasFill))
@@ -512,7 +530,7 @@ export function computeLayout(
   const u = Math.min(W, H) / 1000
   const gap = gapValue * u
   const l = layoutTree(root, W, H, gap)
-  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, unit: u }
+  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, fade: fadeValue * u, unit: u }
 }
 
 interface Actions {
