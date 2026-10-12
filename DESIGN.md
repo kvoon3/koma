@@ -33,7 +33,7 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Two buttons at the top center of a focused pane | Split it top/bottom or left/right (a pane shows its buttons only while focused, never on hover) |
+| Split chip: faded in at the top center of a pane you hover, or in the page row between back and reset for the focused pane | Split it top/bottom or left/right |
 | Tools panel above the footer | An overlay, so it never takes layout space: pulled open by the handle centered on its top edge, collapsed it rests behind the footer with only the handle showing. Focusing another pane pulls it open by itself; a manual collapse sticks until the focus moves. Sticker / Make sticker / Replace / Text act on the focused pane; an empty pane offers only "Choose a photo". The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
@@ -98,7 +98,7 @@ Settings; the ratio comes from `ratio`).
 ┌───────────────────────────────────────────────┐
 │ Top: Photo▾ Help▾        [Settings][Export][🌙] │ ← actions at the top right
 ├───────────────────────────────────────────────┤
-│ [←]                    [↺]                    │ ← floating under the top bar
+│ [←]                  [⌸⌸]                  [↺] │ ← floating under the top bar: back, split chip, reset
 │                 Stage                         │
 │   ⌃ [sticker] [replace] [text] (pull-up)      │
 ├───────────────────────────────────────────────┤
@@ -107,12 +107,14 @@ Settings; the ratio comes from `ratio`).
 ```
 
 The old status-bar stats (panes / filled / focus) are gone; the footer shows
-the canvas ratio and the output size. A pane shows its buttons only while it
-is focused, never on hover: the two split buttons at the top center and the
-× close button at the top right. The focused pane's tools (sticker / replace
-photo / text label) live in a panel that overlays the canvas above the
-footer, pulled open by the handle on its top edge or by focusing another
-pane (Esc puts it back).
+the canvas ratio and the output size. The split chip is a pane's only hover
+chrome: hovering a pane fades it in at that pane's top center, while the
+focused pane's chip rides in the page row between the back and reset buttons,
+so it never covers the pane it splits. Everything else a pane shows stays
+focus-only, the × close button at the top right. The focused pane's tools
+(sticker / replace photo / text label) live in a panel that overlays the
+canvas above the footer, pulled open by the handle on its top edge or by
+focusing another pane (Esc puts it back).
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export and the theme toggle sit at
@@ -240,7 +242,7 @@ src/
     Stage.tsx        canvas: computes layout, renders panes, dividers and the tools panel
     Pane.tsx         one pane: photo, pan/zoom, split buttons, drop target
     TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
-    FloatActions.tsx floating back / reset buttons under the top bar
+    FloatActions.tsx floating back / split / reset buttons under the top bar
     LibraryDrawer.tsx / Library.tsx
     SettingsDrawer.tsx
     HelpOverlay.tsx
