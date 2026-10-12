@@ -3,11 +3,52 @@ import { plugin as shadcn } from '@shadcn/lint'
 import tsParser from '@typescript-eslint/parser'
 import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect'
 
+// Ban comments written in Chinese (CJK ideographs).
+const noChineseComment = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      chinese: 'Comments must be written in English; found Chinese character "{{ char }}".',
+    },
+  },
+  create(context) {
+    const sourceCode = context.sourceCode ?? context.getSourceCode()
+    const cjk = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u
+    return {
+      Program() {
+        for (const comment of sourceCode.getAllComments()) {
+          const char = comment.value.match(cjk)?.[0]
+          if (char)
+            context.report({ node: comment, messageId: 'chinese', data: { char }, loc: comment.loc })
+        }
+      },
+    }
+  },
+}
+
 export default antfu({
   type: 'app',
   antislop: true,
   react: true,
   typescript: true,
+}, {
+  name: 'local/no-chinese-comment',
+  plugins: {
+    local: { rules: { 'no-chinese-comment': noChineseComment } },
+  },
+  rules: {
+    'local/no-chinese-comment': 'error',
+  },
+}, {
+  // espree-scoped .js/.mjs files break unused-imports/no-unused-vars (it delegates to
+  // typescript-eslint's rule, which misreads espree references as type-only usage).
+  // Parse plain JS with the TypeScript parser instead.
+  files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
+  languageOptions: {
+    parser: tsParser,
+    parserOptions: { ecmaFeatures: { jsx: true } },
+  },
 }, {
   files: ['src/**/*.tsx'],
   languageOptions: {
