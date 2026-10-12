@@ -1,3 +1,4 @@
+import type { Workspace } from '../store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft, RotateCcw } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -15,10 +16,11 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
 
 /**
  * Floating page chrome just under the top bar: back-to-grid on the left
- * (edit view only) and reset-workspace on the right (both views, always
- * aimed at the active workspace). Floating keeps the top bar to menus and
- * export; the buttons hover over the stage / grid instead of taking layout
- * space, and sit below the drawers (z-44) so an open drawer covers them.
+ * (edit view only) and reset-workspace on the right (both views: the active
+ * workspace in the editor, all nine from the grid overview). Floating keeps
+ * the top bar to menus and export; the buttons hover over the stage / grid
+ * instead of taking layout space, and sit below the drawers (z-44) so an
+ * open drawer covers them.
  */
 export function FloatActions() {
   const navigate = useNavigate()
@@ -29,14 +31,15 @@ export function FloatActions() {
   // 1-based grid position of the active workspace: it names the reset target
   // in the confirm (the grid itself carries no active-cell marker).
   const pos = useStore(s => s.workspaces.findIndex(w => w.id === s.activeId) + 1)
-  // A workspace that is still a fresh blank canvas has nothing to reset.
+  // Nothing to reset while every target is still a fresh blank canvas: the
+  // active workspace in the editor, all nine in the grid overview.
   const resettable = useStore((s) => {
-    const w = s.workspaces.find(x => x.id === s.activeId)
-    if (!w)
-      return false
-    const r = w.root
-    return r.type !== 'leaf' || r.photoId != null || r.label != null || r.stickers.length > 0
-      || w.canvasRatio != null || w.canvasFill !== 1
+    const dirty = (w: Workspace) => {
+      const r = w.root
+      return r.type !== 'leaf' || r.photoId != null || r.label != null || r.stickers.length > 0
+        || w.canvasRatio != null || w.canvasFill !== 1
+    }
+    return (grid ? s.workspaces : s.workspaces.filter(w => w.id === s.activeId)).some(dirty)
   })
 
   const goGrid = () => {
@@ -45,9 +48,13 @@ export function FloatActions() {
   }
 
   const doReset = () => {
-    useStore.getState().resetWorkspace(useStore.getState().activeId)
+    const s = useStore.getState()
+    if (grid)
+      s.resetAllWorkspaces()
+    else
+      s.resetWorkspace(s.activeId)
     setResetAsk(false)
-    say(t('Workspace reset'))
+    say(grid ? t('All workspaces reset') : t('Workspace reset'))
   }
 
   return (
@@ -68,11 +75,11 @@ export function FloatActions() {
       )}
 
       <Tip
-        label={t('Reset this workspace')}
+        label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
         trigger={(
           <button
             className={`${btnCls} absolute right-2.5 top-2.5`}
-            aria-label={t('Reset this workspace')}
+            aria-label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
             disabled={!resettable}
             onClick={() => setResetAsk(true)}
           >
@@ -83,9 +90,11 @@ export function FloatActions() {
 
       <ConfirmDialog
         open={resetAsk}
-        title={t('Reset this workspace?')}
-        description={t('This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.', { n: pos })}
-        confirmLabel={t('Reset')}
+        title={grid ? t('Reset all workspaces?') : t('Reset this workspace?')}
+        description={grid
+          ? t('This clears the pane layout and photo placement of all 9 workspaces. Photos stay in the library. This cannot be undone.')
+          : t('This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.', { n: pos })}
+        confirmLabel={grid ? t('Reset all') : t('Reset')}
         danger
         onClose={() => setResetAsk(false)}
         onConfirm={doReset}

@@ -24,7 +24,7 @@ const KEYS: [string, string][] = [
 
 const MOUSE: [string, string][] = [
   ['Back button floating at the top left', 'Back to the 3×3 workspace grid (edit view only)'],
-  ['Reset button floating at the top right', 'Reset the active workspace to a single blank pane (asks first); its photos fall back to the library'],
+  ['Reset button floating at the top right', 'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library'],
   ['Two buttons at the top center of a focused pane', 'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)'],
   ['Tools panel above the footer', 'Opens by itself when the focus moves to another pane; pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
