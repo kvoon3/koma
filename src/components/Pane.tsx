@@ -7,6 +7,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePreview } from '../hooks'
 import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
@@ -23,6 +24,18 @@ const menuItemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-no
 const menuSeparatorCls = 'mx-1 my-1 h-px border-0 bg-line'
 
 const dropBtnCls = 'flex w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-2 text-xs text-txt hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
+
+// Dragging a photo this many px past its pane's edge upgrades a pan into a
+// swap drag (carrying the photo onto another pane).
+const SWAP_EDGE = 12
+
+interface Gesture {
+  mode: 'pan' | 'pinch' | 'swap'
+  lastX: number
+  lastY: number
+  startDist: number
+  base: Leaf
+}
 
 const LABEL_FONT_ITEMS = [
   { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
@@ -747,13 +760,7 @@ function PaneImpl({
   }, [navigate])
 
   const pointersRef = useRef(new Map<number, { x: number, y: number }>())
-  const gestureRef = useRef<{
-    mode: 'pan' | 'pinch'
-    lastX: number
-    lastY: number
-    startDist: number
-    base: Leaf
-  } | null>(null)
+  const gestureRef = useRef<Gesture | null>(null)
   // Whether the active touch gesture already focused this pane. Touch defers
   // focus to the first move or the release, so a long-press opens the pane's
   // context menu with this pane still unfocused, the same state a desktop
@@ -761,6 +768,46 @@ function PaneImpl({
   const touchFocusedRef = useRef(true)
   const [dropping, setDropping] = useState(false)
   const [editing, setEditing] = useState(false)
+
+  // ---- Drag-out photo swap --------------------------------------------------
+  // Panning past the pane's edge carries the photo out as a ghost; dropping
+  // it on another pane swaps the two photos. The hovered target highlights
+  // imperatively via a data-swap-over attribute (see index.css); dropping
+  // nowhere, on the source pane, or a pointercancel cancels.
+  const [swapAt, setSwapAt] = useState<{ x: number, y: number } | null>(null)
+  const overRef = useRef<HTMLElement | null>(null)
+  const clearSwapOver = useCallback(() => {
+    if (overRef.current) {
+      delete overRef.current.dataset.swapOver
+      overRef.current = null
+    }
+  }, [])
+  const swapOverAt = useCallback((x: number, y: number) => {
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-pane-id]') ?? null
+    const target = el && el.dataset.paneId !== leaf.id ? el : null
+    if (overRef.current !== target) {
+      clearSwapOver()
+      if (target) {
+        target.dataset.swapOver = '1'
+        overRef.current = target
+      }
+    }
+  }, [leaf.id, clearSwapOver])
+  const endSwapDrag = useCallback((commit: boolean) => {
+    const targetId = overRef.current?.dataset.paneId
+    clearSwapOver()
+    document.body.style.cursor = ''
+    setSwapAt(null)
+    if (commit && targetId) {
+      const s = useStore.getState()
+      s.swapPhotos(leaf.id, targetId)
+      s.focus(targetId)
+    }
+  }, [leaf.id, clearSwapOver])
+  useEffect(() => () => {
+    clearSwapOver()
+    document.body.style.cursor = ''
+  }, [clearSwapOver])
   // A drop on a pane that already holds a photo asks what the image should
   // become; `at` is the drop point in pane-normalized coords for stickers.
   const [dropChoice, setDropChoice] = useState<{ photos: Photo[], at: { x: number, y: number } } | null>(null)
@@ -876,6 +923,9 @@ function PaneImpl({
     // touch defers focus to the first move or release (see touchFocusedRef).
     if (e.button !== 0)
       return
+    // A second pointer while carrying a photo out must not start a new gesture.
+    if (gestureRef.current?.mode === 'swap')
+      return
     const touch = e.pointerType !== 'mouse'
     touchFocusedRef.current = !touch
     if (!touch)
@@ -910,6 +960,34 @@ function PaneImpl({
     }
   }
 
+  // Single-pointer pan; dragging past the pane's edge upgrades it into a
+  // swap drag instead of panning further.
+  const panMove = (e: React.PointerEvent, g: Gesture) => {
+    const r = elRef.current?.getBoundingClientRect()
+    if (r && Math.max(r.left - e.clientX, e.clientX - r.right, r.top - e.clientY, e.clientY - r.bottom) >= SWAP_EDGE) {
+      clearHold()
+      downAtRef.current = null
+      setLiveFor(null)
+      gestureRef.current = { mode: 'swap', lastX: 0, lastY: 0, startDist: 0, base: g.base }
+      document.body.style.cursor = 'grabbing'
+      setSwapAt({ x: e.clientX, y: e.clientY })
+      swapOverAt(e.clientX, e.clientY)
+      return
+    }
+    const p = local(e.clientX, e.clientY)
+    // Dragging means panning, not holding; cancel the Live Photo timer.
+    if (holdTimerRef.current != null && downAtRef.current
+      && Math.hypot(e.clientX - downAtRef.current.x, e.clientY - downAtRef.current.y) > 5) {
+      clearHold()
+    }
+    const dx = p.x - g.lastX
+    const dy = p.y - g.lastY
+    g.lastX = p.x
+    g.lastY = p.y
+    const pl = placement(cell, leaf, iw, ih)
+    commit({ ...leaf, cx: leaf.cx - dx / pl.w, cy: leaf.cy - dy / pl.h })
+  }
+
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointersRef.current.has(e.pointerId))
       return
@@ -926,18 +1004,12 @@ function PaneImpl({
       return
 
     if (g.mode === 'pan' && pointersRef.current.size === 1) {
-      const p = local(e.clientX, e.clientY)
-      // Dragging means panning, not holding; cancel the Live Photo timer.
-      if (holdTimerRef.current != null && downAtRef.current
-        && Math.hypot(e.clientX - downAtRef.current.x, e.clientY - downAtRef.current.y) > 5) {
-        clearHold()
-      }
-      const dx = p.x - g.lastX
-      const dy = p.y - g.lastY
-      g.lastX = p.x
-      g.lastY = p.y
-      const pl = placement(cell, leaf, iw, ih)
-      commit({ ...leaf, cx: leaf.cx - dx / pl.w, cy: leaf.cy - dy / pl.h })
+      panMove(e, g)
+      return
+    }
+    if (g.mode === 'swap' && pointersRef.current.size === 1) {
+      setSwapAt({ x: e.clientX, y: e.clientY })
+      swapOverAt(e.clientX, e.clientY)
       return
     }
     if (g.mode === 'pinch' && pointersRef.current.size >= 2) {
@@ -965,12 +1037,16 @@ function PaneImpl({
       touchFocusedRef.current = true
       onFocus(leaf.id)
     }
+    const g = gestureRef.current
     pointersRef.current.delete(e.pointerId)
     if (pointersRef.current.size === 0) {
       gestureRef.current = null
       clearHold()
       downAtRef.current = null
       setLiveFor(null)
+      // pointerup over another pane commits the swap; pointercancel drops it.
+      if (g?.mode === 'swap')
+        endSwapDrag(e.type === 'pointerup')
     }
     else {
       const only = [...pointersRef.current.values()][0]
@@ -985,6 +1061,7 @@ function PaneImpl({
   const onMenuOpenChange = (open: boolean) => {
     if (!open)
       return
+    endSwapDrag(false)
     const el = elRef.current
     if (el) {
       for (const id of [...pointersRef.current.keys()]) {
@@ -1038,6 +1115,10 @@ function PaneImpl({
   // it visually); stickers/labels stay sharp above it.
   const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
 
+  // The carried photo rides the pointer at roughly its pane size (capped).
+  const ghostW = Math.min(rect.w, 180)
+  const ghostH = iw ? (ghostW * ih) / iw : ghostW
+
   const toCanvas = useCallback(
     (clientX: number, clientY: number) => {
       const b = elRef.current?.getBoundingClientRect()
@@ -1048,7 +1129,7 @@ function PaneImpl({
     [rect.x, rect.y],
   )
 
-  const swapWithFocused = useStore(s => s.swapPhotos)
+  const swapPhotos = useStore(s => s.swapPhotos)
   // A swap needs a target other than this pane: on desktop that's any right
   // click on an unfocused pane, on touch it's a long-press (focus was
   // deferred, so the previously focused pane is still the target).
@@ -1230,6 +1311,25 @@ function PaneImpl({
         </div>
       )}
 
+      {/* The dragged-out photo follows the pointer in a portal above everything. */}
+      {swapAt && preview && createPortal(
+        <img
+          src={preview.url}
+          alt=""
+          draggable={false}
+          className="pointer-events-none fixed z-[80] block max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+          style={{
+            left: swapAt.x,
+            top: swapAt.y,
+            width: ghostW,
+            height: ghostH,
+            borderRadius: radius,
+            transform: 'translate(-50%, -55%)',
+          }}
+        />,
+        document.body,
+      )}
+
       {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
       {/* Drawn last so the pane border stays above its photo/stickers. */}
@@ -1257,7 +1357,7 @@ function PaneImpl({
             {swapTargetId && (
               <>
                 <ContextMenu.Separator className={menuSeparatorCls} />
-                <ContextMenu.Item className={menuItemCls} onClick={() => swapWithFocused(leaf.id, swapTargetId)}>
+                <ContextMenu.Item className={menuItemCls} onClick={() => swapPhotos(leaf.id, swapTargetId)}>
                   <MorphIcon icon={ArrowLeftRight} size={13} strokeWidth={1.75} className="text-dim" />
                   {t('Swap with focused pane')}
                 </ContextMenu.Item>

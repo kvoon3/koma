@@ -28,6 +28,7 @@ const MOUSE: [string, string][] = [
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],
+  ['Drag a photo out of its pane', 'Carry it onto another pane to swap the two photos (an empty pane takes it in); release anywhere else to cancel'],
   ['Scroll / pinch', 'Zoom the photo around the cursor'],
   ['Pinch past the minimum zoom (or pinch an empty pane)', 'Zoom out all the way into the 3×3 grid overview'],
   ['Double-click inside a pane', 'Reset the photo in that pane'],
