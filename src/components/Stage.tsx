@@ -1,6 +1,7 @@
+import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Rect } from '../lib/panes'
-import { ImagePlus, Sticker as StickerIcon, Type } from 'lucide'
+import { ChevronDown, ChevronUp, ImagePlus, Sticker as StickerIcon, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -13,12 +14,27 @@ import { Pane } from './Pane'
 const HIT_MIN = 15
 const MIN_CANVAS = 120
 
-/* The focused pane's tools: a row above the footer, always reserved so that
-   focusing a pane never resizes the canvas. The chip acts on the focused pane
-   and hides with no focus; split buttons live on the pane itself. */
-const barRowCls = 'flex w-full flex-none items-center justify-center px-3 py-1.5'
-const barChipCls = 'flex items-center gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms]'
-const barBtnCls = 'grid h-[30px] w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon hover:bg-chip-hover hover:text-txt'
+/* The focused pane's tools: an overlay above the footer, pulled open by the
+   handle on its top edge. Overlaying keeps the canvas at full size; collapsed,
+   the panel rests behind the footer (z-40) with only the handle showing. */
+const toolsPanelCls = 'pointer-events-auto relative mb-2 w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-[260ms] ease-(--ease-drawer)'
+const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-opacity duration-[160ms] hover:text-txt'
+const toolsBtnCls = 'flex w-[120px] cursor-pointer flex-col items-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent p-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt'
+const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
+
+function ToolButton({ icon, label, hint, onClick }: {
+  icon: IconInput
+  label: string
+  hint: string
+  onClick: () => void
+}) {
+  return (
+    <button className={toolsBtnCls} title={hint} onClick={onClick}>
+      <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
+      <span className={toolsLabelCls}>{label}</span>
+    </button>
+  )
+}
 
 function ResizeIcon() {
   return (
@@ -68,6 +84,8 @@ export function Stage() {
   const closePane = useStore(s => s.closePane)
   const resizeSplit = useStore(s => s.resizeSplit)
   const setCanvasSize = useStore(s => s.setCanvasSize)
+  const toolsOpen = useStore(s => s.toolsOpen)
+  const setToolsOpen = useStore(s => s.setToolsOpen)
 
   const transparent = isTransparentBg(bg)
 
@@ -244,6 +262,9 @@ export function Stage() {
 
   const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
   const hasPhoto = !!(focusLeaf?.photoId)
+  // The panel is open only for a focused pane, and collapses (without losing
+  // the user's pull-open state) while no pane is focused.
+  const expanded = !!focusLeaf && toolsOpen
 
   return (
     <div
@@ -331,32 +352,41 @@ export function Stage() {
         </div>
       </div>
 
-      <div className={barRowCls}>
-        <div
-          className={`${barChipCls} ${
-            focusLeaf ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-          }`}
+      {/* The focused pane's tools, laid over the canvas so the panel never
+          takes layout space. Collapsed, the panel waits behind the footer
+          (z-40) with only its handle showing, and the handle fades out with
+          the focus. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center">
+        <div className={`${toolsPanelCls} ${
+          expanded ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
+        }`}
         >
-          {focusLeaf && (hasPhoto
-            ? (
-                <>
-                  <button className={barBtnCls} title={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused}>
-                    <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
-                  </button>
-                  <button className={barBtnCls} title={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused}>
-                    <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-                  </button>
-                  <button className={barBtnCls} title={t('Add a text label')} onClick={addLabelToFocused}>
-                    <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
-                  </button>
-                </>
-              )
-            : (
-                // An empty pane has a single tool: put a photo into it.
-                <button className={barBtnCls} title={t('Choose a photo')} onClick={pickForFocused}>
-                  <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-                </button>
-              ))}
+          <button
+            className={`${toolsHandleCls} ${
+              focusLeaf ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+            title={t(expanded ? 'Hide tools' : 'Show tools')}
+            aria-expanded={expanded}
+            aria-label={t(expanded ? 'Hide tools' : 'Show tools')}
+            onClick={() => setToolsOpen(!toolsOpen)}
+          >
+            <MorphIcon icon={expanded ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
+          </button>
+          {/* inert while collapsed: the tools are off-screen behind the footer */}
+          <div className="flex items-start justify-center" inert={!expanded}>
+            {hasPhoto
+              ? (
+                  <>
+                    <ToolButton icon={StickerIcon} label={t('Sticker')} hint={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused} />
+                    <ToolButton icon={ImagePlus} label={t('Replace photo')} hint={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused} />
+                    <ToolButton icon={Type} label={t('Text')} hint={t('Add a text label')} onClick={addLabelToFocused} />
+                  </>
+                )
+              : (
+                  // An empty pane has a single tool: put a photo into it.
+                  <ToolButton icon={ImagePlus} label={t('Choose a photo')} hint={t('Choose a photo')} onClick={pickForFocused} />
+                )}
+          </div>
         </div>
       </div>
     </div>

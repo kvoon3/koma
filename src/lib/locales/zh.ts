@@ -69,6 +69,11 @@ export const zh: Record<string, string> = {
   'Close pane': '关闭窗格',
 
   // Stage
+  'Sticker': '贴纸',
+  'Replace photo': '换照片',
+  'Text': '文字',
+  'Show tools': '拉起工具面板',
+  'Hide tools': '收起工具面板',
   'Drag to change canvas aspect · double-click to reset': '拖动改变画布比例 · 双击恢复',
 
   // Library / LibraryDrawer
@@ -87,7 +92,7 @@ export const zh: Record<string, string> = {
 
   // HelpOverlay
   'How to use': '使用说明',
-  'You start with a single pane. Use the two buttons at the top center of the focused pane to **split** out more panes, and drag dividers to resize them, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) sit in a row above the footer. Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一开始只有一个窗格。用聚焦窗格顶部中央的两个按钮**拆分**出更多窗格，拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴纸 / 替换照片 / 文字）排在底部栏上方的一行里。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着九个工作区：3×3 网格可以总览全部，拖动即可重新排序，点击其中一个即可编辑。',
+  'You start with a single pane. Use the two buttons at the top center of the focused pane to **split** out more panes, and drag dividers to resize them, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, pulled open by the handle on its top edge. Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一开始只有一个窗格。用聚焦窗格顶部中央的两个按钮**拆分**出更多窗格，拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴纸 / 替换照片 / 文字）在一个底部栏上方的面板里，用面板上边缘的把手拉起。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着九个工作区：3×3 网格可以总览全部，拖动即可重新排序，点击其中一个即可编辑。',
   'Keyboard': '键盘',
   'Mouse / Trackpad': '鼠标 / 触控板',
   'Focus the pane left / down / up / right': '聚焦左 / 下 / 上 / 右的窗格',
@@ -104,11 +109,11 @@ export const zh: Record<string, string> = {
   'Export crop params (ImageMagick command)': '导出裁剪参数（ImageMagick 命令）',
   'This help': '本帮助',
   'Open the highlighted grid cell (grid view only)': '打开高亮的网格单元（仅网格视图）',
-  'Close drawer / deselect label / back to the grid': '关闭抽屉 / 取消选中文字 / 返回九宫格',
+  'Put the tools panel back / close drawer / deselect label / back to the grid': '收起工具面板 / 关闭抽屉 / 取消选中文字 / 返回九宫格',
   'Two buttons at the top center of a focused pane': '聚焦窗格顶部中央的两个按钮',
   'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)': '上下或左右拆分（窗格只在聚焦时显示按钮，悬停不再显示）',
-  'Sticker / Replace / Text above the footer': '底部栏上方的贴纸 / 替换 / 文字',
-  'The focused pane\'s tools: pick stickers onto its photo, replace its photo, add a text label (an empty pane offers only "Choose a photo")': '聚焦窗格的工具：把贴纸钉到照片上、替换照片、添加文字（空窗格只提供「选择照片」）',
+  'Tools panel above the footer': '底部栏上方的工具面板',
+  'Pull it open with the handle on its top edge: act on the focused pane by pinning stickers onto its photo, replacing its photo, or adding a text label (an empty pane offers only "Choose a photo")': '用面板上边缘的把手把它拉起，作用对象是聚焦窗格：把贴纸钉到照片上、替换照片、添加文字（空窗格只提供「选择照片」）',
   'Drag the divider between panes': '拖动窗格之间的分隔条',
   'Resize that split; only the two adjacent panes are affected': '调整该分割的大小，只影响相邻的两个窗格',
   'Drag the handle at the bottom-right of the canvas': '拖动画布右下角的手柄',
@@ -128,14 +133,14 @@ export const zh: Record<string, string> = {
   'Long-press a pane (touch)': '长按窗格（触屏）',
   'Same menu as right-click; the tap-to-focus happens on release, so “swap with focused pane” works like a right-click': '与右键相同的菜单；点击聚焦在松手时发生，所以「与聚焦窗格交换」表现和右键一致',
   '“Choose a photo” in an empty pane': '空窗格里的「选择照片」',
-  'An empty pane is a placeholder icon: focus it and pick “Choose a photo” above the footer, or drop a file straight onto the pane': '空窗格只是一个占位图标：先聚焦它，再点底部栏上方的「选择照片」，或直接把文件拖到窗格上',
+  'An empty pane is a placeholder icon: focus it and pick “Choose a photo” in the tools panel above the footer, or drop a file straight onto the pane': '空窗格只是一个占位图标：先聚焦它，再点底部栏上方工具面板里的「选择照片」，或直接把文件拖到窗格上',
   'Drop a photo onto a pane': '把照片拖到窗格上',
   'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)': '空窗格会直接接收；已有照片的窗格会询问「用作照片」还是「用作贴纸」（可多选）',
   'Press and hold inside a pane': '在窗格内长按',
   'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop; export always uses the still': '播放实况照片的视频（拖入的 IMG_1234.HEIC + IMG_1234.MOV 会自动配对）；松手停止；导出始终使用静帧',
-  '"Sticker" in the tools row': '工具条里的「贴纸」',
+  '"Sticker" in the tools panel': '工具面板里的「贴纸」',
   'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete': '选择一张图片钉到聚焦窗格的照片上（比如遮住人脸）；点击可选中；手柄会像文字一样保持显示；拖动移动，角上缩放，× 删除',
-  '"Text" in the tools row': '工具条里的「文字」',
+  '"Text" in the tools panel': '工具面板里的「文字」',
   'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect': '给聚焦窗格添加文字（默认黑底白字）；点击可选中并固定它的工具栏（字体选择器 + 黑 / 白切换，离线时回退到系统字体）；拖动移动，角上缩放，双击编辑，点击别处或按 Esc 取消选中',
   'Close': '关闭',
 

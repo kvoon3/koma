@@ -57,6 +57,8 @@ export interface State {
    * repeated requests for the same pane still fire.
    */
   labelEditReq: { paneId: string, seq: number } | null
+  /** Whether the focused pane's tools panel (Stage's overlay) is pulled open. */
+  toolsOpen: boolean
 }
 
 export const GAP = 0
@@ -117,6 +119,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
+  toolsOpen: false,
 
   addPhotos: (files, autoFill = true) => {
     const { images, videos } = splitLiveFiles(files)
@@ -326,6 +329,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   selectLabel: paneId => set({ labelSel: paneId, stickerSel: null }),
   selectSticker: sel => set({ stickerSel: sel, labelSel: null }),
   requestLabelEdit: paneId => set({ labelEditReq: { paneId, seq: ++labelEditSeq } }),
+  setToolsOpen: open => set({ toolsOpen: open }),
 
   autoFill: () =>
     set((s) => {
@@ -549,6 +553,7 @@ interface Actions {
   selectLabel: (paneId: string | null) => void
   selectSticker: (sel: { paneId: string, stickerId: string } | null) => void
   requestLabelEdit: (paneId: string) => void
+  setToolsOpen: (open: boolean) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
   setCanvasSize: (ratio: number, fill: number) => void
