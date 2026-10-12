@@ -24,7 +24,7 @@ const KEYS: [string, string][] = [
 
 const MOUSE: [string, string][] = [
   ['Two buttons at the top center of a focused pane', 'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)'],
-  ['Tools panel above the footer', 'Pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")'],
+  ['Tools panel above the footer', 'Opens by itself when the focus moves to another pane; pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],

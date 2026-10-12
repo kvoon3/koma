@@ -57,7 +57,11 @@ export interface State {
    * repeated requests for the same pane still fire.
    */
   labelEditReq: { paneId: string, seq: number } | null
-  /** Whether the focused pane's tools panel (Stage's overlay) is pulled open. */
+  /**
+   * Whether the focused pane's tools panel (Stage's overlay) is pulled open.
+   * Focusing another pane pulls it back open; a manual collapse sticks until
+   * the focus moves on.
+   */
   toolsOpen: boolean
 }
 
@@ -92,6 +96,15 @@ export function activeWs(s: State): Workspace {
 /** Map over the active workspace, keeping the array order. */
 function mapActive(s: State, fn: (w: Workspace) => Workspace): Workspace[] {
   return s.workspaces.map(w => (w.id === s.activeId ? fn(w) : w))
+}
+
+/**
+ * Focusing another pane pulls the tools panel open: the panel acts on the
+ * focused pane, so a new focus starts expanded. A collapse only sticks while
+ * the focus stays put; clearing the focus (`''`) changes nothing.
+ */
+function focusPullsTools(prevFocusId: string, focusId: string): Partial<State> {
+  return focusId !== '' && focusId !== prevFocusId ? { toolsOpen: true } : {}
 }
 
 let labelEditSeq = 0
@@ -221,12 +234,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         return {}
       const leaves = leafList(next)
       const created = leaves.find(l => !leafList(ws.root).some(o => o.id === l.id))
+      const focusId = created?.id ?? ws.focusId
       return {
-        workspaces: mapActive(s, w => ({
-          ...w,
-          root: next,
-          focusId: created?.id ?? w.focusId,
-        })),
+        workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
+        ...focusPullsTools(ws.focusId, focusId),
       }
     }),
 
@@ -237,14 +248,16 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       if (!next || next === ws.root)
         return {}
       const leaves = leafList(next)
+      const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
       return {
         workspaces: mapActive(s, w => ({
           ...w,
           root: next,
-          focusId: leaves.some(l => l.id === w.focusId) ? w.focusId : leaves[0].id,
+          focusId,
           labelSel: s.labelSel === paneId ? null : s.labelSel,
           stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
         })),
+        ...focusPullsTools(ws.focusId, focusId),
       }
     }),
 
@@ -299,12 +312,16 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         }),
         focusId: paneId,
       })),
+      ...focusPullsTools(activeWs(s).focusId, paneId),
     })),
 
   updateLeaf: (paneId, patch) =>
     set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) })),
 
-  focus: paneId => set(s => ({ workspaces: mapActive(s, w => ({ ...w, focusId: paneId })) })),
+  focus: paneId => set(s => ({
+    workspaces: mapActive(s, w => ({ ...w, focusId: paneId })),
+    ...focusPullsTools(activeWs(s).focusId, paneId),
+  })),
 
   focusNeighbor: (dir) => {
     const s = get()
@@ -322,8 +339,12 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       cur.rect,
       dir,
     )
-    if (next)
-      set({ workspaces: mapActive(s, w => ({ ...w, focusId: next.id })) })
+    if (next) {
+      set({
+        workspaces: mapActive(s, w => ({ ...w, focusId: next.id })),
+        ...focusPullsTools(ws.focusId, next.id),
+      })
+    }
   },
 
   selectLabel: paneId => set({ labelSel: paneId, stickerSel: null }),

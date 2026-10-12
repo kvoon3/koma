@@ -32,7 +32,7 @@ rows.
 | Action | Effect |
 |---|---|
 | Two buttons at the top center of a focused pane | Split it top/bottom or left/right (a pane shows its buttons only while focused, never on hover) |
-| Tools panel above the footer | An overlay, so it never takes layout space: pulled open by the handle centered on its top edge, collapsed it rests behind the footer with only the handle showing. Sticker / Make sticker / Replace / Text act on the focused pane; an empty pane offers only "Choose a photo" |
+| Tools panel above the footer | An overlay, so it never takes layout space: pulled open by the handle centered on its top edge, collapsed it rests behind the footer with only the handle showing. Focusing another pane pulls it open by itself; a manual collapse sticks until the focus moves. Sticker / Make sticker / Replace / Text act on the focused pane; an empty pane offers only "Choose a photo". The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
@@ -108,7 +108,8 @@ the canvas ratio and the output size. A pane shows its buttons only while it
 is focused, never on hover: the two split buttons at the top center and the
 × close button at the top right. The focused pane's tools (sticker / replace
 photo / text label) live in a panel that overlays the canvas above the
-footer, pulled open by the handle on its top edge (Esc puts it back).
+footer, pulled open by the handle on its top edge or by focusing another
+pane (Esc puts it back).
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export and the theme toggle sit at
