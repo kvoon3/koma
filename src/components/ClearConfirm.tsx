@@ -18,8 +18,8 @@ export function ClearConfirm({ open, onClose, onConfirm }: { open: boolean, onCl
       }}
     >
       <AlertDialog.Portal>
-        <AlertDialog.Backdrop className="fixed inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-[120ms] data-starting-style:opacity-0 data-ending-style:opacity-0" />
-        <AlertDialog.Popup className="fixed left-1/2 top-1/2 flex w-[min(360px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
+        <AlertDialog.Backdrop className="fixed inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-[180ms] ease-(--ease-out) data-ending-style:duration-[140ms] data-starting-style:opacity-0 data-ending-style:opacity-0" />
+        <AlertDialog.Popup className="fixed left-1/2 top-1/2 flex w-[min(360px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-[180ms] ease-(--ease-out) data-ending-style:duration-[140ms] data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
           <AlertDialog.Title className="border-b border-line px-4 py-[11px] text-[13.5px] font-semibold">
             {t('Clear library?')}
           </AlertDialog.Title>
