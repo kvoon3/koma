@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Menu } from '@base-ui/react/menu'
-import { ChevronDown, CircleHelp, Download, FileText, FolderPlus, Grid3x3, ImagePlus, LayoutGrid, LoaderCircle, Moon, SlidersHorizontal, Sun } from 'lucide'
+import { ArrowLeft, ChevronDown, CircleHelp, Download, FileText, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, SlidersHorizontal, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useRef, useSyncExternalStore } from 'react'
 import { useT } from '../lib/i18n'
@@ -59,18 +59,16 @@ function TopBarActions({
   const t = useT()
   return (
     <div className="flex items-center gap-[5px]">
-      <Tip
-        label={grid ? t('Back to editing · G') : t('Show the 3×3 workspace grid · G')}
-        trigger={(
-          <Button
-            variant={grid ? 'on' : 'flat'}
-            onClick={toggleGrid}
-            aria-label={grid ? t('Back to editing') : t('Show the workspace grid')}
-          >
-            <MorphIcon icon={grid ? ImagePlus : Grid3x3} size={15} strokeWidth={1.75} />
-          </Button>
-        )}
-      />
+      {grid && (
+        <Tip
+          label={t('Back to editing · G')}
+          trigger={(
+            <Button variant="on" onClick={toggleGrid} aria-label={t('Back to editing')}>
+              <MorphIcon icon={ImagePlus} size={15} strokeWidth={1.75} />
+            </Button>
+          )}
+        />
+      )}
       <Tip
         label={t('Settings · Shortcut: ,')}
         trigger={(
@@ -119,10 +117,11 @@ function TopBarActions({
 }
 
 /**
- * The top chrome: the category menus (photo / help) on the left, the grid
- * toggle in the center, and the settings, export and theme actions on the
- * right. In grid view the photo menu is cut down to library-less navigation
- * (the grid is a pure overview), and export goes batch-mode.
+ * The top chrome: the back-to-grid button plus the category menus (photo /
+ * help) on the left, and the settings, export and theme actions on the right
+ * (in grid view the left button becomes "back to editing"). In grid view the
+ * photo menu is cut down to library-less navigation (the grid is a pure
+ * overview), and export goes batch-mode.
  */
 export function TopBar({
   busy,
@@ -159,6 +158,18 @@ export function TopBar({
 
   return (
     <header className="relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar px-1.5">
+      {!grid && (
+        <Tip
+          label={t('Back to the grid · G')}
+          trigger={(
+            <Button onClick={toggleGrid} aria-label={t('Back to the grid')}>
+              <MorphIcon icon={ArrowLeft} size={15} strokeWidth={1.75} />
+              <span className="pointer-coarse:hidden max-sm:hidden">{t('Grid')}</span>
+            </Button>
+          )}
+        />
+      )}
+
       {grid
         ? (
           // Grid view is pure navigation: Help only (crop report is an

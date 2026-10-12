@@ -299,17 +299,20 @@ export default function App() {
   useEffect(() => {
     const over = (e: DragEvent) => e.preventDefault()
     const drop = (e: DragEvent) => {
-      // Grid view is pure navigation: drops are ignored there.
-      if (useStore.getState().view === 'grid')
-        return
       const files = [...(e.dataTransfer?.files ?? [])]
       if (!files.length)
         return
       e.preventDefault()
-      const created = useStore.getState().addPhotos(files)
+      const s = useStore.getState()
+      const created = s.addPhotos(files)
       say(created.length ? t('Added {n} photos', { n: created.length }) : t('No image files found'))
-      if (created.length)
-        setLibOpen(true)
+      if (!created.length)
+        return
+      // The overview has no pane to drop into: autoFill has already filled the
+      // active workspace's empty panes, so open it where the photos landed.
+      if (s.view === 'grid')
+        s.enterWorkspace(s.activeId)
+      setLibOpen(true)
     }
     window.addEventListener('dragover', over)
     window.addEventListener('drop', drop)
