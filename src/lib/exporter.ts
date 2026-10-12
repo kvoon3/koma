@@ -253,31 +253,34 @@ async function ensureLabelFonts(prep: Prepared) {
 
 /** Labels draw on top of photos, clipped to their pane (but not to the photo). */
 function drawLabelCells(ctx: CanvasRenderingContext2D, prep: Prepared) {
-  for (const { leaf, rect } of prep.labelCells) {
-    const lab = leaf.label!
-    if (!lab.text.trim())
-      continue
-    const meta = fontById(lab.font)
-    const fontPx = lab.size * prep.u
-    const m = measureLabel(meta, fontPx, lab.text)
-    // Reproduce the DOM preview's `line-height: normal` line box exactly:
-    // box height = measured line box, baseline offset follows the half-leading model.
-    const lineH = normalLineHeightRatio(meta, lab.text) * fontPx || (m.fontAscent + m.fontDescent)
-    const halfLead = Math.max(0, (lineH - (m.fontAscent + m.fontDescent)) / 2)
-    const r = labelRect(rect, lab, m.w, lineH, fontPx)
-    const colors = labelColors(lab.theme)
-    ctx.save()
-    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
-    ctx.clip()
-    ctx.fillStyle = colors.bg
-    ctx.fillRect(r.x, r.y, r.w, r.h)
-    ctx.fillStyle = colors.fg
-    ctx.font = `400 ${fontPx}px ${meta.cssStack}`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillText(lab.text, r.x + r.w / 2, r.y + fontPx * 0.22 + halfLead + m.fontAscent)
-    ctx.restore()
-  }
+  for (const { leaf, rect } of prep.labelCells)
+    drawLabelCell(ctx, prep, leaf, rect)
+}
+
+function drawLabelCell(ctx: CanvasRenderingContext2D, prep: Prepared, leaf: Leaf, rect: Rect) {
+  const lab = leaf.label
+  if (!lab || !lab.text.trim())
+    return
+  const meta = fontById(lab.font)
+  const fontPx = lab.size * prep.u
+  const m = measureLabel(meta, fontPx, lab.text)
+  // Reproduce the DOM preview's `line-height: normal` line box exactly:
+  // box height = measured line box, baseline offset follows the half-leading model.
+  const lineH = normalLineHeightRatio(meta, lab.text) * fontPx || (m.fontAscent + m.fontDescent)
+  const halfLead = Math.max(0, (lineH - (m.fontAscent + m.fontDescent)) / 2)
+  const r = labelRect(rect, lab, m.w, lineH, fontPx)
+  const colors = labelColors(lab.theme)
+  ctx.save()
+  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
+  ctx.clip()
+  ctx.fillStyle = colors.bg
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.fillStyle = colors.fg
+  ctx.font = `400 ${fontPx}px ${meta.cssStack}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillText(lab.text, r.x + r.w / 2, r.y + fontPx * 0.22 + halfLead + m.fontAscent)
+  ctx.restore()
 }
 
 export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElement> {
@@ -299,6 +302,167 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
   await ensureLabelFonts(prep)
   drawLabelCells(ctx, prep)
   return canvas
+}
+
+// --- Live video export ------------------------------------------------------
+
+const VIDEO_MIMES = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm']
+
+/** Any pane holding a paired Live Photo video? Drives the export flow's extra recording. */
+export function hasLiveCells(opts: ExportOptions): boolean {
+  const { W, H } = computeExportSize(opts)
+  return prepare(opts, W, H).cells.some(c => !!c.photo.videoFile)
+}
+
+function loadVideoEl(file: File): Promise<HTMLVideoElement | null> {
+  return new Promise((res) => {
+    const v = document.createElement('video')
+    v.muted = true
+    v.playsInline = true
+    v.preload = 'auto'
+    const url = URL.createObjectURL(file)
+    v.onloadeddata = () => res(v)
+    v.onerror = () => {
+      URL.revokeObjectURL(url)
+      res(null)
+    }
+    v.src = url
+  })
+}
+
+/**
+ * Record the collage as a video where every Live Photo pane plays its paired
+ *  MOV over the rendered still: the still carries layout, backdrop, labels
+ *  and non-live panes; each live cell's video frame is clipped into its pane
+ *  (seam-feathered like the still) with its stickers/label redrawn on top.
+ *  Realtime MediaRecorder capture for the longest video's duration.
+ *  ponytail: no audio; mux the MOVs' captureStream() audio in if it matters.
+ */
+export async function renderCollageVideo(
+  opts: ExportOptions,
+  still: HTMLCanvasElement,
+): Promise<{ blob: Blob, ext: 'mp4' | 'webm' } | null> {
+  const mime = typeof MediaRecorder !== 'undefined'
+    ? VIDEO_MIMES.find(m => MediaRecorder.isTypeSupported(m)) ?? null
+    : null
+  if (!mime)
+    return null
+  const { W, H } = computeExportSize(opts)
+  const prep = prepare(opts, W, H)
+  const vids = await loadLiveVideos(prep.cells.filter(c => !!c.photo.videoFile))
+  if (!vids.length)
+    return null
+
+  // Sticker sources for live cells decode up front, so the frame loop's
+  //  fire-and-forget drawStickers never does real async work mid-frame.
+  const stickerSrcs = await prewarmStickerSrcs(vids, opts)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+
+  const drawFrame = () => {
+    ctx.drawImage(still, 0, 0)
+    for (const { cell, v } of vids)
+      drawLiveCell(ctx, prep, cell, v, opts, stickerSrcs)
+  }
+
+  const stream = canvas.captureStream(30)
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
+  const chunks: BlobPart[] = []
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data)
+
+  const duration = Math.max(3, ...vids.map(({ v }) => (Number.isFinite(v.duration) ? v.duration : 0)))
+  await new Promise<void>((resolve) => {
+    rec.onstop = () => resolve()
+    const t0 = performance.now()
+    const step = () => {
+      drawFrame()
+      if ((performance.now() - t0) / 1000 < duration)
+        requestAnimationFrame(step)
+      else
+        rec.stop()
+    }
+    for (const { v } of vids) {
+      v.currentTime = 0
+      v.play().catch(() => {})
+    }
+    rec.start()
+    step()
+  })
+
+  for (const { v, url } of vids) {
+    v.pause()
+    v.removeAttribute('src')
+    v.load()
+    URL.revokeObjectURL(url)
+  }
+  stickerSrcs.forEach(s2 => releaseFull(s2))
+  stream.getTracks().forEach(tr => tr.stop())
+  canvas.width = canvas.height = 0
+
+  return { blob: new Blob(chunks, { type: mime }), ext: mime.includes('mp4') ? 'mp4' : 'webm' }
+}
+
+interface LiveVid {
+  cell: Prepared['cells'][number]
+  v: HTMLVideoElement
+  url: string
+}
+
+/** Decode every live cell's paired video; cells whose MOV fails to load drop out (their still stays). */
+async function loadLiveVideos(lives: Prepared['cells']): Promise<LiveVid[]> {
+  const vids: LiveVid[] = []
+  for (const cell of lives) {
+    const v = await loadVideoEl(cell.photo.videoFile!)
+    if (v)
+      vids.push({ cell, v, url: v.src })
+  }
+  return vids
+}
+
+async function prewarmStickerSrcs(
+  vids: LiveVid[],
+  opts: ExportOptions,
+): Promise<Map<string, Awaited<ReturnType<typeof decodeFull>>>> {
+  const stickerSrcs = new Map<string, Awaited<ReturnType<typeof decodeFull>>>()
+  for (const { cell } of vids) {
+    for (const st of cell.leaf.stickers) {
+      const sp = opts.photos.get(st.photoId)
+      if (sp?.trueW && !stickerSrcs.has(st.photoId)) {
+        const s2 = await decodeFull(sp)
+        if (s2)
+          stickerSrcs.set(st.photoId, s2)
+      }
+    }
+  }
+  return stickerSrcs
+}
+
+/** One live cell's video frame clipped into its pane, with stickers and label back on top. */
+function drawLiveCell(
+  ctx: CanvasRenderingContext2D,
+  prep: Prepared,
+  cell: Prepared['cells'][number],
+  v: HTMLVideoElement,
+  opts: ExportOptions,
+  stickerSrcs: Map<string, Awaited<ReturnType<typeof decodeFull>>>,
+) {
+  const { leaf, rect } = cell
+  const p = placement(rect, leaf, v.videoWidth, v.videoHeight)
+  ctx.save()
+  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
+  ctx.clip()
+  const seam = prep.seam.get(leaf.id)
+  if (seam && (seam.left || seam.right || seam.top || seam.bottom))
+    drawFadedPhoto(ctx, v, p, rect, seam, prep.fade)
+  else
+    ctx.drawImage(v, p.x, p.y, p.w, p.h)
+  ctx.restore()
+  void drawStickers(ctx, p, leaf, opts.photos, stickerSrcs)
+  drawLabelCell(ctx, prep, leaf, rect)
 }
 
 export function buildCropReport(opts: ExportOptions): string {

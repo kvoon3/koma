@@ -606,6 +606,34 @@ function PaneSplitTools({
   )
 }
 
+function PaneLiveBadge({ playing, onToggle }: { playing: boolean, onToggle: () => void }) {
+  const t = useT()
+  return (
+    <button
+      className={`absolute left-[9px] top-[9px] z-[3] flex cursor-pointer items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] transition-colors duration-[140ms] backdrop-blur-[7px] hover:bg-chip-hover ${
+        // hover:text-txt carries class+pseudo specificity that would beat
+        // text-danger, so it only rides the idle state.
+        playing ? ' text-danger' : ' text-float-icon hover:text-txt'
+      }`}
+      title={playing ? t('Stop Live Photo') : t('Live Photo: press and hold or use the play button')}
+      aria-label={playing ? t('Stop Live Photo') : t('Play Live Photo')}
+      onPointerDown={e => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+    >
+      <span
+        aria-hidden
+        className={`h-2 w-2 rounded-full border-[1.5px] border-current shadow-[inset_0_0_0_2.5px_var(--floatBg),inset_0_0_0_3.5px_currentColor] ${
+          playing ? ' animate-[live-blink_1.4s_var(--ease-in-out)_infinite]' : ''
+        }`}
+      />
+      LIVE
+    </button>
+  )
+}
+
 function PaneCloseTool({
   paneId,
   focused,
@@ -767,15 +795,17 @@ function PaneImpl({
       setEditing(true)
   }
 
-  // Live Photo: press and hold to play the paired video, release to stop.
-  // `liveFor` records which photo the hold belongs to, so swapping the pane's
-  // photo invalidates playback without an effect.
+  // Live Photo: press and hold to play the paired video, release to stop; the
+  // play button pins playback instead (toggles, survives gestures). Both
+  // record which photo they belong to, so swapping the pane's photo
+  // invalidates playback without an effect.
   const [liveFor, setLiveFor] = useState<string | null>(null)
+  const [livePin, setLivePin] = useState<string | null>(null)
   const liveVideoRef = useRef<HTMLVideoElement | null>(null)
   const holdTimerRef = useRef<number | null>(null)
   const downAtRef = useRef<{ x: number, y: number } | null>(null)
   const liveUrl = photo?.videoFile ? getLiveVideoUrl(photo) : null
-  const live = liveFor != null && liveFor === (photo?.id ?? null) && !!liveUrl
+  const live = !!liveUrl && !!photo && (liveFor === photo.id || livePin === photo.id)
 
   const clearHold = useCallback(() => {
     if (holdTimerRef.current != null) {
@@ -1132,13 +1162,8 @@ function PaneImpl({
         </div>
       )}
 
-      {photo?.videoFile && !live && (
-        <span
-          className="pointer-events-none absolute left-[9px] top-[9px] z-[3] flex items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] text-float-icon backdrop-blur-[7px] [&::before]:h-2 [&::before]:w-2 [&::before]:content-[''] [&::before]:rounded-full [&::before]:border-[1.5px] [&::before]:border-current [&::before]:shadow-[inset_0_0_0_2.5px_var(--floatBg),inset_0_0_0_3.5px_currentColor]"
-          title={t('Live Photo: press and hold to play')}
-        >
-          LIVE
-        </span>
+      {photo?.videoFile && place && (
+        <PaneLiveBadge playing={live} onToggle={() => setLivePin(live ? null : photo!.id)} />
       )}
 
       {place
