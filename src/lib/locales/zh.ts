@@ -143,7 +143,7 @@ export const zh: Record<string, string> = {
   'Two buttons at the top center of a focused pane': '聚焦窗格顶部中央的两个按钮',
   'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)': '上下或左右拆分（窗格只在聚焦时显示按钮，悬停不再显示）',
   'Tools panel above the footer': '底部栏上方的工具面板',
-  'Pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")': '用面板上边缘的把手把它拉起，作用对象是聚焦窗格：把贴纸钉到照片上、用文字或图片制作贴纸、替换照片、添加文字（空窗格只提供「选择照片」）',
+  'Opens by itself when the focus moves to another pane; pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")': '聚焦项切换时它会自动弹出，也可以用面板上边缘的把手拉起；作用对象是聚焦窗格：把贴纸钉到照片上、用文字或图片制作贴纸、替换照片、添加文字（空窗格只提供「选择照片」）',
   'Drag the divider between panes': '拖动窗格之间的分隔条',
   'Resize that split; only the two adjacent panes are affected': '调整该分割的大小，只影响相邻的两个窗格',
   'Drag the handle at the bottom-right of the canvas': '拖动画布右下角的手柄',

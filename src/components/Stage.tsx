@@ -20,8 +20,14 @@ const MIN_CANVAS = 120
    the panel rests behind the footer (z-40) with only the handle showing. */
 const toolsPanelCls = 'pointer-events-auto relative mb-2 w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-[260ms] ease-(--ease-drawer)'
 const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-opacity duration-[160ms] hover:text-txt'
-const toolsBtnCls = 'flex w-[120px] cursor-pointer flex-col items-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent p-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt'
+const toolsBtnCls = 'flex w-[120px] shrink-0 cursor-pointer flex-col items-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent p-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
+/* Fixed-width tools in a max-content row: the container scrolls sideways
+   once they outgrow the screen. It must stay a block, not a flex row (a flex
+   item shrinks into the panel and clips the leading tool); `touch-pan-x`
+   overrides the stage's `touch-none` so a finger can pan it. */
+const toolsScrollCls = 'overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
+const toolsRowCls = 'flex w-max min-w-full items-start justify-center'
 
 function ToolButton({ icon, label, hint, onClick }: {
   icon: IconInput
@@ -264,8 +270,9 @@ export function Stage() {
 
   const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
   const hasPhoto = !!(focusLeaf?.photoId)
-  // The panel is open only for a focused pane, and collapses (without losing
-  // the user's pull-open state) while no pane is focused.
+  // The panel is open only for a focused pane; with no focus it collapses,
+  // and focusing another pane pulls it back open (the store's focus actions),
+  // while a collapse sticks as long as the focus stays put.
   const expanded = !!focusLeaf && toolsOpen
 
   return (
@@ -374,21 +381,25 @@ export function Stage() {
           >
             <MorphIcon icon={expanded ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
           </button>
-          {/* inert while collapsed: the tools are off-screen behind the footer */}
-          <div className="flex items-start justify-center" inert={!expanded}>
-            {hasPhoto
-              ? (
-                  <>
-                    <ToolButton icon={StickerIcon} label={t('Sticker')} hint={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused} />
-                    <ToolButton icon={WandSparkles} label={t('Make sticker')} hint={t('Make a sticker from text or an image')} onClick={() => focusId && setStickerMakerFor(focusId)} />
-                    <ToolButton icon={ImagePlus} label={t('Replace photo')} hint={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused} />
-                    <ToolButton icon={Type} label={t('Text')} hint={t('Add a text label')} onClick={addLabelToFocused} />
-                  </>
-                )
-              : (
-                  // An empty pane has a single tool: put a photo into it.
-                  <ToolButton icon={ImagePlus} label={t('Choose a photo')} hint={t('Choose a photo')} onClick={pickForFocused} />
-                )}
+          {/* inert while collapsed: the tools are off-screen behind the
+              footer. Collapsed or not, the row scrolls sideways instead of
+              squashing the fixed-width tools when they outgrow the screen. */}
+          <div className={toolsScrollCls} inert={!expanded}>
+            <div className={toolsRowCls}>
+              {hasPhoto
+                ? (
+                    <>
+                      <ToolButton icon={StickerIcon} label={t('Sticker')} hint={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused} />
+                      <ToolButton icon={WandSparkles} label={t('Make sticker')} hint={t('Make a sticker from text or an image')} onClick={() => focusId && setStickerMakerFor(focusId)} />
+                      <ToolButton icon={ImagePlus} label={t('Replace photo')} hint={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused} />
+                      <ToolButton icon={Type} label={t('Text')} hint={t('Add a text label')} onClick={addLabelToFocused} />
+                    </>
+                  )
+                : (
+                    // An empty pane has a single tool: put a photo into it.
+                    <ToolButton icon={ImagePlus} label={t('Choose a photo')} hint={t('Choose a photo')} onClick={pickForFocused} />
+                  )}
+            </div>
           </div>
         </div>
       </div>
