@@ -61,7 +61,7 @@ rows.
 | `Tab` | Cycle focused pane |
 | `R` | Reset focused pane's photo |
 | `I` | Library drawer |
-| `,` | Settings drawer (gap / radius / canvas fill / export size) |
+| `,` | Settings drawer (layout / appearance / text / language) |
 | `⌘E` | Export collage |
 | `C` | Export crop report |
 | `?` | Help |
@@ -135,14 +135,23 @@ and lands left-aligned under its own trigger, with no cursor tracking.
 
 ## Settings drawer (`,` or the top-right Settings button)
 
-| Setting | Effect |
-|---|---|
-| Photo gap | Space between panes, 0–12% |
-| Photo radius | Corner radius of each pane, 0–20% |
-| Blend width / strength | How far pane seams fade into the shared blurred backdrop |
-| Pane border | Draw a hairline around each pane |
-| Gap fill | Black / white / custom color / **transparent** |
-| Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
+Four tabs, one group each: `Layout` (photo gap, photo radius, pane border),
+`Appearance` (gap fill, blend width, blend strength), `Text` (font mirror) and
+`Language`. The strip is set in the drawer's heading type, the active tab lit
+and underlined, so it reads as the drawer's group labels rather than a second
+chrome layer; the arrow keys move through it and swap the panel, `Tab` walks in
+and out. Only one group is on screen at a time, which is why the drawer is
+narrower than the old two-column one.
+
+| Tab | Setting | Effect |
+|---|---|---|
+| Layout | Photo gap | Space between panes, 0–12% |
+| Layout | Photo radius | Corner radius of each pane, 0–20% |
+| Layout | Pane border | Draw a hairline around each pane |
+| Appearance | Gap fill | Black / white / custom color / **transparent** |
+| Appearance | Blend width / strength | How far pane seams fade into the shared blurred backdrop |
+| Text | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
+| Language | English / 简体中文 | Interface language |
 
 The export-size setting was removed: the long edge is fixed at 2048 px; the
 footer shows the resulting resolution.
@@ -151,12 +160,12 @@ Every row is one template (label, control, value). From `sm` up the labels sit
 on a shared x, so the sliders line up; below `sm` the value moves onto the label
 line and the control takes the full width beneath it, which gives a phone a
 ~320px slider instead of the ~200px the 84px and 46px columns would leave it.
-From `md` up the four sections fill two columns with `Layout` (the tall one)
-pinned to the right and spanning the three rows the others stack in: both
-columns end level, and the drawer covers as little of the canvas it edits as it
-can. Off toggles and swatches draw their outline with `line-strong`, because
-`line` equals the drawer's own color in the dark theme and would leave the
-control a featureless patch of background.
+Each panel is one grid of rows and scrolls on its own between the fixed strip
+and the popup's max height, so a tab never grows the drawer past its cap and the
+drawer still covers as little of the canvas it edits as it can. Off toggles and
+swatches draw their outline with `line-strong`, because `line` equals the
+drawer's own color in the dark theme and would leave the control a featureless
+patch of background.
 
 **Gap and radius are per-mille of the canvas short edge, not pixels.** Once set,
 exporting at 1080 or 6000 looks identical; preview and export share the same

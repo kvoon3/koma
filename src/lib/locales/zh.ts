@@ -38,6 +38,7 @@ export const zh: Record<string, string> = {
 
   // SettingsDrawer
   'Hide settings': '隐藏设置',
+  'Settings sections': '设置分区',
   'Appearance': '外观',
   'Gap fill': '间隙填充',
   'Black': '黑色',
@@ -51,7 +52,6 @@ export const zh: Record<string, string> = {
   'Blend width': '融合宽度',
   'Blend strength': '融合浓度',
   'Pane border': '面板描边',
-  'Fonts': '字体',
   'Font mirror': '字体镜像',
   'Language': '语言',
 
@@ -150,7 +150,7 @@ export const zh: Record<string, string> = {
   'Focus the next pane': '聚焦下一个窗格',
   'Reset the photo in the focused pane': '重置聚焦窗格里的照片',
   'Toggle the library drawer': '开关素材库抽屉',
-  'Settings drawer (gap / radius / blend / gap fill)': '设置抽屉（间隙 / 圆角 / 融合 / 间隙填充）',
+  'Settings drawer (layout / appearance / text / language)': '设置抽屉（布局 / 外观 / 文字 / 语言）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作区网格和编辑之间切换',
   'Export the collage': '导出拼图',
   'Export crop params (ImageMagick command)': '导出裁剪参数（ImageMagick 命令）',

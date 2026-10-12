@@ -3,7 +3,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, Save, SlidersHorizontal, Sun } from 'lucide'
+import { ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, Save, Settings, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useT } from '../lib/i18n'
@@ -75,7 +75,7 @@ function TopBarActions({
             onClick={onToggleSettings}
             aria-label={t('Settings · Shortcut: ,')}
           >
-            <MorphIcon icon={SlidersHorizontal} size={15} strokeWidth={1.75} />
+            <MorphIcon icon={Settings} size={15} strokeWidth={1.75} />
             <span className="pointer-coarse:hidden max-sm:hidden">{t('Settings')}</span>
           </Button>
         )}
