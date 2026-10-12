@@ -343,6 +343,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
         height: cell,
         transform: CSS.Transform.toString(transform),
         transition,
+        viewTransitionName: `ws-${ws.id}`,
       }}
       onClick={() => onEnter(ws.id)}
       title={filled ? t('Edit this workspace') : t('Start a new collage here')}

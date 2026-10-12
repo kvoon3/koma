@@ -22,6 +22,7 @@ import {
   uid,
   updateLeafIn,
 } from './lib/panes'
+import { viewTransition } from './lib/viewTransition'
 
 /** One of the nine collage workspaces. Array order is the grid order. */
 export interface Workspace {
@@ -323,18 +324,20 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   /** Enter a workspace in edit view (clicking a grid cell). */
   enterWorkspace: id =>
-    set(s => ({
-      activeId: s.workspaces.some(w => w.id === id) ? id : s.activeId,
-      view: 'edit',
-      ...clearedSelection,
-    })),
+    viewTransition(() =>
+      set(s => ({
+        activeId: s.workspaces.some(w => w.id === id) ? id : s.activeId,
+        view: 'edit',
+        ...clearedSelection,
+      }))),
 
   /** Toggle between the edit canvas and the 3×3 grid overview. */
   toggleGrid: () =>
-    set(s => ({
-      view: s.view === 'grid' ? 'edit' : 'grid',
-      ...clearedSelection,
-    })),
+    viewTransition(() =>
+      set(s => ({
+        view: s.view === 'grid' ? 'edit' : 'grid',
+        ...clearedSelection,
+      }))),
 
   /** Insert-shift reorder: remove `id` from its slot and splice it at `to`. */
   moveWorkspace: (id, to) =>
