@@ -35,7 +35,6 @@ export const zh: Record<string, string> = {
   'Transparent': '透明',
   'Custom gap fill': '自定义间隙填充',
   'Pick a custom color': '选择自定义颜色',
-  'Custom': '自定义',
   'Layout': '布局',
   'Gap is the space between photos, radius is how rounded each photo\'s corners are; both scale to the **canvas short edge**, and the preview matches the export.': '间隙是照片之间的留白，圆角是每张照片边角的圆润程度；两者都按**画布短边**缩放，预览与导出效果一致。',
   'Photo gap': '照片间隙',
@@ -44,9 +43,8 @@ export const zh: Record<string, string> = {
   'Blend strength': '融合浓度',
   'Pane border': '面板描边',
   'Fonts': '字体',
-  'Font mirror (fonts.loli.net)': '字体镜像（fonts.loli.net）',
   'Font mirror': '字体镜像',
-  'Fallback CDN for Google Fonts when fonts.googleapis.com is unreachable.': 'fonts.googleapis.com 无法访问时，作为 Google Fonts 的备用 CDN。',
+  'Fallback CDN (fonts.loli.net) when fonts.googleapis.com is unreachable.': 'fonts.googleapis.com 无法访问时，改用备用 CDN fonts.loli.net。',
   'Language': '语言',
 
   // Pane

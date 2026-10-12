@@ -16,6 +16,40 @@ const CUSTOM_BG = '#18181b'
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
 
+/**
+ * One row shape for every setting: label / control / value. A fixed label
+ * column keeps all controls on the same x, so the sliders line up (the old
+ * `flex-wrap` rows let a long label wrap and shove its control down out of
+ * line). Wide screens lay the four sections out in two columns: same content,
+ * half the height, and the drawer covers half as much of the canvas it edits.
+ */
+const row = 'grid min-w-0 grid-cols-[84px_minmax(0,1fr)_46px] items-center gap-x-3.5'
+const label = 'whitespace-nowrap text-xs text-dim'
+const desc = 'm-0 text-[11.5px] text-faint'
+const section = 'flex min-w-0 flex-col gap-[7px]'
+const heading = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
+const value = 'text-right text-xs text-accent tabular-nums'
+const swatch = 'box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
+const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--drawerBg)]'
+const sliderThumb = 'box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2'
+
+function SliderRow({ name, text, max, cur, onChange }: { name: string, text: string, max: number, cur: number, onChange: (v: number) => void }) {
+  return (
+    <div className={row}>
+      <span className={label}>{name}</span>
+      <Slider.Root className="min-w-0" min={0} max={max} value={cur} onValueChange={onChange}>
+        <Slider.Control className="flex touch-none select-none items-center py-2">
+          <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
+            <Slider.Indicator className="bg-accent" />
+            <Slider.Thumb className={sliderThumb} aria-label={name} />
+          </Slider.Track>
+        </Slider.Control>
+      </Slider.Root>
+      <span className={value}>{text}</span>
+    </div>
+  )
+}
+
 export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () => void }) {
   const gap = useStore(s => s.gap)
   const radius = useStore(s => s.radius)
@@ -67,134 +101,53 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                 <Drawer.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label={t('Hide settings')}><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Drawer.Close>
               </header>
 
-              {/* Vertical scrolling only: rows wrap instead of overflowing. */}
-              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-x-hidden overflow-y-auto px-[18px] pt-1 pb-3 pointer-coarse:px-3.5 pointer-coarse:pt-3 pointer-coarse:pb-4 max-sm:px-3.5 max-sm:pt-3 max-sm:pb-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-strip-thumb">
-                <section className="flex flex-col gap-[7px]">
-                  <h4 className="m-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint">{t('Appearance')}</h4>
-                  <p className="m-0 text-[11.5px] text-faint">
+              {/* Vertical scrolling only: sections stack on narrow screens and pair up on wide ones. */}
+              <div className="grid min-h-0 flex-1 gap-x-8 gap-y-3.5 overflow-x-hidden overflow-y-auto px-[18px] pt-1 pb-3 pointer-coarse:px-3.5 pointer-coarse:pt-3 pointer-coarse:pb-4 max-sm:px-3.5 max-sm:pt-3 max-sm:pb-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-strip-thumb md:grid-cols-2">
+                <section className={section}>
+                  <h4 className={heading}>{t('Appearance')}</h4>
+                  <p className={desc}>
                     {t('Gap fill is the background showing between photos; pick Transparent to export as PNG.')}
                   </p>
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Gap fill')}</span>
+                  <div className={row}>
+                    <span className={label}>{t('Gap fill')}</span>
                     <RadioGroup
-                      className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
+                      className="col-span-2 flex min-w-0 flex-wrap items-center gap-1.5"
                       aria-label={t('Gap fill')}
                       value={mode}
                       onValueChange={next => setMode(next)}
                     >
-                      <Radio.Root value="black" aria-label={t('Black')} className="box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line bg-black p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1">
-                        <Radio.Indicator className="h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--drawerBg)]" />
+                      <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
+                        <Radio.Indicator className={swatchDot} />
                       </Radio.Root>
-                      <Radio.Root value="white" aria-label={t('White')} className="box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line bg-white p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1">
-                        <Radio.Indicator className="h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--drawerBg)]" />
+                      <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
+                        <Radio.Indicator className={swatchDot} />
                       </Radio.Root>
-                      <Radio.Root value="transparent" aria-label={t('Transparent')} className="box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line swatch-clear p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1">
-                        <Radio.Indicator className="h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--drawerBg)]" />
+                      <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
+                        <Radio.Indicator className={swatchDot} />
                       </Radio.Root>
                       <input
                         type="color"
-                        className="box-border h-[26px] w-9 cursor-pointer rounded-none border border-line bg-panel-2 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0"
+                        className={`box-border h-[26px] w-9 cursor-pointer rounded-none border bg-panel-2 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line'}`}
                         aria-label={t('Custom gap fill')}
                         title={t('Pick a custom color')}
                         value={mode === 'custom' ? bg : CUSTOM_BG}
                         onChange={e => patch({ bg: e.target.value })}
                       />
-                      {mode === 'custom' && <span className="text-[11.5px] text-faint">{t('Custom')}</span>}
                     </RadioGroup>
                   </div>
                 </section>
 
-                <section className="flex flex-col gap-[7px]">
-                  <h4 className="m-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint">{t('Layout')}</h4>
-                  <p className="m-0 text-[11.5px] text-faint">
+                <section className={section}>
+                  <h4 className={heading}>{t('Layout')}</h4>
+                  <p className={desc}>
                     <T k="Gap is the space between photos, radius is how rounded each photo's corners are; both scale to the **canvas short edge**, and the preview matches the export." />
                   </p>
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Photo gap')}</span>
-                    <Slider.Root
-                      className="min-w-[140px] flex-1"
-                      min={0}
-                      max={120}
-                      value={gap}
-                      onValueChange={v => patch({ gap: v })}
-                    >
-                      <Slider.Control className="flex touch-none select-none items-center py-2">
-                        <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
-                          <Slider.Indicator className="bg-accent" />
-                          <Slider.Thumb className="box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2" aria-label={t('Photo gap')} />
-                        </Slider.Track>
-                      </Slider.Control>
-                    </Slider.Root>
-                    <span className="flex-none basis-[46px] text-xs text-accent tabular-nums">
-                      {(gap / 10).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Photo radius')}</span>
-                    <Slider.Root
-                      className="min-w-[140px] flex-1"
-                      min={0}
-                      max={200}
-                      value={radius}
-                      onValueChange={v => patch({ radius: v })}
-                    >
-                      <Slider.Control className="flex touch-none select-none items-center py-2">
-                        <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
-                          <Slider.Indicator className="bg-accent" />
-                          <Slider.Thumb className="box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2" aria-label={t('Photo radius')} />
-                        </Slider.Track>
-                      </Slider.Control>
-                    </Slider.Root>
-                    <span className="flex-none basis-[46px] text-xs text-accent tabular-nums">
-                      {(radius / 10).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Blend width')}</span>
-                    <Slider.Root
-                      className="min-w-[140px] flex-1"
-                      min={0}
-                      max={250}
-                      value={edgeFade}
-                      onValueChange={v => patch({ edgeFade: v })}
-                    >
-                      <Slider.Control className="flex touch-none select-none items-center py-2">
-                        <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
-                          <Slider.Indicator className="bg-accent" />
-                          <Slider.Thumb className="box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2" aria-label={t('Blend width')} />
-                        </Slider.Track>
-                      </Slider.Control>
-                    </Slider.Root>
-                    <span className="flex-none basis-[46px] text-xs text-accent tabular-nums">
-                      {(edgeFade / 10).toFixed(1)}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Blend strength')}</span>
-                    <Slider.Root
-                      className="min-w-[140px] flex-1"
-                      min={0}
-                      max={100}
-                      value={edgeFadeStrength}
-                      onValueChange={v => patch({ edgeFadeStrength: v })}
-                    >
-                      <Slider.Control className="flex touch-none select-none items-center py-2">
-                        <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
-                          <Slider.Indicator className="bg-accent" />
-                          <Slider.Thumb className="box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2" aria-label={t('Blend strength')} />
-                        </Slider.Track>
-                      </Slider.Control>
-                    </Slider.Root>
-                    <span className="flex-none basis-[46px] text-xs text-accent tabular-nums">
-                      {edgeFadeStrength}
-                      %
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                    <span className="flex-none basis-[68px] text-xs text-dim">{t('Pane border')}</span>
+                  <SliderRow name={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} cur={gap} onChange={v => patch({ gap: v })} />
+                  <SliderRow name={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} cur={radius} onChange={v => patch({ radius: v })} />
+                  <SliderRow name={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} cur={edgeFade} onChange={v => patch({ edgeFade: v })} />
+                  <SliderRow name={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} cur={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
+                  <div className={row}>
+                    <span className={label}>{t('Pane border')}</span>
                     <Switch.Root
                       className="group/switch relative box-border inline-flex h-5 w-[34px] cursor-pointer rounded-none border border-line bg-panel-2 p-0 transition-colors duration-[120ms] data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2"
                       aria-label={t('Pane border')}
@@ -206,12 +159,15 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                   </div>
                 </section>
 
-                <section className="flex flex-col gap-[7px]">
-                  <h4 className="m-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint">{t('Fonts')}</h4>
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-                    <span className="flex-none text-xs text-dim">{t('Font mirror (fonts.loli.net)')}</span>
+                <section className={section}>
+                  <h4 className={heading}>{t('Fonts')}</h4>
+                  <p className={desc}>
+                    {t('Fallback CDN (fonts.loli.net) when fonts.googleapis.com is unreachable.')}
+                  </p>
+                  <div className={row}>
+                    <span className={label}>{t('Font mirror')}</span>
                     <Switch.Root
-                      className="group/switch relative box-border inline-flex h-5 w-[34px] cursor-pointer rounded-none border border-line bg-panel-2 p-0 transition-colors duration-[120ms] data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2"
+                      className="group/switch relative box-border inline-flex h-5 w-[34px] cursor-pointer items-center rounded-none border border-line bg-panel-2 p-0 transition-colors duration-[120ms] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2"
                       aria-label={t('Font mirror')}
                       checked={mirror}
                       onCheckedChange={(checked) => {
@@ -222,11 +178,11 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                       <Switch.Thumb className="block m-0.5 h-3.5 w-3.5 rounded-none bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-[120ms] group-data-checked/switch:translate-x-3.5" />
                     </Switch.Root>
                   </div>
-                  <p className="m-0 text-[11.5px] text-faint">{t('Fallback CDN for Google Fonts when fonts.googleapis.com is unreachable.')}</p>
                 </section>
 
-                <section className="flex flex-col gap-[7px]">
-                  <h4 className="m-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint">{t('Language')}</h4>
+                <section className={section}>
+                  <h4 className={heading}>{t('Language')}</h4>
+                  {/* No label column: the buttons sit under the heading, left-aligned with it. */}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Button
                       variant={lang === 'en' ? 'on' : 'flat'}

@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from 'react'
 type Variant = 'flat' | 'on' | 'strong' | 'close'
 
 export const buttonBase = [
-  'inline-flex cursor-pointer items-center gap-[5px] whitespace-nowrap rounded-none border-0 bg-transparent',
+  'inline-flex cursor-pointer items-center gap-[5px] whitespace-nowrap rounded-none border-0',
   'px-[9px] py-[3px] text-[11.5px] text-dim',
   'hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt',
   'focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1',
@@ -13,8 +13,14 @@ export const buttonBase = [
 ].join(' ')
 
 export const buttonVariants: Record<Variant, string> = {
-  flat: '',
-  on: 'bg-chip-on text-chip-on-txt',
+  /**
+   * `bg-transparent` lives here, not in the base: as a plain utility it sorts
+   * after `bg-accent` / `bg-chip-strong` in the output and would silently win
+   * the background for the filled variants.
+   */
+  flat: 'bg-transparent',
+  /** Selected chip. `chipOn` is a #f5f5f5 tint on a #ffffff panel, invisible in light; the accent fill reads in both themes. */
+  on: 'bg-accent text-on-accent hover:not-disabled:bg-accent hover:not-disabled:text-on-accent',
   strong: 'bg-chip-strong text-txt hover:not-disabled:bg-accent hover:not-disabled:text-on-accent',
   close: 'h-[26px] w-[26px] justify-center p-0 text-faint hover:not-disabled:text-txt',
 }
