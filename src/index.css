@@ -244,11 +244,17 @@ html.dark {
     outline-offset: -2px;
   }
 
+  /*
+   * The checkerboard that stands for "transparent". It borrows the stage's
+   * clear tokens on purpose: the obvious pair, `panel2` with `line` squares,
+   * is one flat color in the dark theme (both are #262626) and the swatch
+   * would read as an empty gray chip.
+   */
   .swatch-clear {
-    background-color: var(--panel2);
+    background-color: var(--stageClearSq);
     background-image:
-      linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%),
-      linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%);
+      linear-gradient(45deg, var(--stageClear) 25%, transparent 25%, transparent 75%, var(--stageClear) 75%),
+      linear-gradient(45deg, var(--stageClear) 25%, transparent 25%, transparent 75%, var(--stageClear) 75%);
     background-position: 0 0, 4px 4px;
     background-size: 8px 8px;
   }
