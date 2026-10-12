@@ -4,6 +4,7 @@ import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
+import { removeBackground } from '../lib/bgRemoval'
 import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
 import { makeSticker } from '../lib/sticker'
@@ -57,37 +58,79 @@ const fieldCls = 'flex flex-col gap-1.5'
 const inputCls = 'box-border h-[30px] w-full cursor-pointer rounded-none border border-line bg-panel-2 px-2 text-[12px] text-txt outline-0 focus-visible:border-accent'
 const colorCls = 'box-border h-[30px] w-full cursor-pointer rounded-none border border-line bg-panel-2 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0'
 
-export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, paneId: string | null, onClose: () => void }) {
+function buildSource(
+  tab: 'text' | 'image',
+  text: string,
+  color: string,
+  fontMeta: (typeof FONTS)[number],
+  imageSrc: string | null,
+  imageName: string,
+): StickerSource | null {
+  if (tab === 'text') {
+    const value = text.trim()
+    return value
+      ? { type: 'text', text: value, color, fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }
+      : null
+  }
+  return imageSrc ? { type: 'image', src: imageSrc, name: imageName } : null
+}
+
+/** Local U²-Netᵖ cutout; reports progress and hands back a PNG object URL. */
+async function cutoutBackground(
+  imageSrc: string,
+  onJob: (job: { phase: 'loading' | 'processing', progress?: number } | null) => void,
+  onDone: (url: string) => void,
+  onFail: () => void,
+) {
+  onJob({ phase: 'loading', progress: 0 })
+  try {
+    const blob = await fetch(imageSrc).then(r => r.blob())
+    const cutout = await removeBackground(blob, p => onJob(p))
+    onDone(URL.createObjectURL(cutout))
+  }
+  catch {
+    onFail()
+  }
+  finally {
+    onJob(null)
+  }
+}
+
+/** Rasterize the sticker, add it to the library, and pin it onto the pane. */
+async function insertSticker(
+  source: StickerSource | null,
+  paneId: string | null,
+  style: { outlineWidth: number, outlineColor: string, material: StickerMaterialType, baseName: string },
+  t: (key: string) => string,
+  onDone: () => void,
+) {
+  if (!source || !paneId)
+    return
+  const res = await makeSticker(source, {
+    outlineWidth: style.outlineWidth,
+    outlineColor: style.outlineColor,
+    maxEdge: INSERT_MAX,
+    material: { type: style.material, intensity: 1 },
+  })
+  const file = await dataUrlToFile(res.dataUrl, `${style.baseName || 'sticker'}.png`)
+  const s = useStore.getState()
+  const photo = s.addPhotos([file], false)[0]
+  if (photo) {
+    s.addSticker(paneId, photo.id, 0.5, 0.5)
+    say(t('Sticker added'))
+  }
+  onDone()
+}
+
+/** Debounced live preview of the sticker the current inputs would produce. */
+function StickerPreview({ source, outlineWidth, outlineColor, material }: {
+  source: StickerSource | null
+  outlineWidth: number
+  outlineColor: string
+  material: StickerMaterialType
+}) {
   const t = useT()
-
-  const [tab, setTab] = useState<'text' | 'image'>('text')
-  const [text, setText] = useState('')
-  const [color, setColor] = useState('#ffffff')
-  const [font, setFont] = useState(FONTS[0].id)
-  const [imageSrc, setImageSrc] = useState<string | null>(null)
-  const [imageName, setImageName] = useState('')
-  const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
-  const [outlineColor, setOutlineColor] = useState('#000000')
-  const [material, setMaterial] = useState<StickerMaterialType>('original')
-
   const [rendered, setRendered] = useState<{ key: string, url: string } | null>(null)
-  const [inserting, setInserting] = useState(false)
-  const urlRef = useRef<string | null>(null)
-
-  const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
-
-  const source = useMemo<StickerSource | null>(() => {
-    if (tab === 'text') {
-      const value = text.trim()
-      if (!value)
-        return null
-      return { type: 'text', text: value, color, fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }
-    }
-    return imageSrc ? { type: 'image', src: imageSrc, name: imageName } : null
-  }, [tab, text, color, fontMeta, imageSrc, imageName])
-
-  // The preview result is keyed to its inputs, so "is it stale?" is derived
-  // during render and only the async makeSticker call writes state.
   const renderKey = useMemo(
     () => (source ? JSON.stringify([source, outlineWidth, outlineColor, material]) : ''),
     [source, outlineWidth, outlineColor, material],
@@ -115,14 +158,55 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     }
   }, [source, outlineWidth, outlineColor, material, renderKey])
 
-  const previewUrl = source && rendered?.key === renderKey ? rendered.url || null : null
-  const previewing = !!source && rendered?.key !== renderKey
+  const url = source && rendered?.key === renderKey ? rendered.url || null : null
+  const rendering = !!source && rendered?.key !== renderKey
+  return (
+    <div className="stage-clear flex h-[220px] items-center justify-center overflow-hidden border border-line">
+      {url
+        ? <img src={url} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
+        : (
+            <span className="text-[11.5px] text-faint">
+              {rendering ? t('Rendering…') : t('Nothing to preview')}
+            </span>
+          )}
+    </div>
+  )
+}
+
+export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, paneId: string | null, onClose: () => void }) {
+  const t = useT()
+
+  const [tab, setTab] = useState<'text' | 'image'>('text')
+  const [text, setText] = useState('')
+  const [color, setColor] = useState('#ffffff')
+  const [font, setFont] = useState(FONTS[0].id)
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [imageName, setImageName] = useState('')
+  const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
+  const [outlineColor, setOutlineColor] = useState('#000000')
+  const [material, setMaterial] = useState<StickerMaterialType>('original')
+
+  const [inserting, setInserting] = useState(false)
+  const [bgJob, setBgJob] = useState<{ phase: 'loading' | 'processing', progress?: number } | null>(null)
+  const [hasCutout, setHasCutout] = useState(false)
+  const urlRef = useRef<string | null>(null)
+  const originalUrlRef = useRef<string | null>(null)
+
+  const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
+
+  const source = useMemo(
+    () => buildSource(tab, text, color, fontMeta, imageSrc, imageName),
+    [tab, text, color, fontMeta, imageSrc, imageName],
+  )
 
   // Release the picked image's object URL on unmount (it stays alive while the
-  // dialog is open so the preview and the insert both read the same bytes).
+  // dialog is open so the preview and the insert both read the same bytes),
+  // plus the pre-cutout original kept around for Restore.
   useEffect(() => () => {
-    if (urlRef.current)
-      URL.revokeObjectURL(urlRef.current)
+    for (const url of [urlRef.current, originalUrlRef.current]) {
+      if (url)
+        URL.revokeObjectURL(url)
+    }
   }, [])
 
   const pickImage = () => {
@@ -132,6 +216,10 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
         return
       if (urlRef.current)
         URL.revokeObjectURL(urlRef.current)
+      if (originalUrlRef.current)
+        URL.revokeObjectURL(originalUrlRef.current)
+      originalUrlRef.current = null
+      setHasCutout(false)
       const url = URL.createObjectURL(file)
       urlRef.current = url
       setImageSrc(url)
@@ -139,26 +227,57 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     })
   }
 
-  const insert = async () => {
-    if (!source || !paneId)
+  // Swap the displayed image URL, keeping the pre-cutout original for Restore.
+  const applyImage = (url: string, keepOriginal: boolean) => {
+    if (keepOriginal) {
+      // Ownership of the old URL moves to originalUrlRef; revoking urlRef
+      // here would kill the original Restore needs (same URL).
+      originalUrlRef.current = imageSrc
+    }
+    else {
+      if (originalUrlRef.current)
+        URL.revokeObjectURL(originalUrlRef.current)
+      originalUrlRef.current = null
+      if (urlRef.current)
+        URL.revokeObjectURL(urlRef.current)
+    }
+    urlRef.current = url
+    setImageSrc(url)
+    setHasCutout(keepOriginal)
+  }
+
+  // Local U²-Netᵖ cutout: the preview and the insert both consume the new URL,
+  // the original stays owned by originalUrlRef until restored or replaced.
+  const removeBg = () => {
+    if (!imageSrc || bgJob)
       return
+    void cutoutBackground(
+      imageSrc,
+      setBgJob,
+      url => applyImage(url, true),
+      () => say(t('Background removal failed')),
+    )
+  }
+
+  const restoreOriginal = () => {
+    if (!originalUrlRef.current)
+      return
+    if (urlRef.current)
+      URL.revokeObjectURL(urlRef.current)
+    urlRef.current = originalUrlRef.current
+    originalUrlRef.current = null
+    setHasCutout(false)
+    setImageSrc(urlRef.current)
+  }
+
+  const insert = async () => {
+    // Text stickers take their name from the first line, not a leftover image pick.
+    const baseName = tab === 'text'
+      ? (text.trim().split('\n')[0].slice(0, 24) || 'sticker')
+      : (imageName.replace(/\.[^.]+$/, '') || 'sticker')
     setInserting(true)
     try {
-      const res = await makeSticker(source, {
-        outlineWidth,
-        outlineColor,
-        maxEdge: INSERT_MAX,
-        material: { type: material, intensity: 1 },
-      })
-      const base = imageName ? imageName.replace(/\.[^.]+$/, '') : 'sticker'
-      const file = await dataUrlToFile(res.dataUrl, `${base}.png`)
-      const s = useStore.getState()
-      const photo = s.addPhotos([file], false)[0]
-      if (photo) {
-        s.addSticker(paneId, photo.id, 0.5, 0.5)
-        say(t('Sticker added'))
-      }
-      onClose()
+      await insertSticker(source, paneId, { outlineWidth, outlineColor, material, baseName }, t, onClose)
     }
     catch {
       say(t('Failed to make sticker'))
@@ -168,7 +287,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     }
   }
 
-  const canInsert = !!source && !previewing && !inserting
+  const canInsert = !!source && !inserting && !bgJob
 
   return (
     <Dialog.Root
@@ -220,11 +339,38 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
                   </div>
                 )
               : (
-                  <div className="flex items-center gap-2.5">
-                    <Button variant="strong" onClick={pickImage}>{t('Choose an image')}</Button>
-                    <span className="min-w-0 flex-1 truncate text-[11.5px] text-faint">
-                      {imageSrc ? imageName : t('No image chosen')}
-                    </span>
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <Button variant="strong" onClick={pickImage}>{t('Choose an image')}</Button>
+                      <span className="min-w-0 flex-1 truncate text-[11.5px] text-faint">
+                        {imageSrc ? imageName : t('No image chosen')}
+                      </span>
+                    </div>
+                    {imageSrc && (
+                      <div className="flex items-center gap-2.5">
+                        {hasCutout
+                          ? (
+                              <button
+                                className="cursor-pointer border-0 bg-transparent p-0 text-[11.5px] text-accent underline underline-offset-2"
+                                onClick={restoreOriginal}
+                              >
+                                {t('Restore original')}
+                              </button>
+                            )
+                          : (
+                              <Button variant="flat" disabled={!!bgJob} title={t('AI runs locally · nothing is uploaded')} onClick={() => void removeBg()}>
+                                {t('Remove background')}
+                              </Button>
+                            )}
+                        {bgJob && (
+                          <span className="text-[11.5px] text-faint">
+                            {bgJob.phase === 'loading'
+                              ? `${t('Loading AI model…')} ${Math.round(bgJob.progress ?? 0)}%`
+                              : t('Processing…')}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -257,15 +403,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
 
             <div className={fieldCls}>
               <span className={labelCls}>{t('Preview')}</span>
-              <div className="stage-clear flex h-[220px] items-center justify-center overflow-hidden border border-line">
-                {previewUrl
-                  ? <img src={previewUrl} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
-                  : (
-                      <span className="text-[11.5px] text-faint">
-                        {previewing ? t('Rendering…') : t('Nothing to preview')}
-                      </span>
-                    )}
-              </div>
+              <StickerPreview source={source} outlineWidth={outlineWidth} outlineColor={outlineColor} material={material} />
             </div>
           </div>
 

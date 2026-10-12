@@ -32,7 +32,7 @@ rows.
 | Action | Effect |
 |---|---|
 | Two buttons at the top center of a focused pane | Split it top/bottom or left/right (a pane shows its buttons only while focused, never on hover) |
-| Tools panel above the footer | An overlay, so it never takes layout space: pulled open by the handle centered on its top edge, collapsed it rests behind the footer with only the handle showing. Sticker / Replace / Text act on the focused pane; an empty pane offers only "Choose a photo" |
+| Tools panel above the footer | An overlay, so it never takes layout space: pulled open by the handle centered on its top edge, collapsed it rests behind the footer with only the handle showing. Sticker / Make sticker / Replace / Text act on the focused pane; an empty pane offers only "Choose a photo" |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
@@ -44,6 +44,7 @@ rows.
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
 | "Sticker" in the tools panel | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
+| "Make sticker" in the tools panel | Open the sticker maker: type text or pick an image, optionally remove the background with a local U²-Netᵖ model (served from /models/, transformers.js from CDN), tune the die-cut outline and finish, then insert the rendered PNG onto that pane as a sticker |
 | "Text" in the tools panel | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
 | × at pane top right | Close the pane (hidden while only one pane exists; shown while the pane is focused) |
 

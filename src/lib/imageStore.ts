@@ -22,6 +22,11 @@ export interface Preview extends Dims {
 const THUMB_MAX = 220
 const PREVIEW_MAX = 1800
 
+/** PNG keeps alpha: made stickers and other cutouts must not flatten to black. */
+function encodePreviewCanvas(canvas: HTMLCanvasElement, photo: Photo, quality: number) {
+  return canvas.toDataURL(photo.file.type === 'image/png' ? 'image/png' : 'image/jpeg', quality)
+}
+
 const thumbs = new Map<string, string>()
 const previews = new Map<string, Preview>()
 const thumbJobs = new Map<string, Promise<string | null>>()
@@ -102,7 +107,7 @@ export function getThumb(photo: Photo): Promise<string | null> {
     const r = await decodeResized(photo.file, THUMB_MAX)
     if (!r)
       return null
-    const url = r.src instanceof HTMLCanvasElement ? r.src.toDataURL('image/jpeg', 0.72) : ''
+    const url = r.src instanceof HTMLCanvasElement ? encodePreviewCanvas(r.src, photo, 0.72) : ''
     r.dispose()
     if (url)
       thumbs.set(photo.id, url)
@@ -129,7 +134,7 @@ export function getPreview(photo: Photo): Promise<Preview | null> {
     if (full)
       trueDims.set(photo.id, full)
 
-    const url = r.src instanceof HTMLCanvasElement ? r.src.toDataURL('image/jpeg', 0.9) : ''
+    const url = r.src instanceof HTMLCanvasElement ? encodePreviewCanvas(r.src, photo, 0.9) : ''
     r.dispose()
     const result: Preview = { url, w: r.w, h: r.h }
     if (url)
