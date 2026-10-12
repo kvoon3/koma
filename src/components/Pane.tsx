@@ -978,8 +978,9 @@ function PaneImpl({
         />
       )}
 
+      {/* Touch: the split tools live in the bar above the canvas (Stage). */}
       <div
-        className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
+        className={`pointer-coarse:hidden absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
         onPointerDown={e => e.stopPropagation()}
       >
         <button
@@ -1008,8 +1009,9 @@ function PaneImpl({
           Laid out horizontally at the pane's bottom edge so they never cover
           stickers or labels sitting on the photo. */}
       {leaf.photoId && (
+        // Touch: these tools live in the bar below the canvas (Stage).
         <div
-          className={`absolute bottom-[9px] left-1/2 z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
+          className={`pointer-coarse:hidden absolute bottom-[9px] left-1/2 z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] group-hover/pane:opacity-100 ${focused ? ' opacity-100' : ' opacity-0'}`}
           onPointerDown={e => e.stopPropagation()}
         >
           <button

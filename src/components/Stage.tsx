@@ -1,12 +1,23 @@
 import type { Divider } from '../lib/panes'
+import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize } from '../hooks'
+import { useCoarse, useElementSize } from '../hooks'
+import { pickImageFiles } from '../lib/filePicker'
 import { dividerLine, ratioFromPointer } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { Pane } from './Pane'
 
 const HIT_MIN = 15
 const MIN_CANVAS = 120
+
+/* Touch chrome: the focused pane's tools don't fit on a phone-size pane, so
+   they live in a chip above the canvas (split) and one below (sticker /
+   replace / text). Pane.tsx hides its in-pane toolbars with the matching
+   `pointer-coarse:hidden` — keep the two in sync. */
+const barRowCls = 'flex w-full flex-none items-center justify-center px-3 py-1.5'
+const barChipCls = 'flex items-center gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px]'
+const barBtnCls = 'grid h-[30px] w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon hover:bg-chip-hover hover:text-txt disabled:cursor-default disabled:opacity-35'
 
 function ResizeIcon() {
   return (
@@ -53,6 +64,7 @@ export function Stage() {
   const setCanvasSize = useStore(s => s.setCanvasSize)
 
   const transparent = isTransparentBg(bg)
+  const coarse = useCoarse()
 
   const view = useMemo(
     () =>
@@ -189,75 +201,141 @@ export function Stage() {
     s.setCanvasSize(first ? first.trueW / first.trueH : (activeWs(s).canvasRatio ?? 1.5), 1)
   }, [])
 
+  // Same pick flows as the in-pane buttons (Pane.tsx), aimed at the focused
+  // pane — on touch they are reachable from the bar below the canvas.
+  const pickForFocused = () => {
+    pickImageFiles((files) => {
+      const s = useStore.getState()
+      const created = s.addPhotos(files, false)
+      const first = created[0]
+      if (first && focusId)
+        s.assign(focusId, first.id)
+    })
+  }
+  const pickStickerForFocused = () => {
+    pickImageFiles((files) => {
+      const s = useStore.getState()
+      const created = s.addPhotos(files, false)
+      created.forEach((ph, i) => {
+        const n = Math.min(0.8, 0.5 + i * 0.08)
+        if (focusId)
+          s.addSticker(focusId, ph.id, n, n)
+      })
+    })
+  }
+  const addLabelToFocused = () => {
+    const s = useStore.getState()
+    if (!focusId)
+      return
+    s.ensureLabel(focusId)
+    s.requestLabelEdit(focusId)
+  }
+
+  const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
+  const hasPhoto = !!(focusLeaf?.photoId)
+
   return (
     <div
       ref={wrapRef}
-      className={`stage-checker absolute inset-0 flex touch-none items-center justify-center ${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) {
-          focus('')
-          selectLabel(null)
-        }
-      }}
+      className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
     >
+      {coarse && (
+        <div className={barRowCls}>
+          <div className={barChipCls}>
+            <button className={barBtnCls} disabled={!focusId} title="Split top/bottom" onClick={() => split(focusId, 'column')}>
+              <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
+            </button>
+            <button className={barBtnCls} disabled={!focusId} title="Split left/right" onClick={() => split(focusId, 'row')}>
+              <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div
-        ref={stageRef}
-        className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
-        style={{ width: view.W, height: view.H, background: transparent ? undefined : bg }}
+        className="flex min-h-0 w-full flex-1 items-center justify-center"
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) {
+            focus('')
+            selectLabel(null)
+          }
+        }}
       >
-        {view.leaves.map(({ node, rect }) => (
-          <Pane
-            key={node.id}
-            leaf={node}
-            rect={rect}
-            radius={view.radius}
-            unit={view.unit}
-            photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
-            photoById={photoById}
-            focused={focusId === node.id}
-            canClose={view.leaves.length > 1}
-            onFocus={focus}
-            onUpdate={updateLeaf}
-            onSplit={split}
-            onClose={closePane}
-          />
-        ))}
-
-        {view.dividers.map((d) => {
-          const line = dividerLine(d, view.gap)
-          const hit = Math.max(view.gap, HIT_MIN)
-          const style: React.CSSProperties
-            = d.dir === 'row'
-              ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
-              : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
-          return (
-            <div
-              key={d.id}
-              className={`group/divider absolute z-[5] touch-none ${d.dir === 'row' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
-              style={style}
-              onPointerDown={beginDrag(d)}
-            >
-              <span
-                className={
-                  `absolute rounded-none bg-transparent transition-colors duration-[120ms] group-hover/divider:bg-accent ${
-                    d.dir === 'row'
-                      ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
-                      : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'}`
-                }
-              />
-            </div>
-          )
-        })}
-
         <div
-          className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-colors duration-[120ms] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
-          onPointerDown={beginResize}
-          onDoubleClick={resetRatio}
-          title="Drag to change canvas aspect · double-click to reset"
+          ref={stageRef}
+          className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
+          style={{ width: view.W, height: view.H, background: transparent ? undefined : bg }}
         >
-          <ResizeIcon />
+          {view.leaves.map(({ node, rect }) => (
+            <Pane
+              key={node.id}
+              leaf={node}
+              rect={rect}
+              radius={view.radius}
+              unit={view.unit}
+              photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
+              photoById={photoById}
+              focused={focusId === node.id}
+              canClose={view.leaves.length > 1}
+              onFocus={focus}
+              onUpdate={updateLeaf}
+              onSplit={split}
+              onClose={closePane}
+            />
+          ))}
+
+          {view.dividers.map((d) => {
+            const line = dividerLine(d, view.gap)
+            const hit = Math.max(view.gap, HIT_MIN)
+            const style: React.CSSProperties
+              = d.dir === 'row'
+                ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
+                : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
+            return (
+              <div
+                key={d.id}
+                className={`group/divider absolute z-[5] touch-none ${d.dir === 'row' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
+                style={style}
+                onPointerDown={beginDrag(d)}
+              >
+                <span
+                  className={
+                    `absolute rounded-none bg-transparent transition-colors duration-[120ms] group-hover/divider:bg-accent ${
+                      d.dir === 'row'
+                        ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
+                        : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'}`
+                  }
+                />
+              </div>
+            )
+          })}
+
+          <div
+            className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-colors duration-[120ms] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
+            onPointerDown={beginResize}
+            onDoubleClick={resetRatio}
+            title="Drag to change canvas aspect · double-click to reset"
+          >
+            <ResizeIcon />
+          </div>
         </div>
       </div>
+
+      {coarse && (
+        <div className={barRowCls}>
+          <div className={barChipCls}>
+            <button className={barBtnCls} disabled={!hasPhoto} title="Pick images and pin them onto this photo" onClick={pickStickerForFocused}>
+              <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
+            </button>
+            <button className={barBtnCls} disabled={!hasPhoto} title="Pick a photo to replace this pane's photo" onClick={pickForFocused}>
+              <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+            </button>
+            <button className={barBtnCls} disabled={!hasPhoto} title="Add a text label" onClick={addLabelToFocused}>
+              <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
