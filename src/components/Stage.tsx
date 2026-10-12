@@ -1,11 +1,12 @@
-import type { Divider } from '../lib/panes'
+import type { Photo } from '../lib/imageStore'
+import type { Divider, Leaf, Rect } from '../lib/panes'
 import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize } from '../hooks'
+import { useElementSize, usePreview } from '../hooks'
 import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
-import { dividerLine, ratioFromPointer } from '../lib/panes'
+import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { Pane } from './Pane'
 
@@ -56,6 +57,9 @@ export function Stage() {
   const canvasFill = useStore(s => activeWs(s).canvasFill)
   const gapValue = useStore(s => s.gap)
   const radiusValue = useStore(s => s.radius)
+  const fadeValue = useStore(s => s.edgeFade)
+  const fadeStrength = useStore(s => s.edgeFadeStrength)
+  const paneBorder = useStore(s => s.paneBorder)
   const bg = useStore(s => s.bg)
   const photos = useStore(s => s.photos)
   const focus = useStore(s => s.focus)
@@ -78,9 +82,16 @@ export function Stage() {
         Math.max(160, wrapSize.h - 48),
         gapValue,
         radiusValue,
+        fadeValue,
       ),
-    [root, canvasRatio, canvasFill, wrapSize, gapValue, radiusValue],
+    [root, canvasRatio, canvasFill, wrapSize, gapValue, radiusValue, fadeValue],
   )
+
+  // Which pane edges are seams (face another photo); recomputed with the layout.
+  const seams = useMemo(() => seamSides(view.leaves, view.gap), [view])
+  // Backdrop blend: pane edges feather into the shared blurred field behind
+  // everything (width 0 turns the whole treatment off).
+  const paneFade = view.fade
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
 
@@ -266,12 +277,24 @@ export function Stage() {
           className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
           style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
         >
+          {paneFade > 0 && (
+            <SeamBackdrop
+              leaves={view.leaves}
+              photoById={photoById}
+              radius={Math.max(view.unit * 40, view.fade)}
+              opacity={fadeStrength / 100}
+            />
+          )}
+
           {view.leaves.map(({ node, rect }) => (
             <Pane
               key={node.id}
               leaf={node}
               rect={rect}
               radius={view.radius}
+              bordered={paneBorder}
+              fade={paneFade}
+              seam={seams.get(node.id)}
               unit={view.unit}
               photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
               photoById={photoById}
@@ -334,6 +357,57 @@ export function Stage() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * One photo of the shared blurred backdrop field: painted unclipped and
+ *  blurred so the panes' feathered edges melt into one continuous field.
+ */
+function BackdropLeaf({ leaf, rect, photo, radius }: {
+  leaf: Leaf
+  rect: Rect
+  photo: Photo
+  radius: number
+}) {
+  const preview = usePreview(photo)
+  if (!preview)
+    return null
+  const place = placement(rect, leaf, preview.w, preview.h)
+  return (
+    <img
+      src={preview.url}
+      alt=""
+      draggable={false}
+      className="pointer-events-none absolute block max-w-none"
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        transformOrigin: '0 0',
+        transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
+        filter: `blur(${radius}px)`,
+      }}
+    />
+  )
+}
+
+/** The blurred photo field behind all panes; `opacity` is the blend strength. */
+function SeamBackdrop({ leaves, photoById, radius, opacity }: {
+  leaves: { node: Leaf, rect: Rect }[]
+  photoById: Map<string, Photo>
+  radius: number
+  opacity: number
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity }}>
+      {leaves.map(({ node, rect }) => {
+        const photo = node.photoId ? photoById.get(node.photoId) : undefined
+        return photo
+          ? <BackdropLeaf key={node.id} leaf={node} rect={rect} photo={photo} radius={radius} />
+          : null
+      })}
     </div>
   )
 }
