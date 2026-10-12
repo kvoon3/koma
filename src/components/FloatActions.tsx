@@ -81,9 +81,9 @@ export function FloatActions() {
         />
       )}
 
-      {/* The focused pane's split chip, centered between back and reset: the
-          pane shows its own chip on hover, and the focused one moves up here so
-          it never covers the pane it splits. */}
+      {/* The focused pane's split chip, centered between back and reset: every
+          pane fades its own chip in on hover, and this copy keeps the focused
+          one reachable without covering the pane it splits. */}
       {!grid && focusId && (
         <PaneSplitTools
           paneId={focusId}

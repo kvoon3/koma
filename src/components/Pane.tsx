@@ -9,6 +9,7 @@ import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePreview } from '../hooks'
+import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { getLiveVideoUrl } from '../lib/imageStore'
@@ -519,20 +520,22 @@ function LabelView({
 }
 
 // The pane's photo area: the placed preview once loaded, a placeholder note
-// while the preview decodes, or the empty pane's placeholder icon (picking a
-// photo lives in the focused pane's tools row, see Stage.tsx).
+// while the preview decodes, or the empty pane's own "Choose a photo" button
+// (replacing a filled pane's photo lives in the tools row, see Stage.tsx).
 function PanePhotoContent({
   preview,
   place,
   rect,
   photoId,
   mask,
+  onPick,
 }: {
   preview: Preview | null
   place: ReturnType<typeof placement> | null
   rect: Rect
   photoId: string | null
   mask?: React.CSSProperties
+  onPick: () => void
 }) {
   const t = useT()
   return preview && place
@@ -561,19 +564,31 @@ function PanePhotoContent({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">{t('Loading...')}</div>
         )
       : (
-          // A placeholder, not a button: the pane's tools (including picking a
-          // photo) appear once it is focused.
+          // An empty pane has no tools to offer, so it carries its own picker:
+          // always visible (nothing to pan, so no hover gate), scaled up like
+          // the other pane buttons on coarse pointers.
           <div className="absolute inset-0 grid place-items-center">
-            <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} className="pointer-events-none text-faint" />
+            <button
+              className="grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-faint transition-colors duration-[120ms] hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:h-[38px] pointer-coarse:w-[38px]"
+              title={t('Choose a photo')}
+              aria-label={t('Choose a photo')}
+              onPointerDown={e => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                onPick()
+              }}
+            >
+              <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
+            </button>
           </div>
         )
 }
 
 /**
  * The two split buttons for one pane, drawn as a single chip. Hovering a pane
- * fades it in at that pane's top center; the focused pane's chip rides in the
- * page row between back and reset instead (FloatActions.tsx), where it never
- * covers the pane it splits.
+ * fades it in at that pane's top center, focused or not; the focused pane also
+ * draws the same chip in the page row between back and reset
+ * (FloatActions.tsx). Both name the pane they split, so either one works.
  */
 export function PaneSplitTools({
   paneId,
@@ -739,6 +754,17 @@ function PaneImpl({
     useStore.getState().clearSelection()
     void navigate({ to: '/', viewTransition: viewTransitionOption() })
   }, [navigate])
+
+  // The empty pane's own pick flow (Stage's tools row has the focused-pane
+  // one): import the files, then put the first photo straight into this pane.
+  const pickForPane = useCallback(() => {
+    pickImageFiles((files) => {
+      const s = useStore.getState()
+      const first = s.addPhotos(files, false)[0]
+      if (first)
+        s.assign(leaf.id, first.id)
+    })
+  }, [leaf.id])
 
   const pointersRef = useRef(new Map<number, { x: number, y: number }>())
   const gestureRef = useRef<Gesture | null>(null)
@@ -1199,6 +1225,7 @@ function PaneImpl({
         rect={rect}
         photoId={leaf.photoId}
         mask={photoMask}
+        onPick={pickForPane}
       />
 
       {liveUrl && place && (
@@ -1257,15 +1284,14 @@ function PaneImpl({
       )}
 
       {/* The pane's only hover chrome: the split chip, faded in while the
-          pointer is over the pane. A focused pane draws no chip here (its chip
-          is in the page row), so the buttons never appear twice. */}
-      {!focused && (
-        <PaneSplitTools
-          paneId={leaf.id}
-          onSplit={onSplit}
-          className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-[140ms] group-hover/pane:pointer-events-auto group-hover/pane:opacity-100"
-        />
-      )}
+          pointer is over the pane, focused or not. The focused pane draws the
+          same chip in the page row too (FloatActions.tsx); both act on
+          `leaf.id`, so either one splits this pane. */}
+      <PaneSplitTools
+        paneId={leaf.id}
+        onSplit={onSplit}
+        className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-[140ms] group-hover/pane:pointer-events-auto group-hover/pane:opacity-100"
+      />
 
       {dropChoice && (
         <div
@@ -1381,6 +1407,10 @@ function PaneImpl({
             {(leaf.photoId || swapTargetId) && (
               <ContextMenu.Separator className={menuSeparatorCls} />
             )}
+            {/* Move is gated on the pane holding a photo: an empty pane has
+                nothing to carry. Unlike the swap item it works in both focus
+                states, since the carried photo swaps into whatever pane the
+                next click lands on. */}
             {leaf.photoId && (
               <ContextMenu.Item className={menuItemCls} onClick={e => startMove(e.clientX, e.clientY)}>
                 <MorphIcon icon={Move} size={13} strokeWidth={1.75} className="text-dim" />

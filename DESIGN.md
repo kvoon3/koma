@@ -33,17 +33,17 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Split chip: faded in at the top center of a pane you hover, or in the page row between back and reset for the focused pane | Split it top/bottom or left/right |
-| Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make sticker / Text act on the focused pane; an empty pane offers only "Choose a photo", and with no focus at all the tools grey out. The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
+| Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane | Split it top/bottom or left/right. Both chips act on the pane they name |
+| Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make sticker / Text act on the focused pane; while the focused pane holds no photo the panel is put away entirely (handle included), because the empty pane carries its own "Choose a photo" button, and with no focus at all the tools grey out. The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
 | Double-click inside a pane | Reset that pane's photo |
-| Right-click a pane | Context menu: split, Move (pick the photo up with the pointer), swap with the focused pane (unfocused panes), close |
+| Right-click a pane | Context menu: split, Move (pick the photo up with the pointer; offered while the pane holds a photo), swap with the focused pane (unfocused panes), close |
 | "Move" in the pane menu | The photo follows the pointer with no button held; clicking another pane swaps the two panes' contents (an empty pane takes the photo in). Clicking the source pane, empty space, or pressing Esc drops it back |
 | Long-press a pane (touch) | Arms a swap: the drag that follows carries the pane's photo onto another pane, and dropping it there swaps the two panes' contents (an empty pane takes the photo in). Moving before the hold fires pans as usual, and releasing without dragging just focuses the pane |
-| An empty pane | Shows a dimmed image icon, not a button: focus it and use "Choose a photo" in the tools panel above the footer, or drop a file straight onto the pane |
+| An empty pane | Carries a dimmed "Choose a photo" button at its center (always visible, no hover gate): it opens the picker and drops the photo into that pane. Dropping a file straight onto the pane works too |
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
 | "Sticker" in the tools panel | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
@@ -109,16 +109,17 @@ Settings; the ratio comes from `ratio`).
 
 The old status-bar stats (panes / filled / focus) are gone; the footer shows
 the canvas ratio and the output size. The split chip is a pane's only hover
-chrome: hovering a pane fades it in at that pane's top center, while the
-focused pane's chip rides in the page row between the back and reset buttons,
-so it never covers the pane it splits. Everything else a pane shows stays
-focus-only, the × close button at the top right. The focused pane's tools
-(sticker / replace photo / text label) live in a panel that overlays the
+chrome: hovering a pane, focused or not, fades it in at that pane's top center,
+and the focused pane also draws the same chip in the page row between the back
+and reset buttons, so there is always one within reach. Everything else a pane
+shows stays focus-only, the × close button at the top right. The focused pane's
+tools (sticker / replace photo / text label) live in a panel that overlays the
 canvas above the footer, open by default and moved only by the handle on its
 top edge; the tools act on the focused pane, so they grey out while no pane
-is focused, and switching between an empty and a filled pane folds the tools
-that no longer apply away (width + fade) instead of remounting them, so the
-panel's own width moves with the row.
+is focused, and a focused pane without a photo puts the panel away entirely
+(the pane carries its own "Choose a photo" button instead). Clearing the focus
+still folds the tools that have no pane to act on away (width + fade) instead
+of remounting them, so the panel's own width moves with the row.
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export and the theme toggle sit at

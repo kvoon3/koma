@@ -15,10 +15,10 @@ import { StickerMakerDialog } from './StickerMakerDialog'
 const HIT_MIN = 15
 const MIN_CANVAS = 120
 
-/* The focused pane's tools: an overlay above the footer, so the panel never
-   takes layout space, and it hugs its buttons instead of stretching. It starts
-   open; only the handle on its top edge moves it, and collapsed it rests behind
-   the footer (z-40) with just the handle showing. */
+/* The focused pane's tools: an overlay above the footer, so it never takes
+   layout space. Only the handle on its top edge moves it; collapsed it rests
+   behind the footer with the handle showing. An empty focused pane puts the
+   panel away: the pane itself carries the photo button. */
 const toolsPanelCls = 'pointer-events-auto relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-[260ms] ease-(--ease-drawer)'
 const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-opacity duration-[160ms] hover:text-txt'
 /* Fixed-width tools in a max-content row: the panel hugs them, and the row
@@ -308,9 +308,13 @@ export function Stage() {
   // Every tool acts on the focused pane, so with no focus the panel stays put
   // (only its handle moves it now) and the tools are disabled instead of gone.
   const toolsDisabled = !focusId
-  // One row, so the order here is the order on screen. A pane without a photo
-  // folds Sticker / Make sticker / Text away and leaves the photo tool, which
-  // answers as "Choose a photo" until the pane has one to replace.
+  // An empty focused pane has no tools to offer: the panel and its handle are
+  // put away while the pane itself carries the "Choose a photo" button. With
+  // no focus at all the panel keeps today's shape (visible, tools greyed out).
+  const toolsHidden = !!focusId && !hasPhoto
+  // One row, so the order here is the order on screen. With no focus at all
+  // the photo tool reads "Choose a photo" and the other three fold away,
+  // since none of them has a pane to act on.
   const tools: ToolDef[] = [
     { key: 'photo', shown: true, icon: ImagePlus, label: t('Replace photo'), altLabel: t('Choose a photo'), altOn: !hasPhoto, hint: hasPhoto ? t('Pick a photo to replace this pane\'s photo') : t('Choose a photo'), onClick: pickForFocused },
     { key: 'sticker', shown: hasPhoto, icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
@@ -405,33 +409,34 @@ export function Stage() {
       </div>
 
       {/* The focused pane's tools, laid over the canvas so the panel never
-          takes layout space. The panel opens on the handle alone: focusing
-          another pane leaves it as it is, and the tools grey out while no
-          pane is focused. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center">
-        <div className={`${toolsPanelCls} ${
-          toolsOpen ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
-        }`}
-        >
-          <button
-            className={toolsHandleCls}
-            title={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-            aria-expanded={toolsOpen}
-            aria-label={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-            onClick={() => setToolsOpen(!toolsOpen)}
+          takes layout space. It opens on the handle alone, and the tools grey
+          out while no pane is focused; an empty focused pane hides it. */}
+      {!toolsHidden && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center">
+          <div className={`${toolsPanelCls} ${
+            toolsOpen ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
+          }`}
           >
-            <MorphIcon icon={toolsOpen ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
-          </button>
-          {/* inert while collapsed: the tools are off-screen behind the
+            <button
+              className={toolsHandleCls}
+              title={t(toolsOpen ? 'Hide tools' : 'Show tools')}
+              aria-expanded={toolsOpen}
+              aria-label={t(toolsOpen ? 'Hide tools' : 'Show tools')}
+              onClick={() => setToolsOpen(!toolsOpen)}
+            >
+              <MorphIcon icon={toolsOpen ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
+            </button>
+            {/* inert while collapsed: the tools are off-screen behind the
               footer. Open or not the row scrolls sideways instead of
               squashing the fixed-width tools when they outgrow the screen. */}
-          <div className={toolsScrollCls} inert={!toolsOpen}>
-            <div className={toolsRowCls}>
-              {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} disabled={toolsDisabled} />)}
+            <div className={toolsScrollCls} inert={!toolsOpen}>
+              <div className={toolsRowCls}>
+                {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} disabled={toolsDisabled} />)}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => setStickerMakerFor(null)} />
     </div>
