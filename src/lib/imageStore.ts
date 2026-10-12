@@ -324,3 +324,16 @@ export async function probeJpeg(file: File): Promise<Dims | null> {
     return null
   return scanJpegSegments(v)
 }
+
+/** PNG dimensions from the IHDR chunk; keeps made stickers (always PNG) renderable. */
+export async function probePng(file: File): Promise<Dims | null> {
+  try {
+    const v = new DataView(await file.slice(0, 33).arrayBuffer())
+    if (v.byteLength < 24 || v.getUint32(0) !== 0x89504E47)
+      return null
+    return { w: v.getUint32(16), h: v.getUint32(20) }
+  }
+  catch {
+    return null
+  }
+}

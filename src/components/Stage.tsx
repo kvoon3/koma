@@ -1,7 +1,7 @@
 import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Rect } from '../lib/panes'
-import { ChevronDown, ChevronUp, ImagePlus, Sticker as StickerIcon, Type } from 'lucide'
+import { ChevronDown, ChevronUp, ImagePlus, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -10,6 +10,7 @@ import { useT } from '../lib/i18n'
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { Pane } from './Pane'
+import { StickerMakerDialog } from './StickerMakerDialog'
 
 const HIT_MIN = 15
 const MIN_CANVAS = 120
@@ -63,6 +64,7 @@ export function Stage() {
   const stageRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState(false)
   const [sizing, setSizing] = useState(false)
+  const [stickerMakerFor, setStickerMakerFor] = useState<string | null>(null)
   const t = useT()
 
   const root = useStore(s => activeWs(s).root)
@@ -378,6 +380,7 @@ export function Stage() {
               ? (
                   <>
                     <ToolButton icon={StickerIcon} label={t('Sticker')} hint={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused} />
+                    <ToolButton icon={WandSparkles} label={t('Make sticker')} hint={t('Make a sticker from text or an image')} onClick={() => focusId && setStickerMakerFor(focusId)} />
                     <ToolButton icon={ImagePlus} label={t('Replace photo')} hint={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused} />
                     <ToolButton icon={Type} label={t('Text')} hint={t('Add a text label')} onClick={addLabelToFocused} />
                   </>
@@ -389,6 +392,8 @@ export function Stage() {
           </div>
         </div>
       </div>
+
+      <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => setStickerMakerFor(null)} />
     </div>
   )
 }
