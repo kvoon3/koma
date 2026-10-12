@@ -4,7 +4,7 @@ import type { Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
+import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, Move, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -26,9 +26,13 @@ const menuSeparatorCls = 'mx-1 my-1 h-px border-0 bg-line'
 
 const dropBtnCls = 'flex w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-2 text-xs text-txt hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
-// Dragging a photo this many px past its pane's edge upgrades a pan into a
-// swap drag (carrying the photo onto another pane).
-const SWAP_EDGE = 12
+// Holding a pane still this long arms a pane swap drag on touch. Desktop has
+// no hold (a still mouse press must stay a pan), so it enters the same carried
+// state from the context menu's Move item instead.
+const SWAP_HOLD_MS = 500
+// Pointer movement that separates a hold from a drag: it cancels a pending
+// arm (so a quick drag stays a pan) and starts the carry once the hold armed it.
+const SWAP_SLOP = 5
 
 interface Gesture {
   mode: 'pan' | 'pinch' | 'swap'
@@ -738,20 +742,27 @@ function PaneImpl({
 
   const pointersRef = useRef(new Map<number, { x: number, y: number }>())
   const gestureRef = useRef<Gesture | null>(null)
-  // Whether the active touch gesture already focused this pane. Touch defers
-  // focus to the first move or the release, so a long-press opens the pane's
-  // context menu with this pane still unfocused, the same state a desktop
-  // right-click produces, which is what makes "Swap with focused pane" work.
-  const touchFocusedRef = useRef(true)
+  // The pointer type of the last press: Base UI opens the pane menu on a touch
+  // long press too, and some browsers raise a native contextmenu for it, so
+  // keying the suppression off the press is more reliable than off the event.
+  const touchPressRef = useRef(false)
   const [dropping, setDropping] = useState(false)
   const [editing, setEditing] = useState(false)
 
-  // ---- Drag-out photo swap --------------------------------------------------
-  // Panning past the pane's edge carries the photo out as a ghost; dropping
-  // it on another pane swaps the two photos. The hovered target highlights
-  // imperatively via a data-swap-over attribute (see index.css); dropping
-  // nowhere, on the source pane, or a pointercancel cancels.
+  // ---- Long-press pane swap -------------------------------------------------
+  // Touch arms the swap with a still hold; desktop uses the menu's Move item,
+  // since a still mouse press must stay a pan. The ghost follows the pointer
+  // and dropping it on another pane swaps the two; dropping elsewhere cancels.
   const [swapAt, setSwapAt] = useState<{ x: number, y: number } | null>(null)
+  const [moving, setMoving] = useState(false)
+  const swapHoldRef = useRef<number | null>(null)
+  const swapArmedRef = useRef(false)
+  const clearSwapHold = useCallback(() => {
+    if (swapHoldRef.current != null) {
+      clearTimeout(swapHoldRef.current)
+      swapHoldRef.current = null
+    }
+  }, [])
   const overRef = useRef<HTMLElement | null>(null)
   const clearSwapOver = useCallback(() => {
     if (overRef.current) {
@@ -760,7 +771,11 @@ function PaneImpl({
     }
   }, [])
   const swapOverAt = useCallback((x: number, y: number) => {
-    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-pane-id]') ?? null
+    // `elements`, not `element`: the Move overlay covers the stage, so the
+    // target has to be the topmost pane below it.
+    const el = document.elementsFromPoint(x, y)
+      .map(n => n.closest<HTMLElement>('[data-pane-id]'))
+      .find(n => n != null) ?? null
     const target = el && el.dataset.paneId !== leaf.id ? el : null
     if (overRef.current !== target) {
       clearSwapOver()
@@ -781,10 +796,34 @@ function PaneImpl({
       s.focus(targetId)
     }
   }, [leaf.id, clearSwapOver])
+  // Move mode (the context menu item): the photo follows the pointer with no
+  // button held, and the next click drops it on the pane underneath.
+  const startMove = (x: number, y: number) => {
+    setMoving(true)
+    setSwapAt({ x, y })
+    swapOverAt(x, y)
+  }
+  useEffect(() => {
+    if (!moving)
+      return
+    // Escape drops the carried pane; capture so it never reaches the global
+    // handler, which would close the tools panel and then leave the editor.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape')
+        return
+      e.preventDefault()
+      e.stopPropagation()
+      setMoving(false)
+      endSwapDrag(false)
+    }
+    window.addEventListener('keydown', onKey, { capture: true })
+    return () => window.removeEventListener('keydown', onKey, { capture: true })
+  }, [moving, endSwapDrag])
   useEffect(() => () => {
     clearSwapOver()
+    clearSwapHold()
     document.body.style.cursor = ''
-  }, [clearSwapOver])
+  }, [clearSwapOver, clearSwapHold])
   // A drop on a pane that already holds a photo asks what the image should
   // become; `at` is the drop point in pane-normalized coords for stickers.
   const [dropChoice, setDropChoice] = useState<{ photos: Photo[], at: { x: number, y: number } } | null>(null)
@@ -873,17 +912,13 @@ function PaneImpl({
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Only the primary button focuses or starts a gesture. A right-click must
-    // leave focus alone so the menu's swap item can target the focused pane;
-    // touch defers focus to the first move or release (see touchFocusedRef).
+    // leave focus alone so the menu's swap item can target the focused pane.
     if (e.button !== 0)
       return
     // A second pointer while carrying a photo out must not start a new gesture.
     if (gestureRef.current?.mode === 'swap')
       return
-    const touch = e.pointerType !== 'mouse'
-    touchFocusedRef.current = !touch
-    if (!touch)
-      onFocus(leaf.id)
+    onFocus(leaf.id)
     useStore.getState().selectLabel(null)
     if (!leaf.photoId)
       return
@@ -892,6 +927,8 @@ function PaneImpl({
     const p = local(e.clientX, e.clientY)
     if (pointersRef.current.size >= 2) {
       clearHold()
+      clearSwapHold()
+      swapArmedRef.current = false
       const [a, b] = [...pointersRef.current.values()]
       gestureRef.current = {
         mode: 'pinch',
@@ -903,36 +940,53 @@ function PaneImpl({
     }
     else {
       gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...leaf } }
+      downAtRef.current = { x: e.clientX, y: e.clientY }
+      if (e.pointerType !== 'mouse') {
+        swapHoldRef.current = window.setTimeout(() => {
+          swapHoldRef.current = null
+          swapArmedRef.current = true
+        }, SWAP_HOLD_MS)
+      }
       if (liveUrl) {
-        downAtRef.current = { x: e.clientX, y: e.clientY }
         holdTimerRef.current = window.setTimeout(() => {
           holdTimerRef.current = null
-          downAtRef.current = null
           setLiveFor(photo?.id ?? null)
         }, 320)
       }
     }
   }
 
-  // Single-pointer pan; dragging past the pane's edge upgrades it into a
-  // swap drag instead of panning further.
+  // The armed hold became a drag: carry the photo as a ghost from now on.
+  const startSwapDrag = (x: number, y: number) => {
+    clearHold()
+    clearSwapHold()
+    swapArmedRef.current = false
+    downAtRef.current = null
+    setLiveFor(null)
+    gestureRef.current = { mode: 'swap', lastX: 0, lastY: 0, startDist: 0, base: { ...leaf } }
+    document.body.style.cursor = 'grabbing'
+    setSwapAt({ x, y })
+    swapOverAt(x, y)
+  }
+
+  // Single-pointer pan. A touch held still (see SWAP_HOLD_MS) armed the swap:
+  // the first movement after that starts carrying the photo, so a drag that
+  // began as a hold never pans halfway through.
   const panMove = (e: React.PointerEvent, g: Gesture) => {
-    const r = elRef.current?.getBoundingClientRect()
-    if (r && Math.max(r.left - e.clientX, e.clientX - r.right, r.top - e.clientY, e.clientY - r.bottom) >= SWAP_EDGE) {
-      clearHold()
-      downAtRef.current = null
-      setLiveFor(null)
-      gestureRef.current = { mode: 'swap', lastX: 0, lastY: 0, startDist: 0, base: g.base }
-      document.body.style.cursor = 'grabbing'
-      setSwapAt({ x: e.clientX, y: e.clientY })
-      swapOverAt(e.clientX, e.clientY)
+    const p = local(e.clientX, e.clientY)
+    const moved = downAtRef.current
+      ? Math.hypot(e.clientX - downAtRef.current.x, e.clientY - downAtRef.current.y)
+      : 0
+    if (swapArmedRef.current) {
+      if (moved > SWAP_SLOP)
+        startSwapDrag(e.clientX, e.clientY)
       return
     }
-    const p = local(e.clientX, e.clientY)
-    // Dragging means panning, not holding; cancel the Live Photo timer.
-    if (holdTimerRef.current != null && downAtRef.current
-      && Math.hypot(e.clientX - downAtRef.current.x, e.clientY - downAtRef.current.y) > 5) {
+    // Moving means panning, not holding: drop the Live Photo timer and the
+    // pending swap arm before they fire.
+    if (moved > SWAP_SLOP) {
       clearHold()
+      clearSwapHold()
     }
     const dx = p.x - g.lastX
     const dy = p.y - g.lastY
@@ -945,13 +999,6 @@ function PaneImpl({
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointersRef.current.has(e.pointerId))
       return
-    // A moving touch (pan or pinch starting) means the user is working on
-    // this pane; focus it now; a still press may still become a long-press
-    // menu instead, which must find the pane unfocused.
-    if (!touchFocusedRef.current) {
-      touchFocusedRef.current = true
-      onFocus(leaf.id)
-    }
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     const g = gestureRef.current
     if (!g || !iw || !ih)
@@ -983,19 +1030,13 @@ function PaneImpl({
   }
 
   const endPointer = (e: React.PointerEvent) => {
-    // A touch that stayed still and never opened the menu is a tap: focus now.
-    // When the long-press menu is open this pointerup lands on the menu
-    // backdrop, so the pane stays unfocused (and onOpenChange already armed
-    // touchFocusedRef against a stray late event).
-    if (!touchFocusedRef.current) {
-      touchFocusedRef.current = true
-      onFocus(leaf.id)
-    }
     const g = gestureRef.current
     pointersRef.current.delete(e.pointerId)
     if (pointersRef.current.size === 0) {
       gestureRef.current = null
       clearHold()
+      clearSwapHold()
+      swapArmedRef.current = false
       downAtRef.current = null
       setLiveFor(null)
       // pointerup over another pane commits the swap; pointercancel drops it.
@@ -1003,16 +1044,24 @@ function PaneImpl({
         endSwapDrag(e.type === 'pointerup')
     }
     else {
+      clearSwapHold()
+      swapArmedRef.current = false
       const only = [...pointersRef.current.values()][0]
       const p = local(only.x, only.y)
+      downAtRef.current = { x: only.x, y: only.y }
       gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...leaf } }
     }
   }
 
-  // The menu opens mid-gesture on touch (Base UI long-presses the trigger):
-  // hand the gesture back so the finger moving over the open menu doesn't
-  // keep panning the photo underneath, and stop Live Photo playback.
-  const onMenuOpenChange = (open: boolean) => {
+  // A touch long press arms the swap drag, not the menu, so cancel Base UI's
+  // own long-press open. A menu opened while a gesture runs (right-click
+  // mid-pan) hands the gesture back so the finger crossing the menu doesn't
+  // keep panning.
+  const onMenuOpenChange = (open: boolean, details: ContextMenu.Root.ChangeEventDetails) => {
+    if (open && touchPressRef.current) {
+      details.cancel()
+      return
+    }
     if (!open)
       return
     endSwapDrag(false)
@@ -1026,9 +1075,10 @@ function PaneImpl({
     pointersRef.current.clear()
     gestureRef.current = null
     clearHold()
+    clearSwapHold()
+    swapArmedRef.current = false
     downAtRef.current = null
     setLiveFor(null)
-    touchFocusedRef.current = true
   }
 
   useEffect(() => {
@@ -1084,9 +1134,8 @@ function PaneImpl({
   )
 
   const swapPhotos = useStore(s => s.swapPhotos)
-  // A swap needs a target other than this pane: on desktop that's any right
-  // click on an unfocused pane, on touch it's a long-press (focus was
-  // deferred, so the previously focused pane is still the target).
+  // The menu's swap item targets the focused pane, so it only makes sense on
+  // an unfocused pane: right-clicking the focused one has nothing to swap with.
   const focusId = useStore(s => activeWs(s).focusId)
   const swapTargetId = !focused && focusId && focusId !== leaf.id ? focusId : null
 
@@ -1103,6 +1152,11 @@ function PaneImpl({
       }
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radius }}
       onPointerDown={onPointerDown}
+      // Capture, not bubble: pressing a sticker or label stops propagation, but
+      // the press pointer type still has to reach the menu suppression below.
+      onPointerDownCapture={(e) => {
+        touchPressRef.current = e.pointerType !== 'mouse'
+      }}
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
@@ -1270,6 +1324,36 @@ function PaneImpl({
         document.body,
       )}
 
+      {/* Move mode: one full-screen catcher so the next click drops the carried
+          photo wherever it lands (source and empty space drop it back). The
+          portal lives in the pane's React tree, so events must not bubble on
+          to the pane's own handlers (or Base UI would reopen the menu). */}
+      {moving && createPortal(
+        <div
+          className="fixed inset-0 z-[70] cursor-grabbing touch-none select-none"
+          onPointerMove={(e) => {
+            e.stopPropagation()
+            setSwapAt({ x: e.clientX, y: e.clientY })
+            swapOverAt(e.clientX, e.clientY)
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            if (e.button !== 0)
+              return
+            swapOverAt(e.clientX, e.clientY)
+            setMoving(false)
+            endSwapDrag(true)
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setMoving(false)
+            endSwapDrag(false)
+          }}
+        />,
+        document.body,
+      )}
+
       {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
       {/* Drawn last so the pane border stays above its photo/stickers. */}
@@ -1277,9 +1361,9 @@ function PaneImpl({
     </div>
   )
 
-  // Every pane keeps its context menu mounted (right-click, or long-press on
-  // touch); mounting it only on unfocused panes would let a touch's focus
-  // change tear it down before the long-press fires.
+  // Every pane keeps its context menu mounted: right-click works on the
+  // focused pane too (split / close), and the swap item shows up on unfocused
+  // panes only (see swapTargetId).
   return (
     <ContextMenu.Root onOpenChange={onMenuOpenChange}>
       <ContextMenu.Trigger render={paneNode} />
@@ -1294,14 +1378,20 @@ function PaneImpl({
               <MorphIcon icon={SquareSplitHorizontal} size={13} strokeWidth={1.75} className="text-dim" />
               {t('Split left/right')}
             </ContextMenu.Item>
+            {(leaf.photoId || swapTargetId) && (
+              <ContextMenu.Separator className={menuSeparatorCls} />
+            )}
+            {leaf.photoId && (
+              <ContextMenu.Item className={menuItemCls} onClick={e => startMove(e.clientX, e.clientY)}>
+                <MorphIcon icon={Move} size={13} strokeWidth={1.75} className="text-dim" />
+                {t('Move')}
+              </ContextMenu.Item>
+            )}
             {swapTargetId && (
-              <>
-                <ContextMenu.Separator className={menuSeparatorCls} />
-                <ContextMenu.Item className={menuItemCls} onClick={() => swapPhotos(leaf.id, swapTargetId)}>
-                  <MorphIcon icon={ArrowLeftRight} size={13} strokeWidth={1.75} className="text-dim" />
-                  {t('Swap with focused pane')}
-                </ContextMenu.Item>
-              </>
+              <ContextMenu.Item className={menuItemCls} onClick={() => swapPhotos(leaf.id, swapTargetId)}>
+                <MorphIcon icon={ArrowLeftRight} size={13} strokeWidth={1.75} className="text-dim" />
+                {t('Swap with focused pane')}
+              </ContextMenu.Item>
             )}
             {canClose && (
               <>
