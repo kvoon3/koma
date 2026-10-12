@@ -55,18 +55,6 @@ export function useThumb(photo: Photo, visible: boolean): string | null {
   return url
 }
 
-/** True on touch-primary devices, the JS twin of the `pointer-coarse` CSS variant. */
-export function useCoarse() {
-  const [coarse, setCoarse] = useState(() => matchMedia('(pointer: coarse)').matches)
-  useEffect(() => {
-    const mq = matchMedia('(pointer: coarse)')
-    const on = () => setCoarse(mq.matches)
-    mq.addEventListener('change', on)
-    return () => mq.removeEventListener('change', on)
-  }, [])
-  return coarse
-}
-
 export function useElementSize<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
