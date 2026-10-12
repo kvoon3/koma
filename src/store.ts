@@ -100,7 +100,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   photos: [],
   workspaces: bootWorkspaces,
   activeId: bootWorkspaces[0].id,
-  view: 'edit' as const,
+  view: 'grid' as const,
   gap: GAP,
   radius: RADIUS,
   bg: BG,
