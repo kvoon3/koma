@@ -1216,7 +1216,7 @@ function PaneImpl({
       <ContextMenu.Trigger render={paneNode} />
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-90">
-          <ContextMenu.Popup className="min-w-[180px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-100 ease-out data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
+          <ContextMenu.Popup className="min-w-[180px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
             <ContextMenu.Item className={menuItemCls} onClick={() => onSplit(leaf.id, 'column')}>
               <MorphIcon icon={SquareSplitVertical} size={13} strokeWidth={1.75} className="text-dim" />
               {t('Split top/bottom')}

@@ -58,6 +58,10 @@
   --codeTxt: #171717;
 
   --pop-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 24px -6px rgba(0, 0, 0, 0.12);
+
+  /* Motion: strong UI curves. Consumed as ease-(--ease-out) / ease-(--ease-drawer). */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 html.dark {
@@ -239,5 +243,29 @@ html.dark {
       linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%);
     background-position: 0 0, 4px 4px;
     background-size: 8px 8px;
+  }
+}
+
+/*
+ * Reduced motion, app-wide (single global block, per the animate skill:
+ * "fewer and gentler", not zero). transition-property is narrowed instead of
+ * zeroing durations, so opacity/color feedback (fades, hovers) still reads
+ * while transform / translate / scale / rotate movement is dropped.
+ *
+ * Swipe gestures are safe: Base UI drives follow-the-finger with an inline
+ * `transform` + inline `transition: none` (duration 0), and this block never
+ * touches transform *values*; dropping transform from the transition list
+ * only removes the release/settle animation, which is exactly the motion
+ * reduced-motion users asked to avoid. The busy spinner's rotation is stopped
+ * (one frame, final state).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-property: opacity, color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, box-shadow !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
 }

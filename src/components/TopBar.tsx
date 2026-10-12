@@ -17,7 +17,7 @@ const itemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap
 // Right-aligned shortcut hint (and library count) inside a menu item.
 const hintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums text-faint'
 
-const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-100 ease-out data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 
 function CatMenu({ label, children }: { label: string, children: ReactNode }) {
   return (
