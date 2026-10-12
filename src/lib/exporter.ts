@@ -85,19 +85,11 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
   return { W, H, u, gap, radius: opts.radius * u, cells, labelCells }
 }
 
-export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElement> {
-  const { W, H } = computeExportSize(opts)
-  const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
-  const ctx = canvas.getContext('2d')!
-  if (!isTransparentBg(opts.bg)) {
-    ctx.fillStyle = opts.bg
-    ctx.fillRect(0, 0, W, H)
-  }
-  ctx.imageSmoothingQuality = 'high'
-
-  const prep = prepare(opts, W, H)
+/**
+ * Clip each photo into its pane, draw it placed, then its stickers; each
+ *  photo's full bitmap is decoded once and released right after its cell.
+ */
+async function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions) {
   const stickerSrcs = new Map<string, Awaited<ReturnType<typeof decodeFull>>>()
   for (const { leaf, rect, photo } of prep.cells) {
     const p = placement(rect, leaf, photo.trueW, photo.trueH)
@@ -108,34 +100,51 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
     ctx.clip()
     ctx.drawImage(src, p.x, p.y, p.w, p.h)
-    for (const st of leaf.stickers) {
-      const sp = opts.photos.get(st.photoId)
-      if (!sp?.trueW || !sp.trueH)
-        continue
-      let s2 = stickerSrcs.get(st.photoId)
-      if (s2 === undefined) {
-        s2 = await decodeFull(sp)
-        stickerSrcs.set(st.photoId, s2)
-      }
-      if (!s2)
-        continue
-      const sr = stickerRect(p, st, sp.trueW, sp.trueH, sp.trueW / sp.trueH)
-      ctx.drawImage(s2, sr.x, sr.y, sr.w, sr.h)
-    }
+    await drawStickers(ctx, p, leaf, opts.photos, stickerSrcs)
     ctx.restore()
     releaseFull(src)
   }
   stickerSrcs.forEach(s2 => releaseFull(s2))
+}
 
-  // Labels draw on top of photos, clipped to their pane (but not to the photo).
-  if (prep.labelCells.length) {
-    const ids = [...new Set(prep.labelCells.map(({ leaf }) => leaf.label!.font))]
-    const failed = await ensureFonts(ids)
-    if (failed.length) {
-      const names = failed.map(id => fontById(id).label).join(', ')
-      say(`Fonts unavailable, used system fallback: ${names}`)
+/** Draw one leaf's stickers over its photo, sharing a decoded source per photo id. */
+async function drawStickers(
+  ctx: CanvasRenderingContext2D,
+  p: { x: number, y: number, w: number, h: number },
+  leaf: Leaf,
+  photos: Map<string, Photo>,
+  stickerSrcs: Map<string, Awaited<ReturnType<typeof decodeFull>>>,
+) {
+  for (const st of leaf.stickers) {
+    const sp = photos.get(st.photoId)
+    if (!sp?.trueW || !sp.trueH)
+      continue
+    let s2 = stickerSrcs.get(st.photoId)
+    if (s2 === undefined) {
+      s2 = await decodeFull(sp)
+      stickerSrcs.set(st.photoId, s2)
     }
+    if (!s2)
+      continue
+    const sr = stickerRect(p, st, sp.trueW, sp.trueH, sp.trueW / sp.trueH)
+    ctx.drawImage(s2, sr.x, sr.y, sr.w, sr.h)
   }
+}
+
+/** Load the fonts any label needs; warn when some fell back to system. */
+async function ensureLabelFonts(prep: Prepared) {
+  if (!prep.labelCells.length)
+    return
+  const ids = [...new Set(prep.labelCells.map(({ leaf }) => leaf.label!.font))]
+  const failed = await ensureFonts(ids)
+  if (failed.length) {
+    const names = failed.map(id => fontById(id).label).join(', ')
+    say(`Fonts unavailable, used system fallback: ${names}`)
+  }
+}
+
+/** Labels draw on top of photos, clipped to their pane (but not to the photo). */
+function drawLabelCells(ctx: CanvasRenderingContext2D, prep: Prepared) {
   for (const { leaf, rect } of prep.labelCells) {
     const lab = leaf.label!
     if (!lab.text.trim())
@@ -161,6 +170,24 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     ctx.fillText(lab.text, r.x + r.w / 2, r.y + fontPx * 0.22 + halfLead + m.fontAscent)
     ctx.restore()
   }
+}
+
+export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElement> {
+  const { W, H } = computeExportSize(opts)
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  if (!isTransparentBg(opts.bg)) {
+    ctx.fillStyle = opts.bg
+    ctx.fillRect(0, 0, W, H)
+  }
+  ctx.imageSmoothingQuality = 'high'
+
+  const prep = prepare(opts, W, H)
+  await drawPhotoCells(ctx, prep, opts)
+  await ensureLabelFonts(prep)
+  drawLabelCells(ctx, prep)
   return canvas
 }
 

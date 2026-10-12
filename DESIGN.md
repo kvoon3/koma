@@ -1,8 +1,8 @@
-# koma — design notes
+# koma: design notes
 
 ## Model: pane tree
 
-**Not a row/column grid — a binary tree.**
+**Not a row/column grid but a binary tree.**
 
 ```
 start                press V              focus right half (L), press S
@@ -23,7 +23,7 @@ interface PaneLabel { text, font, theme: 'dark' | 'light', x, y, size } // x/y: 
 `dir: 'row'` splits left/right, `'column'` splits top/bottom.
 
 The key benefit: **each divider belongs to exactly one split node**. Dragging it
-only redistributes `ratio` between that node's two subtrees — panes outside and
+only redistributes `ratio` between that node's two subtrees; panes outside and
 inside are untouched. A row/column grid can't do this; dragging there moves whole
 rows.
 
@@ -42,9 +42,9 @@ rows.
 | Long-press a pane (touch) | Same context menu as right-click; tap-to-focus happens on release, so "swap with focused pane" targets the previously focused pane |
 | "Choose a photo" in an empty pane | Open the file picker and put the chosen photo into that pane (dropping a file also works) |
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
-| Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop — export uses the still |
-| Tools bar · "Sticker" | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select — handles stay pinned like labels (drag to move, corner to scale, × to delete) |
-| Tools bar · "Text" | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned — pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
+| Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
+| Tools bar · "Sticker" | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
+| Tools bar · "Text" | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
 | × at pane top right | Close the pane (hidden while only one pane exists; appears on hover or focus) |
 
 | Key | Action |
@@ -69,7 +69,7 @@ bottom-right handle to change it (double-click to follow again).
 ### Why the resize handle wraps around the pointer
 
 The canvas is **centered** in the workspace, so every size change of Δ gives Δ/2
-back to each side — mapping raw drag deltas to size makes the handle lag behind
+back to each side; mapping raw drag deltas to size makes the handle lag behind
 the pointer by half.
 
 Instead the handle maps "pointer offset from canvas center = half width/height":
@@ -85,7 +85,7 @@ Away from the bounds, `fill` makes the displayed size exactly `2*(hx,hy)`, so th
 handle sits precisely under the pointer (measured offset: 0,0). At the bounds,
 `fill` clamps to ≤1, the canvas stops shrinking, and the handle feels "stuck".
 
-`canvasFill` only affects how large the canvas appears in the preview — **it does
+`canvasFill` only affects how large the canvas appears in the preview; **it does
 not affect export** (export resolution comes from the long-edge setting in
 Settings; the ratio comes from `ratio`).
 
@@ -104,7 +104,7 @@ Settings; the ratio comes from `ratio`).
 The old status-bar stats (panes / filled / focus) are gone; the footer shows
 the canvas ratio and the output size. Panes show their buttons only on hover
 or focus: the two split buttons at the top center, the × close button at the
-top right, and — on panes with a photo — a horizontal row at the bottom:
+top right, plus a horizontal row on panes with a photo at the bottom:
 sticker / replace photo / text label. The Photo menu holds add photos / add
 folder / library; Help holds shortcuts + crop report. Settings, Export and
 the theme toggle sit at the top right of the top bar.
@@ -118,12 +118,12 @@ the theme toggle sit at the top right of the top bar.
 | Canvas fill | Black / white / custom color / **transparent** |
 | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
-The export-size setting was removed — the long edge is fixed at 2048 px; the
+The export-size setting was removed: the long edge is fixed at 2048 px; the
 footer shows the resulting resolution. On mobile the drawer scrolls
 vertically only: control rows wrap instead of overflowing horizontally.
 
 **Gap and radius are per-mille of the canvas short edge, not pixels.** Once set,
-exporting at 1080 or 6000 looks identical — preview and export share the same
+exporting at 1080 or 6000 looks identical; preview and export share the same
 `u = min(W,H)/1000` scale.
 
 With "transparent", the canvas shows a checkerboard and export switches to PNG
@@ -134,7 +134,7 @@ With "transparent", the canvas shows a checkerboard and export switches to PNG
 Tailwind v4 (via `@tailwindcss/vite`) with a token-only color system. Raw palette
 values live on `:root` / `html.dark` in `src/index.css`; `@theme inline` maps them
 to semantic tokens (`bg-panel`, `text-dim`, `border-line`, `bg-accent`, …) so
-`.dark` re-themes every utility at runtime — never reach for `dark:` variants for
+`.dark` re-themes every utility at runtime; never reach for `dark:` variants for
 chrome colors. Shared UI primitives live in `src/components/ui/`.
 
 `@shadcn/lint` (see `eslint.config.mjs`) enforces this: `shadcn/no-raw-colors`,
@@ -150,10 +150,10 @@ fidelity and gap-fill picks).
 `layoutTree()`, `placement()` and the sticker `stickerRect()` are called by both
 the renderer and the exporter, with different W/H. Decorative sizes (gap, radius)
 scale by `canvas short edge / 1000`, so export scales them proportionally.
-Result: **preview and export match exactly, no export drift** — including
+Result: **preview and export match exactly, no export drift** (including
 stickers, which are anchored in photo-normalized coordinates and follow the
 photo's pan/zoom, landing in the same spot at export time. Text labels follow the
-same rule — the exporter draws them through the shared `labelRect()` and sizes
+same rule: the exporter draws them through the shared `labelRect()` and sizes
 them in ‰ of the short edge, so a label sits identically at any export
 resolution, including on panes with no photo at all.
 
@@ -163,7 +163,7 @@ Key invariant:
 drawn width w = iw × max(cw/iw, ch/ih) × zoom = max(cw, ch·iw/ih) × zoom
 ```
 
-independent of the image's own pixel size — a 1800px preview image and the 6000px
+independent of the image's own pixel size: a 1800px preview image and the 6000px
 original produce the identical drawn rectangle.
 
 ### 2. Three-tier image assets (`src/lib/imageStore.ts`)
@@ -179,11 +179,11 @@ previews will crush the browser tab:
 
 Measured: three resident 24MP photos keep heap usage around 10MB.
 
-### 3. `probeJpeg()` / `probeHeic()` — real dimensions without decoding
+### 3. `probeJpeg()` / `probeHeic()`: real dimensions without decoding
 
 Parses the JPEG SOF marker (plus EXIF orientation to swap width/height when
 needed), reading only the first 256KB of the file; for HEIC it parses `ispe`
-(dimensions) and `irot` (rotation — where iPhone portrait shots store it) from
+(dimensions) and `irot` (rotation, where iPhone portrait shots store it) from
 the meta box. Orders of magnitude faster than decoding a 24MP frame, so the
 canvas ratio is decided **the instant a photo is added** and `trueW/trueH` are
 available immediately, before the preview exists. Neither probe decodes pixels
@@ -226,7 +226,7 @@ bun run build    # tsc + vite build + cp dist/index.html koma.html
 bun run deploy   # build + wrangler deploy (Cloudflare, koma.kvoon.me)
 ```
 
-`koma.html` is a self-contained single file, ~3.4MB — ~3MB of it is the inlined
+`koma.html` is a self-contained single file, ~3.4MB, ~3MB of it is the inlined
 HEIC decoder, bundled in so it works fully offline.
 
 ## Debug

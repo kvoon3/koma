@@ -13,9 +13,10 @@ export interface Sticker {
   s: number
 }
 
-// A label box is always opaque so it stays readable over any photo. Both
-// themes are plain black/white pairs, drawn identically in the preview and the
-// exporter. `dark` (white on black) is the default.
+/**
+ * Label box themes: always opaque so they stay readable over any photo; both
+ *  are plain black/white pairs drawn identically in preview and exporter.
+ */
 export const LABEL_THEMES = {
   dark: { bg: '#000000', fg: '#ffffff' },
   light: { bg: '#ffffff', fg: '#000000' },
@@ -27,7 +28,7 @@ export const DEFAULT_LABEL_THEME: LabelTheme = 'dark'
 
 export const nextLabelTheme = (theme: LabelTheme): LabelTheme => (theme === 'dark' ? 'light' : 'dark')
 
-// Tolerates a missing/unknown theme (e.g. a hand-built export option).
+/** Tolerates a missing/unknown theme (e.g. a hand-built export option). */
 export function labelColors(theme?: LabelTheme) {
   return LABEL_THEMES[theme && theme in LABEL_THEMES ? theme : DEFAULT_LABEL_THEME]
 }
@@ -85,8 +86,10 @@ export function newLabel(): PaneLabel {
   return { text: 'Label', font: '', theme: DEFAULT_LABEL_THEME, x: 0.5, y: 0.5, size: DEFAULT_LABEL_SIZE }
 }
 
-// Shared by preview and export: rect for a label's always-opaque box, centered on (lab.x, lab.y),
-// padded proportionally to the font size.
+/**
+ * Shared by preview and export: rect for a label's always-opaque box,
+ *  centered on (lab.x, lab.y), padded proportionally to the font size.
+ */
 export function labelRect(
   cell: Rect,
   lab: PaneLabel,
@@ -114,6 +117,27 @@ export function findLeaf(root: Node, id: string): Leaf | null {
 
 export type FocusDir = 'left' | 'right' | 'up' | 'down'
 
+/**
+ * Gaps from `from` toward `r`: signed gap along `dir`'s axis (`main`) and
+ *  the non-negative gap across it (`cross`); null when `r` lies behind.
+ */
+function gapMetrics(
+  dir: FocusDir,
+  from: Rect,
+  r: Rect,
+): { main: number, cross: number } | null {
+  const horizontal = dir === 'right' || dir === 'left'
+  const main = horizontal
+    ? (dir === 'right' ? r.x - (from.x + from.w) : from.x - (r.x + r.w))
+    : (dir === 'down' ? r.y - (from.y + from.h) : from.y - (r.y + r.h))
+  if (main < -1)
+    return null
+  const cross = horizontal
+    ? Math.max(0, Math.max(from.y, r.y) - Math.min(from.y + from.h, r.y + r.h))
+    : Math.max(0, Math.max(from.x, r.x) - Math.min(from.x + from.w, r.x + r.w))
+  return { main, cross }
+}
+
 export function neighborLeaf(
   leaves: { node: Leaf, rect: Rect }[],
   from: Rect,
@@ -122,22 +146,10 @@ export function neighborLeaf(
   let best: { node: Leaf, rect: Rect } | null = null
   let bestScore = Number.POSITIVE_INFINITY
   for (const l of leaves) {
-    const r = l.rect
-    let main = 0
-    let cross = 0
-    if (dir === 'right' || dir === 'left') {
-      main = dir === 'right' ? r.x - (from.x + from.w) : from.x - (r.x + r.w)
-      if (main < -1)
-        continue
-      cross = Math.max(0, Math.max(from.y, r.y) - Math.min(from.y + from.h, r.y + r.h))
-    }
-    else {
-      main = dir === 'down' ? r.y - (from.y + from.h) : from.y - (r.y + r.h)
-      if (main < -1)
-        continue
-      cross = Math.max(0, Math.max(from.x, r.x) - Math.min(from.x + from.w, r.x + r.w))
-    }
-    const score = Math.max(0, main) + cross * 4
+    const m = gapMetrics(dir, from, l.rect)
+    if (!m)
+      continue
+    const score = Math.max(0, m.main) + m.cross * 4
     if (score < bestScore) {
       bestScore = score
       best = l

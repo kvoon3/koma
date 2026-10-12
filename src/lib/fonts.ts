@@ -183,11 +183,12 @@ export async function ensureFonts(ids: string[]): Promise<string[]> {
 
 const lineHeightCache = new Map<string, number>()
 
-// Ratio of the browser's `line-height: normal` line box to font-size for this
-// family AND text, measured with a hidden span so the exporter can reproduce
-// the DOM preview's label box exactly. The text matters: CJK or other fallback
-// glyphs pull in taller fonts that grow the line box beyond the primary font.
-// Call after ensureFonts() so the real web font is active. 0 = unavailable.
+/**
+ * Ratio of `line-height: normal` to font-size for this family AND text, measured
+ * with a hidden span so the exporter matches the DOM label box exactly. Text
+ * matters: CJK fallback glyphs grow the line box. Call after ensureFonts().
+ * 0 = unavailable.
+ */
 export function normalLineHeightRatio(font: FontMeta, text: string): number {
   const key = `${font.id}\n${text}`
   const cached = lineHeightCache.get(key)

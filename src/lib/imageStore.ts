@@ -241,6 +241,76 @@ function readExifOrientation(v: DataView, off: number, len: number): number | nu
   return null
 }
 
+/** Standalone/temp markers carry no payload: only the 2 marker bytes follow. */
+function isStandaloneMarker(marker: number): boolean {
+  return marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)
+}
+
+/** First SOF frame's dimensions at segment start `p`, or null if degenerate. */
+function sofDims(v: DataView, p: number): Dims | null {
+  const h = v.getUint16(p + 5)
+  const w = v.getUint16(p + 7)
+  return w > 0 && h > 0 ? { w, h } : null
+}
+
+/** Exif orientations 5–8 store the frame rotated 90°: swap width and height. */
+function applyOrientation(dims: Dims, orientation: number): Dims {
+  return orientation >= 5 && orientation <= 8 ? { w: dims.h, h: dims.w } : dims
+}
+
+/**
+ * Read one APPn/SOF segment: a fresh Exif orientation, and final dims when
+ *  this was the SOF frame (non-null dims ends the scan).
+ */
+function readSegment(
+  v: DataView,
+  p: number,
+  len: number,
+  marker: number,
+  orientation: number,
+): { orientation: number, dims: Dims | null } {
+  if (marker === 0xE1) {
+    const o = readExifOrientation(v, p + 4, len - 2)
+    return { orientation: o || orientation, dims: null }
+  }
+  if (!SOF.has(marker) || p + 9 > v.byteLength)
+    return { orientation, dims: null }
+  const dims = sofDims(v, p)
+  return { orientation, dims: dims ? applyOrientation(dims, orientation) : null }
+}
+
+/**
+ * Walk the segments after SOI hunting for the first SOF frame, honoring any
+ *  Exif orientation met along the way; null when no usable frame appears.
+ */
+function scanJpegSegments(v: DataView): Dims | null {
+  const n = v.byteLength
+  let p = 2
+  let orientation = 1
+  while (p + 4 <= n) {
+    if (v.getUint8(p) !== 0xFF) {
+      p++
+      continue
+    }
+    const marker = v.getUint8(p + 1)
+    if (isStandaloneMarker(marker)) {
+      p += 2
+      continue
+    }
+    if (marker === 0xD9)
+      break
+    const len = v.getUint16(p + 2)
+    if (len < 2)
+      break
+    const seg = readSegment(v, p, len, marker, orientation)
+    orientation = seg.orientation
+    if (seg.dims)
+      return seg.dims
+    p += 2 + len
+  }
+  return null
+}
+
 export async function probeJpeg(file: File): Promise<Dims | null> {
   let v: DataView
   try {
@@ -252,37 +322,5 @@ export async function probeJpeg(file: File): Promise<Dims | null> {
   const n = v.byteLength
   if (n < 4 || v.getUint16(0) !== 0xFFD8)
     return null
-
-  let p = 2
-  let orientation = 1
-  while (p + 4 <= n) {
-    if (v.getUint8(p) !== 0xFF) {
-      p++
-      continue
-    }
-    const marker = v.getUint8(p + 1)
-    if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
-      p += 2
-      continue
-    }
-    if (marker === 0xD9)
-      break
-    const len = v.getUint16(p + 2)
-    if (len < 2)
-      break
-    if (marker === 0xE1) {
-      const o = readExifOrientation(v, p + 4, len - 2)
-      if (o)
-        orientation = o
-    }
-    else if (SOF.has(marker) && p + 9 <= n) {
-      const h = v.getUint16(p + 5)
-      const w = v.getUint16(p + 7)
-      if (w > 0 && h > 0) {
-        return orientation >= 5 && orientation <= 8 ? { w: h, h: w } : { w, h }
-      }
-    }
-    p += 2 + len
-  }
-  return null
+  return scanJpegSegments(v)
 }

@@ -145,6 +145,21 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
   )
 }
 
+type NavDir = 'left' | 'right' | 'up' | 'down'
+
+/** vim keys and arrows → a grid navigation direction, null for anything else. */
+function dirForKey(k: string): NavDir | null {
+  if (k === 'h' || k === 'H' || k === 'ArrowLeft')
+    return 'left'
+  if (k === 'l' || k === 'L' || k === 'ArrowRight')
+    return 'right'
+  if (k === 'k' || k === 'K' || k === 'ArrowUp')
+    return 'up'
+  if (k === 'j' || k === 'J' || k === 'ArrowDown')
+    return 'down'
+  return null
+}
+
 function step(from: number, dir: 'left' | 'right' | 'up' | 'down' | 'next') {
   if (dir === 'next')
     return (from + 1) % 9
@@ -191,16 +206,7 @@ export function WorkspaceGrid() {
       if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
         return
       const k = e.key
-      const dirKey
-        = k === 'h' || k === 'H' || k === 'ArrowLeft'
-          ? 'left'
-          : k === 'l' || k === 'L' || k === 'ArrowRight'
-            ? 'right'
-            : k === 'k' || k === 'K' || k === 'ArrowUp'
-              ? 'up'
-              : k === 'j' || k === 'J' || k === 'ArrowDown'
-                ? 'down'
-                : null
+      const dirKey = dirForKey(k)
       if (dirKey) {
         e.preventDefault()
         setHl(step(hlRef.current, dirKey))

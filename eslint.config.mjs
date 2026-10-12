@@ -5,18 +5,7 @@ import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need
 
 export default antfu({
   type: 'app',
-  // antislop preset, scoped to the em-dash rule only
-  antislop: {
-    sonarjs: false,
-    overrides: {
-      'slop/max-comment-length': 'off',
-      'slop/no-chained-type-assertions': 'off',
-      'slop/no-jargon': 'off',
-      'slop/no-trivial-functions': 'off',
-      'slop/no-trivial-type-aliases': 'off',
-      'slop/prefer-jsdoc': 'off',
-    },
-  },
+  antislop: true,
   react: true,
   typescript: true,
 }, {
