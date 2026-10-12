@@ -19,12 +19,12 @@ const KEYS: [string, string][] = [
   ['C', 'Export crop params (ImageMagick command)'],
   ['?', 'This help'],
   ['Enter', 'Open the highlighted grid cell (grid view only)'],
-  ['Esc', 'Close drawer / deselect label / back to the grid'],
+  ['Esc', 'Put the tools panel back / close drawer / deselect label / back to the grid'],
 ]
 
 const MOUSE: [string, string][] = [
   ['Two buttons at the top center of a focused pane', 'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)'],
-  ['Sticker / Replace / Text above the footer', 'The focused pane\'s tools: pick stickers onto its photo, replace its photo, add a text label (an empty pane offers only "Choose a photo")'],
+  ['Tools panel above the footer', 'Pull it open with the handle on its top edge: act on the focused pane by pinning stickers onto its photo, replacing its photo, or adding a text label (an empty pane offers only "Choose a photo")'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],
@@ -34,11 +34,11 @@ const MOUSE: [string, string][] = [
   ['Double-click inside a pane', 'Reset the photo in that pane'],
   ['Right-click a pane', 'Menu: split, swap its photo with the focused pane (unfocused panes), close'],
   ['Long-press a pane (touch)', 'Same menu as right-click; the tap-to-focus happens on release, so “swap with focused pane” works like a right-click'],
-  ['“Choose a photo” in an empty pane', 'An empty pane is a placeholder icon: focus it and pick “Choose a photo” above the footer, or drop a file straight onto the pane'],
+  ['“Choose a photo” in an empty pane', 'An empty pane is a placeholder icon: focus it and pick “Choose a photo” in the tools panel above the footer, or drop a file straight onto the pane'],
   ['Drop a photo onto a pane', 'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)'],
   ['Press and hold inside a pane', 'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop; export always uses the still'],
-  ['"Sticker" in the tools row', 'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete'],
-  ['"Text" in the tools row', 'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
+  ['"Sticker" in the tools panel', 'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete'],
+  ['"Text" in the tools panel', 'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
 ]
 
 export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => void }) {
@@ -59,7 +59,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
             <Dialog.Close className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-line bg-transparent p-0 text-[15px] leading-none text-dim transition-colors duration-[120ms] hover:border-danger hover:bg-danger hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1" aria-label={t('Close')}><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Dialog.Close>
           </header>
           <p className="m-0 border-b border-line px-5 py-4 text-[12.5px] leading-[1.85] text-dim [&_strong]:text-txt">
-            <T k="You start with a single pane. Use the two buttons at the top center of the focused pane to **split** out more panes, and drag dividers to resize them, like panes in a terminal. That pane's tools (sticker / replace photo / text label) sit in a row above the footer. Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it." />
+            <T k="You start with a single pane. Use the two buttons at the top center of the focused pane to **split** out more panes, and drag dividers to resize them, like panes in a terminal. That pane's tools (sticker / replace photo / text label) live in a panel above the footer, pulled open by the handle on its top edge. Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it." />
           </p>
           <div className="grid grid-cols-2 gap-[26px] px-5 py-[18px] max-[560px]:grid-cols-1 max-[560px]:gap-[18px]">
             <div>
