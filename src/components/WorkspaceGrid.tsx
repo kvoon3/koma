@@ -1,6 +1,6 @@
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
-import type { Leaf, Node, Rect } from '../lib/panes'
+import type { Leaf, Node, Rect, SeamSides } from '../lib/panes'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -11,22 +11,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { labelColors, layoutTree, leafList, placement } from '../lib/panes'
+import { labelColors, layoutTree, leafList, placement, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
+import { SeamBackdrop } from './Stage'
 
 // Virtual canvas short side for preview layout math. Any value works; the
 // tree layout is resolution-independent, only the ratio matters.
 const PV = 400
 
 /** One leaf of a workspace preview: the photo, panned/zoomed like the editor. */
-function PreviewLeaf({ leaf, rect, k, unit, photoById }: {
+function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
   leaf: Leaf
   rect: Rect
   /** Virtual→cell scale factor. */
   k: number
   /** Cell-normalized unit (short side / 1000), for radius scaling. */
   unit: number
+  /** Blend feather width in cell px (0 turns the fade off). */
+  fade: number
+  seam?: SeamSides
   photoById: Map<string, Photo>
 }) {
   const photo = leaf.photoId ? photoById.get(leaf.photoId) : undefined
@@ -34,33 +38,40 @@ function PreviewLeaf({ leaf, rect, k, unit, photoById }: {
   const radius = useStore(s => s.radius)
   const iw = preview?.w ?? 0
   const ih = preview?.h ?? 0
+  const cell: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
   const style: React.CSSProperties = {
-    left: rect.x * k,
-    top: rect.y * k,
-    width: rect.w * k,
-    height: rect.h * k,
+    left: cell.x,
+    top: cell.y,
+    width: cell.w,
+    height: cell.h,
     borderRadius: radius * unit,
   }
   const place = iw && ih
-    ? placement({ x: 0, y: 0, w: rect.w * k, h: rect.h * k }, leaf, iw, ih)
+    ? placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
     : null
+  // Blend: the same seam feather the editor's panes use, scaled to the cell.
+  const mask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
+  // No pane background: like the editor, the blurred field shows through the
+  // feathered seam edges (an opaque leaf would hide the blend).
   return (
-    <div className="absolute overflow-hidden bg-pane-bg" style={style}>
+    <div className="absolute overflow-hidden" style={style}>
       {preview && place
         ? (
-            <img
-              src={preview.url}
-              alt=""
-              draggable={false}
-              className="block max-w-none"
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                transformOrigin: '0 0',
-                transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
-              }}
-            />
+            <div className="absolute inset-0" style={mask}>
+              <img
+                src={preview.url}
+                alt=""
+                draggable={false}
+                className="block max-w-none"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  transformOrigin: '0 0',
+                  transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
+                }}
+              />
+            </div>
           )
         : null}
       {leaf.label && leaf.label.text.trim() && (
@@ -92,6 +103,8 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
   photoById: Map<string, Photo>
 }) {
   const bg = useStore(s => s.bg)
+  const edgeFade = useStore(s => s.edgeFade)
+  const fadeStrength = useStore(s => s.edgeFadeStrength)
   const VW = PV
   const VH = Math.round(PV / (canvasRatio ?? 1.5))
   const view = useMemo(() => layoutTree(root, VW, VH, 0), [root, VW, VH])
@@ -103,6 +116,10 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
   const ph = VH * k
   // Font/radius unit follows the canvas short edge, like the editor.
   const unit = (Math.min(VW, VH) / 1000) * k
+  // Backdrop blend, scaled down from the editor: pane edges feather into a
+  // shared blurred field behind them; width 0 turns the whole treatment off.
+  const fade = edgeFade * unit
+  const seams = useMemo(() => seamSides(view.leaves, 0), [view])
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div
@@ -114,8 +131,28 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
           background: isTransparentBg(bg) ? undefined : bg,
         }}
       >
+        {fade > 0 && (
+          <SeamBackdrop
+            leaves={view.leaves.map(({ node, rect }) => ({
+              node,
+              rect: { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k },
+            }))}
+            photoById={photoById}
+            radius={Math.max(unit * 40, fade)}
+            opacity={fadeStrength / 100}
+          />
+        )}
         {view.leaves.map(({ node, rect }) => (
-          <PreviewLeaf key={node.id} leaf={node} rect={rect} k={k} unit={unit} photoById={photoById} />
+          <PreviewLeaf
+            key={node.id}
+            leaf={node}
+            rect={rect}
+            k={k}
+            unit={unit}
+            fade={fade}
+            seam={seams.get(node.id)}
+            photoById={photoById}
+          />
         ))}
       </div>
     </div>
