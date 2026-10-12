@@ -559,15 +559,18 @@ function PanePhotoContent({
       : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-[7px]">
             <button
-              className="flex cursor-pointer items-center gap-[6px] rounded-none border border-line bg-panel px-2.5 py-[5px] text-[11.5px] font-semibold text-txt transition-colors duration-[120ms] hover:bg-accent hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3 pointer-coarse:py-[7px]"
+              // On narrow screens the empty pane itself is the tap target: the
+              // button fills the pane and centers its icon + label (no shrunken
+              // icon-only chip).
+              className="flex cursor-pointer items-center gap-[6px] rounded-none border border-line bg-panel px-2.5 py-[5px] text-[11.5px] font-semibold text-txt transition-colors duration-[120ms] hover:bg-accent hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3 pointer-coarse:py-[7px] max-sm:absolute max-sm:inset-0 max-sm:flex-col max-sm:justify-center max-sm:gap-[9px] max-sm:border-0 max-sm:bg-transparent max-sm:text-[13px]"
               title={t('Open the file picker and put the chosen photo into this pane')}
               onClick={(e) => {
                 e.stopPropagation()
                 onPickFiles()
               }}
             >
-              <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-              <span className="max-sm:hidden">{t('Choose a photo')}</span>
+              <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} className="max-sm:h-5 max-sm:w-5" />
+              <span>{t('Choose a photo')}</span>
             </button>
             <span className="pointer-events-none text-[11px] text-pane-hint max-sm:hidden">{t('or drop one here')}</span>
           </div>
