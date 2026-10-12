@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
+import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, Save, SlidersHorizontal, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -25,18 +26,20 @@ const itemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap
 // Right-aligned shortcut hint (and library count) inside a menu item.
 const hintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums text-faint'
 
-const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+// `data-instant` fires on menubar hand-offs: the incoming panel slides over from
+// the trigger it left (no fade re-run), the outgoing one is gone at once.
+const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_160ms_var(--ease-out)]'
 
-function CatMenu({ label, children }: { label: string, children: ReactNode }) {
+function CatMenu({ label, hop, onTriggerEnter, children }: { label: string, hop: number, onTriggerEnter: (e: MouseEvent<HTMLButtonElement>) => void, children: ReactNode }) {
   return (
     <Menu.Root>
-      <Menu.Trigger className={triggerCls}>
+      <Menu.Trigger className={triggerCls} onMouseEnter={onTriggerEnter}>
         {label}
         <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner sideOffset={4} align="start" className="z-[260] select-none outline-0">
-          <Menu.Popup className={popupCls}>{children}</Menu.Popup>
+          <Menu.Popup className={popupCls} style={{ '--menu-hop': `${hop}px` } as CSSProperties}>{children}</Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
@@ -149,6 +152,17 @@ export function TopBar({
   /** Parsed doc awaiting the replace-current-board confirm. */
   const [openDoc, setOpenDoc] = useState<{ doc: WorkspaceDocV1, photos: ReturnType<typeof useStore.getState>['photos'] } | null>(null)
 
+  const prevTriggerXRef = useRef<number | null>(null)
+  const [hop, setHop] = useState(0)
+
+  // Menus hand over on hover: remember how far the incoming panel has to travel
+  // (the gap between the trigger it left and the one it lands on).
+  const onTriggerEnter = (e: MouseEvent<HTMLButtonElement>) => {
+    const x = e.currentTarget.getBoundingClientRect().left
+    setHop((prevTriggerXRef.current ?? x) - x)
+    prevTriggerXRef.current = x
+  }
+
   const photos = useStore(s => s.photos.length)
   const root = useStore(s => activeWs(s).root)
   const anyFilled = useStore(s =>
@@ -218,75 +232,79 @@ export function TopBar({
         />
       )}
 
-      {/* Whole-board save/open lives outside the Photo menu: it is available
-          in both views and covers the grid + library, not just photos. */}
-      <CatMenu label={t('Workspace')}>
-        <Menu.Item className={itemCls} onClick={() => void doSaveFile()} disabled={saving || !anyFilled}>
-          <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
-          {t('Save workspace file…')}
-        </Menu.Item>
-        <Menu.Item className={itemCls} onClick={() => wsFileRef.current?.click()}>
-          <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="flex text-dim" />
-          {t('Open workspace file…')}
-        </Menu.Item>
-      </CatMenu>
-
-      {grid
-        ? (
-          // Grid view is pure navigation: Help only (crop report is an
-          // editing aid, library tools are hidden).
-            <CatMenu label={t('Help')}>
-              <Menu.Item className={itemCls} onClick={onToggleHelp}>
-                <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Keyboard shortcuts')}
-                <span className={hintCls}>?</span>
-              </Menu.Item>
-            </CatMenu>
-          )
-        : (
-            <CatMenu label={t('Photo')}>
-              <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
-                <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Add photos…')}
-              </Menu.Item>
-              <Menu.Item className={itemCls} onClick={() => dirRef.current?.click()}>
-                <MorphIcon icon={FolderPlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Add folder…')}
-              </Menu.Item>
-              <Menu.Item className={itemCls} onClick={onToggleLib}>
-                <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Library')}
-                <span className={hintCls}>
-                  {photos ? `${photos} · ` : ''}
-                  I
-                </span>
-              </Menu.Item>
-              <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
-              <Menu.Item
-                className={itemCls}
-                onClick={onClearAsk}
-                disabled={!photos}
-              >
-                <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Clear library…')}
-              </Menu.Item>
-            </CatMenu>
-          )}
-
-      {!grid && (
-        <CatMenu label={t('Help')}>
-          <Menu.Item className={itemCls} onClick={onToggleHelp}>
-            <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-            {t('Keyboard shortcuts')}
-            <span className={hintCls}>?</span>
+      {/* The menubar is what makes a click-opened menu hand over to the next
+          trigger on hover: the panel follows the open trigger. */}
+      <Menubar className="flex items-stretch">
+        {/* Whole-board save/open lives outside the Photo menu: it is available
+            in both views and covers the grid + library, not just photos. */}
+        <CatMenu label={t('Workspace')} hop={hop} onTriggerEnter={onTriggerEnter}>
+          <Menu.Item className={itemCls} onClick={() => void doSaveFile()} disabled={saving || !anyFilled}>
+            <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
+            {t('Save workspace file…')}
           </Menu.Item>
-          <Menu.Item className={itemCls} onClick={onCrops}>
-            <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
-            {t('Crop report')}
-            <span className={hintCls}>C</span>
+          <Menu.Item className={itemCls} onClick={() => wsFileRef.current?.click()}>
+            <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="flex text-dim" />
+            {t('Open workspace file…')}
           </Menu.Item>
         </CatMenu>
-      )}
+
+        {grid
+          ? (
+            // Grid view is pure navigation: Help only (crop report is an
+            // editing aid, library tools are hidden).
+              <CatMenu label={t('Help')} hop={hop} onTriggerEnter={onTriggerEnter}>
+                <Menu.Item className={itemCls} onClick={onToggleHelp}>
+                  <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Keyboard shortcuts')}
+                  <span className={hintCls}>?</span>
+                </Menu.Item>
+              </CatMenu>
+            )
+          : (
+              <CatMenu label={t('Photo')} hop={hop} onTriggerEnter={onTriggerEnter}>
+                <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
+                  <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Add photos…')}
+                </Menu.Item>
+                <Menu.Item className={itemCls} onClick={() => dirRef.current?.click()}>
+                  <MorphIcon icon={FolderPlus} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Add folder…')}
+                </Menu.Item>
+                <Menu.Item className={itemCls} onClick={onToggleLib}>
+                  <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Library')}
+                  <span className={hintCls}>
+                    {photos ? `${photos} · ` : ''}
+                    I
+                  </span>
+                </Menu.Item>
+                <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
+                <Menu.Item
+                  className={itemCls}
+                  onClick={onClearAsk}
+                  disabled={!photos}
+                >
+                  <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Clear library…')}
+                </Menu.Item>
+              </CatMenu>
+            )}
+
+        {!grid && (
+          <CatMenu label={t('Help')} hop={hop} onTriggerEnter={onTriggerEnter}>
+            <Menu.Item className={itemCls} onClick={onToggleHelp}>
+              <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
+              {t('Keyboard shortcuts')}
+              <span className={hintCls}>?</span>
+            </Menu.Item>
+            <Menu.Item className={itemCls} onClick={onCrops}>
+              <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
+              {t('Crop report')}
+              <span className={hintCls}>C</span>
+            </Menu.Item>
+          </CatMenu>
+        )}
+      </Menubar>
 
       <span className="flex-1" />
 

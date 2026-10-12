@@ -249,6 +249,15 @@ html.dark {
 }
 
 /*
+ * Top-bar menu hand-off: the panel that just took over slides in from the
+ * trigger it left (`--menu-hop` is that distance), so the swap reads as one
+ * panel travelling along the bar instead of a jump cut.
+ */
+@keyframes menu-hop {
+  from { transform: translateX(var(--menu-hop, 0px)); }
+}
+
+/*
  * Reduced motion, app-wide (single global block, per the animate skill:
  * "fewer and gentler", not zero). transition-property is narrowed instead of
  * zeroing durations, so opacity/color feedback (fades, hovers) still reads
