@@ -3,6 +3,7 @@ import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { Slider } from '@base-ui/react/slider'
 import { Switch } from '@base-ui/react/switch'
+import { Tabs } from '@base-ui/react/tabs'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
@@ -14,6 +15,7 @@ import { isTransparentBg, useStore } from '../store'
 const CUSTOM_BG = '#18181b'
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
+type SettingsTab = 'layout' | 'appearance' | 'text' | 'language'
 
 /**
  * One row shape for every setting: label / control / value. From `sm` up a fixed
@@ -34,6 +36,21 @@ const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-str
 const swatch = 'box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line-strong p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
 const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--drawerBg)]'
 const sliderThumb = 'box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2'
+
+/**
+ * The strip speaks the section-heading type, so the tabs read as the drawer's
+ * group labels; the active one lights up and takes over the strip's bottom
+ * rule (`-mb-px` lays its 1px border over the strip's). The heading classes
+ * keep it on the same size, tracking and color system as every other heading.
+ */
+const tabCls = `${heading} -mb-px cursor-pointer border-b border-transparent bg-transparent px-0 pt-1.5 pb-2 transition-colors duration-[120ms] hover:text-dim focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 data-active:border-accent data-active:text-txt`
+
+/**
+ * The panel scrolls, not the popup: the strip keeps its height, the popup its
+ * max-height, and a short group stays at the top of its tab. It stays one grid
+ * of rows (`section` inside), the same shape the drawer always used.
+ */
+const panel = 'grid min-h-0 flex-1 content-start gap-x-8 gap-y-3.5 overflow-x-hidden overflow-y-auto px-[18px] pt-3 pb-3 pointer-coarse:px-3.5 pointer-coarse:pb-4 max-sm:px-3.5 max-sm:pb-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 
 function SliderRow({ name, text, max, cur, onChange }: { name: string, text: string, max: number, cur: number, onChange: (v: number) => void }) {
   return (
@@ -65,6 +82,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
   const t = useT()
   const lang = useLang()
   const [mirror, setMirror] = useState(() => mirrorEnabled())
+  const [tab, setTab] = useState<SettingsTab>('layout')
 
   const mode: BgMode = isTransparentBg(bg)
     ? 'transparent'
@@ -97,7 +115,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
       <Drawer.Portal>
         <Drawer.Backdrop className="fixed inset-0 z-44 min-h-dvh bg-overlay-dim opacity-[calc(1-var(--drawer-swipe-progress,0))] transition-opacity duration-[450ms] ease-(--ease-drawer) data-starting-style:opacity-0 data-ending-style:opacity-0 data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)]" />
         <Drawer.Viewport className="fixed inset-0 z-45 flex items-end justify-center">
-          <Drawer.Popup className="relative box-border flex max-h-[min(46vh,420px)] w-[min(920px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[var(--drawer-swipe-movement-y,0px)] transition-transform duration-[450ms] ease-(--ease-drawer) will-change-transform mb-[calc(var(--statusH)+env(safe-area-inset-bottom))] pointer-coarse:max-h-[62dvh] max-sm:max-h-[62dvh] data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]">
+          <Drawer.Popup className="relative box-border flex max-h-[min(46vh,420px)] w-[min(560px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[var(--drawer-swipe-movement-y,0px)] transition-transform duration-[450ms] ease-(--ease-drawer) will-change-transform mb-[calc(var(--statusH)+env(safe-area-inset-bottom))] pointer-coarse:max-h-[62dvh] max-sm:max-h-[62dvh] data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]">
             <Drawer.Content className="flex min-h-0 flex-1 flex-col outline-0">
               <header className="flex flex-none items-center gap-2.5 py-1.5 pl-3.5 pr-2.5">
                 <Drawer.Title className="m-0 text-[12.5px] font-bold">{t('Settings')}</Drawer.Title>
@@ -106,101 +124,119 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
               </header>
 
               {/*
-                Vertical scrolling only: sections stack on narrow screens and
-                pair up on wide ones. `Layout` is the tall one (four sliders and
-                a switch), so it pins the right column and spans the three rows
-                the shorter three stack in; every row therefore ends up level.
+                One tab per group of settings, so the drawer stops being a
+                single long column. `activateOnFocus` lets the arrow keys swap
+                the panel as they move through the strip; Tab walks in and out.
               */}
-              <div className="grid min-h-0 flex-1 gap-x-8 gap-y-3.5 overflow-x-hidden overflow-y-auto px-[18px] pt-1 pb-3 pointer-coarse:px-3.5 pointer-coarse:pt-3 pointer-coarse:pb-4 max-sm:px-3.5 max-sm:pt-3 max-sm:pb-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-strip-thumb md:grid-cols-2">
-                <section className={section}>
-                  <h4 className={heading}>{t('Appearance')}</h4>
-                  <div className={row}>
-                    <span className={label}>{t('Gap fill')}</span>
-                    <RadioGroup
-                      className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-1.5 sm:col-start-2 sm:row-start-1"
-                      aria-label={t('Gap fill')}
-                      value={mode}
-                      onValueChange={next => setMode(next)}
-                    >
-                      <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
-                        <Radio.Indicator className={swatchDot} />
-                      </Radio.Root>
-                      <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
-                        <Radio.Indicator className={swatchDot} />
-                      </Radio.Root>
-                      <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
-                        <Radio.Indicator className={swatchDot} />
-                      </Radio.Root>
-                      <input
-                        type="color"
-                        className={`box-border h-[26px] w-9 cursor-pointer rounded-none border bg-panel-2 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
-                        aria-label={t('Custom gap fill')}
-                        title={t('Pick a custom color')}
-                        value={mode === 'custom' ? bg : CUSTOM_BG}
-                        onChange={e => patch({ bg: e.target.value })}
-                      />
-                    </RadioGroup>
-                  </div>
-                </section>
+              <Tabs.Root
+                className="flex min-h-0 flex-1 flex-col"
+                value={tab}
+                onValueChange={next => setTab(next)}
+              >
+                <Tabs.List
+                  className="flex flex-none items-end gap-5 border-b border-line px-[18px] pointer-coarse:px-3.5 max-sm:px-3.5"
+                  aria-label={t('Settings sections')}
+                  activateOnFocus
+                >
+                  <Tabs.Tab className={tabCls} value="layout">{t('Layout')}</Tabs.Tab>
+                  <Tabs.Tab className={tabCls} value="appearance">{t('Appearance')}</Tabs.Tab>
+                  <Tabs.Tab className={tabCls} value="text">{t('Text')}</Tabs.Tab>
+                  <Tabs.Tab className={tabCls} value="language">{t('Language')}</Tabs.Tab>
+                </Tabs.List>
 
-                <section className={`${section} md:col-start-2 md:row-span-3`}>
-                  <h4 className={heading}>{t('Layout')}</h4>
-                  <SliderRow name={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} cur={gap} onChange={v => patch({ gap: v })} />
-                  <SliderRow name={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} cur={radius} onChange={v => patch({ radius: v })} />
-                  <SliderRow name={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} cur={edgeFade} onChange={v => patch({ edgeFade: v })} />
-                  <SliderRow name={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} cur={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
-                  <div className={row}>
-                    <span className={label}>{t('Pane border')}</span>
-                    <Switch.Root
-                      className={toggle}
-                      aria-label={t('Pane border')}
-                      checked={paneBorder}
-                      onCheckedChange={checked => patch({ paneBorder: checked })}
-                    >
-                      <Switch.Thumb className={toggleThumb} />
-                    </Switch.Root>
-                  </div>
-                </section>
+                <Tabs.Panel className={panel} value="layout">
+                  <section className={section}>
+                    <SliderRow name={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} cur={gap} onChange={v => patch({ gap: v })} />
+                    <SliderRow name={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} cur={radius} onChange={v => patch({ radius: v })} />
+                    <div className={row}>
+                      <span className={label}>{t('Pane border')}</span>
+                      <Switch.Root
+                        className={toggle}
+                        aria-label={t('Pane border')}
+                        checked={paneBorder}
+                        onCheckedChange={checked => patch({ paneBorder: checked })}
+                      >
+                        <Switch.Thumb className={toggleThumb} />
+                      </Switch.Root>
+                    </div>
+                  </section>
+                </Tabs.Panel>
 
-                <section className={section}>
-                  <h4 className={heading}>{t('Fonts')}</h4>
-                  <div className={row}>
-                    <span className={label}>{t('Font mirror')}</span>
-                    <Switch.Root
-                      className={toggle}
-                      aria-label={t('Font mirror')}
-                      checked={mirror}
-                      onCheckedChange={(checked) => {
-                        setMirror(checked)
-                        setMirrorEnabled(checked)
-                      }}
-                    >
-                      <Switch.Thumb className={toggleThumb} />
-                    </Switch.Root>
-                  </div>
-                </section>
+                <Tabs.Panel className={panel} value="appearance">
+                  <section className={section}>
+                    <div className={row}>
+                      <span className={label}>{t('Gap fill')}</span>
+                      <RadioGroup
+                        className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-1.5 sm:col-start-2 sm:row-start-1"
+                        aria-label={t('Gap fill')}
+                        value={mode}
+                        onValueChange={next => setMode(next)}
+                      >
+                        <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
+                          <Radio.Indicator className={swatchDot} />
+                        </Radio.Root>
+                        <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
+                          <Radio.Indicator className={swatchDot} />
+                        </Radio.Root>
+                        <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
+                          <Radio.Indicator className={swatchDot} />
+                        </Radio.Root>
+                        <input
+                          type="color"
+                          className={`box-border h-[26px] w-9 cursor-pointer rounded-none border bg-panel-2 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
+                          aria-label={t('Custom gap fill')}
+                          title={t('Pick a custom color')}
+                          value={mode === 'custom' ? bg : CUSTOM_BG}
+                          onChange={e => patch({ bg: e.target.value })}
+                        />
+                      </RadioGroup>
+                    </div>
+                    <SliderRow name={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} cur={edgeFade} onChange={v => patch({ edgeFade: v })} />
+                    <SliderRow name={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} cur={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
+                  </section>
+                </Tabs.Panel>
 
-                <section className={section}>
-                  <h4 className={heading}>{t('Language')}</h4>
-                  {/* No label column: the buttons sit under the heading, left-aligned with it. */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Button
-                      variant={lang === 'en' ? 'on' : 'flat'}
-                      aria-pressed={lang === 'en'}
-                      onClick={() => setLang('en')}
-                    >
-                      English
-                    </Button>
-                    <Button
-                      variant={lang === 'zh' ? 'on' : 'flat'}
-                      aria-pressed={lang === 'zh'}
-                      onClick={() => setLang('zh')}
-                    >
-                      简体中文
-                    </Button>
-                  </div>
-                </section>
-              </div>
+                <Tabs.Panel className={panel} value="text">
+                  <section className={section}>
+                    <div className={row}>
+                      <span className={label}>{t('Font mirror')}</span>
+                      <Switch.Root
+                        className={toggle}
+                        aria-label={t('Font mirror')}
+                        checked={mirror}
+                        onCheckedChange={(checked) => {
+                          setMirror(checked)
+                          setMirrorEnabled(checked)
+                        }}
+                      >
+                        <Switch.Thumb className={toggleThumb} />
+                      </Switch.Root>
+                    </div>
+                  </section>
+                </Tabs.Panel>
+
+                <Tabs.Panel className={panel} value="language">
+                  <section className={section}>
+                    {/* No label column: the buttons sit left-aligned with the tab strip. */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        variant={lang === 'en' ? 'on' : 'flat'}
+                        aria-pressed={lang === 'en'}
+                        onClick={() => setLang('en')}
+                      >
+                        English
+                      </Button>
+                      <Button
+                        variant={lang === 'zh' ? 'on' : 'flat'}
+                        aria-pressed={lang === 'zh'}
+                        onClick={() => setLang('zh')}
+                      >
+                        简体中文
+                      </Button>
+                    </div>
+                  </section>
+                </Tabs.Panel>
+              </Tabs.Root>
             </Drawer.Content>
           </Drawer.Popup>
         </Drawer.Viewport>

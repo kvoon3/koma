@@ -211,8 +211,13 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
       break
 
     case 'tab':
-      e.preventDefault()
-      focusNextLeaf(s, ws)
+      // A dialog owns Tab while it is open: the settings drawer's tab list and
+      // its controls sit in the focus trap, so leave the browser's focus
+      // movement alone instead of cycling panes behind the dialog.
+      if (!(e.target as HTMLElement).closest('[role="dialog"]')) {
+        e.preventDefault()
+        focusNextLeaf(s, ws)
+      }
       break
 
     case 'c':

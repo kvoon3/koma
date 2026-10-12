@@ -255,6 +255,10 @@ export function WorkspaceGrid() {
       if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
         return
       const k = e.key
+      // A dialog (settings drawer, library, help) owns Tab, the arrows and
+      // Enter while it is open, so its own controls stay reachable.
+      if (t.closest('[role="dialog"]'))
+        return
       const dirKey = dirForKey(k)
       if (dirKey) {
         e.preventDefault()
