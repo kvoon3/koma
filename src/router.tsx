@@ -6,6 +6,7 @@ import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, 
 import { useCallback, useEffect, useState } from 'react'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
+import { FloatActions } from './components/FloatActions'
 import { Footer } from './components/Footer'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
@@ -372,6 +373,8 @@ function RootLayout() {
 
         <main className="relative min-h-0 flex-1">
           <Outlet />
+          {/* Floating page actions (back / reset) hover over the active view. */}
+          <FloatActions />
         </main>
 
         <Footer />

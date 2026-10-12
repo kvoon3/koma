@@ -14,7 +14,6 @@ export const zh: Record<string, string> = {
   'Crop report': '裁剪参数',
   'Back to the grid · G': '返回九宫格 · G',
   'Back to the grid': '返回九宫格',
-  'Grid': '九宫格',
   'Settings · Shortcut: ,': '设置 · 快捷键：,',
   'Settings': '设置',
   'Export every non-empty workspace · ⌘E': '导出所有非空工作区 · ⌘E',
@@ -24,6 +23,13 @@ export const zh: Record<string, string> = {
   'Export': '导出',
   'Switch to light theme': '切换到浅色主题',
   'Switch to dark theme': '切换到深色主题',
+
+  // FloatActions (back / reset under the top bar)
+  'Reset this workspace': '重置这个工作区',
+  'Reset this workspace?': '重置这个工作区？',
+  'This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.': '这会清空位置 {n} 的窗格布局和照片摆位。照片仍保留在素材库中，且无法撤销。',
+  'Reset': '重置',
+  'Workspace reset': '工作区已重置',
 
   // SettingsDrawer
   'Hide settings': '隐藏设置',
@@ -141,6 +147,10 @@ export const zh: Record<string, string> = {
   'Open the highlighted grid cell (grid view only)': '打开高亮的网格单元（仅网格视图）',
   'Put the tools panel back / close drawer / deselect label / back to the grid': '收起工具面板 / 关闭抽屉 / 取消选中文字 / 返回九宫格',
   'Two buttons at the top center of a focused pane': '聚焦窗格顶部中央的两个按钮',
+  'Back button floating at the top left': '悬浮在左上角的返回按钮',
+  'Back to the 3×3 workspace grid (edit view only)': '返回 3×3 工作区网格（仅编辑视图）',
+  'Reset button floating at the top right': '悬浮在右上角的重置按钮',
+  'Reset the active workspace to a single blank pane (asks first); its photos fall back to the library': '把当前工作区重置为单个空白窗格（会先确认）；照片会回到素材库',
   'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)': '上下或左右拆分（窗格只在聚焦时显示按钮，悬停不再显示）',
   'Tools panel above the footer': '底部栏上方的工具面板',
   'Opens by itself when the focus moves to another pane; pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")': '聚焦项切换时它会自动弹出，也可以用面板上边缘的把手拉起；作用对象是聚焦窗格：把贴纸钉到照片上、用文字或图片制作贴纸、替换照片、添加文字（空窗格只提供「选择照片」）',

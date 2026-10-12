@@ -31,6 +31,8 @@ rows.
 
 | Action | Effect |
 |---|---|
+| Back button floating at the top left (edit view) | Back to the 3×3 grid |
+| Reset button floating at the top right | Reset the active workspace to a single blank pane (confirm first); its photos fall back to the library, so only the arrangement is lost |
 | Two buttons at the top center of a focused pane | Split it top/bottom or left/right (a pane shows its buttons only while focused, never on hover) |
 | Tools panel above the footer | An overlay, so it never takes layout space: pulled open by the handle centered on its top edge, collapsed it rests behind the footer with only the handle showing. Focusing another pane pulls it open by itself; a manual collapse sticks until the focus moves. Sticker / Make sticker / Replace / Text act on the focused pane; an empty pane offers only "Choose a photo". The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
@@ -96,6 +98,7 @@ Settings; the ratio comes from `ratio`).
 ┌───────────────────────────────────────────────┐
 │ Top: Photo▾ Help▾        [Settings][Export][🌙] │ ← actions at the top right
 ├───────────────────────────────────────────────┤
+│ [←]                    [↺]                    │ ← floating under the top bar
 │                 Stage                         │
 │   ⌃ [sticker] [replace] [text] (pull-up)      │
 ├───────────────────────────────────────────────┤
@@ -113,7 +116,10 @@ pane (Esc puts it back).
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export and the theme toggle sit at
-the top right of the top bar.
+the top right of the top bar. The back-to-grid button (edit view only) and
+the reset-workspace button float just under the top bar's left / right
+corners, over the canvas — reset restores the active workspace to a fresh
+blank canvas and is offered in the grid overview too.
 
 The Photo and Help menus are a menubar: clicking one and then hovering the
 other hands the panel over without a second click. The incoming panel slides
@@ -233,10 +239,11 @@ src/
     Stage.tsx        canvas: computes layout, renders panes, dividers and the tools panel
     Pane.tsx         one pane: photo, pan/zoom, split buttons, drop target
     TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
+    FloatActions.tsx floating back / reset buttons under the top bar
     LibraryDrawer.tsx / Library.tsx
     SettingsDrawer.tsx
     HelpOverlay.tsx
-    ConfirmDialog.tsx   generic confirm (clear library, open workspace file)
+    ConfirmDialog.tsx   generic confirm (clear library, reset workspace, open workspace file)
   store.ts           zustand: tree + photos + visual params + export params
 ```
 
