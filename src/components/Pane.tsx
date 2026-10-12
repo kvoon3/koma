@@ -16,7 +16,9 @@ import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, seamFadeW
 import { viewTransitionOption } from '../lib/viewTransition'
 import { activeWs, MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 
-const paneBtnCls = 'grid h-6 w-[26px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[30px] pointer-coarse:w-8 hover:bg-chip-hover hover:text-txt'
+/* One split button. The chip's height is the page row's (back / reset), so the
+   same chip reads the same in the top row and inside a hovered pane. */
+const splitBtnCls = 'grid w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:w-[38px]'
 
 const menuItemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
@@ -563,44 +565,47 @@ function PanePhotoContent({
         )
 }
 
-// Split buttons, shown only while this pane is focused: a pane's chrome never
-// appears on hover (hover is a pan/zoom surface, not a menu).
-function PaneSplitTools({
+/**
+ * The two split buttons for one pane, drawn as a single chip. Hovering a pane
+ * fades it in at that pane's top center; the focused pane's chip rides in the
+ * page row between back and reset instead (FloatActions.tsx), where it never
+ * covers the pane it splits.
+ */
+export function PaneSplitTools({
   paneId,
-  focused,
   onSplit,
+  className = '',
 }: {
   paneId: string
-  focused: boolean
   onSplit: (id: string, dir: 'row' | 'column') => void
+  /** Placement and visibility, supplied by the caller. */
+  className?: string
 }) {
   const t = useT()
   return (
     <div
-      className={`absolute left-1/2 top-[9px] z-[3] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] ${
-        focused ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-      }`}
+      className={`flex h-[30px] rounded-none border border-float-line bg-float-bg backdrop-blur-[7px] pointer-coarse:h-[38px] ${className}`}
       onPointerDown={e => e.stopPropagation()}
     >
       <button
-        className={paneBtnCls}
+        className={splitBtnCls}
         title={t('Split top/bottom')}
         onClick={(e) => {
           e.stopPropagation()
           onSplit(paneId, 'column')
         }}
       >
-        <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
+        <MorphIcon icon={SquareSplitVertical} size={15} strokeWidth={1.75} />
       </button>
       <button
-        className={paneBtnCls}
+        className={splitBtnCls}
         title={t('Split left/right')}
         onClick={(e) => {
           e.stopPropagation()
           onSplit(paneId, 'row')
         }}
       >
-        <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
+        <MorphIcon icon={SquareSplitHorizontal} size={15} strokeWidth={1.75} />
       </button>
     </div>
   )
@@ -1197,10 +1202,16 @@ function PaneImpl({
         />
       )}
 
-      {/* The pane's only chrome: split buttons, shown while it is focused.
-          Everything else (sticker / replace / text) lives in the tools row
-          above the footer, acting on the focused pane (Stage.tsx). */}
-      <PaneSplitTools paneId={leaf.id} focused={focused} onSplit={onSplit} />
+      {/* The pane's only hover chrome: the split chip, faded in while the
+          pointer is over the pane. A focused pane draws no chip here (its chip
+          is in the page row), so the buttons never appear twice. */}
+      {!focused && (
+        <PaneSplitTools
+          paneId={leaf.id}
+          onSplit={onSplit}
+          className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-[140ms] group-hover/pane:pointer-events-auto group-hover/pane:opacity-100"
+        />
+      )}
 
       {dropChoice && (
         <div

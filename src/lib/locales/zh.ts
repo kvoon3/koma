@@ -138,7 +138,7 @@ export const zh: Record<string, string> = {
 
   // HelpOverlay
   'How to use': '使用说明',
-  'You start with a single pane. Use the two buttons at the top center of the focused pane to **split** out more panes, and drag dividers to resize them, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, pulled open by the handle on its top edge. Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一开始只有一个窗格。用聚焦窗格顶部中央的两个按钮**拆分**出更多窗格，拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴纸 / 替换照片 / 文字）在一个底部栏上方的面板里，用面板上边缘的把手拉起。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着九个工作区：3×3 网格可以总览全部，拖动即可重新排序，点击其中一个即可编辑。',
+  'You start with a single pane. **Split** it with the chip in the top row, or hover a pane to fade the same chip in inside that pane, and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, pulled open by the handle on its top edge. Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一开始只有一个窗格。用顶栏中间的拆分按钮**拆分**出更多窗格（悬停任意窗格，同一组按钮也会出现在该窗格内），拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴纸 / 替换照片 / 文字）在一个底部栏上方的面板里，用面板上边缘的把手拉起。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着九个工作区：3×3 网格可以总览全部，拖动即可重新排序，点击其中一个即可编辑。',
   'Keyboard': '键盘',
   'Mouse / Trackpad': '鼠标 / 触控板',
   'Focus the pane left / down / up / right': '聚焦左 / 下 / 上 / 右的窗格',
@@ -156,12 +156,12 @@ export const zh: Record<string, string> = {
   'This help': '本帮助',
   'Open the highlighted grid cell (grid view only)': '打开高亮的网格单元（仅网格视图）',
   'Put the tools panel back / close drawer / deselect label / back to the grid': '收起工具面板 / 关闭抽屉 / 取消选中文字 / 返回九宫格',
-  'Two buttons at the top center of a focused pane': '聚焦窗格顶部中央的两个按钮',
+  'Split chip in the top row (between Back and Reset)': '顶栏中间的拆分按钮（在返回与重置之间）',
   'Back button floating at the top left': '悬浮在左上角的返回按钮',
   'Back to the 3×3 workspace grid (edit view only)': '返回 3×3 工作区网格（仅编辑视图）',
   'Reset button floating at the top right': '悬浮在右上角的重置按钮',
   'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library': '重置为单个空白窗格：编辑视图里重置当前工作区，九宫格视图里重置全部（会先确认）；照片会回到素材库',
-  'Split it top/bottom or left/right (a pane shows its buttons only while it is focused, never on hover)': '上下或左右拆分（窗格只在聚焦时显示按钮，悬停不再显示）',
+  'Split the focused pane top/bottom or left/right; hovering a pane fades the same chip in at that pane\'s top center, so a pane can be split without focusing it first': '把聚焦窗格上下或左右拆分；悬停任意窗格时，同一组按钮会淡入该窗格的顶部中央，不必先聚焦也能直接拆分',
   'Tools panel above the footer': '底部栏上方的工具面板',
   'Opens by itself when the focus moves to another pane; pull it open with the handle on its top edge: pin stickers onto the focused pane\'s photo, make a sticker from text or an image, replace its photo, or add a text label (an empty pane offers only "Choose a photo")': '聚焦项切换时它会自动弹出，也可以用面板上边缘的把手拉起；作用对象是聚焦窗格：把贴纸钉到照片上、用文字或图片制作贴纸、替换照片、添加文字（空窗格只提供「选择照片」）',
   'Drag the divider between panes': '拖动窗格之间的分隔条',
