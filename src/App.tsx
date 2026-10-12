@@ -13,6 +13,7 @@ import ToastHost from './components/ToastHost'
 import { TopBar } from './components/TopBar'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { buildCropReport, downloadBlob, renderCollage } from './lib/exporter'
+import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
 import { activeWs, isTransparentBg, photoMap, useStore } from './store'
@@ -39,7 +40,7 @@ async function exportGrid() {
   const filled = s.workspaces.filter(w => leafList(w.root).some(l => l.photoId))
   for (let i = 0; i < filled.length; i++) {
     const ws = filled[i]
-    say(`Rendering ${i + 1} / ${filled.length}...`)
+    say(t('Rendering {n} / {total}...', { n: i + 1, total: filled.length }))
     const canvas = await renderCollage({
       root: ws.root,
       ratio: ws.canvasRatio ?? 1.5,
@@ -60,7 +61,7 @@ async function exportGrid() {
     downloadBlob(blob, `collage_${pos}_${canvas.width}x${canvas.height}_${stamp}.${ext}`)
     canvas.width = canvas.height = 0
   }
-  say(`Exported ${filled.length} image${filled.length === 1 ? '' : 's'}`)
+  say(filled.length === 1 ? t('Exported {n} image', { n: 1 }) : t('Exported {n} images', { n: filled.length }))
 }
 
 type StoreState = ReturnType<typeof useStore.getState>
@@ -218,7 +219,7 @@ export default function App() {
 
   const doExport = useCallback(async () => {
     setBusy(true)
-    say('Rendering at original resolution...')
+    say(t('Rendering at original resolution...'))
     try {
       if (useStore.getState().view === 'grid') {
         await exportGrid()
@@ -234,12 +235,12 @@ export default function App() {
         const ext = format === 'image/png' ? 'png' : 'jpg'
         const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
         downloadBlob(blob, `collage_${canvas.width}x${canvas.height}_${stamp}.${ext}`)
-        say(`Exported ${canvas.width} × ${canvas.height} (${ext.toUpperCase()})`)
+        say(t('Exported {w} × {h} ({ext})', { w: canvas.width, h: canvas.height, ext: ext.toUpperCase() }))
         canvas.width = canvas.height = 0
       }
     }
     catch (e) {
-      say(`Export failed: ${(e as Error).message}`)
+      say(t('Export failed: {msg}', { msg: (e as Error).message }))
     }
     finally {
       setBusy(false)
@@ -306,7 +307,7 @@ export default function App() {
         return
       e.preventDefault()
       const created = useStore.getState().addPhotos(files)
-      say(created.length ? `Added ${created.length} photos` : 'No image files found')
+      say(created.length ? t('Added {n} photos', { n: created.length }) : t('No image files found'))
       if (created.length)
         setLibOpen(true)
     }
@@ -363,7 +364,7 @@ export default function App() {
           onConfirm={() => {
             useStore.getState().clearLibrary()
             setClearAsk(false)
-            say('Library cleared')
+            say(t('Library cleared'))
           }}
         />
       </div>

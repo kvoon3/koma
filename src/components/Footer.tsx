@@ -1,4 +1,5 @@
 import { outputSizeFor } from '../lib/exporter'
+import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
 import { activeWs, useStore } from '../store'
 
@@ -9,6 +10,7 @@ import { activeWs, useStore } from '../store'
  */
 export function Footer() {
   const view = useStore(s => s.view)
+  const t = useT()
   const longSide = useStore(s => s.longSide)
   const canvasRatio = useStore(s => activeWs(s).canvasRatio)
   const filled = useStore(s => s.workspaces.filter(w => leafList(w.root).some(l => l.photoId)).length)
@@ -18,21 +20,17 @@ export function Footer() {
     <footer className="relative z-40 flex h-[calc(var(--statusH)+env(safe-area-inset-bottom))] flex-none items-center justify-center gap-3 border-t border-line bg-statusbar px-1.5 pb-[env(safe-area-inset-bottom)] text-[11.5px] tabular-nums text-dim pointer-coarse:text-xs max-sm:text-xs">
       {view === 'grid'
         ? (
-            <span>
-              {filled}
-              {' '}
-              / 9 spaces
-            </span>
+            <span>{t('{filled} / 9 spaces', { filled })}</span>
           )
         : (
             <>
               <span>
-                Ratio
+                {t('Ratio')}
                 {' '}
                 {(canvasRatio ?? 1.5).toFixed(2)}
               </span>
               <span>
-                Output
+                {t('Output')}
                 {' '}
                 {out.W}
                 {' '}

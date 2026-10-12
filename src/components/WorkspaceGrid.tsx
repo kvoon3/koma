@@ -9,6 +9,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
 import { fontById } from '../lib/fonts'
+import { useT } from '../lib/i18n'
 import { labelColors, layoutTree, leafList, placement } from '../lib/panes'
 import { isTransparentBg, useStore } from '../store'
 
@@ -326,6 +327,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
   highlighted: boolean
   onEnter: (id: string) => void
 }) {
+  const t = useT()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ws.id })
   const filled = leafList(ws.root).some(l => l.photoId)
   return (
@@ -343,7 +345,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
         transition,
       }}
       onClick={() => onEnter(ws.id)}
-      title={filled ? 'Edit this workspace' : 'Start a new collage here'}
+      title={filled ? t('Edit this workspace') : t('Start a new collage here')}
     >
       <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={isDragging} />
     </button>

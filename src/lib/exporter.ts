@@ -2,6 +2,7 @@ import type { Photo } from './imageStore'
 import type { Leaf, Node, Rect } from './panes'
 import { isTransparentBg } from '../store'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
+import { t } from './i18n'
 import { decodeFull, releaseFull } from './imageStore'
 import { labelColors, labelRect, layoutTree, placement, stickerRect } from './panes'
 import { say } from './toast'
@@ -139,7 +140,7 @@ async function ensureLabelFonts(prep: Prepared) {
   const failed = await ensureFonts(ids)
   if (failed.length) {
     const names = failed.map(id => fontById(id).label).join(', ')
-    say(`Fonts unavailable, used system fallback: ${names}`)
+    say(t('Fonts unavailable, used system fallback: {names}', { names }))
   }
 }
 

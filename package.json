@@ -9,6 +9,7 @@
     "deploy": "bun run build && wrangler deploy",
     "preview": "vite preview",
     "lint": "eslint .",
+    "check:i18n": "bun scripts/check-i18n.ts",
     "lint:fix": "eslint . --fix",
     "up": "taze major -Ii",
     "prepare": "simple-git-hooks"

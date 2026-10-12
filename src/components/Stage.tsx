@@ -4,6 +4,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCoarse, useElementSize } from '../hooks'
 import { pickImageFiles } from '../lib/filePicker'
+import { useT } from '../lib/i18n'
 import { dividerLine, ratioFromPointer } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { Pane } from './Pane'
@@ -46,6 +47,7 @@ export function Stage() {
   const stageRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState(false)
   const [sizing, setSizing] = useState(false)
+  const t = useT()
 
   const root = useStore(s => activeWs(s).root)
   const focusId = useStore(s => activeWs(s).focusId)
@@ -242,10 +244,10 @@ export function Stage() {
       {coarse && (
         <div className={barRowCls}>
           <div className={barChipCls}>
-            <button className={barBtnCls} disabled={!focusId} title="Split top/bottom" onClick={() => split(focusId, 'column')}>
+            <button className={barBtnCls} disabled={!focusId} title={t('Split top/bottom')} onClick={() => split(focusId, 'column')}>
               <MorphIcon icon={SquareSplitVertical} size={14} strokeWidth={1.75} />
             </button>
-            <button className={barBtnCls} disabled={!focusId} title="Split left/right" onClick={() => split(focusId, 'row')}>
+            <button className={barBtnCls} disabled={!focusId} title={t('Split left/right')} onClick={() => split(focusId, 'row')}>
               <MorphIcon icon={SquareSplitHorizontal} size={14} strokeWidth={1.75} />
             </button>
           </div>
@@ -314,7 +316,7 @@ export function Stage() {
             className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-colors duration-[120ms] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
             onPointerDown={beginResize}
             onDoubleClick={resetRatio}
-            title="Drag to change canvas aspect · double-click to reset"
+            title={t('Drag to change canvas aspect · double-click to reset')}
           >
             <ResizeIcon />
           </div>
@@ -324,13 +326,13 @@ export function Stage() {
       {coarse && (
         <div className={barRowCls}>
           <div className={barChipCls}>
-            <button className={barBtnCls} disabled={!hasPhoto} title="Pick images and pin them onto this photo" onClick={pickStickerForFocused}>
+            <button className={barBtnCls} disabled={!hasPhoto} title={t('Pick images and pin them onto this photo')} onClick={pickStickerForFocused}>
               <MorphIcon icon={StickerIcon} size={14} strokeWidth={1.75} />
             </button>
-            <button className={barBtnCls} disabled={!hasPhoto} title="Pick a photo to replace this pane's photo" onClick={pickForFocused}>
+            <button className={barBtnCls} disabled={!hasPhoto} title={t('Pick a photo to replace this pane\'s photo')} onClick={pickForFocused}>
               <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
             </button>
-            <button className={barBtnCls} disabled={!hasPhoto} title="Add a text label" onClick={addLabelToFocused}>
+            <button className={barBtnCls} disabled={!hasPhoto} title={t('Add a text label')} onClick={addLabelToFocused}>
               <MorphIcon icon={Type} size={14} strokeWidth={1.75} />
             </button>
           </div>
