@@ -164,6 +164,27 @@ function TopBarActions({
 }
 
 /**
+ * The wordmark, left of the menus: the one piece of chrome that speaks in a face
+ * of its own. The face is a 1.4 KB subset that ships with the bundle (see
+ * assets/fonts/SOURCE.md), so it is painted in the first frame, offline, with no
+ * CDN face to swap in later. The 1px lift puts it on the menus' baseline: a
+ * centered line box drops the mincho's baseline 1px below the 11.5px system
+ * text's, and the two read as one line only when those baselines agree. Below
+ * `sm` the bar is down to the menus and four icon buttons, and the wordmark
+ * stands aside.
+ */
+function Wordmark() {
+  return (
+    <span
+      aria-hidden
+      className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt max-sm:hidden"
+    >
+      koma
+    </span>
+  )
+}
+
+/**
  * The top chrome: in edit view the category menus (workspace / photo /
  * help) on the left, and the settings, export and theme actions on the
  * right; the back-to-grid and reset-workspace buttons float under the top
@@ -268,6 +289,7 @@ export function TopBar({
 
   return (
     <header className="app-titlebar relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar">
+      <Wordmark />
       {/* The menubar is what makes a click-opened menu hand over to the next
           trigger on hover: the panel follows the open trigger. */}
       <Menubar className="flex items-stretch">

@@ -15,6 +15,21 @@
 }
 
 /*
+ * The wordmark's face: Zen Old Mincho, subset to the four glyphs "koma" (1.4 KB,
+ * see assets/fonts/SOURCE.md), so it rides the bundle like any other asset and
+ * never swaps in from a CDN after paint. `block`, not `swap`: the file is local,
+ * so there is no window for a fallback face to fill.
+ */
+@font-face {
+  font-family: 'Zen Old Mincho';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('./assets/fonts/zen-old-mincho-700-koma.woff2') format('woff2');
+  unicode-range: U+61, U+6b, U+6d, U+6f;
+}
+
+/*
  * Raw palette. The values live on :root / html.dark and every Tailwind color
  * token in @theme inline points at them, so switching .dark re-themes all
  * utilities at runtime. Tokens are consumed as bg-*, text-*, border-* classes.
@@ -183,6 +198,7 @@ html.dark {
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-brand: 'Zen Old Mincho', Georgia, serif;
 }
 
 @layer base {
