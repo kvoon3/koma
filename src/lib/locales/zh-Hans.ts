@@ -173,11 +173,9 @@ export const zhHans: Record<string, string> = {
   'No empty panes in this workspace': '当前工作区没有空窗格',
 
   // Footer
-  '{filled} / 9 spaces': '{filled} / 9 个位置',
   'Ratio': '比例',
   'Output': '输出',
-  'Made with': '用爱制作',
-  'Made with {heart} by {name}': '{name} 用 {heart} 制作',
+  'Made with {vite} Vite and {heart} by {name}': '{name} 用 {vite} Vite 和 {heart} 制作',
 
   // HelpOverlay
   'How to use': '使用说明',
