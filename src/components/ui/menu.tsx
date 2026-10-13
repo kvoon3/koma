@@ -25,7 +25,7 @@ export const menuGroupLabelCls = 'px-2.5 pt-1 pb-0.5 text-[10px] font-semibold t
 /** The menu's own header row: not a section label, so no uppercase tracking. */
 const menuTitleCls = 'block max-w-[240px] truncate px-2.5 pt-1 pb-0.5 text-[11px] text-faint'
 
-export const menuPopupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+export const menuPopupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 
 export const menuHintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums text-faint'
 

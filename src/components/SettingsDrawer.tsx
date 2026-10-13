@@ -25,9 +25,9 @@ type SettingsTab = 'appearance' | 'text'
  */
 const section = 'flex min-w-0 flex-col gap-[7px]'
 const heading = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
-const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-[120ms] active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
-const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-[120ms] group-data-checked/switch:translate-x-3.5'
-const swatch = 'box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line-strong transition-[border-color,scale] duration-[120ms] active:scale-[0.97] p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
+const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
+const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-(--dur-fast) group-data-checked/switch:translate-x-3.5'
+const swatch = 'box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line-strong transition-[border-color,scale] duration-(--dur-fast) active:scale-[0.97] p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
 const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--drawerBg)]'
 
 /**
@@ -36,7 +36,7 @@ const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--drawerBg)]'
  * rule (`-mb-px` lays its 1px border over the strip's). The heading classes
  * keep it on the same size, tracking and color system as every other heading.
  */
-const tabCls = `${heading} -mb-px cursor-pointer border-b border-transparent bg-transparent px-0 pt-1.5 pb-2 transition-colors duration-[120ms] hover:text-dim focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 data-active:border-accent data-active:text-txt`
+const tabCls = `${heading} -mb-px cursor-pointer border-b border-transparent bg-transparent px-0 pt-1.5 pb-2 transition-colors duration-(--dur-fast) hover:text-dim focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 data-active:border-accent data-active:text-txt`
 
 /**
  * The panel scrolls, not the popup: the strip keeps its height, the popup its
@@ -88,9 +88,9 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
       swipeDirection="down"
     >
       <Drawer.Portal>
-        <Drawer.Backdrop className="fixed inset-0 z-44 min-h-dvh bg-overlay-dim opacity-[calc(1-var(--drawer-swipe-progress,0))] transition-opacity duration-[450ms] ease-(--ease-drawer) data-starting-style:opacity-0 data-ending-style:opacity-0 data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)]" />
+        <Drawer.Backdrop className="fixed inset-0 z-44 min-h-dvh bg-overlay-dim opacity-[calc(1-var(--drawer-swipe-progress,0))] transition-opacity duration-(--dur-drawer) ease-(--ease-drawer) data-starting-style:opacity-0 data-ending-style:opacity-0 data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)]" />
         <Drawer.Viewport className="fixed inset-0 z-45 flex items-end justify-center">
-          <Drawer.Popup className="relative box-border flex max-h-[min(46vh,420px)] w-[min(560px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[var(--drawer-swipe-movement-y,0px)] transition-transform duration-[450ms] ease-(--ease-drawer) will-change-transform mb-[calc(var(--statusH)+env(safe-area-inset-bottom))] pointer-coarse:max-h-[62dvh] max-sm:max-h-[62dvh] data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]">
+          <Drawer.Popup className="relative box-border flex max-h-[min(46vh,420px)] w-[min(560px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[var(--drawer-swipe-movement-y,0px)] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) will-change-transform mb-[calc(var(--statusH)+env(safe-area-inset-bottom))] pointer-coarse:max-h-[62dvh] max-sm:max-h-[62dvh] data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]">
             <Drawer.Content className="flex min-h-0 flex-1 flex-col outline-0">
               <header className="flex flex-none items-center gap-2.5 py-1.5 pl-3.5 pr-2.5">
                 <Drawer.Title className="m-0 text-[12.5px] font-bold">{t('Settings')}</Drawer.Title>

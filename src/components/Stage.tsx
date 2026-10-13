@@ -20,15 +20,15 @@ const MIN_CANVAS = 120
    layout space. Only the handle on its top edge moves it; collapsed it rests
    behind the footer with the handle showing. The panel only exists while a
    focused pane holds a photo. */
-const toolsPanelCls = 'pointer-events-auto relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-[260ms] ease-(--ease-drawer)'
-const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-[160ms] active:scale-[0.97] hover:text-txt'
+const toolsPanelCls = 'pointer-events-auto relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-(--dur-morph) ease-(--ease-drawer)'
+const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-(--dur-surface) active:scale-[0.97] hover:text-txt'
 /* Fixed-width tools in a max-content row: the panel hugs them, and the row
    scrolls sideways once they outgrow the screen. It stays inside a block, not a
    flex item (it would shrink and clip the leading tool), and `touch-pan-x`
    overrides the stage's `touch-none`; `.scroll-fade` softens the scrolled ends. */
 const toolsScrollCls = 'scroll-fade overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const toolsRowCls = 'flex w-max items-stretch'
-const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-[120ms] active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
+const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
 interface ToolDef {
@@ -345,7 +345,7 @@ export function Stage() {
                 >
                   <span
                     className={
-                      `absolute rounded-none transition-colors duration-[120ms] ${
+                      `absolute rounded-none transition-colors duration-(--dur-fast) ${
                         vertical
                           ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
                           : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'} ${
@@ -361,7 +361,7 @@ export function Stage() {
                 thing you grab. Shown only while a pane is focused. (Above the
                 lines: see the T-junction note in DESIGN.md.) */}
             <div
-              className={`pointer-events-none absolute inset-0 z-[6] transition-opacity duration-[140ms] ${
+              className={`pointer-events-none absolute inset-0 z-[6] transition-opacity duration-(--dur-fast) ${
                 focusId ? 'opacity-100' : 'opacity-0'}`}
             >
               {view.dividers.map((d) => {
@@ -375,7 +375,7 @@ export function Stage() {
                       ? { left: line.x, top: d.area.y + d.area.h / 2 }
                       : { left: d.area.x + d.area.w / 2, top: line.y }}
                     className={
-                      `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border backdrop-blur-[7px] transition-colors duration-[120ms] ${
+                      `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border backdrop-blur-[7px] transition-colors duration-(--dur-fast) ${
                         lit
                           ? 'border-accent bg-accent text-on-accent'
                           : 'border-float-line bg-float-bg text-float-icon'} ${
@@ -391,7 +391,7 @@ export function Stage() {
             </div>
 
             <div
-              className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale] duration-[120ms] active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
+              className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
               onPointerDown={beginResize}
               onDoubleClick={resetRatio}
               title={t('Drag to change canvas aspect · double-click to reset')}

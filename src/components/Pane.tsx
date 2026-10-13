@@ -20,7 +20,7 @@ import { PaneMenu } from './PaneMenu'
 
 /* One split button. The chip's height is the page row's (back / reset), so the
    same chip reads the same in the top row and inside a hovered pane. */
-const splitBtnCls = 'grid w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,border-color,color,scale] duration-[120ms] active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:w-[38px]'
+const splitBtnCls = 'grid w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:w-[38px]'
 
 const dropBtnCls = 'flex w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-2 text-xs text-txt hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
@@ -116,7 +116,7 @@ function RotationHandle({ rot, shown, onChange }: {
 
   return (
     <span
-      className={`absolute -bottom-2 -left-2 grid h-[15px] w-[15px] cursor-crosshair place-items-center rounded-none border-2 border-float-bg-2 bg-accent text-on-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${shown ? ' opacity-100' : ''}`}
+      className={`absolute -bottom-2 -left-2 grid h-[15px] w-[15px] cursor-crosshair place-items-center rounded-none border-2 border-float-bg-2 bg-accent text-on-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${shown ? ' opacity-100' : ''}`}
       title={t('Drag to rotate · hold Shift to snap to 15°')}
       onPointerDown={onDown}
       onPointerMove={onMove}
@@ -142,7 +142,7 @@ function ResetRotationButton({ shown, flip, onReset }: {
   const t = useT()
   return (
     <button
-      className={`absolute left-1/2 z-[3] grid h-[22px] w-[22px] -translate-x-1/2 cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-[120ms] active:scale-[0.97] hover:bg-chip-hover hover:text-txt ${
+      className={`absolute left-1/2 z-[3] grid h-[22px] w-[22px] -translate-x-1/2 cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt ${
         flip ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]'
       } ${shown ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       title={t('Reset rotation')}
@@ -285,7 +285,7 @@ function StickerView({
     >
       <img src={preview.url} alt="" draggable={false} className="block h-full w-full max-w-none pointer-events-none" />
       <span
-        className={`group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
+        className={`group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${hot || selected ? ' opacity-100' : ''}`}
         title={t('Drag to resize')}
         onPointerDown={onResizeDown}
         onPointerMove={onResizeMove}
@@ -302,7 +302,7 @@ function StickerView({
         onReset={() => rotateSticker(paneId, st.id, 0)}
       />
       <button
-        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-[120ms] active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
+        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
         title={t('Remove sticker')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
@@ -512,7 +512,7 @@ function LabelView({
         : <div>{lab.text}</div>}
       {!editing && (
         <span
-          className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
+          className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${hot || selected ? ' opacity-100' : ''}`}
           title={t('Drag to resize')}
           onPointerDown={onSizeDown}
           onPointerMove={onSizeMove}
@@ -538,7 +538,7 @@ function LabelView({
       )}
       {!editing && (
         <button
-          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-[120ms] active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
+          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
           title={t('Remove label')}
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
@@ -550,7 +550,7 @@ function LabelView({
         </button>
       )}
       <div
-        className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] ${
+        className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-(--dur-fast) ${
           lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
         } ${
           // Mutually exclusive classes: a base `pointer-events-none` plus a
@@ -672,7 +672,7 @@ function PanePhotoContent({
         // Carried: fade, don't hide, so the ghost reads as lifted from here;
         // stickers/labels stay sharp above the dimmed original.
         <div
-          className={`absolute inset-0 transition-opacity duration-[150ms] ${carried ? ' opacity-25' : ''}`}
+          className={`absolute inset-0 transition-opacity duration-(--dur-surface) ${carried ? ' opacity-25' : ''}`}
           style={mask}
         >
           <img
@@ -703,7 +703,7 @@ function PanePhotoContent({
           // stays in the neutral gray. Pointerdown bubbles: the pane still
           // focuses on the click.
           <button
-            className="absolute inset-0 grid cursor-pointer place-items-center border-0 bg-transparent p-0 transition-colors duration-[120ms] active:bg-chip-hover focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent"
+            className="absolute inset-0 grid cursor-pointer place-items-center border-0 bg-transparent p-0 transition-colors duration-(--dur-fast) active:bg-chip-hover focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent"
             title={t('Choose a photo')}
             aria-label={t('Choose a photo')}
             onClick={(e) => {
@@ -773,7 +773,7 @@ function PaneLiveBadge({ playing, onToggle }: { playing: boolean, onToggle: () =
   const t = useT()
   return (
     <button
-      className={`absolute left-[9px] top-[9px] z-[3] flex cursor-pointer items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] transition-[background-color,border-color,color,scale] duration-[140ms] active:scale-[0.97] backdrop-blur-[7px] hover:bg-chip-hover ${
+      className={`absolute left-[9px] top-[9px] z-[3] flex cursor-pointer items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] backdrop-blur-[7px] hover:bg-chip-hover ${
         // hover:text-txt carries class+pseudo specificity that would beat
         // text-danger, so it only rides the idle state.
         playing ? ' text-danger' : ' text-float-icon hover:text-txt'
@@ -957,7 +957,7 @@ function PaneCloseTool({
   const t = useT()
   return (
     <button
-      className={`absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color,scale] duration-[140ms] active:scale-[0.97] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${
+      className={`absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color,scale] duration-(--dur-fast) active:scale-[0.97] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${
         focused ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       }`}
       title={t('Close this pane')}
@@ -1611,7 +1611,7 @@ function PaneImpl({
       <PaneSplitTools
         paneId={leaf.id}
         onSplit={onSplit}
-        className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-[140ms] group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-sm:hidden"
+        className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-(--dur-fast) group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-sm:hidden"
       />
 
       {dropChoice && (

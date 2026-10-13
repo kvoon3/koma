@@ -59,7 +59,7 @@ export function Footer() {
         target="_blank"
         rel="noreferrer"
         aria-label="GitHub"
-        className="transition-colors duration-[120ms] hover:text-txt"
+        className="transition-colors duration-(--dur-fast) hover:text-txt"
       >
         <BrandMark path={siGithub.path} />
       </a>
