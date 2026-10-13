@@ -137,7 +137,9 @@ async function renderTextSource(source: StickerTextSource) {
 
   if (document.fonts?.load) {
     try {
-      await document.fonts.load(`${fontWeight} ${fontSize}px ${fontFamily}`)
+      // Pass the text: CJK webfonts load as unicode-range slices, and without
+      // it only the default Latin subset is fetched before the canvas draw.
+      await document.fonts.load(`${fontWeight} ${fontSize}px ${fontFamily}`, source.text)
     }
     catch {
       // Browser font fallback stays close enough for a raster sticker.
