@@ -1,11 +1,6 @@
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { useT } from '../lib/i18n'
-
-// Both footer buttons share the same metrics; only the palette differs.
-// Written out explicitly instead of reusing the Button component: its
-// `hover:not-disabled:bg-chip-hover` has higher specificity than a danger
-// override would, and a danger confirm must stay red on hover.
-const btnBase = 'inline-flex cursor-pointer items-center rounded-none border px-3 py-[6px] text-[11.5px] transition-colors duration-[120ms] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1 pointer-coarse:px-3.5 pointer-coarse:py-[7px] pointer-coarse:text-xs max-sm:px-3.5 max-sm:py-[7px] max-sm:text-xs'
+import { dialogButton } from './ui/button'
 
 /** Generic destructive-or-not confirm (clear library, open workspace file, …). */
 export function ConfirmDialog({ open, title, description, confirmLabel, danger, onClose, onConfirm }: {
@@ -36,14 +31,14 @@ export function ConfirmDialog({ open, title, description, confirmLabel, danger, 
             {description}
           </AlertDialog.Description>
           <div className="flex justify-end gap-[6px] border-t border-line px-3 py-2.5">
-            <AlertDialog.Close className={`${btnBase} border-line bg-transparent text-txt hover:bg-chip-hover`}>
+            <AlertDialog.Close className={`${dialogButton} border-line bg-transparent text-txt hover:bg-chip-hover`}>
               {t('Cancel')}
             </AlertDialog.Close>
             <AlertDialog.Close
               className={
                 danger
-                  ? `${btnBase} border-danger bg-danger font-semibold text-on-accent hover:bg-danger hover:text-on-accent`
-                  : `${btnBase} border-accent bg-accent font-semibold text-on-accent hover:bg-accent hover:text-on-accent`
+                  ? `${dialogButton} border-danger bg-danger font-semibold text-on-accent hover:bg-danger hover:text-on-accent`
+                  : `${dialogButton} border-accent bg-accent font-semibold text-on-accent hover:bg-accent hover:text-on-accent`
               }
               onClick={onConfirm}
             >

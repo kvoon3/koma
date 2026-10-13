@@ -316,6 +316,7 @@ src/
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
+  lib/browser.ts     which WebView the page was opened in (WeChat's UA) + the best-effort escape from it
   components/
     Stage.tsx        canvas: computes layout, renders panes, dividers and the tools panel
     Pane.tsx         one pane: photo, pan/zoom, split buttons, drop target
@@ -325,6 +326,7 @@ src/
     SettingsDrawer.tsx
     HelpOverlay.tsx
     ConfirmDialog.tsx   generic confirm (clear library, reset workspace, open workspace file)
+    WeChatGuard.tsx     the WeChat browser prompt and its menu guide
   store.ts           zustand: tree + photos + visual params + export params
 ```
 
@@ -354,6 +356,31 @@ hydrate. `clearLibrary` wipes the database too.
 included, ids preserved), and opening one replaces the current board after a
 confirm. Originals inflate ~33% as base64; the upgrade path is an fflate zip
 container.
+
+## WeChat's built-in browser (`components/WeChatGuard.tsx`)
+
+WeChat identifies its WebView with `MicroMessenger/<version>` in the UA on every
+platform, which is what `lib/browser.ts` reads, and it takes away exactly what a
+photo editor needs: an export lands in WeChat's own viewer instead of the album,
+and its picker re-encodes the photos it hands over. The guard asks once per tab
+session on boot: stay here, or leave for the system browser. Staying is
+remembered in `sessionStorage` (`collage:wechatStayed`), so a reload does not
+re-ask and a new session does.
+
+Leaving has no API. iOS refuses every custom scheme and Android's XWeb kernel
+swallows `intent://` in most builds, so asking the system for a VIEW intent is
+a best effort the guard makes on Android and ignores elsewhere; the real path
+is a picture of WeChat's menu. The ⋯ chip at the top right stands in for the
+button in WeChat's own navigation bar, which lives above the page and cannot be
+drawn by the page itself, and the arrow under it points there. The step copy
+follows the platform (`Open in Safari` on iOS, `Open in Browser` on Android and
+the desktop client), a `Copy link` fallback appears where the clipboard API
+does and copies the whole hash URL so the same view opens on the other side,
+and the small print states what changes: photos imported here live in this
+browser's storage, so the system browser starts with an empty library. The card
+is bottom-anchored like the drawers rather than centered: on a phone that is
+where the thumb is, and it keeps the marker at the top and the answer at the
+bottom of the screen.
 
 ## Build & deploy
 

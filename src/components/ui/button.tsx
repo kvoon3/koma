@@ -25,6 +25,22 @@ export const buttonVariants: Record<Variant, string> = {
   close: 'h-[26px] w-[26px] justify-center p-0 text-faint hover:not-disabled:text-txt',
 }
 
+/**
+ * A dialog footer button (ConfirmDialog, WeChatGuard): the metrics every
+ * dialog in the app shares, with the palette left to the caller. A danger
+ * confirm must stay red on hover, and `buttonBase`'s
+ * `hover:not-disabled:bg-chip-hover` outranks a plain override, which is why
+ * these are written out rather than derived from it; a dialog button is also
+ * a size up from a chip button.
+ */
+export const dialogButton = [
+  'inline-flex cursor-pointer items-center rounded-none border',
+  'px-3 py-[6px] text-[11.5px] transition-colors duration-[120ms]',
+  'focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1',
+  'pointer-coarse:px-3.5 pointer-coarse:py-[7px] pointer-coarse:text-xs',
+  'max-sm:px-3.5 max-sm:py-[7px] max-sm:text-xs',
+].join(' ')
+
 export function Button({ variant = 'flat', className = '', type = 'button', ...props }:
   ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return <button type={type} className={`${buttonBase} ${buttonVariants[variant]}${className ? ` ${className}` : ''}`} {...props} />
