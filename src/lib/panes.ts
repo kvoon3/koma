@@ -13,6 +13,8 @@ export interface Sticker {
   x: number
   y: number
   s: number
+  /** Rotation in radians; absent means unrotated (see `rotationOf`). */
+  rot?: number
 }
 
 /**
@@ -42,6 +44,8 @@ export interface PaneLabel {
   x: number
   y: number
   size: number
+  /** Rotation in radians; absent means unrotated (see `rotationOf`). */
+  rot?: number
 }
 
 export interface Leaf {
@@ -93,7 +97,43 @@ export function newLeaf(): Leaf {
 export const DEFAULT_LABEL_SIZE = 42
 
 export function newLabel(): PaneLabel {
-  return { text: 'Label', font: '', theme: DEFAULT_LABEL_THEME, x: 0.5, y: 0.5, size: DEFAULT_LABEL_SIZE }
+  return { text: 'Label', font: '', theme: DEFAULT_LABEL_THEME, x: 0.5, y: 0.5, size: DEFAULT_LABEL_SIZE, rot: 0 }
+}
+
+/**
+ * Rotation in radians, 0 when absent: `.koma.json` files and session snapshots
+ *  saved before rotation existed simply have no field, the same tolerance
+ *  `labelColors()` shows for an unknown theme.
+ */
+export const rotationOf = (box: { rot?: number }) => box.rot ?? 0
+
+/** The CSS `rotate()` a sticker/label box draws with. */
+export const rotationCss = (box: { rot?: number }) => `rotate(${rotationOf(box)}rad)`
+
+const TAU = Math.PI * 2
+
+/** Fold an angle into (-π, π], so a saved rotation stays readable. */
+export function wrapAngle(a: number): number {
+  const t = a % TAU
+  if (t > Math.PI)
+    return t - TAU
+  if (t <= -Math.PI)
+    return t + TAU
+  return t
+}
+
+/** 15°: the step a held Shift snaps a rotation drag to. */
+export const ROTATION_SNAP = Math.PI / 12
+
+export function snapRotation(rot: number, snap: boolean): number {
+  return wrapAngle(snap ? Math.round(rot / ROTATION_SNAP) * ROTATION_SNAP : rot)
+}
+
+/** Rotate a local (x, y) offset around a box center by `a` radians. */
+export function rotateOffset(x: number, y: number, a: number): { x: number, y: number } {
+  const c = Math.cos(a)
+  const s = Math.sin(a)
+  return { x: x * c - y * s, y: x * s + y * c }
 }
 
 /**

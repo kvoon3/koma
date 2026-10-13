@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { labelColors, layoutTree, leafList, placement, seamFadeWidth, seamMaskStyle, seamSides, stickerRect } from '../lib/panes'
+import { labelColors, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides, stickerRect } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { SeamBackdrop } from './Stage'
@@ -42,7 +42,7 @@ function PreviewSticker({ st, place, photoById }: {
       alt=""
       draggable={false}
       className="pointer-events-none absolute max-w-none"
-      style={{ left: r.x, top: r.y, width: r.w, height: r.h }}
+      style={{ left: r.x, top: r.y, width: r.w, height: r.h, transform: rotationCss(st) }}
     />
   )
 }
@@ -113,7 +113,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
           style={{
             left: `${leaf.label.x * 100}%`,
             top: `${leaf.label.y * 100}%`,
-            transform: 'translate(-50%, -50%)',
+            transform: `translate(-50%, -50%) ${rotationCss(leaf.label)}`,
             fontSize: leaf.label.size * unit,
             fontFamily: fontById(leaf.label.font).cssStack,
             background: labelColors(leaf.label.theme).bg,

@@ -62,6 +62,8 @@ export const zh: Record<string, string> = {
   'Drag to resize': '拖动调整大小',
   'Remove sticker': '删除贴图',
   'Remove label': '删除文字',
+  'Drag to rotate · hold Shift to snap to 15°': '拖动旋转 · 按住 Shift 以 15° 吸附',
+  'Reset rotation': '重置角度',
   'Switch to black text on white': '切换为白底黑字',
   'Switch to white text on black': '切换为黑底白字',
   'Label font': '文字字体',
@@ -231,11 +233,11 @@ export const zh: Record<string, string> = {
   'Press and hold inside a pane': '在窗格内长按',
   'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop, or tap the LIVE badge to toggle (it turns red and blinks while playing); export also records a video when a pane holds one': '播放实况照片的视频（拖入的 IMG_1234.HEIC + IMG_1234.MOV 会自动配对）；松手停止，或点按 LIVE 徽标切换（播放时变红并闪烁）；任一窗格有实况照片时，导出还会一并录制视频',
   '"Sticker" in the tools panel': '工具面板里的「贴图」',
-  'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete': '选择一张图片钉到聚焦窗格的照片上（比如遮住人脸）；点击可选中；手柄会像文字一样保持显示；拖动移动，角上缩放，× 删除',
+  'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, the corner to scale, the bottom-left arrow to rotate (Shift snaps to 15°), the chip below it to reset the angle, × to delete': '选择一张图片钉到聚焦窗格的照片上（比如遮住人脸）；点击可选中；手柄会像文字一样保持显示；拖动移动，角上缩放，左下角箭头旋转（按住 Shift 以 15° 吸附），下方按钮重置角度，× 删除',
   '"Make" in the tools panel': '工具面板里的「制作贴图」',
   'Open the sticker maker: type text or pick an image, remove its background with a local AI model, pick a die-cut outline and finish, and insert the result onto that pane as a sticker': '打开贴图制作：输入文字或选一张图片，用本地 AI 模型去掉背景，挑好模切描边后完成，把结果作为贴图插到该窗格上',
   '"Text" in the tools panel': '工具面板里的「文字」',
-  'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect': '给聚焦窗格添加文字（默认黑底白字）；点击可选中并固定它的工具栏（字体选择器 + 黑 / 白切换，离线时回退到系统字体）；拖动移动，角上缩放，双击编辑，点击别处或按 Esc 取消选中',
+  'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, the corner to resize, the bottom-left arrow to rotate (Shift snaps to 15°), the chip below it to reset the angle, double-click to edit, click away or Esc to deselect': '给聚焦窗格添加文字（默认黑底白字）；点击可选中并固定它的工具栏（字体选择器 + 黑 / 白切换，离线时回退到系统字体）；拖动移动，角上缩放，左下角箭头旋转（按住 Shift 以 15° 吸附），下方按钮重置角度，双击编辑，点击别处或按 Esc 取消选中',
   'Close': '关闭',
 
   // ClearConfirm

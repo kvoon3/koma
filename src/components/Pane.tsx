@@ -4,7 +4,7 @@ import type { Photo, Preview } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import { Select } from '@base-ui/react/select'
 import { useNavigate } from '@tanstack/react-router'
-import { Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
+import { Check, ChevronDown, Contrast, ImagePlus, RefreshCw, RotateCcw, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -13,7 +13,7 @@ import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { getLiveVideoUrl } from '../lib/imageStore'
 import { pickPhotoForPane } from '../lib/paneCommands'
-import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, seamFadeWidth, seamMaskStyle, stickerRect } from '../lib/panes'
+import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, rotateOffset, rotationCss, rotationOf, seamFadeWidth, seamMaskStyle, snapRotation, stickerRect } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -68,6 +68,95 @@ function useFontReady(font: string): number {
   return tick
 }
 
+/**
+ * The rotate handle stickers and labels share: a curved double arrow at the
+ * box's bottom-left, the mirror of the resize corner at the bottom-right.
+ * Dragging orbits the pointer around the box center, so the box follows the
+ * cursor one-to-one; a held Shift snaps to 15°. The center is measured once
+ * per gesture: the box turns under the pointer, but its center never moves.
+ */
+function RotationHandle({ rot, shown, onChange }: {
+  rot: number
+  shown: boolean
+  onChange: (rot: number) => void
+}) {
+  const t = useT()
+  const gestureRef = useRef<{ cx: number, cy: number, a0: number, r0: number } | null>(null)
+
+  const onDown = (e: React.PointerEvent) => {
+    if (e.button !== 0)
+      return
+    e.stopPropagation()
+    const box = (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect()
+    if (!box)
+      return
+    const el = e.currentTarget as HTMLElement
+    el.setPointerCapture(e.pointerId)
+    const cx = box.left + box.width / 2
+    const cy = box.top + box.height / 2
+    gestureRef.current = {
+      cx,
+      cy,
+      a0: Math.atan2(e.clientY - cy, e.clientX - cx),
+      r0: rot,
+    }
+  }
+  const onMove = (e: React.PointerEvent) => {
+    const g = gestureRef.current
+    if (!g)
+      return
+    e.stopPropagation()
+    const a = Math.atan2(e.clientY - g.cy, e.clientX - g.cx)
+    onChange(snapRotation(g.r0 + (a - g.a0), e.shiftKey))
+  }
+  const endGesture = () => {
+    gestureRef.current = null
+  }
+
+  return (
+    <span
+      className={`absolute -bottom-2 -left-2 grid h-[15px] w-[15px] cursor-crosshair place-items-center rounded-none border-2 border-float-bg-2 bg-accent text-on-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${shown ? ' opacity-100' : ''}`}
+      title={t('Drag to rotate · hold Shift to snap to 15°')}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={endGesture}
+      onPointerCancel={endGesture}
+    >
+      <MorphIcon icon={RefreshCw} size={10} strokeWidth={2.5} />
+    </span>
+  )
+}
+
+/**
+ * The reset-angle chip stickers and labels share: a bottom-center button that
+ * only exists while the box is actually turned, so there is always a one-click
+ * way back to 0° without hunting the exact drag. `flip` puts it above a label
+ * whose toolbar already takes the space below.
+ */
+function ResetRotationButton({ shown, flip, onReset }: {
+  shown: boolean
+  flip?: boolean
+  onReset: () => void
+}) {
+  const t = useT()
+  return (
+    <button
+      className={`absolute left-1/2 z-[3] grid h-[22px] w-[22px] -translate-x-1/2 cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-opacity duration-[120ms] hover:bg-chip-hover hover:text-txt ${
+        flip ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]'
+      } ${shown ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      title={t('Reset rotation')}
+      aria-label={t('Reset rotation')}
+      onPointerDown={e => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onReset()
+      }}
+    >
+      <MorphIcon icon={RotateCcw} size={13} strokeWidth={2} />
+    </button>
+  )
+}
+
 function StickerView({
   paneId,
   st,
@@ -88,6 +177,7 @@ function StickerView({
   const preview = usePreview(photo)
   const removeSticker = useStore(s => s.removeSticker)
   const selectSticker = useStore(s => s.selectSticker)
+  const rotateSticker = useStore(s => s.rotateSticker)
   const t = useT()
   const selected = useStore(s => s.stickerSel?.stickerId === st.id)
   // hover intent: keep the handles alive while the pointer crosses the gap
@@ -110,6 +200,7 @@ function StickerView({
     return null
   const aspect = photo.trueW / photo.trueH
   const r = stickerRect(place, st, photo.trueW, photo.trueH, aspect)
+  const rot = rotationOf(st)
 
   const onMoveDown = (e: React.PointerEvent) => {
     e.stopPropagation()
@@ -136,8 +227,11 @@ function StickerView({
     e.stopPropagation()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     const corner = toCanvas(e.clientX, e.clientY)
-    const ocX = 2 * (r.x + r.w / 2) - corner.x
-    const ocY = 2 * (r.y + r.h / 2) - corner.y
+    // The fixed opposite corner is the box's top-left in local space, carried
+    // around the center by the rotation (a rotation-invariant diagonal length).
+    const o = rotateOffset(-r.w / 2, -r.h / 2, rot)
+    const ocX = r.x + r.w / 2 + o.x
+    const ocY = r.y + r.h / 2 + o.y
     gestureRef.current = {
       mode: 'resize',
       ocX,
@@ -166,7 +260,7 @@ function StickerView({
   return (
     <div
       className="group/sticker absolute z-2 cursor-grab touch-none active:cursor-grabbing"
-      style={{ left: r.x - paneRect.x, top: r.y - paneRect.y, width: r.w, height: r.h }}
+      style={{ left: r.x - paneRect.x, top: r.y - paneRect.y, width: r.w, height: r.h, transform: rotationCss(st) }}
       title={photo.name}
       onPointerDown={onMoveDown}
       onPointerMove={onMoveMove}
@@ -196,6 +290,15 @@ function StickerView({
         onPointerMove={onResizeMove}
         onPointerUp={endGesture}
         onPointerCancel={endGesture}
+      />
+      <RotationHandle
+        rot={rot}
+        shown={hot || selected}
+        onChange={value => rotateSticker(paneId, st.id, value)}
+      />
+      <ResetRotationButton
+        shown={rot !== 0 && (hot || selected)}
+        onReset={() => rotateSticker(paneId, st.id, 0)}
       />
       <button
         className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
@@ -284,6 +387,7 @@ function LabelView({
   const selected = useStore(s => s.labelSel === paneId)
   const fontTick = useFontReady(lab.font)
   const colors = labelColors(lab.theme)
+  const rot = rotationOf(lab)
   // hover intent: keep the toolbar alive while the pointer crosses the gap to it
   const [hot, setHot] = useState(false)
   const leaveRef = useRef<number | null>(null)
@@ -372,7 +476,7 @@ function LabelView({
       style={{
         left: `${lab.x * 100}%`,
         top: `${lab.y * 100}%`,
-        transform: 'translate(-50%, -50%)',
+        transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
         fontSize: `${lab.size * unit}px`,
         fontFamily: fontById(lab.font).cssStack,
         background: colors.bg,
@@ -416,6 +520,22 @@ function LabelView({
         />
       )}
       {!editing && (
+        <RotationHandle
+          rot={rot}
+          shown={hot || selected}
+          onChange={value => setLabel(paneId, { rot: value })}
+        />
+      )}
+      {!editing && (
+        <ResetRotationButton
+          shown={rot !== 0 && (hot || selected)}
+          // The toolbar already takes the space under a label parked near the
+          // pane's top (see `lab.y < 0.3` below), so the chip moves up instead.
+          flip={lab.y < 0.3}
+          onReset={() => setLabel(paneId, { rot: 0 })}
+        />
+      )}
+      {!editing && (
         <button
           className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
           title={t('Remove label')}
@@ -429,7 +549,7 @@ function LabelView({
         </button>
       )}
       <div
-        className={`absolute left-1/2 z-[4] flex -translate-x-1/2 gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] ${
+        className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-[140ms] ${
           lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
         } ${
           // Mutually exclusive classes: a base `pointer-events-none` plus a
@@ -440,6 +560,12 @@ function LabelView({
             ? 'pointer-events-auto opacity-100'
             : 'pointer-events-none opacity-0'
         }`}
+        style={{
+          // Counter-rotate about the edge that faces the label, so the
+          // toolbar stays upright and pinned no matter how the label is turned.
+          transform: `translateX(-50%) rotate(${-rot}rad)`,
+          transformOrigin: lab.y < 0.3 ? '50% 0%' : '50% 100%',
+        }}
         onPointerDown={(e) => {
           e.stopPropagation()
           selectLabel(paneId)
