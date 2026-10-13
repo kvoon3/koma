@@ -565,11 +565,12 @@ function PanePhotoContent({
         )
       : (
           // An empty pane has no tools to offer, so it carries its own picker:
-          // always visible (nothing to pan, so no hover gate), scaled up like
-          // the other pane buttons on coarse pointers.
+          // always visible (nothing to pan, no hover gate), worn as a floating
+          // chip that puts the icon over the label like the tools row's
+          // buttons, instead of showing a bare glyph.
           <div className="absolute inset-0 grid place-items-center">
             <button
-              className="grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-faint transition-colors duration-[120ms] hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:h-[38px] pointer-coarse:w-[38px]"
+              className="flex cursor-pointer flex-col items-center gap-1.5 whitespace-nowrap rounded-none border border-float-line bg-float-bg px-5 py-3 text-[12.5px] font-semibold text-float-icon backdrop-blur-[7px] transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:px-6 pointer-coarse:py-4"
               title={t('Choose a photo')}
               aria-label={t('Choose a photo')}
               onPointerDown={e => e.stopPropagation()}
@@ -579,6 +580,7 @@ function PanePhotoContent({
               }}
             >
               <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
+              {t('Choose a photo')}
             </button>
           </div>
         )
