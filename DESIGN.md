@@ -106,12 +106,18 @@ Settings; the ratio comes from `ratio`).
 │   ⌃ [replace] [sticker] [text] (pull-up)      │
 ├───────────────────────────────────────────────┤
 │ Footer:   Ratio 1.50 · Output 2048 × 1365 px  │
-│           [gh] Made with ♡ by Kevin Kwong     │
+│           Made with ⚡Vite & ♡ by Kevin Kwong  │
 └───────────────────────────────────────────────┘
 ```
 
 The old status-bar stats (panes / filled / focus) are gone; the footer shows
-the canvas ratio and the output size. The split chip is a pane's only hover
+the canvas ratio and the output size, the byline (made with Vite and love by
+Kevin Kwong) and the GitHub link last. The grid overview draws no stats at all:
+there the footer is only the byline and the link, with no count of the filled
+workspaces. Below `sm` the stats are what gives way, not the byline: the two
+stats already fill a 360px phone, while the byline is short enough to stay
+whole, and a credit that shrinks to a bare heart credits no one.
+The split chip is a pane's only hover
 chrome: hovering a pane, focused or not, fades it in at that pane's top center,
 and below lg the focused pane also draws the same chip in the page row between
 the back and reset buttons, so a split is never far away. That page-row copy is

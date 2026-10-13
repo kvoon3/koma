@@ -25,6 +25,7 @@
     "morphicons": "^1.7.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "simple-icons": "^16.35.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
