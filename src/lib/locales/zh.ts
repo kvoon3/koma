@@ -192,7 +192,7 @@ export const zh: Record<string, string> = {
   'Back to the 3×3 workspace grid (edit view only)': '返回 3×3 工作区网格（仅编辑视图）',
   'Reset button floating at the top right': '悬浮在右上角的重置按钮',
   'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library': '重置为单个空白窗格：编辑视图里重置当前工作区，九宫格视图里重置全部（会先确认）；照片会回到素材库',
-  'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot': '把聚焦窗格上下或左右拆分；悬停任意窗格（无论是否聚焦）都会在它的顶部中央淡入同一组按钮，随时都能就地拆分',
+  'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. Below the sm breakpoint both chips are hidden, and the pane menu or the S / V keys split instead': '把聚焦窗格上下或左右拆分；悬停任意窗格（无论是否聚焦）都会在它的顶部中央淡入同一组按钮，随时都能就地拆分。窄于 sm 断点时两组按钮都隐藏，改用窗格菜单或 S / V 快捷键拆分',
   'Tools panel above the footer': '底部栏上方的工具面板',
   'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because an empty pane then offers its own “Choose a photo” chip': '默认展开，只有面板上边缘的把手能收放：换照片、贴贴纸、用文字或图片制作贴纸、添加文字；没有聚焦窗格或聚焦窗格为空时整个面板都会收起，因为空窗格本身会提供「选择照片」图标按钮',
   'Drag the divider between panes': '拖动窗格之间的分隔条',

@@ -601,8 +601,10 @@ export function PaneSplitTools({
 }) {
   const t = useT()
   return (
+    // Below the sm breakpoint the chip is hidden outright: on a phone-sized
+    // screen the pane menu (and S / V) carries the splits instead.
     <div
-      className={`flex h-[30px] rounded-none border border-float-line bg-float-bg backdrop-blur-[7px] pointer-coarse:h-[38px] ${className}`}
+      className={`flex h-[30px] rounded-none border border-float-line bg-float-bg backdrop-blur-[7px] pointer-coarse:h-[38px] max-sm:hidden ${className}`}
       onPointerDown={e => e.stopPropagation()}
     >
       <button
