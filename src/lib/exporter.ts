@@ -4,7 +4,7 @@ import { isTransparentBg } from '../store'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
-import { labelColors, labelRect, layoutTree, placement, rotationOf, seamFadeWidth, seamSides, stickerRect } from './panes'
+import { labelColors, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides, stickerRect } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -473,6 +473,84 @@ function drawLiveCell(
   ctx.restore()
   void drawStickers(ctx, p, leaf, opts.photos, sources)
   drawLabelCell(ctx, prep, leaf, rect)
+}
+
+// --- 3×3 grid snapshot ------------------------------------------------------
+
+/**
+ * The overview's largest cell, in px (the WorkspaceGrid cell clamp). The board
+ * snapshot scales its cell gap from the same reference, so the image keeps the
+ * on-screen proportions at any resolution.
+ */
+export const GRID_CELL_MAX = 220
+
+export interface GridSnapshotOptions {
+  /** The nine workspaces in grid order; anything past 9 is ignored. */
+  workspaces: { root: Node, canvasRatio: number | null }[]
+  /** Long edge of the finished board, in px: each cell gets about a third. */
+  longSide: number
+  /** Space between the nine overview cells, in px (the store's grid gap). */
+  gridGap: number
+  radius: number
+  bg: string
+  edgeFade: number
+  edgeFadeStrength: number
+  photos: Map<string, Photo>
+}
+
+/**
+ * The 3×3 overview as one image: the same nine square cells the grid draws,
+ * cover-fit and laid out with the grid gap on the collage background. A cell
+ * renders like its preview, panes flushed and the collage's short edge mapped
+ * onto the cell, then the cover overflow is cropped away; empty cells stay
+ * blank (the background, or nothing at all while the gap fill is transparent).
+ */
+export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTMLCanvasElement> {
+  const cell = Math.max(240, Math.round(opts.longSide / 3))
+  const gap = Math.round(opts.gridGap * cell / GRID_CELL_MAX)
+  const size = cell * 3 + gap * 2
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+  if (!isTransparentBg(opts.bg)) {
+    ctx.fillStyle = opts.bg
+    ctx.fillRect(0, 0, size, size)
+  }
+  for (let i = 0; i < Math.min(9, opts.workspaces.length); i++) {
+    const ws = opts.workspaces[i]
+    if (!leafList(ws.root).some(l => l.photoId))
+      continue
+    const ratio = ws.canvasRatio ?? 1.5
+    // Large enough to cover the square cell, like CellPreview's cover-fit scale.
+    const c = await renderCollage({
+      root: ws.root,
+      ratio,
+      // The overview lays its previews out flush (no pane gap), and this is a
+      // snapshot of that overview.
+      gap: 0,
+      radius: opts.radius,
+      bg: opts.bg,
+      edgeFade: opts.edgeFade,
+      edgeFadeStrength: opts.edgeFadeStrength,
+      photos: opts.photos,
+      longSide: Math.round(cell * Math.max(ratio, 1 / ratio)),
+    })
+    ctx.drawImage(
+      c,
+      (c.width - cell) / 2,
+      (c.height - cell) / 2,
+      cell,
+      cell,
+      (i % 3) * (cell + gap),
+      Math.floor(i / 3) * (cell + gap),
+      cell,
+      cell,
+    )
+    c.width = c.height = 0
+  }
+  return canvas
 }
 
 export function buildCropReport(opts: ExportOptions): string {

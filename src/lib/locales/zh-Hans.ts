@@ -203,6 +203,8 @@ export const zhHans: Record<string, string> = {
   'Back button floating at the top left': '悬浮在左上角的返回按钮',
   'Back to the 3×3 workspace grid (edit view only)': '返回 3×3 工作区网格（仅编辑视图）',
   'Reset button floating at the top right': '悬浮在右上角的重置按钮',
+  'Snapshot chip above the 3×3 grid': '九宫格上方的快照按钮',
+  'Render the whole overview as one image and download it: every non-empty cell exactly as the grid draws it (cover-fit, panes flush), the gap between cells scaled with the board, empty cells left blank; a JPEG, or a PNG while the gap fill is transparent': '把整个总览渲染成一张图片并下载：每个非空格子都与网格里看到的一致（按覆盖裁切、窗格无缝），格子间距随画布等比缩放，空格子留白；输出 JPEG，间隙填充为透明时输出 PNG',
   'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library': '重置为单个空白窗格：编辑视图里重置当前工作区，九宫格视图里重置全部（会先确认）；照片会回到素材库',
   'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. The top-row copy is only there below lg (a large screen has the pane chip to aim at), and below the sm breakpoint it is the only copy left, a touch screen having no hover to fade the other one in': '把聚焦窗格上下或左右拆分；悬停任意窗格（无论是否聚焦）都会在它的顶部中央淡入同一组按钮，随时都能就地拆分。顶栏中间的那组只在窄于 lg 时出现（大屏幕上有窗格内的一组可用），窄于 sm 断点时它就成了唯一的一份，因为触屏没有悬停来淡出另一份',
   'Tools panel above the footer': '底部栏上方的工具面板',
@@ -260,6 +262,7 @@ export const zhHans: Record<string, string> = {
   'Edit this workspace': '编辑这个工作区',
   'Start a new collage here': '在这里开始新的拼图',
   'New collage': '新建拼图',
+  'Snapshot all nine workspaces as one image': '把九个工作区截成一张图',
 
   // Workspace file (save / open the whole board)
   'Workspace': '工作区',
@@ -277,6 +280,7 @@ export const zhHans: Record<string, string> = {
 
   // Toasts
   'Rendering {n} / {total}...': '渲染中 {n} / {total}…',
+  'Rendering the 3×3 snapshot...': '正在渲染九宫格快照…',
   'Exported {n} image': '已导出 {n} 张图片',
   'Exported {n} images': '已导出 {n} 张图片',
   'Rendering at original resolution...': '正在按原始分辨率渲染…',

@@ -5,20 +5,32 @@ import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSenso
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard } from 'lucide'
+import { Camera, LayoutDashboard, LoaderCircle } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
+import { useAppCommands } from '../lib/appCommands'
+import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { labelColors, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides, stickerRect } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { SeamBackdrop } from './Stage'
+import { Tip } from './ui/tip'
 
 // Virtual canvas short side for preview layout math. Any value works; the
 // tree layout is resolution-independent, only the ratio matters.
 const PV = 400
+
+/**
+ * Height the snapshot chip above the grid asks for (chip + gap), reserved
+ * while sizing the cells so the board group stays inside the stage.
+ */
+const SNAP_ROW_H = 50
+
+/** The floating-chip idiom shared with FloatActions (back / reset). */
+const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-colors duration-[120ms] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
 
 /**
  * One sticker of a workspace preview: the editor's `StickerView` anchoring via
@@ -269,6 +281,10 @@ export function WorkspaceGrid() {
   const gridGap = useStore(s => s.gridGap)
   const moveWorkspace = useStore(s => s.moveWorkspace)
   const navigate = useNavigate()
+  const t = useT()
+  const { snapshotGrid, busy } = useAppCommands()
+  /** Local to the camera chip: the app-wide `busy` also spins during an export. */
+  const [snapBusy, setSnapBusy] = useState(false)
 
   // Enter a workspace: set activeId before navigating so the stage renders the
   // right workspace inside the same view-transition commit (the route wrapper
@@ -281,6 +297,9 @@ export function WorkspaceGrid() {
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
+  // Anything to snapshot? Empty cells render blank, so an all-empty board is
+  // not worth a render (the chip is disabled instead).
+  const anyFilled = useMemo(() => workspaces.some(w => leafList(w.root).some(l => l.photoId)), [workspaces])
 
   // ---- Keyboard highlight (grid navigation) --------------------------------
   const [hl, setHl] = useState(() => {
@@ -353,7 +372,11 @@ export function WorkspaceGrid() {
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const cell = Math.max(60, Math.floor(
-    Math.min((wrapSize.w - 48 - gridGap * 2) / 3, (wrapSize.h - 48 - gridGap * 2) / 3, 220),
+    Math.min(
+      (wrapSize.w - 48 - gridGap * 2) / 3,
+      (wrapSize.h - 48 - SNAP_ROW_H - gridGap * 2) / 3,
+      GRID_CELL_MAX,
+    ),
   ))
   const box = { w: cell, h: cell }
 
@@ -371,25 +394,51 @@ export function WorkspaceGrid() {
         }}
       >
         <SortableContext items={ids} strategy={rectSortingStrategy}>
-          <div
-            className="grid grid-cols-3"
-            style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}
-          >
-            {workspaces.map((ws, i) => (
-              <SortableCell
-                key={ws.id}
-                ws={ws}
-                cell={cell}
-                box={box}
-                photoById={photoById}
-                transparent={transparent}
-                highlighted={hl === i}
-                onEnter={(id) => {
-                  if (Date.now() - dragEndedAtRef.current > 120)
-                    enter(id)
-                }}
-              />
-            ))}
+          {/* The snapshot chip sits above the grid, as part of the same group:
+              it takes layout space, so the centered board never grows past
+              the stage or clips the chip. */}
+          <div className="flex flex-col items-center gap-3">
+            <Tip
+              label={t('Snapshot all nine workspaces as one image')}
+              trigger={(
+                <button
+                  className={snapBtnCls}
+                  aria-label={t('Snapshot all nine workspaces as one image')}
+                  disabled={!anyFilled || busy || snapBusy}
+                  onClick={() => {
+                    setSnapBusy(true)
+                    void snapshotGrid().finally(() => setSnapBusy(false))
+                  }}
+                >
+                  <MorphIcon
+                    icon={snapBusy ? LoaderCircle : Camera}
+                    size={15}
+                    strokeWidth={1.75}
+                    className={snapBusy ? 'animate-spin [animation-duration:900ms]' : undefined}
+                  />
+                </button>
+              )}
+            />
+            <div
+              className="grid grid-cols-3"
+              style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}
+            >
+              {workspaces.map((ws, i) => (
+                <SortableCell
+                  key={ws.id}
+                  ws={ws}
+                  cell={cell}
+                  box={box}
+                  photoById={photoById}
+                  transparent={transparent}
+                  highlighted={hl === i}
+                  onEnter={(id) => {
+                    if (Date.now() - dragEndedAtRef.current > 120)
+                      enter(id)
+                  }}
+                />
+              ))}
+            </div>
           </div>
         </SortableContext>
 

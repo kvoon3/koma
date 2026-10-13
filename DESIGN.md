@@ -33,6 +33,7 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
+| Camera chip above the 3×3 grid (grid view) | Snapshot the whole board as one image and download it: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
 | Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint the hover copy is dropped instead, a touch screen having no hover to fade it in, so the page-row chip is what a phone keeps |
 | Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane itself is the picker instead). The buttons keep their 80px width and the row scrolls sideways when the screen is too narrow to hold them, the end that still hides tools fading out as it goes: nothing fades while the row fits its panel or sits flush against an end |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
@@ -158,6 +159,11 @@ same `stickerRect()`/label math as the editor) into the cell, an empty one wears
 the same near-canvas fill as an empty pane, its content a collage-layout glyph
 over “New collage” in the neutral gray, with no button of its own (the whole
 cell is the click target). `Grid gap` (Layout tab) spaces the nine cells.
+A camera chip floats above the grid as part of the same centered group (the
+only chrome the overview has, and the layout reserves room for it while sizing
+the cells). It renders the whole board as **one image** (`renderGridSnapshot`)
+and downloads it: the same cover-fit cells at export scale, the grid gap scaled
+with the board, empty cells left blank.
 
 ## Settings drawer (`,` or the top-right Settings button)
 
@@ -186,7 +192,10 @@ that puts every visual knob back to its default (gap, grid gap, radius, gap
 fill, blend, pane border, font mirror) and toasts.
 
 The export-size setting was removed: the long edge is fixed at 2048 px; the
-footer shows the resulting resolution.
+footer shows the resulting resolution. The 3×3 snapshot board has the same long
+edge, so each of its nine cells gets about a third of it (the gap between cells
+scales from the on-screen `GRID_CELL_MAX` reference, keeping the overview's
+proportions at any resolution).
 
 Every row is one template (label, control, value). From `sm` up the labels sit
 on a shared x, so the sliders line up; below `sm` the value moves onto the label
@@ -300,7 +309,7 @@ src/
   lib/panes.ts       pane tree: split/remove/layout/placement, shared by preview and export
   lib/imageStore.ts  three-tier image assets + JPEG/HEIC header probing
   lib/heic.ts        HEIC: meta box probing + WASM decoding (heic-to)
-  lib/exporter.ts    high-res rendering + crop report export
+  lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot) + crop report export
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
