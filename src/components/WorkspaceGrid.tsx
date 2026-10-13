@@ -14,7 +14,7 @@ import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { labelColors, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides, stickerRect } from '../lib/panes'
-import { viewTransitionOption } from '../lib/viewTransition'
+import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { SeamBackdrop } from './Stage'
 import { Tip } from './ui/tip'
@@ -442,7 +442,7 @@ export function WorkspaceGrid() {
           </div>
         </SortableContext>
 
-        <DragOverlay dropAnimation={{ duration: 160, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
+        <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
           {draggedWs
             ? (
                 <div
