@@ -25,7 +25,7 @@ const KEYS: [string, string][] = [
 const MOUSE: [string, string][] = [
   ['Back button floating at the top left', 'Back to the 3×3 workspace grid (edit view only)'],
   ['Reset button floating at the top right', 'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library'],
-  ['Split chip in the top row (between Back and Reset)', 'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot'],
+  ['Split chip in the top row (between Back and Reset)', 'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. Below the sm breakpoint both chips are hidden, and the pane menu or the S / V keys split instead'],
   ['Tools panel above the footer', 'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because an empty pane then offers its own “Choose a photo” chip'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
