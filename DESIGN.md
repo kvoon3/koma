@@ -393,15 +393,15 @@ bottom of the screen.
 
 ```bash
 bun run build         # tsc + vite build (regular chunked bundle)
-bun run build:single  # tsc + vite build --mode singlefile → koma.html
+bun run build:single  # tsc + vite build (vite.singlefile.config.ts) → koma.html
 bun run deploy        # build + wrangler deploy (Cloudflare, koma.kvoon.me)
 ```
 
 The default build is a regular chunked bundle; wrangler deploys `dist/` to
-koma.kvoon.me. `bun run build:single` instead produces `koma.html`, one
-self-contained file (`vite-plugin-singlefile` inlines the HEIC decoder and
-all assets) that works fully offline, opened directly via file:// — which is
-also why the router uses hash history.
+koma.kvoon.me. `bun run build:single` instead uses vite.singlefile.config.ts
+to produce `koma.html`, one self-contained file (`vite-plugin-singlefile`
+inline the HEIC decoder and all assets) that works fully offline, opened
+directly via file:// — which is also why the router uses hash history.
 
 ## Debug
 

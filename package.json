@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:single": "tsc --noEmit && vite build --mode singlefile && cp dist/index.html koma.html",
+    "build:single": "tsc --noEmit && vite build --config vite.singlefile.config.ts && cp dist/index.html koma.html",
     "deploy": "bun run build && wrangler deploy",
     "preview": "vite preview",
     "lint": "eslint .",
