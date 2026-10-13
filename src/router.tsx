@@ -15,6 +15,7 @@ import { SettingsDrawer } from './components/SettingsDrawer'
 import { Stage } from './components/Stage'
 import ToastHost from './components/ToastHost'
 import { TopBar } from './components/TopBar'
+import { WeChatGuard } from './components/WeChatGuard'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { AppCommandsContext } from './lib/appCommands'
 import { buildCropReport, downloadBlob, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
@@ -461,6 +462,8 @@ function RootLayout() {
         <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
         <HelpOverlay open={helpOpen} onClose={closeHelp} />
+
+        <WeChatGuard />
 
         <ToastHost />
 

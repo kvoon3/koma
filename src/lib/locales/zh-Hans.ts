@@ -259,6 +259,21 @@ export const zhHans: Record<string, string> = {
   'Download crop.sh': '下载 crop.sh',
   'Copied': '已复制',
 
+  // WeChatGuard (the WeChat browser guard and its menu guide)
+  'WeChat browser detected': '检测到微信浏览器',
+  'Saving an exported image may not work in the WeChat browser. Open koma in the system browser for the full editor, or continue here.': '微信浏览器可能无法保存导出的图片。建议用系统浏览器打开，或继续使用。',
+  'Continue anyway': '继续使用',
+  'Open in browser': '用浏览器打开',
+  'Open in your browser': '在浏览器中打开',
+  'WeChat only opens this page in its own browser. From the menu at the top right:': '微信只允许在它自己的浏览器里打开这个页面。请点右上角的菜单：',
+  'Tap ··· at the top right': '点右上角的 ···',
+  'Choose “Open in Browser”': '选择「在浏览器打开」',
+  'Choose “Open in Safari”': '选择「在Safari中打开」',
+  'Photos already imported stay in this browser.': '已导入的照片仍留在当前浏览器里。',
+  'Copy link': '复制链接',
+  'Link copied': '已复制链接',
+  'Got it': '知道了',
+
   // WorkspaceGrid
   'Edit this workspace': '编辑这个工作区',
   'Start a new collage here': '在这里开始新的拼图',
