@@ -7,7 +7,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Check, ChevronDown, Contrast, ImagePlus, RefreshCw, RotateCcw, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { usePreview } from '../hooks'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
@@ -678,6 +678,7 @@ function PanePhotoContent({
             src={preview.url}
             alt=""
             draggable={false}
+            data-photo-img
             className="block max-w-none will-change-transform"
             style={{
               position: 'absolute',
@@ -884,6 +885,65 @@ function swapReturnLanding(
   }
 }
 
+/*
+ * The two named roles a photo takes while it crosses panes: src is the photo
+ * leaving the source pane, dst the one leaving the target. The names let the
+ * View Transition API pair each photo's old and new snapshots, so the swap
+ * glides instead of teleporting.
+ */
+const SWAP_SRC_NAME = 'pane-swap-src'
+const SWAP_DST_NAME = 'pane-swap-dst'
+
+/* Tag a pane's placed photo with a view-transition-name. A fresh query each
+   call: the store commit re-renders the panes, so a node held across it can be
+   stale. */
+function tagSwapPhoto(paneId: string, name: string): HTMLElement | null {
+  const img = document.querySelector<HTMLElement>(`[data-pane-id="${paneId}"] [data-photo-img]`)
+  if (img)
+    img.style.viewTransitionName = name
+  return img
+}
+
+/**
+ * Commit a pane swap, gliding the two photos across panes through the View
+ * Transition API when it is available and motion is welcome. `apply` performs
+ * the store write that moves them; it runs inside a flushSync so the ghost
+ * unmount and the photo move land in one commit, giving the transition a single
+ * old and new snapshot. Reduced motion or a missing API keeps today's
+ * synchronous swap.
+ */
+function runSwapTransition(sourceId: string, targetId: string, apply: () => void) {
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    apply()
+    return
+  }
+  // The old snapshot has to carry the names, so set them before the capture.
+  const tagged = new Set<HTMLElement>()
+  const tag = (paneId: string, name: string) => {
+    const img = tagSwapPhoto(paneId, name)
+    if (img)
+      tagged.add(img)
+  }
+  tag(sourceId, SWAP_SRC_NAME)
+  tag(targetId, SWAP_DST_NAME)
+  const vt = document.startViewTransition(() => {
+    // The new snapshot is captured the instant this callback returns, so the
+    // DOM must already match the store; flushSync forces that.
+    // eslint-disable-next-line react/dom-no-flush-sync -- DOM must match the store before the new snapshot is captured
+    flushSync(apply)
+    // Each photo keeps its name in its new pane: the one now in the target
+    // pairs with the old source snapshot, and vice versa, so both morph.
+    tag(targetId, SWAP_SRC_NAME)
+    tag(sourceId, SWAP_DST_NAME)
+  })
+  // Drop the names once the morph is done so they never clash with the grid's
+  // ws-<id> morphs; an interrupted transition rejects, hence the catch.
+  void vt.finished.finally(() => {
+    for (const img of tagged)
+      img.style.viewTransitionName = ''
+  }).catch(() => {})
+}
+
 function PaneCloseTool({
   paneId,
   focused,
@@ -1014,6 +1074,7 @@ function PaneImpl({
       clearTimeout(swapHoldRef.current)
       swapHoldRef.current = null
     }
+    delete elRef.current?.dataset.swapHold
   }, [])
   const overRef = useRef<HTMLElement | null>(null)
   const clearSwapOver = useCallback(() => {
@@ -1046,11 +1107,14 @@ function PaneImpl({
     // Only a drop that found a different pane commits the swap; anything else
     // (empty space, the source pane, pointercancel, Escape) flies the ghost home.
     if (commit && targetId) {
-      setSwapAt(null)
       navigator.vibrate?.(10)
-      const s = useStore.getState()
-      s.swapPhotos(leaf.id, targetId)
-      s.focus(targetId)
+      const sourceId = leaf.id
+      runSwapTransition(sourceId, targetId, () => {
+        setSwapAt(null)
+        const s = useStore.getState()
+        s.swapPhotos(sourceId, targetId)
+        s.focus(targetId)
+      })
       return
     }
     // Read the last ghost point through the functional setter so the deps stay
@@ -1208,8 +1272,15 @@ function PaneImpl({
       gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...leaf } }
       downAtRef.current = { x: e.clientX, y: e.clientY }
       if (e.pointerType !== 'mouse') {
+        // The ring wipes in while the hold runs (see [data-swap-hold] in
+        // index.css); clearSwapHold retracts it on every cancel path.
+        if (elRef.current)
+          elRef.current.dataset.swapHold = '1'
         swapHoldRef.current = window.setTimeout(() => {
           swapHoldRef.current = null
+          // The hold completed: the ring has nothing left to show and the
+          // armed lift takes over. This path bypasses clearSwapHold.
+          delete elRef.current?.dataset.swapHold
           swapArmedRef.current = true
           // The arm is otherwise invisible: tick the motor and lift the pane
           // so the user learns the hold registered (vibrate is a no-op where
