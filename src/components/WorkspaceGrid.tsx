@@ -307,7 +307,10 @@ export function WorkspaceGrid() {
     return i === -1 ? 0 : i
   })
   const hlRef = useRef(hl)
-  hlRef.current = hl
+  useEffect(
+    () => { hlRef.current = hl },
+    [hl],
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
