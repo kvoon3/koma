@@ -3,7 +3,7 @@ import type { Photo } from '../lib/imageStore'
 import type { Leaf, Rect } from '../lib/panes'
 import type { PaneClip } from '../store'
 import { ContextMenu } from '@base-ui/react/context-menu'
-import { ArrowLeftRight, ClipboardPaste, Copy, CopyPlus, Download, Eraser, Focus, Frame, Image as ImageIcon, ImagePlus, Maximize, Move, Play, Ratio, RotateCcw, Square, SquareSplitHorizontal, SquareSplitVertical, SquareX, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
+import { ArrowLeftRight, ClipboardPaste, Copy, CopyPlus, Download, Eraser, Focus, Frame, Image as ImageIcon, ImagePlus, Maximize, Move, Play, Ratio, RotateCcw, Shuffle, Square, SquareSplitHorizontal, SquareSplitVertical, SquareX, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
 import { useRef, useState } from 'react'
 import { downloadBlob } from '../lib/exporter'
 import { useT } from '../lib/i18n'
@@ -13,10 +13,12 @@ import { activeWs, MIN_ZOOM, useStore } from '../store'
 import { MenuGroup, MenuItem, menuPopupCls, MenuSeparator, MenuSubmenu, useMenuEscapeClose } from './ui/menu'
 
 /**
- * The pane's right-click menu. Rows are ordered by what they act on: the
- * photo, this pane's own layout, its decoration, the arrangement, then closing
- * it. Every row is a store action or a pick flow scoped to this pane; the
- * gesture code that opens the menu and starts Move stays in Pane.tsx.
+ * The pane's right-click menu. Move leads it, since picking the photo up is
+ * the one action that takes over the pointer; then rows are ordered by what
+ * they act on: the photo, this pane's own layout, its decoration, the
+ * arrangement, then closing it. Every row is a store action or a pick flow
+ * scoped to this pane; the gesture code that opens the menu and starts Move
+ * stays in Pane.tsx.
  */
 
 /** How the photo sits in the pane, and how to keep a copy of the file. */
@@ -112,21 +114,19 @@ function DecorateSubmenu({ leaf }: { leaf: Leaf }) {
   )
 }
 
-/** Carrying the pane's contents around: Move, swap, copy / paste, focus. */
+/** Carrying the pane's contents around: swap, copy / paste, focus. */
 function ArrangeSubmenu({
   leaf,
   focused,
   swapTargetId,
   paneClip,
   onFocus,
-  onStartMove,
 }: {
   leaf: Leaf
   focused: boolean
   swapTargetId: string | null
   paneClip: PaneClip | null
   onFocus: (id: string) => void
-  onStartMove: (x: number, y: number) => void
 }) {
   const t = useT()
   const swapPhotos = useStore(s => s.swapPhotos)
@@ -135,12 +135,7 @@ function ArrangeSubmenu({
   const hasPhoto = !!leaf.photoId
 
   return (
-    <MenuSubmenu icon={Move} label={t('Arrange')}>
-      {hasPhoto && (
-        <MenuItem icon={Move} onClick={e => onStartMove(e.clientX, e.clientY)}>
-          {t('Move')}
-        </MenuItem>
-      )}
+    <MenuSubmenu icon={Shuffle} label={t('Arrange')}>
       {swapTargetId && (
         <MenuItem icon={ArrowLeftRight} onClick={() => swapPhotos(leaf.id, swapTargetId)}>
           {t('Swap with focused pane')}
@@ -237,6 +232,20 @@ export function PaneMenu({
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-90">
           <ContextMenu.Popup className={menuPopupCls}>
+            {/* Move leads the menu: it is the one row that acts on the pane as
+                a whole, so it sits above the photo header instead of inside
+                the Arrange submenu. */}
+            {hasPhoto && (
+              <>
+                <MenuGroup>
+                  <MenuItem icon={Move} onClick={e => onStartMove(e.clientX, e.clientY)}>
+                    {t('Move')}
+                  </MenuItem>
+                </MenuGroup>
+                <MenuSeparator />
+              </>
+            )}
+
             {/* The header names the photo under the pointer, so the rows below
                 stay unambiguous on a canvas full of panes. */}
             <MenuGroup variant="title" label={photo?.name ?? t('Empty pane')}>
@@ -299,7 +308,6 @@ export function PaneMenu({
                   swapTargetId={swapTargetId}
                   paneClip={paneClip}
                   onFocus={onFocus}
-                  onStartMove={onStartMove}
                 />
               </>
             )}
