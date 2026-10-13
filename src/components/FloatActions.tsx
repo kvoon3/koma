@@ -22,8 +22,9 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
  * editor, all nine from the grid overview). Floating keeps the top bar to
  * menus and export; the buttons hover over the stage / grid instead of taking
  * layout space, and sit below the drawers (z-44) so an open drawer covers
- * them. The split chip acts on the focused pane, so it is editor-only, and
- * only shows up to lg: from there the panes' own hover chips take over.
+ * them. The split chip acts on the focused pane and only shows up to lg: from
+ * there the panes' own hover chips take over, and on a phone it is the only
+ * split there is.
  */
 export function FloatActions() {
   const navigate = useNavigate()
@@ -82,10 +83,9 @@ export function FloatActions() {
         />
       )}
 
-      {/* The focused pane's split chip, centered between back and reset. From
-          lg up it is dropped: the panes fade their own chip in on hover, and
-          on a large canvas that one is easy to hit. Below lg the page row
-          keeps a split within reach without covering the pane. */}
+      {/* The focused pane's split chip, centered between back and reset, and
+          dropped from lg up, where the panes' own hover chips take over. It is
+          the only copy a phone gets: the hover one is hidden below sm. */}
       {!grid && focusId && (
         <PaneSplitTools
           paneId={focusId}

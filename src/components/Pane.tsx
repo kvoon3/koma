@@ -587,7 +587,9 @@ function PanePhotoContent({
  * The two split buttons for one pane, drawn as a single chip. Hovering a pane
  * fades it in at that pane's top center, focused or not; below lg the focused
  * pane also draws the same chip in the page row between back and reset
- * (FloatActions.tsx). Both name the pane they split, so either one works.
+ * (FloatActions.tsx), and that page-row copy is the only one a phone gets: it
+ * drops the hover copy below sm, where nothing can fade it in. Both name the
+ * pane they split, so either one works.
  */
 export function PaneSplitTools({
   paneId,
@@ -601,10 +603,10 @@ export function PaneSplitTools({
 }) {
   const t = useT()
   return (
-    // Below the sm breakpoint the chip is hidden outright: on a phone-sized
-    // screen the pane menu (and S / V) carries the splits instead.
+    // Placement and visibility belong to the caller: the page row keeps this
+    // chip on every width, the hover copy is dropped below sm.
     <div
-      className={`flex h-[30px] rounded-none border border-float-line bg-float-bg backdrop-blur-[7px] pointer-coarse:h-[38px] max-sm:hidden ${className}`}
+      className={`flex h-[30px] rounded-none border border-float-line bg-float-bg backdrop-blur-[7px] pointer-coarse:h-[38px] ${className}`}
       onPointerDown={e => e.stopPropagation()}
     >
       <button
@@ -1270,13 +1272,13 @@ function PaneImpl({
       )}
 
       {/* The pane's only hover chrome: the split chip, faded in while the
-          pointer is over the pane, focused or not. Below lg the focused pane
-          draws the same chip in the page row too (FloatActions.tsx); both act
-          on `leaf.id`, so either one splits this pane. */}
+          pointer is over the pane, focused or not. Hidden below sm, where
+          there is no hover, that leaves the page-row copy to phones
+          (FloatActions.tsx); both act on `leaf.id`. */}
       <PaneSplitTools
         paneId={leaf.id}
         onSplit={onSplit}
-        className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-[140ms] group-hover/pane:pointer-events-auto group-hover/pane:opacity-100"
+        className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-[140ms] group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-sm:hidden"
       />
 
       {dropChoice && (
