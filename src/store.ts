@@ -208,8 +208,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     void clearSession()
     set(s => ({
       photos: [],
-      // Reset every workspace to a fresh blank canvas, keeping the order.
-      workspaces: s.workspaces.map(() => newWorkspace()),
+      // Reset every workspace to a fresh blank canvas, keeping each id and its
+      // grid slot: `activeId` and `mapActive` key off those ids, so handing out
+      // new ones would leave every later pane action pointed at nothing.
+      workspaces: s.workspaces.map(w => ({ ...newWorkspace(), id: w.id })),
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,

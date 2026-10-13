@@ -67,7 +67,15 @@ export interface Split {
 export type Node = Leaf | Split
 
 let seq = 0
-export const uid = (p: string) => `${p}${(++seq).toString(36)}`
+/**
+ * Ids outlive the page: a restored session holds the ids the last page load
+ * generated, while `seq` restarts from zero on every load, so a bare counter
+ * re-issues them on the first new pane after a refresh (two leaves sharing an
+ * id breaks every `findLeaf` and every React key). The per-load salt keeps new
+ * ids apart from anything a previous load handed out.
+ */
+const idSalt = Math.random().toString(36).slice(2, 6)
+export const uid = (p: string) => `${p}${(++seq).toString(36)}${idSalt}`
 
 export function newLeaf(): Leaf {
   return {
