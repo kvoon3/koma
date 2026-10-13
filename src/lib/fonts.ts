@@ -3,7 +3,7 @@ export interface FontMeta {
   label: string
   cssStack: string
   gfFamily: string | null
-  cat: 'system' | 'sans' | 'serif' | 'display' | 'hand' | 'mono'
+  cat: 'system' | 'cjk' | 'sans' | 'serif' | 'display' | 'hand' | 'mono'
 }
 
 export const SYSTEM_FONT: FontMeta = {
@@ -28,7 +28,57 @@ function makeFonts(
   }))
 }
 
+// CJK faces come first: zh-Hans → zh-Hant → ja → ko, grouped by style like
+// the Latin sections. Google serves CJK families as unicode-range slices, so a
+// page only downloads the subsets its text touches; the system CJK stacks keep
+// the gap before a slice arrives invisible.
+const CJK_SANS = '\'PingFang SC\', \'Hiragino Sans GB\', \'Microsoft YaHei\', sans-serif'
+const CJK_SERIF = '\'Songti SC\', \'SimSun\', \'Noto Serif CJK SC\', serif'
+const CJK_BRUSH = '\'Kaiti SC\', \'KaiTi\', \'Yu Mincho\', serif'
+
 export const FONT_CATALOG: FontMeta[] = [
+  ...makeFonts('cjk', CJK_SANS, [
+    // Sans
+    'Noto Sans SC',
+    'Noto Sans TC',
+    'Noto Sans JP',
+    'Noto Sans KR',
+  ]),
+  ...makeFonts('cjk', CJK_SERIF, [
+    // Serif (songti / mincho)
+    'Noto Serif SC',
+    'Noto Serif TC',
+    'Noto Serif JP',
+    'Noto Serif KR',
+  ]),
+  ...makeFonts('cjk', CJK_SANS, [
+    // Display headers
+    'ZCOOL KuaiLe',
+    'ZCOOL QingKe HuangYou',
+    'ZCOOL XiaoWei',
+    'Dela Gothic One',
+    'DotGothic16',
+    'Black Han Sans',
+    'Do Hyeon',
+  ]),
+  ...makeFonts('cjk', CJK_BRUSH, [
+    // Brush calligraphy
+    'Ma Shan Zheng',
+    'Liu Jian Mao Cao',
+    'Zhi Mang Xing',
+    'Long Cang',
+  ]),
+  ...makeFonts('cjk', CJK_SANS, [
+    // Rounded & handwritten
+    'Zen Maru Gothic',
+    'M PLUS Rounded 1c',
+    'Klee One',
+    'Hachi Maru Pop',
+    'Yusei Magic',
+    'Jua',
+    'Nanum Pen Script',
+    'Gaegu',
+  ]),
   ...makeFonts('sans', 'system-ui, sans-serif', [
     'Inter',
     'Roboto',

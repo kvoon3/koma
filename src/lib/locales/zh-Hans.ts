@@ -139,6 +139,7 @@ export const zhHans: Record<string, string> = {
   'System': '系统',
   'Rounded bold': '圆润粗体',
   'Serif': '衬线',
+  'CJK': '中日韩',
   'Mono': '等宽',
   'Choose an image': '选择图片',
   'No image chosen': '未选择图片',

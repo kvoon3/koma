@@ -47,6 +47,7 @@ const LABEL_FONT_ITEMS = [
 
 const FONT_CATS: { id: FontMeta['cat'], label: string }[] = [
   { id: 'system', label: 'System' },
+  { id: 'cjk', label: 'CJK' },
   { id: 'sans', label: 'Sans' },
   { id: 'serif', label: 'Serif' },
   { id: 'display', label: 'Display' },
