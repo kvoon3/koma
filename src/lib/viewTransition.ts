@@ -10,9 +10,11 @@ export function viewTransitionOption() {
   return !matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-/** True when the user asked for reduced motion. JS-driven motion (WAAPI,
+/**
+ * True when the user asked for reduced motion. JS-driven motion (WAAPI,
  *  dnd-kit) must check this before animating; CSS is covered by the global
- *  block in index.css. */
+ *  block in index.css.
+ */
 export function prefersReducedMotion() {
   return matchMedia('(prefers-reduced-motion: reduce)').matches
 }

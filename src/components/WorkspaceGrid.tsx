@@ -30,7 +30,7 @@ const PV = 400
 const SNAP_ROW_H = 50
 
 /** The floating-chip idiom shared with FloatActions (back / reset). */
-const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-[120ms] active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
+const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
 
 /**
  * One sticker of a workspace preview: the editor's `StickerView` anchoring via
@@ -215,7 +215,7 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
   const t = useT()
   const filled = leafList(ws.root).some(l => l.photoId)
   return (
-    <div className={`absolute inset-0 transition-opacity duration-[160ms] ${dimmed ? ' opacity-25' : ''}`}>
+    <div className={`absolute inset-0 transition-opacity duration-(--dur-surface) ${dimmed ? ' opacity-25' : ''}`}>
       {filled
         ? (
             <div className={`absolute inset-0 ${transparent ? ' stage-clear' : ''}`}>
@@ -476,7 +476,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,scale,opacity,outline-color] duration-[160ms] active:scale-[0.97] ${
+      className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,scale,opacity,outline-color] duration-(--dur-surface) active:scale-[0.97] ${
         highlighted ? ' outline-2 outline-txt -outline-offset-2' : ''
       }`}
       style={{

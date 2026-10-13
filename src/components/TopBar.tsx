@@ -19,7 +19,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { Button, buttonBase, buttonVariants } from './ui/button'
 import { Tip } from './ui/tip'
 
-const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-[background-color,border-color,color,scale] duration-[120ms] active:scale-[0.97] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:px-3 max-sm:text-xs hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent data-popup-open:bg-chip-hover data-popup-open:text-txt'
+const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:px-3 max-sm:text-xs hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent data-popup-open:bg-chip-hover data-popup-open:text-txt'
 
 const itemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt outline-0 data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt data-disabled:cursor-default data-disabled:opacity-35'
 
@@ -28,7 +28,7 @@ const hintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums
 
 // `data-instant` fires on menubar hand-offs: the incoming panel slides over from
 // the trigger it left (no fade re-run), the outgoing one is gone at once.
-const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_160ms_var(--ease-out)]'
+const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_var(--dur-surface)_var(--ease-out)]'
 
 function CatMenu({ label, hop, onTriggerEnter, children }: { label: string, hop: number, onTriggerEnter: (e: MouseEvent<HTMLButtonElement>) => void, children: ReactNode }) {
   return (

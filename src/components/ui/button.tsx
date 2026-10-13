@@ -6,7 +6,7 @@ export const buttonBase = [
   'inline-flex cursor-pointer items-center gap-[5px] whitespace-nowrap rounded-none border-0',
   'px-[9px] py-[3px] text-[11.5px] text-dim',
   'hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt',
-  'transition-[background-color,border-color,color,scale] duration-[120ms]',
+  'transition-[background-color,border-color,color,scale] duration-(--dur-fast)',
   'active:scale-[0.97]',
   'focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1',
   'disabled:cursor-default disabled:opacity-35',
@@ -37,7 +37,7 @@ export const buttonVariants: Record<Variant, string> = {
  */
 export const dialogButton = [
   'inline-flex cursor-pointer items-center rounded-none border',
-  'px-3 py-[6px] text-[11.5px] transition-[background-color,border-color,color,scale] duration-[120ms]',
+  'px-3 py-[6px] text-[11.5px] transition-[background-color,border-color,color,scale] duration-(--dur-fast)',
   'active:scale-[0.97]',
   'focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1',
   'pointer-coarse:px-3.5 pointer-coarse:py-[7px] pointer-coarse:text-xs',

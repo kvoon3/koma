@@ -97,7 +97,7 @@ export function SelectField({ label, value, items, onChange }: {
         </Select.Trigger>
         <Select.Portal>
           <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
-            <Select.Popup className="min-w-[var(--anchor-width)] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
+            <Select.Popup className="min-w-[var(--anchor-width)] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
               <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
                 {items.map(item => (
                   <Select.Item key={item.value} value={item.value} className={menuItemCls}>
