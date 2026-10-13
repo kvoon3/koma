@@ -80,7 +80,7 @@ async function cutoutBackground(
   imageSrc: string,
   onJob: (job: { phase: 'loading' | 'processing', progress?: number } | null) => void,
   onDone: (url: string) => void,
-  onFail: () => void,
+  onFail: (reason: string) => void,
 ) {
   onJob({ phase: 'loading', progress: 0 })
   try {
@@ -88,8 +88,12 @@ async function cutoutBackground(
     const cutout = await removeBackground(blob, p => onJob(p))
     onDone(URL.createObjectURL(cutout))
   }
-  catch {
-    onFail()
+  catch (error) {
+    // The worker reports why it gave up (missing model file, no OffscreenCanvas,
+    // out of memory). Keep it for the dev console and put it in the toast: a
+    // phone has no console to look at.
+    console.error('[bgRemoval]', error)
+    onFail(error instanceof Error ? error.message : String(error))
   }
   finally {
     onJob(null)
@@ -240,9 +244,13 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
         else
           URL.revokeObjectURL(url)
       },
-      () => {
-        if (isCurrent())
-          say(t('Background removal failed'))
+      (reason) => {
+        if (!isCurrent())
+          return
+        // Keep the reason readable without growing the toast: it is the only
+        // diagnostic a phone ever sees.
+        const detail = reason.length > 160 ? `${reason.slice(0, 157)}…` : reason
+        say(`${t('Background removal failed')}: ${detail}`, { timeout: 8000 })
       },
     )
   }
