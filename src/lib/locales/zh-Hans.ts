@@ -1,8 +1,11 @@
 /**
  * Simplified Chinese. Keys are the English source strings (see `lib/i18n`),
  * so anything missing here simply falls back to English.
+ *
+ * File name uses the BCP-47 script tag (zh-Hans) so a future `zh-Hant` file
+ * can sit beside this one without colliding.
  */
-export const zh: Record<string, string> = {
+export const zhHans: Record<string, string> = {
   // TopBar
   'Help': '帮助',
   'Photo': '照片',

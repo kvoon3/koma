@@ -47,7 +47,11 @@ function CatMenu({ label, hop, onTriggerEnter, children }: { label: string, hop:
 }
 
 /** The languages the interface ships in, in menu order. */
-const LANG_ITEMS: [Lang, string][] = [['en', 'English'], ['zh', '简体中文']]
+const LANG_ITEMS: [Lang, string][] = [
+  ['en', 'English'],
+  ['zh-Hans', '简体中文'],
+  ['zh-Hant', '繁體中文'],
+]
 
 /**
  * The interface language, a two-row popup under the top bar next to the theme
