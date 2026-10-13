@@ -4,7 +4,7 @@ import { isTransparentBg } from '../store'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
-import { labelColors, labelRect, layoutTree, placement, seamFadeWidth, seamSides, stickerRect } from './panes'
+import { labelColors, labelRect, layoutTree, placement, rotationOf, seamFadeWidth, seamSides, stickerRect } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -226,7 +226,12 @@ async function drawStickers(
     if (!full)
       continue
     const sr = stickerRect(p, st, sp.trueW, sp.trueH, sp.trueW / sp.trueH)
-    ctx.drawImage(full.src, sr.x, sr.y, sr.w, sr.h)
+    // Rotation is about the box center, exactly like the preview's CSS transform.
+    ctx.save()
+    ctx.translate(sr.x + sr.w / 2, sr.y + sr.h / 2)
+    ctx.rotate(rotationOf(st))
+    ctx.drawImage(full.src, -sr.w / 2, -sr.h / 2, sr.w, sr.h)
+    ctx.restore()
   }
 }
 
@@ -264,13 +269,17 @@ function drawLabelCell(ctx: CanvasRenderingContext2D, prep: Prepared, leaf: Leaf
   ctx.save()
   roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
   ctx.clip()
+  // Draw the box around its center, turned like the preview's label box, so
+  // the rotated label sits in the same spot the editor shows.
+  ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
+  ctx.rotate(rotationOf(lab))
   ctx.fillStyle = colors.bg
-  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h)
   ctx.fillStyle = colors.fg
   ctx.font = `400 ${fontPx}px ${meta.cssStack}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
-  ctx.fillText(lab.text, r.x + r.w / 2, r.y + fontPx * 0.22 + halfLead + m.fontAscent)
+  ctx.fillText(lab.text, 0, -r.h / 2 + fontPx * 0.22 + halfLead + m.fontAscent)
   ctx.restore()
 }
 

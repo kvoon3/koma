@@ -16,8 +16,8 @@ start                press V              focus right half (L), press S
 type Node = Leaf | Split
 interface Leaf { type: 'leaf', id, photoId, zoom, cx, cy, stickers: Sticker[], label: PaneLabel | null }
 interface Split { type: 'split', id, dir: 'row' | 'column', ratio, a: Node, b: Node }
-interface Sticker { id, photoId, x, y, s }
-interface PaneLabel { text, font, theme: 'dark' | 'light', x, y, size } // x/y: pane-normalized center; size: ‰ of short edge; theme: dark = white on black (default)
+interface Sticker { id, photoId, x, y, s, rot } // rot: radians, 0 when absent (old saves)
+interface PaneLabel { text, font, theme: 'dark' | 'light', x, y, size, rot } // x/y: pane-normalized center; size: ‰ of short edge; theme: dark = white on black (default); rot: same rule as Sticker
 ```
 
 `dir: 'row'` splits left/right, `'column'` splits top/bottom.
@@ -47,9 +47,9 @@ rows.
 | An empty pane | Is all picker: a centered "Choose a photo" hint (icon over label, neutral gray) marks it, and a click anywhere in the pane opens the picker and drops the photo into it. Dropping a file straight onto the pane works too |
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
-| "Sticker" in the tools panel | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
+| "Sticker" in the tools panel | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, bottom-left arrow to rotate, bottom-center chip to reset the angle, × to delete) |
 | "Make" in the tools panel | Open the sticker maker: type text or pick an image, optionally remove the background with a local U²-Netᵖ model (served from /models/, transformers.js from CDN), tune the die-cut outline and finish, then insert the rendered PNG onto that pane as a sticker |
-| "Text" in the tools panel | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there), drag to move, corner handle to resize, double-click to edit, click away or Esc to deselect |
+| "Text" in the tools panel | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there, and it stays upright however the label is turned), drag to move, corner handle to resize, bottom-left arrow to rotate, bottom-center chip to reset the angle, double-click to edit, click away or Esc to deselect |
 | × at pane top right | Close the pane (hidden while only one pane exists; shown while the pane is focused) |
 
 | Key | Action |
@@ -220,7 +220,11 @@ stickers, which are anchored in photo-normalized coordinates and follow the
 photo's pan/zoom, landing in the same spot at export time. Text labels follow the
 same rule: the exporter draws them through the shared `labelRect()` and sizes
 them in ‰ of the short edge, so a label sits identically at any export
-resolution, including on panes with no photo at all.
+resolution, including on panes with no photo at all. Rotation rides the same
+rule: both boxes turn about their center (`rotate()` in the preview,
+`ctx.rotate()` in the exporter), the angle is stored in radians and wrapped to
+(-π, π], and a rotated sticker's resize handle anchors on the rotated opposite
+corner, so it still scales along the diagonal the user sees.
 
 Key invariant:
 

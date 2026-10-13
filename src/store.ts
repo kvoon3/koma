@@ -22,6 +22,7 @@ import {
 
   uid,
   updateLeafIn,
+  wrapAngle,
 } from './lib/panes'
 import { clearSession } from './lib/sessionStore'
 
@@ -606,7 +607,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       const pane = findLeaf(ws.root, paneId)
       if (!pane?.photoId)
         return {}
-      const st: Sticker = { id: uid('t'), photoId, x, y, s: 0.25 }
+      const st: Sticker = { id: uid('t'), photoId, x, y, s: 0.25, rot: 0 }
       return {
         workspaces: mapActive(s, w => ({
           ...w,
@@ -631,6 +632,14 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           ...st,
           s: Math.min(1.5, Math.max(0.02, sVal)),
         })),
+      })),
+    })),
+
+  rotateSticker: (paneId, stickerId, rot) =>
+    set(s => ({
+      workspaces: mapActive(s, w => ({
+        ...w,
+        root: patchStickerIn(w.root, paneId, stickerId, st => ({ ...st, rot: wrapAngle(rot) })),
       })),
     })),
 
@@ -679,6 +688,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       const label: PaneLabel = { ...pane.label, ...patch }
       if (patch.size !== undefined)
         label.size = Math.min(160, Math.max(12, patch.size))
+      if (patch.rot !== undefined)
+        label.rot = wrapAngle(patch.rot)
       return {
         workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { label }) })),
       }
@@ -801,6 +812,7 @@ interface Actions {
   addSticker: (paneId: string, photoId: string, x: number, y: number) => void
   moveSticker: (paneId: string, stickerId: string, x: number, y: number) => void
   scaleSticker: (paneId: string, stickerId: string, s: number) => void
+  rotateSticker: (paneId: string, stickerId: string, rot: number) => void
   removeSticker: (paneId: string, stickerId: string) => void
   ensureLabel: (paneId: string) => void
   setLabel: (paneId: string, patch: Partial<PaneLabel>) => void
