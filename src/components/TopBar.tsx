@@ -1,12 +1,13 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+import type { Lang } from '../lib/i18n'
 import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, LayoutGrid, LoaderCircle, Moon, Save, Settings, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, Languages, LayoutGrid, LoaderCircle, Moon, Save, Settings, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useT } from '../lib/i18n'
+import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
 import { clearSession } from '../lib/sessionStore'
@@ -15,7 +16,7 @@ import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import { ConfirmDialog } from './ConfirmDialog'
-import { Button } from './ui/button'
+import { Button, buttonBase, buttonVariants } from './ui/button'
 import { Tip } from './ui/tip'
 
 const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-colors duration-[120ms] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:px-3 max-sm:text-xs hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent data-popup-open:bg-chip-hover data-popup-open:text-txt'
@@ -39,6 +40,50 @@ function CatMenu({ label, hop, onTriggerEnter, children }: { label: string, hop:
       <Menu.Portal>
         <Menu.Positioner sideOffset={4} align="start" className="z-[260] select-none outline-0">
           <Menu.Popup className={popupCls} style={{ '--menu-hop': `${hop}px` } as CSSProperties}>{children}</Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  )
+}
+
+/** The languages the interface ships in, in menu order. */
+const LANG_ITEMS: [Lang, string][] = [['en', 'English'], ['zh', '简体中文']]
+
+/**
+ * The interface language, a two-row popup under the top bar next to the theme
+ * toggle. It used to live in the settings drawer; a preference picked once in
+ * a while belongs with the chrome, not behind a tab.
+ */
+function LangMenu() {
+  const t = useT()
+  const lang = useLang()
+  return (
+    <Menu.Root>
+      <Tip
+        label={t('Language')}
+        trigger={(
+          <Menu.Trigger
+            className={`${buttonBase} ${buttonVariants.flat} data-popup-open:bg-chip-hover data-popup-open:text-txt`}
+            aria-label={t('Language')}
+          >
+            <MorphIcon icon={Languages} size={15} strokeWidth={1.75} />
+          </Menu.Trigger>
+        )}
+      />
+      <Menu.Portal>
+        <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
+          <Menu.Popup className={popupCls}>
+            <Menu.RadioGroup value={lang} onValueChange={v => setLang(v as Lang)}>
+              {LANG_ITEMS.map(([value, name]) => (
+                <Menu.RadioItem key={value} className={itemCls} value={value} closeOnClick>
+                  {name}
+                  <Menu.RadioItemIndicator className="ml-auto flex pl-4 text-accent">
+                    <MorphIcon icon={Check} size={12} strokeWidth={2} />
+                  </Menu.RadioItemIndicator>
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
+          </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
@@ -84,7 +129,6 @@ function TopBarActions({
         label={grid ? t('Export every non-empty workspace · ⌘E') : t('Export image · ⌘E')}
         trigger={(
           <Button
-            variant="strong"
             onClick={onExport}
             disabled={busy || (grid ? !anyFilled : !filled)}
             aria-label={t('Export image')}
@@ -99,6 +143,7 @@ function TopBarActions({
           </Button>
         )}
       />
+      <LangMenu />
       <Tip
         label={dark ? t('Switch to light theme') : t('Switch to dark theme')}
         trigger={(

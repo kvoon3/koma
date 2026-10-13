@@ -16,6 +16,7 @@ export const zh: Record<string, string> = {
   'Back to the grid': '返回九宫格',
   'Settings · Shortcut: ,': '设置 · 快捷键：,',
   'Settings': '设置',
+  'Language': '语言',
   'Export every non-empty workspace · ⌘E': '导出所有非空工作区 · ⌘E',
   'Export image · ⌘E': '导出图片 · ⌘E',
   'Export image': '导出图片',
@@ -53,7 +54,6 @@ export const zh: Record<string, string> = {
   'Blend strength': '融合浓度',
   'Pane border': '面板描边',
   'Font mirror': '字体镜像',
-  'Language': '语言',
 
   // Pane
   'Drag to resize': '拖动调整大小',
@@ -169,7 +169,7 @@ export const zh: Record<string, string> = {
 
   // HelpOverlay
   'How to use': '使用说明',
-  'You start with a single pane. **Split** it with the chip in the top row, or hover a pane to fade the same chip in inside that pane, and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一开始只有一个窗格。用顶栏中间的拆分按钮**拆分**出更多窗格（悬停任意窗格，同一组按钮也会出现在该窗格内），拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴纸 / 替换照片 / 文字）在一个底部栏上方的面板里，默认展开（也可以用面板上边缘的把手收起）。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着九个工作区：3×3 网格可以总览全部，拖动即可重新排序，点击其中一个即可编辑。',
+  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一开始只有一个窗格。悬停任意窗格，它的顶部中央会淡入拆分按钮，用它**拆分**出更多窗格（窄于 lg 时顶栏中间也有同一组按钮），拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴纸 / 替换照片 / 文字）在一个底部栏上方的面板里，默认展开（也可以用面板上边缘的把手收起）。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着九个工作区：3×3 网格可以总览全部，拖动即可重新排序，点击其中一个即可编辑。',
   'Keyboard': '键盘',
   'Mouse / Trackpad': '鼠标 / 触控板',
   'Focus the pane left / down / up / right': '聚焦左 / 下 / 上 / 右的窗格',
@@ -180,7 +180,7 @@ export const zh: Record<string, string> = {
   'Focus the next pane': '聚焦下一个窗格',
   'Reset the photo in the focused pane': '重置聚焦窗格里的照片',
   'Toggle the library drawer': '开关素材库抽屉',
-  'Settings drawer (layout / appearance / text / language)': '设置抽屉（布局 / 外观 / 文字 / 语言）',
+  'Settings drawer (layout / appearance / text)': '设置抽屉（布局 / 外观 / 文字）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作区网格和编辑之间切换',
   'Export the collage': '导出拼图',
   'Export crop params (ImageMagick command)': '导出裁剪参数（ImageMagick 命令）',
@@ -192,7 +192,7 @@ export const zh: Record<string, string> = {
   'Back to the 3×3 workspace grid (edit view only)': '返回 3×3 工作区网格（仅编辑视图）',
   'Reset button floating at the top right': '悬浮在右上角的重置按钮',
   'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library': '重置为单个空白窗格：编辑视图里重置当前工作区，九宫格视图里重置全部（会先确认）；照片会回到素材库',
-  'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. Below the sm breakpoint both chips are hidden, and the pane menu or the S / V keys split instead': '把聚焦窗格上下或左右拆分；悬停任意窗格（无论是否聚焦）都会在它的顶部中央淡入同一组按钮，随时都能就地拆分。窄于 sm 断点时两组按钮都隐藏，改用窗格菜单或 S / V 快捷键拆分',
+  'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. The top-row copy is only there below lg (a large screen has the pane chip to aim at); below the sm breakpoint both chips are hidden, and the pane menu or the S / V keys split instead': '把聚焦窗格上下或左右拆分；悬停任意窗格（无论是否聚焦）都会在它的顶部中央淡入同一组按钮，随时都能就地拆分。顶栏中间的那组只在窄于 lg 时出现（大屏幕上有窗格内的一组可用），窄于 sm 断点时两组都隐藏，改用窗格菜单或 S / V 快捷键拆分',
   'Tools panel above the footer': '底部栏上方的工具面板',
   'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because an empty pane then offers its own “Choose a photo” chip': '默认展开，只有面板上边缘的把手能收放：换照片、贴贴纸、用文字或图片制作贴纸、添加文字；没有聚焦窗格或聚焦窗格为空时整个面板都会收起，因为空窗格本身会提供「选择照片」图标按钮',
   'Drag the divider between panes': '拖动窗格之间的分隔条',

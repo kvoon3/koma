@@ -7,15 +7,15 @@ import { Tabs } from '@base-ui/react/tabs'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
-import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
+import { buttonBase, buttonVariants } from '@/components/ui/button'
 import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
-import { setLang, useLang, useT } from '../lib/i18n'
+import { useT } from '../lib/i18n'
 import { isTransparentBg, useStore } from '../store'
 
 const CUSTOM_BG = '#18181b'
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
-type SettingsTab = 'layout' | 'appearance' | 'text' | 'language'
+type SettingsTab = 'layout' | 'appearance' | 'text'
 
 /**
  * One row shape for every setting: label / control / value. From `sm` up a fixed
@@ -80,7 +80,6 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
   const bg = useStore(s => s.bg)
   const patch = useStore(s => s.patch)
   const t = useT()
-  const lang = useLang()
   const [mirror, setMirror] = useState(() => mirrorEnabled())
   const [tab, setTab] = useState<SettingsTab>('layout')
 
@@ -141,7 +140,6 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                   <Tabs.Tab className={tabCls} value="layout">{t('Layout')}</Tabs.Tab>
                   <Tabs.Tab className={tabCls} value="appearance">{t('Appearance')}</Tabs.Tab>
                   <Tabs.Tab className={tabCls} value="text">{t('Text')}</Tabs.Tab>
-                  <Tabs.Tab className={tabCls} value="language">{t('Language')}</Tabs.Tab>
                 </Tabs.List>
 
                 <Tabs.Panel className={panel} value="layout">
@@ -211,28 +209,6 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                       >
                         <Switch.Thumb className={toggleThumb} />
                       </Switch.Root>
-                    </div>
-                  </section>
-                </Tabs.Panel>
-
-                <Tabs.Panel className={panel} value="language">
-                  <section className={section}>
-                    {/* No label column: the buttons sit left-aligned with the tab strip. */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Button
-                        variant={lang === 'en' ? 'on' : 'flat'}
-                        aria-pressed={lang === 'en'}
-                        onClick={() => setLang('en')}
-                      >
-                        English
-                      </Button>
-                      <Button
-                        variant={lang === 'zh' ? 'on' : 'flat'}
-                        aria-pressed={lang === 'zh'}
-                        onClick={() => setLang('zh')}
-                      >
-                        简体中文
-                      </Button>
                     </div>
                   </section>
                 </Tabs.Panel>

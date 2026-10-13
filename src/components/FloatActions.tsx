@@ -22,7 +22,8 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
  * editor, all nine from the grid overview). Floating keeps the top bar to
  * menus and export; the buttons hover over the stage / grid instead of taking
  * layout space, and sit below the drawers (z-44) so an open drawer covers
- * them. The split chip acts on the focused pane, so it is editor-only.
+ * them. The split chip acts on the focused pane, so it is editor-only, and
+ * only shows up to lg: from there the panes' own hover chips take over.
  */
 export function FloatActions() {
   const navigate = useNavigate()
@@ -81,14 +82,15 @@ export function FloatActions() {
         />
       )}
 
-      {/* The focused pane's split chip, centered between back and reset: every
-          pane fades its own chip in on hover, and this copy keeps the focused
-          one reachable without covering the pane it splits. */}
+      {/* The focused pane's split chip, centered between back and reset. From
+          lg up it is dropped: the panes fade their own chip in on hover, and
+          on a large canvas that one is easy to hit. Below lg the page row
+          keeps a split within reach without covering the pane. */}
       {!grid && focusId && (
         <PaneSplitTools
           paneId={focusId}
           onSplit={split}
-          className="pointer-events-auto absolute left-1/2 top-2.5 -translate-x-1/2"
+          className="pointer-events-auto absolute left-1/2 top-2.5 -translate-x-1/2 lg:hidden"
         />
       )}
 

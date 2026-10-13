@@ -33,7 +33,7 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane | Split it top/bottom or left/right. Both chips act on the pane they name, and both are hidden below the sm breakpoint; the pane menu and the S / V keys still split either way |
+| Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint both chips are hidden; the pane menu and the S / V keys still split either way |
 | Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make sticker / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane carries its own "Choose a photo" chip instead). The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
@@ -62,7 +62,7 @@ rows.
 | `Tab` | Cycle focused pane |
 | `R` | Reset focused pane's photo |
 | `I` | Library drawer |
-| `,` | Settings drawer (layout / appearance / text / language) |
+| `,` | Settings drawer (layout / appearance / text) |
 | `⌘E` | Export collage |
 | `C` | Export crop report |
 | `?` | Help |
@@ -98,7 +98,7 @@ Settings; the ratio comes from `ratio`).
 
 ```
 ┌───────────────────────────────────────────────┐
-│ Top: Photo▾ Help▾        [Settings][Export][🌙] │ ← actions at the top right
+│ Top: Photo▾ Help▾  [Settings][Export][🌐][🌙] │ ← actions at the top right
 ├───────────────────────────────────────────────┤
 │ [←]                  [⌸⌸]                  [↺] │ ← floating under the top bar: back, split chip, reset
 │                 Stage                         │
@@ -111,25 +111,24 @@ Settings; the ratio comes from `ratio`).
 The old status-bar stats (panes / filled / focus) are gone; the footer shows
 the canvas ratio and the output size. The split chip is a pane's only hover
 chrome: hovering a pane, focused or not, fades it in at that pane's top center,
-and the focused pane also draws the same chip in the page row between the back
-and reset buttons, so there is always one within reach. Both chips are hidden
-below the sm breakpoint, where the pane menu and the S / V keys split instead.
-Everything else a pane
-shows stays focus-only, the × close button at the top right. The focused pane's
-tools (sticker / replace photo / text label) live in a panel that overlays the
-canvas above the footer, open by default and moved only by the handle on its
-top edge; the tools act on the focused pane, so the panel exists only while a
-pane is focused and holds a photo: with no focus at all, or a focused pane
-that holds no photo, the panel and its handle are put away (the empty pane
-carries its own "Choose a photo" chip instead).
+and below lg the focused pane also draws the same chip in the page row between
+the back and reset buttons, so a split is never far away. Below the sm
+breakpoint both chips are hidden, where the pane menu and the S / V keys split
+instead. Everything else a pane shows stays focus-only, the × close button at
+the top right. The focused pane's tools (sticker / replace photo / text label)
+live in a panel that overlays the canvas above the footer, open by default and
+moved only by the handle on its top edge; the tools act on the focused pane, so
+the panel exists only while a pane is focused and holds a photo: with no focus
+at all, or a focused pane that holds no photo, the panel and its handle are
+put away (the empty pane carries its own "Choose a photo" chip instead).
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
-holds shortcuts + crop report. Settings, Export and the theme toggle sit at
-the top right of the top bar. The back-to-grid button (edit view only) and
-the reset button float just under the top bar's left / right corners, over
-the canvas: reset restores blank canvases (the active workspace in the
-editor, all nine from the grid overview), with the photos falling back to
-the library.
+holds shortcuts + crop report. Settings, Export, the language menu and the
+theme toggle sit at the top right of the top bar. The back-to-grid button
+(edit view only) and the reset button float just under the top bar's left /
+right corners, over the canvas: reset restores blank canvases (the active
+workspace in the editor, all nine from the grid overview), with the photos
+falling back to the library.
 
 The Photo and Help menus are a menubar: clicking one and then hovering the
 other hands the panel over without a second click. The incoming panel slides
@@ -138,9 +137,9 @@ and lands left-aligned under its own trigger, with no cursor tracking.
 
 ## Settings drawer (`,` or the top-right Settings button)
 
-Four tabs, one group each: `Layout` (photo gap, photo radius, pane border),
-`Appearance` (gap fill, blend width, blend strength), `Text` (font mirror) and
-`Language`. The strip is set in the drawer's heading type, the active tab lit
+Three tabs, one group each: `Layout` (photo gap, photo radius, pane border),
+`Appearance` (gap fill, blend width, blend strength) and `Text` (font mirror).
+The strip is set in the drawer's heading type, the active tab lit
 and underlined, so it reads as the drawer's group labels rather than a second
 chrome layer; the arrow keys move through it and swap the panel, `Tab` walks in
 and out. Only one group is on screen at a time, which is why the drawer is
@@ -154,7 +153,9 @@ narrower than the old two-column one.
 | Appearance | Gap fill | Black / white / custom color / **transparent** |
 | Appearance | Blend width / strength | How far pane seams fade into the shared blurred backdrop |
 | Text | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
-| Language | English / 简体中文 | Interface language |
+
+The language lives in the top bar's globe menu, next to the theme toggle:
+English / 简体中文, one row each.
 
 The export-size setting was removed: the long edge is fixed at 2048 px; the
 footer shows the resulting resolution.

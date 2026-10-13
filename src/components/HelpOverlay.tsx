@@ -13,7 +13,7 @@ const KEYS: [string, string][] = [
   ['Tab', 'Focus the next pane'],
   ['R', 'Reset the photo in the focused pane'],
   ['I', 'Toggle the library drawer'],
-  [',', 'Settings drawer (layout / appearance / text / language)'],
+  [',', 'Settings drawer (layout / appearance / text)'],
   ['G', 'Toggle the 3×3 workspace grid / back'],
   ['⌘E', 'Export the collage'],
   ['C', 'Export crop params (ImageMagick command)'],
@@ -25,7 +25,7 @@ const KEYS: [string, string][] = [
 const MOUSE: [string, string][] = [
   ['Back button floating at the top left', 'Back to the 3×3 workspace grid (edit view only)'],
   ['Reset button floating at the top right', 'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library'],
-  ['Split chip in the top row (between Back and Reset)', 'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. Below the sm breakpoint both chips are hidden, and the pane menu or the S / V keys split instead'],
+  ['Split chip in the top row (between Back and Reset)', 'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. The top-row copy is only there below lg (a large screen has the pane chip to aim at); below the sm breakpoint both chips are hidden, and the pane menu or the S / V keys split instead'],
   ['Tools panel above the footer', 'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because an empty pane then offers its own “Choose a photo” chip'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
@@ -63,7 +63,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
             <Dialog.Close className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-line bg-transparent p-0 text-[15px] leading-none text-dim transition-colors duration-[120ms] hover:border-danger hover:bg-danger hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1" aria-label={t('Close')}><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Dialog.Close>
           </header>
           <p className="m-0 border-b border-line px-5 py-4 text-[12.5px] leading-[1.85] text-dim [&_strong]:text-txt">
-            <T k="You start with a single pane. **Split** it with the chip in the top row, or hover a pane to fade the same chip in inside that pane, and drag dividers to resize the panes, like panes in a terminal. That pane's tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it." />
+            <T k="You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane's tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it." />
           </p>
           <div className="grid grid-cols-2 gap-[26px] px-5 py-[18px] max-[560px]:grid-cols-1 max-[560px]:gap-[18px]">
             <div>
