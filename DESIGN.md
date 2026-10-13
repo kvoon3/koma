@@ -127,13 +127,17 @@ The divider between two panes carries a grip chip at its midpoint, as wide as
 the 15px band that responds to the pointer, so the visible thing is the grab
 target: idle it wears the floating-chip colors, and hover or drag fills it with
 the accent, lighting the 5px line with it (the line stays lit on its own only
-at the min-pane clamp, where the pointer outruns the divider). A coarse pointer
-has no hover to learn from, so there it is bumped to 38px. The grips are drawn
-in a layer **above every line**: the usual 50/50 split puts a full-height
-divider's midpoint exactly on the crossing divider's line, which would
-otherwise slice the pill in half. That layer is a sibling of the bands rather
-than a child, so the hover that lights a grip is tracked in React (mouse only —
-a finger reads the drag state instead) instead of `group-hover`.
+at the min-pane clamp, where the pointer outruns the divider). It is a rounded
+box in an otherwise square chrome (6px, the tools handle's radius), and **it
+only exists while a pane is focused**: pane chrome like the × and the tools
+panel, faded in and out over 140ms, while the line keeps answering the pointer
+even with no focus, so a divider never hides the fact that you are on it. A
+coarse pointer has no hover to learn from, so there the chip is bumped to 38px.
+The grips are drawn in a layer **above every line**: the usual 50/50 split puts
+a full-height divider's midpoint exactly on the crossing divider's line, which
+would otherwise slice the pill in half. That layer is a sibling of the bands
+rather than a child, so the hover that lights a grip is tracked in React, not
+through `group-hover` (mouse only; a finger reads the drag state instead).
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export, the language menu and the
