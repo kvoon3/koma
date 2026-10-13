@@ -680,7 +680,7 @@ function PanePhotoContent({
             alt=""
             draggable={false}
             data-photo-img
-            className="block max-w-none will-change-transform"
+            className="photo-in block max-w-none will-change-transform"
             style={{
               position: 'absolute',
               left: 0,
