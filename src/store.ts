@@ -528,6 +528,20 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   patch: p => set(p),
 
+  // The settings drawer's Reset: every visual knob back to its default. The
+  // font mirror is not in the store (it lives in lib/fonts), so the drawer
+  // resets that one itself.
+  resetSettings: () =>
+    set({
+      gap: GAP,
+      gridGap: GRID_GAP,
+      radius: RADIUS,
+      bg: BG,
+      edgeFade: EDGE_FADE,
+      edgeFadeStrength: EDGE_FADE_STRENGTH,
+      paneBorder: PANE_BORDER,
+    }),
+
   setCanvasSize: (ratio, fill) =>
     set(s => ({
       workspaces: mapActive(s, w => ({
@@ -745,6 +759,7 @@ interface Actions {
   setToolsOpen: (open: boolean) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
+  resetSettings: () => void
   setCanvasSize: (ratio: number, fill: number) => void
   clearSelection: () => void
   moveWorkspace: (id: string, to: number) => void

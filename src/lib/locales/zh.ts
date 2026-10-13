@@ -39,6 +39,8 @@ export const zh: Record<string, string> = {
 
   // SettingsDrawer
   'Hide settings': '隐藏设置',
+  'Reset settings': '重置设置',
+  'Settings reset': '设置已重置',
   'Settings sections': '设置分区',
   'Appearance': '外观',
   'Gap fill': '间隙填充',
@@ -195,7 +197,7 @@ export const zh: Record<string, string> = {
   'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library': '重置为单个空白窗格：编辑视图里重置当前工作区，九宫格视图里重置全部（会先确认）；照片会回到素材库',
   'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. The top-row copy is only there below lg (a large screen has the pane chip to aim at); below the sm breakpoint both chips are hidden, and the pane menu or the S / V keys split instead': '把聚焦窗格上下或左右拆分；悬停任意窗格（无论是否聚焦）都会在它的顶部中央淡入同一组按钮，随时都能就地拆分。顶栏中间的那组只在窄于 lg 时出现（大屏幕上有窗格内的一组可用），窄于 sm 断点时两组都隐藏，改用窗格菜单或 S / V 快捷键拆分',
   'Tools panel above the footer': '底部栏上方的工具面板',
-  'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because an empty pane then offers its own “Choose a photo” chip': '默认展开，只有面板上边缘的把手能收放：换照片、贴贴纸、用文字或图片制作贴纸、添加文字；没有聚焦窗格或聚焦窗格为空时整个面板都会收起，因为空窗格本身会提供「选择照片」图标按钮',
+  'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because the empty pane itself is the picker': '默认展开，只有面板上边缘的把手能收放：换照片、贴贴纸、用文字或图片制作贴纸、添加文字；没有聚焦窗格或聚焦窗格为空时整个面板都会收起，因为空窗格本身就是选择器',
   'Drag the divider between panes': '拖动窗格之间的分隔条',
   'Resize that split; only the two adjacent panes are affected': '调整该分割的大小，只影响相邻的两个窗格',
   'Drag the handle at the bottom-right of the canvas': '拖动画布右下角的手柄',
@@ -217,7 +219,7 @@ export const zh: Record<string, string> = {
   '“Move” in the pane menu': '窗格菜单里的「移动」',
   'Pick the photo up with the pointer, no button held, and click another pane to swap the two panes\' contents; click the source pane, empty space or press Esc to drop it back': '用指针拿起照片（无需按住按键），点另一个窗格即可交换两个窗格的内容；点源窗格、空白处或按 Esc 放回',
   '“Choose a photo” in an empty pane': '空窗格里的「选择照片」',
-  'An empty pane carries a “Choose a photo” chip at its center, icon over label, always visible: it opens the picker and drops the photo into that pane; dropping a file straight onto the pane works too': '空窗格中央常驻一个「选择照片」图标按钮，图标在上、文字在下，点击即可打开选择器并把照片放进该窗格；也可以直接把文件拖到窗格上',
+  'An empty pane is all picker: a centered “Choose a photo” hint (icon over label, in the neutral gray), and a click anywhere in the pane opens the picker and drops the photo into it; dropping a file straight onto the pane works too': '空窗格整体就是选择器：中央是「选择照片」提示（图标在上、文字在下，中性灰），点击窗格任意位置都会打开选择器并把照片放进该窗格；也可以直接把文件拖到窗格上',
   'Drop a photo onto a pane': '把照片拖到窗格上',
   'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)': '空窗格会直接接收；已有照片的窗格会询问「用作照片」还是「用作贴纸」（可多选）',
   'Press and hold inside a pane': '在窗格内长按',

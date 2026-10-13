@@ -178,12 +178,11 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
             </div>
           )
         : (
-            // The empty pane's look, worn by the cell: near-canvas fill and
-            // the same floating chip, lit on cell hover (group/cell). The
-            // collage-layout glyph marks this as "open a new collage", not the
-            // picker's image-plus.
+            // The empty pane's hint, worn by the cell: near-canvas fill, and
+            // the glyph over the label centered in the neutral gray. No
+            // button of its own: the cell is the button.
             <span className="absolute inset-0 grid place-items-center bg-pane-bg bg-pane-empty">
-              <span className="flex flex-col items-center gap-1.5 whitespace-nowrap border border-float-line bg-float-bg px-5 py-3 text-[12.5px] font-semibold text-float-icon backdrop-blur-[7px] transition-colors duration-[120ms] group-hover/cell:bg-chip-hover group-hover/cell:text-txt pointer-coarse:px-6 pointer-coarse:py-4">
+              <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
                 <MorphIcon icon={LayoutDashboard} size={22} strokeWidth={1.75} />
                 {t('New collage')}
               </span>
@@ -395,7 +394,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={`group/cell relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,opacity,outline-color] duration-[160ms] ${
+      className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,opacity,outline-color] duration-[160ms] ${
         highlighted ? ' outline-2 outline-txt -outline-offset-2' : ''
       }`}
       style={{

@@ -517,8 +517,8 @@ function LabelView({
 }
 
 // The pane's photo area: the placed preview once loaded, a placeholder note
-// while the preview decodes, or the empty pane's own "Choose a photo" button
-// (replacing a filled pane's photo lives in the tools row, see Stage.tsx).
+// while the preview decodes, or the empty pane's own picker (replacing a
+// filled pane's photo lives in the tools row, see Stage.tsx).
 function PanePhotoContent({
   preview,
   place,
@@ -561,25 +561,25 @@ function PanePhotoContent({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">{t('Loading...')}</div>
         )
       : (
-          // An empty pane has no tools to offer, so it carries its own picker:
-          // always visible (nothing to pan, no hover gate), worn as a floating
-          // chip that puts the icon over the label like the tools row's
-          // buttons, instead of showing a bare glyph.
-          <div className="absolute inset-0 grid place-items-center">
-            <button
-              className="flex cursor-pointer flex-col items-center gap-1.5 whitespace-nowrap rounded-none border border-float-line bg-float-bg px-5 py-3 text-[12.5px] font-semibold text-float-icon backdrop-blur-[7px] transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:px-6 pointer-coarse:py-4"
-              title={t('Choose a photo')}
-              aria-label={t('Choose a photo')}
-              onPointerDown={e => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation()
-                onPick()
-              }}
-            >
+          // An empty pane is all picker: this transparent button covers the
+          // pane, so a click anywhere opens the file picker. The centered
+          // glyph over the label is the hint, not a widget of its own, and
+          // stays in the neutral gray. Pointerdown bubbles: the pane still
+          // focuses on the click.
+          <button
+            className="absolute inset-0 grid cursor-pointer place-items-center border-0 bg-transparent p-0 focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent"
+            title={t('Choose a photo')}
+            aria-label={t('Choose a photo')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onPick()
+            }}
+          >
+            <span className="pointer-events-none flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
               <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
               {t('Choose a photo')}
-            </button>
-          </div>
+            </span>
+          </button>
         )
 }
 
