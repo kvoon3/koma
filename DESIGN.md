@@ -123,6 +123,17 @@ moved only by the handle on its top edge; the tools act on the focused pane, so
 the panel exists only while a pane is focused and holds a photo: with no focus
 at all, or a focused pane that holds no photo, the panel and its handle are
 put away (the empty pane itself is the picker instead).
+The divider between two panes carries a grip chip at its midpoint, as wide as
+the 15px band that responds to the pointer, so the visible thing is the grab
+target: idle it wears the floating-chip colors, and hover or drag fills it with
+the accent, lighting the 5px line with it (the line stays lit on its own only
+at the min-pane clamp, where the pointer outruns the divider). A coarse pointer
+has no hover to learn from, so there it is bumped to 38px. The grips are drawn
+in a layer **above every line**: the usual 50/50 split puts a full-height
+divider's midpoint exactly on the crossing divider's line, which would
+otherwise slice the pill in half. That layer is a sibling of the bands rather
+than a child, so the hover that lights a grip is tracked in React (mouse only —
+a finger reads the drag state instead) instead of `group-hover`.
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export, the language menu and the

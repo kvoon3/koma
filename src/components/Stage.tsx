@@ -1,7 +1,7 @@
 import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Rect } from '../lib/panes'
-import { ChevronDown, ChevronUp, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
+import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview, useScrollFade } from '../hooks'
@@ -57,7 +57,18 @@ export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const toolsScrollRef = useScrollFade<HTMLDivElement>()
   const stageRef = useRef<HTMLDivElement | null>(null)
-  const [dragging, setDragging] = useState(false)
+  /**
+   * The divider being dragged, by id: its grip stays lit even once the pointer
+   * has left the 15px band it lives in.
+   */
+  const [dragId, setDragId] = useState<string | null>(null)
+  /**
+   * The divider a mouse is hovering, by id: the grip and its line light off it
+   * (the grip rides above the lines, so it cannot use `group-hover`).
+   */
+  const [hotId, setHotId] = useState<string | null>(null)
+  /** Hovered or being dragged: what lights a divider's grip and its line. */
+  const isLit = (id: string) => hotId === id || dragId === id
   const [sizing, setSizing] = useState(false)
   const t = useT()
 
@@ -118,12 +129,12 @@ export function Stage() {
       e.preventDefault()
       e.stopPropagation()
       dragRef.current = d
-      setDragging(true)
+      setDragId(d.id)
     }
   }, [])
 
   useEffect(() => {
-    if (!dragging)
+    if (dragId == null)
       return
     const move = (e: PointerEvent) => {
       const d = dragRef.current
@@ -137,7 +148,7 @@ export function Stage() {
     }
     const up = () => {
       dragRef.current = null
-      setDragging(false)
+      setDragId(null)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -147,7 +158,7 @@ export function Stage() {
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
     }
-  }, [dragging, view.gap, resizeSplit])
+  }, [dragId, view.gap, resizeSplit])
 
   const sizeRef = useRef<{
     cx: number
@@ -262,7 +273,7 @@ export function Stage() {
   return (
     <div
       ref={wrapRef}
-      className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
+      className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragId ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
     >
       <CanvasMenu>
         <div
@@ -312,28 +323,69 @@ export function Stage() {
             {view.dividers.map((d) => {
               const line = dividerLine(d, view.gap)
               const hit = Math.max(view.gap, HIT_MIN)
+              const vertical = d.dir === 'row'
               const style: React.CSSProperties
-                = d.dir === 'row'
+                = vertical
                   ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
                   : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
               return (
                 <div
                   key={d.id}
-                  className={`group/divider absolute z-[5] touch-none ${d.dir === 'row' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
+                  className={`absolute z-[5] touch-none ${vertical ? 'cursor-col-resize' : 'cursor-row-resize'}`}
                   style={style}
                   onPointerDown={beginDrag(d)}
+                  // The grip lives in the layer above, so it cannot light itself
+                  // off this hover: a mouse is tracked here, a finger only
+                  // through the drag (no hover to lose).
+                  onPointerEnter={(e) => {
+                    if (e.pointerType === 'mouse')
+                      setHotId(d.id)
+                  }}
+                  onPointerLeave={() => setHotId(h => (h === d.id ? null : h))}
                 >
                   <span
                     className={
-                      `absolute rounded-none bg-transparent transition-colors duration-[120ms] group-hover/divider:bg-accent ${
-                        d.dir === 'row'
+                      `absolute rounded-none transition-colors duration-[120ms] ${
+                        vertical
                           ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
-                          : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'}`
+                          : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'} ${
+                        isLit(d.id) ? 'bg-accent' : 'bg-transparent'}`
                     }
                   />
                 </div>
               )
             })}
+
+            {/* Grips, one layer above every line: shadcn/`react-resizable-panels`
+                style, as wide as the 15px band that answers to the pointer, so
+                the thing you see is the thing you grab. (Above the lines: see
+                the T-junction note in DESIGN.md.) */}
+            <div className="pointer-events-none absolute inset-0 z-[6]">
+              {view.dividers.map((d) => {
+                const vertical = d.dir === 'row'
+                const lit = isLit(d.id)
+                const line = dividerLine(d, view.gap)
+                return (
+                  <span
+                    key={d.id}
+                    style={vertical
+                      ? { left: line.x, top: d.area.y + d.area.h / 2 }
+                      : { left: d.area.x + d.area.w / 2, top: line.y }}
+                    className={
+                      `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center border backdrop-blur-[7px] transition-colors duration-[120ms] ${
+                        lit
+                          ? 'border-accent bg-accent text-on-accent'
+                          : 'border-float-line bg-float-bg text-float-icon'} ${
+                        vertical
+                          ? 'h-[30px] w-[15px] pointer-coarse:h-[38px] pointer-coarse:w-[19px]'
+                          : 'h-[15px] w-[30px] pointer-coarse:h-[19px] pointer-coarse:w-[38px]'}`
+                    }
+                  >
+                    <MorphIcon icon={GripVertical} size={15} strokeWidth={1.75} className={vertical ? '' : 'rotate-90'} />
+                  </span>
+                )
+              })}
+            </div>
 
             <div
               className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-colors duration-[120ms] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
