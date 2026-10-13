@@ -1,17 +1,29 @@
+import type { PickMods } from './Library'
 import { Drawer } from '@base-ui/react/drawer'
-import { X } from 'lucide'
+import { LayoutGrid, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
 import { useT } from '../lib/i18n'
+import { leafList } from '../lib/panes'
+import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
 import { Library } from './Library'
 
 export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean, onClose: () => void, onRequestClear: () => void }) {
   const photos = useStore(s => s.photos)
   const assign = useStore(s => s.assign)
+  const assignMany = useStore(s => s.assignMany)
   const focusId = useStore(s => activeWs(s).focusId)
   const autoFill = useStore(s => s.autoFill)
+  const emptyCount = useStore(s => leafList(activeWs(s).root).filter(l => !l.photoId).length)
   const t = useT()
+
+  // Batch selection, session-only: an array-ordered Set so `assignMany` can
+  // fill panes in the order the user picked them.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  // Where a shift-click range starts: the last thumbnail the user clicked.
+  const anchorRef = useRef<string | null>(null)
 
   const activeId = useStore((s) => {
     const root = activeWs(s).root
@@ -24,6 +36,79 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
     return walk(root)
   })
 
+  const selectedIds = useMemo(
+    () => [...selected].filter(id => photos.some(p => p.id === id)),
+    [selected, photos],
+  )
+
+  const clearSel = useCallback(() => {
+    setSelected(new Set())
+    anchorRef.current = null
+  }, [])
+
+  const onPick = useCallback((id: string, mods: PickMods) => {
+    if (!photos.some(p => p.id === id))
+      return
+    if (mods.range) {
+      const order = photos.map(p => p.id)
+      const b = order.indexOf(id)
+      // `b` is always found (guarded above); the anchor can be gone if the
+      // library changed since the last click, in which case the range is just
+      // the clicked photo.
+      const a = anchorRef.current ? order.indexOf(anchorRef.current) : b
+      setSelected(new Set(order.slice(Math.min(a === -1 ? b : a, b), Math.max(a === -1 ? b : a, b) + 1)))
+      return
+    }
+    if (mods.toggle) {
+      anchorRef.current = id
+      setSelected((prev) => {
+        const next = new Set(prev)
+        if (next.has(id))
+          next.delete(id)
+        else
+          next.add(id)
+        return next
+      })
+      return
+    }
+    // Plain click keeps the old behavior: assign the photo, drop the selection.
+    clearSel()
+    if (focusId)
+      assign(focusId, id)
+  }, [photos, focusId, assign, clearSel])
+
+  const addSelectedToEmpty = () => {
+    if (!emptyCount) {
+      say(t('No empty panes in this workspace'))
+      return
+    }
+    assignMany(selectedIds)
+    clearSel()
+  }
+
+  // The label counts what will actually land, so a selection larger than the
+  // empty panes does not promise photos it cannot place.
+  const placeableCount = Math.min(selectedIds.length, emptyCount)
+
+  // Esc clears a live selection before the app-wide handler gets it (which
+  // would otherwise close the drawer); the capture phase lets us win.
+  useEffect(() => {
+    if (!open || selectedIds.length === 0)
+      return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape')
+        return
+      const el = e.target as HTMLElement
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+        return
+      e.preventDefault()
+      e.stopPropagation()
+      clearSel()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, selectedIds.length, clearSel])
+
   const hint = photos.length
     ? t('Click a thumbnail to place it in the focused pane, or drag photos straight onto a pane')
     : t('No photos yet. Click "+ Photo / + Folder" or drop files into the window.')
@@ -32,8 +117,10 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
     <Drawer.Root
       open={open}
       onOpenChange={(o) => {
-        if (!o)
+        if (!o) {
+          clearSel()
           onClose()
+        }
       }}
       swipeDirection="down"
     >
@@ -59,15 +146,26 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
                   <MorphIcon icon={X} size={15} strokeWidth={1.75} />
                 </Drawer.Close>
               </header>
-              <Library
-                photos={photos}
-                activeId={activeId}
-                layout="row"
-                onPick={(id) => {
-                  if (focusId)
-                    assign(focusId, id)
-                }}
-              />
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                <Library
+                  photos={photos}
+                  activeId={activeId}
+                  selectedIds={selected}
+                  layout="row"
+                  onPick={onPick}
+                />
+                {selectedIds.length >= 2 && (
+                  <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-none border border-line-strong bg-panel px-1.5 py-1 shadow-pop">
+                    <Button variant="on" onClick={addSelectedToEmpty}>
+                      <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} />
+                      {t('Add {n} to empty panes', { n: placeableCount })}
+                    </Button>
+                    <Button onClick={clearSel}>
+                      {t('Clear')}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </Drawer.Content>
           </Drawer.Popup>
         </Drawer.Viewport>
