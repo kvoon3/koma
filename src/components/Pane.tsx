@@ -188,7 +188,7 @@ function StickerView({
         }, 220)
       }}
     >
-      <img src={preview.url} alt="" draggable={false} className="block h-full w-full max-w-none pointer-events-none shadow-[0_2px_10px_rgba(0,0,0,0.35)]" />
+      <img src={preview.url} alt="" draggable={false} className="block h-full w-full max-w-none pointer-events-none" />
       <span
         className={`group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
         title={t('Drag to resize')}
