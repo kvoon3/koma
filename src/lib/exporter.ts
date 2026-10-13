@@ -175,6 +175,12 @@ async function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts:
   ctx.save()
   ctx.globalAlpha = Math.max(0, Math.min(1, opts.edgeFadeStrength / 100))
   for (const { leaf, rect, photo } of prep.cells) {
+    // Only panes that face another photo-bearing pane contribute to the
+    // blurred backdrop; otherwise the backdrop would bleed into (and fill)
+    // empty neighboring panes.
+    const seam = prep.seam.get(leaf.id)
+    if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
+      continue
     const full = await sources.get(photo)
     if (!full)
       continue
