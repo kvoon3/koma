@@ -16,7 +16,7 @@ import { isTransparentBg, useStore } from '../store'
 const CUSTOM_BG = '#18181b'
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
-type SettingsTab = 'layout' | 'appearance' | 'text'
+type SettingsTab = 'appearance' | 'text'
 
 /**
  * Every setting is a labelled control; the row template and the slider live in
@@ -57,7 +57,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
   const resetSettings = useStore(s => s.resetSettings)
   const t = useT()
   const [mirror, setMirror] = useState(() => mirrorEnabled())
-  const [tab, setTab] = useState<SettingsTab>('layout')
+  const [tab, setTab] = useState<SettingsTab>('appearance')
 
   const mode: BgMode = isTransparentBg(bg)
     ? 'transparent'
@@ -125,32 +125,13 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                   aria-label={t('Settings sections')}
                   activateOnFocus
                 >
-                  <Tabs.Tab className={tabCls} value="layout">{t('Layout')}</Tabs.Tab>
                   <Tabs.Tab className={tabCls} value="appearance">{t('Appearance')}</Tabs.Tab>
                   <Tabs.Tab className={tabCls} value="text">{t('Text')}</Tabs.Tab>
                 </Tabs.List>
 
-                <Tabs.Panel className={panel} value="layout">
-                  <section className={section}>
-                    <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
-                    <RangeField label={t('Grid gap')} text={`${gridGap}px`} max={40} value={gridGap} onChange={v => patch({ gridGap: v })} />
-                    <RangeField label={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} value={radius} onChange={v => patch({ radius: v })} />
-                    <div className={fieldRowCls}>
-                      <span className={fieldLabelCls}>{t('Pane border')}</span>
-                      <Switch.Root
-                        className={toggle}
-                        aria-label={t('Pane border')}
-                        checked={paneBorder}
-                        onCheckedChange={checked => patch({ paneBorder: checked })}
-                      >
-                        <Switch.Thumb className={toggleThumb} />
-                      </Switch.Root>
-                    </div>
-                  </section>
-                </Tabs.Panel>
-
                 <Tabs.Panel className={panel} value="appearance">
                   <section className={section}>
+                    <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
                     <div className={fieldRowCls}>
                       <span className={fieldLabelCls}>{t('Gap fill')}</span>
                       <RadioGroup
@@ -178,8 +159,21 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                         />
                       </RadioGroup>
                     </div>
+                    <RangeField label={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} value={radius} onChange={v => patch({ radius: v })} />
+                    <div className={fieldRowCls}>
+                      <span className={fieldLabelCls}>{t('Pane border')}</span>
+                      <Switch.Root
+                        className={toggle}
+                        aria-label={t('Pane border')}
+                        checked={paneBorder}
+                        onCheckedChange={checked => patch({ paneBorder: checked })}
+                      >
+                        <Switch.Thumb className={toggleThumb} />
+                      </Switch.Root>
+                    </div>
                     <RangeField label={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} value={edgeFade} onChange={v => patch({ edgeFade: v })} />
                     <RangeField label={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} value={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
+                    <RangeField label={t('Grid gap')} text={`${gridGap}px`} max={40} value={gridGap} onChange={v => patch({ gridGap: v })} />
                   </section>
                 </Tabs.Panel>
 

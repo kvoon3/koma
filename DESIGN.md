@@ -63,7 +63,7 @@ rows.
 | `Tab` | Cycle focused pane |
 | `R` | Reset focused pane's photo |
 | `I` | Library drawer |
-| `,` | Settings drawer (layout / appearance / text) |
+| `,` | Settings drawer (appearance / text) |
 | `⌘E` | Export collage |
 | `C` | Export crop report |
 | `?` | Help |
@@ -158,7 +158,7 @@ cover-fits its collage (photos, stickers and labels, all placed through the
 same `stickerRect()`/label math as the editor) into the cell, an empty one wears
 the same near-canvas fill as an empty pane, its content a collage-layout glyph
 over “New collage” in the neutral gray, with no button of its own (the whole
-cell is the click target). `Grid gap` (Layout tab) spaces the nine cells.
+cell is the click target). `Grid gap` (Appearance tab) spaces the nine cells.
 A camera chip floats above the grid as part of the same centered group (the
 only chrome the overview has, and the layout reserves room for it while sizing
 the cells). It renders the whole board as **one image** (`renderGridSnapshot`)
@@ -167,9 +167,10 @@ with the board, empty cells left blank.
 
 ## Settings drawer (`,` or the top-right Settings button)
 
-Three tabs, one group each: `Layout` (photo gap, grid gap, photo radius, pane
-border), `Appearance` (gap fill, blend width, blend strength) and `Text` (font
-mirror).
+Two tabs: `Appearance` (photo gap, gap fill, photo radius, pane border, blend
+width / strength, grid gap) and `Text` (font mirror). Photo gap sits next to
+gap fill, since they are two halves of the same seam; grid gap is last because
+it spaces the 3×3 overview, not the collage.
 The strip is set in the drawer's heading type, the active tab lit
 and underlined, so it reads as the drawer's group labels rather than a second
 chrome layer; the arrow keys move through it and swap the panel, `Tab` walks in
@@ -178,12 +179,12 @@ narrower than the old two-column one.
 
 | Tab | Setting | Effect |
 |---|---|---|
-| Layout | Photo gap | Space between panes, 0–12% |
-| Layout | Grid gap | Space between the nine overview cells, 0–40 px (default 10) |
-| Layout | Photo radius | Corner radius of each pane, 0–20% |
-| Layout | Pane border | Draw a hairline around each pane |
+| Appearance | Photo gap | Space between panes, 0–12% |
 | Appearance | Gap fill | Black / white / custom color / **transparent** |
+| Appearance | Photo radius | Corner radius of each pane, 0–20% |
+| Appearance | Pane border | Draw a hairline around each pane |
 | Appearance | Blend width / strength | How far pane seams fade into the shared blurred backdrop |
+| Appearance | Grid gap | Space between the nine overview cells, 0–40 px (default 10) |
 | Text | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
 The language lives in the top bar's globe menu, next to the theme toggle:
