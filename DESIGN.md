@@ -244,6 +244,19 @@ previews will crush the browser tab:
 
 Measured: three resident 24MP photos keep heap usage around 10MB.
 
+HEIC decoding is the expensive path (a 48MP frame moves ~190MB of ImageData
+out of the WASM worker), so it is kept on a leash: the thumb and preview jobs
+**share one refcounted full-res decode** per photo (a thumb is shrunk from the
+cached preview when one exists), WASM decodes run one at a time through a
+two-priority queue (interactive previews and export jump ahead of queued
+library thumbs; equal priorities stay FIFO and a running decode is never
+preempted), and encodes go through async `toBlob` + object URLs instead of
+synchronous `toDataURL`. Export acquires each unique photo's full source
+**once per run** (keyed by photo id, joining any in-flight preview decode) and
+releases every source only after the last draw. Safari/Webkit browsers
+additionally get a native `createImageBitmap` fast path (hardware HEIC decode,
+no WASM at all); one failed attempt permanently falls back to libheif.
+
 ### 3. `probeJpeg()` / `probeHeic()`: real dimensions without decoding
 
 Parses the JPEG SOF marker (plus EXIF orientation to swap width/height when
@@ -255,8 +268,9 @@ available immediately, before the preview exists. Neither probe decodes pixels
 or touches WASM.
 
 The HEIC decoder ([heic-to](https://github.com/hoppergee/heic-to), libheif
-compiled to WASM) is dynamically imported: it only loads the first time an
-actual HEIC is encountered, costing pure JPEG/PNG users nothing.
+compiled to WASM) is dynamically imported and warmed the moment a dropped set
+contains a HEIC, so its parse overlaps probing and rendering: it only loads
+when an actual HEIC is encountered, costing pure JPEG/PNG users nothing.
 
 ## Layout
 
