@@ -4,7 +4,7 @@ import type { Divider, Leaf, Rect } from '../lib/panes'
 import { ChevronDown, ChevronUp, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, usePreview } from '../hooks'
+import { useElementSize, usePreview, useScrollFade } from '../hooks'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, pickPhotoForPane, pickStickersForPane } from '../lib/paneCommands'
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
@@ -23,10 +23,10 @@ const MIN_CANVAS = 120
 const toolsPanelCls = 'pointer-events-auto relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-[260ms] ease-(--ease-drawer)'
 const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-opacity duration-[160ms] hover:text-txt'
 /* Fixed-width tools in a max-content row: the panel hugs them, and the row
-   scrolls sideways once they outgrow the screen. The row stays inside a block,
-   not a flex item (it shrinks into the panel and clips the leading tool), and
-   `touch-pan-x` overrides the stage's `touch-none` for finger panning. */
-const toolsScrollCls = 'overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
+   scrolls sideways once they outgrow the screen. It stays inside a block, not a
+   flex item (it would shrink and clip the leading tool), and `touch-pan-x`
+   overrides the stage's `touch-none`; `.scroll-fade` softens the scrolled ends. */
+const toolsScrollCls = 'scroll-fade overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const toolsRowCls = 'flex w-max items-stretch'
 const toolsBtnCls = 'flex w-[120px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent p-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
@@ -55,6 +55,7 @@ function ToolButton({ icon, label, hint, onClick }: Omit<ToolDef, 'key'>) {
 
 export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
+  const toolsScrollRef = useScrollFade<HTMLDivElement>()
   const stageRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState(false)
   const [sizing, setSizing] = useState(false)
@@ -367,7 +368,7 @@ export function Stage() {
             {/* inert while collapsed: the tools are off-screen behind the
               footer. Open or not the row scrolls sideways instead of
               squashing the fixed-width tools when they outgrow the screen. */}
-            <div className={toolsScrollCls} inert={!toolsOpen}>
+            <div ref={toolsScrollRef} className={toolsScrollCls} inert={!toolsOpen}>
               <div className={toolsRowCls}>
                 {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
               </div>
