@@ -1058,6 +1058,15 @@ function PaneImpl({
   // since a still mouse press must stay a pan. The ghost follows the pointer
   // and dropping it on another pane swaps the two; dropping elsewhere cancels.
   const [swapAt, setSwapAt] = useState<{ x: number, y: number } | null>(null)
+  // Mirror of swapAt so endSwapDrag can read the latest point without
+  // depending on the state value in its useCallback deps and without calling
+  // setSwapReturn from inside a setSwapAt updater (which is forbidden because
+  // updaters can run more than once in dev/StrictMode).
+  const swapAtRef = useRef<{ x: number, y: number } | null>(null)
+  useEffect(
+    () => { swapAtRef.current = swapAt },
+    [swapAt],
+  )
   const [moving, setMoving] = useState(false)
   // A cancelled carry (dropped on empty space, pointercancel, Escape) flies the
   // ghost home onto the dimmed original instead of vanishing. This holds the
@@ -1118,13 +1127,12 @@ function PaneImpl({
       })
       return
     }
-    // Read the last ghost point through the functional setter so the deps stay
-    // stable; the updater's argument seeds the fly-home animation.
-    setSwapAt((at) => {
-      if (at)
-        setSwapReturn(at)
-      return null
-    })
+    // Read the last ghost point from the ref mirror so the deps stay stable;
+    // the value seeds the fly-home animation on cancel.
+    const at = swapAtRef.current
+    if (at)
+      setSwapReturn(at)
+    setSwapAt(null)
   }, [leaf.id, clearSwapOver])
   // Move mode (the context menu item): the photo follows the pointer with no
   // button held, and the next click drops it on the pane underneath.

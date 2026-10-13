@@ -5,7 +5,10 @@ import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
 export function usePreview(photo: Photo | null): Preview | null {
   const id = photo?.id ?? null
   const ref = useRef(photo)
-  ref.current = photo
+  useEffect(
+    () => { ref.current = photo },
+    [photo],
+  )
   const [url, setUrl] = useState<Preview | null>(() => (id ? peekPreview(id) : null))
 
   useEffect(() => {
@@ -36,7 +39,10 @@ export function usePreview(photo: Photo | null): Preview | null {
 export function useThumb(photo: Photo, visible: boolean): string | null {
   const id = photo.id
   const ref = useRef(photo)
-  ref.current = photo
+  useEffect(
+    () => { ref.current = photo },
+    [photo],
+  )
   const [url, setUrl] = useState<string | null>(() => peekThumb(id))
 
   useEffect(() => {

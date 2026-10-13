@@ -42,7 +42,10 @@ export function MenuHint({ children }: { children: ReactNode }) {
  */
 export function useMenuEscapeClose(open: boolean, close: () => void) {
   const closeRef = useRef(close)
-  closeRef.current = close
+  useEffect(
+    () => { closeRef.current = close },
+    [close],
+  )
   useEffect(() => {
     if (!open)
       return
