@@ -31,7 +31,7 @@ export default defineConfig({
       },
     }),
   ],
-  server: { host: true },
+  server: { host: true, watch: { ignored: ['**/build/**', '**/.mygo/**'] } },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
