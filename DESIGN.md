@@ -137,10 +137,11 @@ across from the trigger it left (160ms, the outgoing one is dropped at once)
 and lands left-aligned under its own trigger, with no cursor tracking.
 
 The 3×3 overview draws every workspace as a square mini canvas: a filled cell
-cover-fits its collage into the cell, an empty one wears the same near-canvas
-fill as an empty pane, its content a collage-layout glyph over “New collage”
-in the neutral gray, with no button of its own (the whole cell is the click
-target). `Grid gap` (Layout tab) spaces the nine cells.
+cover-fits its collage (photos, stickers and labels, all placed through the
+same `stickerRect()`/label math as the editor) into the cell, an empty one wears
+the same near-canvas fill as an empty pane, its content a collage-layout glyph
+over “New collage” in the neutral gray, with no button of its own (the whole
+cell is the click target). `Grid gap` (Layout tab) spaces the nine cells.
 
 ## Settings drawer (`,` or the top-right Settings button)
 

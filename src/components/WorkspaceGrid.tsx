@@ -1,6 +1,6 @@
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
-import type { Leaf, Node, Rect, SeamSides } from '../lib/panes'
+import type { Leaf, Node, Rect, SeamSides, Sticker } from '../lib/panes'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { labelColors, layoutTree, leafList, placement, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
+import { labelColors, layoutTree, leafList, placement, seamFadeWidth, seamMaskStyle, seamSides, stickerRect } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { SeamBackdrop } from './Stage'
@@ -19,6 +19,33 @@ import { SeamBackdrop } from './Stage'
 // Virtual canvas short side for preview layout math. Any value works; the
 // tree layout is resolution-independent, only the ratio matters.
 const PV = 400
+
+/**
+ * One sticker of a workspace preview: the editor's `StickerView` anchoring via
+ * the shared `stickerRect()`, without the interaction (the grid is read-only).
+ * The sticker scales by the same `place` the pane's photo got, so cell and
+ * canvas agree on where it sits and how big it is.
+ */
+function PreviewSticker({ st, place, photoById }: {
+  st: Sticker
+  place: ReturnType<typeof placement>
+  photoById: Map<string, Photo>
+}) {
+  const photo = photoById.get(st.photoId)
+  const preview = usePreview(photo ?? null)
+  if (!photo?.trueW || !photo?.trueH || !preview)
+    return null
+  const r = stickerRect(place, st, photo.trueW, photo.trueH, photo.trueW / photo.trueH)
+  return (
+    <img
+      src={preview.url}
+      alt=""
+      draggable={false}
+      className="pointer-events-none absolute max-w-none"
+      style={{ left: r.x, top: r.y, width: r.w, height: r.h }}
+    />
+  )
+}
 
 /** One leaf of a workspace preview: the photo, panned/zoomed like the editor. */
 function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
@@ -74,6 +101,12 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
             </div>
           )
         : null}
+      {/* Stickers sit outside the photo's seam mask, exactly as the editor's
+          StickerView does, and under the label. */}
+      {place
+        && leaf.stickers.map(st => (
+          <PreviewSticker key={st.id} st={st} place={place} photoById={photoById} />
+        ))}
       {leaf.label && leaf.label.text.trim() && (
         <span
           className="absolute whitespace-pre leading-[normal]"
