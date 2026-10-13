@@ -478,6 +478,36 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       })),
     })),
 
+  /**
+   * Place a batch of photos into the active workspace's empty panes, in layout
+   * order (leafList), pairing them with the ids in selection order. Photos past
+   * the last empty pane are dropped; the focus follows the last pane filled.
+   */
+  assignMany: photoIds =>
+    set((s) => {
+      if (!photoIds.length)
+        return {}
+      const ws = activeWs(s)
+      let next = ws.root
+      let focusId = ws.focusId
+      let k = 0
+      for (const leaf of leafList(ws.root)) {
+        if (leaf.photoId || k >= photoIds.length)
+          continue
+        next = updateLeafIn(next, leaf.id, {
+          photoId: photoIds[k++],
+          zoom: 1,
+          cx: 0.5,
+          cy: 0.5,
+          stickers: [],
+        })
+        focusId = leaf.id
+      }
+      if (next === ws.root)
+        return {}
+      return { workspaces: mapActive(s, w => (w.id === ws.id ? { ...w, root: next, focusId } : w)) }
+    }),
+
   updateLeaf: (paneId, patch) =>
     set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) })),
 
@@ -748,6 +778,7 @@ interface Actions {
   closePane: (paneId: string) => void
   resizeSplit: (splitId: string, ratio: number) => void
   assign: (paneId: string, photoId: string) => void
+  assignMany: (photoIds: string[]) => void
   removePhoto: (paneId: string) => void
   swapPhotos: (a: string, b: string) => void
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
