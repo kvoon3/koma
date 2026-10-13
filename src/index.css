@@ -286,6 +286,16 @@ html.dark {
     outline-offset: -2px;
   }
 
+  /* The ghost pops in under the finger. It animates the individual `scale`
+     property so it composes with the centering translate already on the img. */
+  @keyframes swap-ghost-in {
+    from { opacity: 0; scale: 0.9; }
+  }
+
+  .swap-ghost {
+    animation: swap-ghost-in 150ms var(--ease-out);
+  }
+
   /*
    * The checkerboard that stands for "transparent". It borrows the stage's
    * clear tokens on purpose: the obvious pair, `panel2` with `line` squares,

@@ -795,6 +795,95 @@ function PaneLiveBadge({ playing, onToggle }: { playing: boolean, onToggle: () =
   )
 }
 
+/* A cancelled carry's ghost gliding back onto the dimmed original. Mounted for
+   the length of the flight and removed by `onDone`, so no cleanup state lingers. */
+function SwapGhostReturn({
+  from,
+  to,
+  src,
+  width,
+  height,
+  radius,
+  onDone,
+}: {
+  from: { x: number, y: number }
+  to: { x: number, y: number }
+  src: string
+  width: number
+  height: number
+  radius: number
+  onDone: () => void
+}) {
+  const elRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = elRef.current
+    if (!el) {
+      onDone()
+      return
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      onDone()
+      return
+    }
+    // The bezier equals the `--ease-out` token; WAAPI cannot read CSS vars in
+    // `easing`, so it is spelled out here.
+    const anim = el.animate(
+      [
+        { transform: `translate3d(${from.x}px, ${from.y}px, 0)`, opacity: 0.95 },
+        { transform: `translate3d(${to.x}px, ${to.y}px, 0)`, opacity: 0 },
+      ],
+      { duration: 200, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' },
+    )
+    anim.onfinish = onDone
+    return () => {
+      anim.cancel()
+    }
+  }, [from.x, from.y, to.x, to.y, onDone])
+  return (
+    <div
+      ref={elRef}
+      className="pointer-events-none fixed left-0 top-0 z-[80]"
+      // The initial transform prevents a first-frame flash at 0,0 before the
+      // animation starts.
+      style={{ transform: `translate3d(${from.x}px, ${from.y}px, 0)` }}
+    >
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        className="pointer-events-none block max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+        style={{
+          width,
+          height,
+          borderRadius: radius,
+          transform: 'translate(-50%, -55%)',
+        }}
+      />
+    </div>
+  )
+}
+
+/* The viewport point a cancelled carry lands on: the center of the dimmed
+   original photo. `place` is canvas-space, so subtract the pane's canvas origin
+   and add the pane's viewport origin. A top-level helper keeps the ternaries out
+   of PaneImpl, whose cognitive-complexity budget is already tight. */
+function swapReturnLanding(
+  returnFrom: { x: number, y: number } | null,
+  place: ReturnType<typeof placement> | null,
+  rect: Rect,
+  el: HTMLElement | null,
+): { x: number, y: number } | null {
+  if (!returnFrom || !place)
+    return null
+  const box = el?.getBoundingClientRect()
+  if (!box)
+    return null
+  return {
+    x: box.left + place.x - rect.x + place.w / 2,
+    y: box.top + place.y - rect.y + place.h / 2,
+  }
+}
+
 function PaneCloseTool({
   paneId,
   focused,
@@ -909,6 +998,11 @@ function PaneImpl({
   // and dropping it on another pane swaps the two; dropping elsewhere cancels.
   const [swapAt, setSwapAt] = useState<{ x: number, y: number } | null>(null)
   const [moving, setMoving] = useState(false)
+  // A cancelled carry (dropped on empty space, pointercancel, Escape) flies the
+  // ghost home onto the dimmed original instead of vanishing. This holds the
+  // point it was released at, which seeds the return animation.
+  const [swapReturn, setSwapReturn] = useState<{ x: number, y: number } | null>(null)
+  const clearSwapReturn = useCallback(() => setSwapReturn(null), [])
   // Mirror of swapArmedRef for rendering: the hold registered (SWAP_HOLD_MS),
   // the finger hasn't moved yet. The ref stays the synchronous source of truth
   // for the gesture code; the state only drives the lifted-pane look.
@@ -949,13 +1043,23 @@ function PaneImpl({
     const targetId = overRef.current?.dataset.paneId
     clearSwapOver()
     document.body.style.cursor = ''
-    setSwapAt(null)
+    // Only a drop that found a different pane commits the swap; anything else
+    // (empty space, the source pane, pointercancel, Escape) flies the ghost home.
     if (commit && targetId) {
+      setSwapAt(null)
       navigator.vibrate?.(10)
       const s = useStore.getState()
       s.swapPhotos(leaf.id, targetId)
       s.focus(targetId)
+      return
     }
+    // Read the last ghost point through the functional setter so the deps stay
+    // stable; the updater's argument seeds the fly-home animation.
+    setSwapAt((at) => {
+      if (at)
+        setSwapReturn(at)
+      return null
+    })
   }, [leaf.id, clearSwapOver])
   // Move mode (the context menu item): the photo follows the pointer with no
   // button held, and the next click drops it on the pane underneath.
@@ -1293,6 +1397,9 @@ function PaneImpl({
   // The carried photo rides the pointer at roughly its pane size (capped).
   const ghostW = Math.min(rect.w, 180)
   const ghostH = iw ? (ghostW * ih) / iw : ghostW
+  // Where a cancelled carry lands, computed once per render from the dimmed
+  // original's live box (the pane can shift while the carry is in flight).
+  const swapReturnTo = swapReturnLanding(swapReturn, place, rect, elRef.current)
 
   const toCanvas = useCallback(
     (clientX: number, clientY: number) => {
@@ -1473,22 +1580,33 @@ function PaneImpl({
         </div>
       )}
 
-      {/* The dragged-out photo follows the pointer in a portal above everything. */}
+      {/* The dragged-out photo follows the pointer in a portal above everything.
+          The wrapper takes the pointer position as a transform (compositor-only,
+          so a move writes no layout) and the img centers on it and pops in. */}
       {swapAt && preview && createPortal(
-        <img
-          src={preview.url}
-          alt=""
-          draggable={false}
-          className="pointer-events-none fixed z-[80] block max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
-          style={{
-            left: swapAt.x,
-            top: swapAt.y,
-            width: ghostW,
-            height: ghostH,
-            borderRadius: radius,
-            transform: 'translate(-50%, -55%)',
-          }}
-        />,
+        <div
+          className="pointer-events-none fixed left-0 top-0 z-[80]"
+          style={{ transform: `translate3d(${swapAt.x}px, ${swapAt.y}px, 0)` }}
+        >
+          <img
+            src={preview.url}
+            alt=""
+            draggable={false}
+            className="pointer-events-none block swap-ghost max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+            style={{
+              width: ghostW,
+              height: ghostH,
+              borderRadius: radius,
+              transform: 'translate(-50%, -55%)',
+            }}
+          />
+        </div>,
+        document.body,
+      )}
+
+      {/* A cancelled carry glides back onto the dimmed original. */}
+      {swapReturn && preview && swapReturnTo && createPortal(
+        <SwapGhostReturn from={swapReturn} to={swapReturnTo} src={preview.url} width={ghostW} height={ghostH} radius={radius} onDone={clearSwapReturn} />,
         document.body,
       )}
 
