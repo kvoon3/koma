@@ -238,9 +238,51 @@ html.dark {
     background-position: 0 0, 8px 8px;
   }
 
-  /* The pane the carried photo would land on (long-press pane swap). */
+  /*
+   * Long-press pane swap (touch) and the menu's Move item share these states:
+   * [data-swap-armed]: the hold registered (SWAP_HOLD_MS), finger not yet moving;
+   * [data-swap-source]: the photo is being carried, this pane is its origin;
+   * [data-swap-over]: the pane the carried photo would land on.
+   */
+  [data-pane-id] {
+    transition:
+      transform 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out),
+      outline-color 160ms var(--ease-out);
+  }
+
   [data-swap-over] {
     outline: 2px dashed var(--accent);
+    outline-offset: -2px;
+  }
+
+  /* The landing wash sits above the photo but below the outline layer, so
+     the dashed ring stays crisp. Always mounted, faded by opacity, so
+     retargeting crossfades instead of popping. */
+  [data-pane-id]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    background: color-mix(in oklab, var(--accent) 16%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+
+  [data-pane-id][data-swap-over]::after {
+    opacity: 1;
+  }
+
+  /* Armed/carrying: the pane lifts (slight shrink, elevated shadow, solid
+     accent ring) and keeps the lift for the whole carry, so the drop reads
+     as returning it. The app-wide reduced-motion block narrows the base
+     transition to shadow/color fades; the scale snaps instead of easing. */
+  [data-swap-armed],
+  [data-swap-source] {
+    transform: scale(0.97);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
 
