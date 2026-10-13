@@ -357,10 +357,13 @@ export function Stage() {
             })}
 
             {/* Grips, one layer above every line: shadcn/`react-resizable-panels`
-                style, as wide as the 15px band that answers to the pointer, so
-                the thing you see is the thing you grab. (Above the lines: see
-                the T-junction note in DESIGN.md.) */}
-            <div className="pointer-events-none absolute inset-0 z-[6]">
+                style, as wide as the 15px band, so the thing you see is the
+                thing you grab. Shown only while a pane is focused. (Above the
+                lines: see the T-junction note in DESIGN.md.) */}
+            <div
+              className={`pointer-events-none absolute inset-0 z-[6] transition-opacity duration-[140ms] ${
+                focusId ? 'opacity-100' : 'opacity-0'}`}
+            >
               {view.dividers.map((d) => {
                 const vertical = d.dir === 'row'
                 const lit = isLit(d.id)
@@ -372,7 +375,7 @@ export function Stage() {
                       ? { left: line.x, top: d.area.y + d.area.h / 2 }
                       : { left: d.area.x + d.area.w / 2, top: line.y }}
                     className={
-                      `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center border backdrop-blur-[7px] transition-colors duration-[120ms] ${
+                      `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border backdrop-blur-[7px] transition-colors duration-[120ms] ${
                         lit
                           ? 'border-accent bg-accent text-on-accent'
                           : 'border-float-line bg-float-bg text-float-icon'} ${
