@@ -20,7 +20,7 @@ import { PaneMenu } from './PaneMenu'
 
 /* One split button. The chip's height is the page row's (back / reset), so the
    same chip reads the same in the top row and inside a hovered pane. */
-const splitBtnCls = 'grid w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:w-[38px]'
+const splitBtnCls = 'grid w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,border-color,color,scale] duration-[120ms] active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:w-[38px]'
 
 const dropBtnCls = 'flex w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-2 text-xs text-txt hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
@@ -142,7 +142,7 @@ function ResetRotationButton({ shown, flip, onReset }: {
   const t = useT()
   return (
     <button
-      className={`absolute left-1/2 z-[3] grid h-[22px] w-[22px] -translate-x-1/2 cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-opacity duration-[120ms] hover:bg-chip-hover hover:text-txt ${
+      className={`absolute left-1/2 z-[3] grid h-[22px] w-[22px] -translate-x-1/2 cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-[120ms] active:scale-[0.97] hover:bg-chip-hover hover:text-txt ${
         flip ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]'
       } ${shown ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       title={t('Reset rotation')}
@@ -302,7 +302,7 @@ function StickerView({
         onReset={() => rotateSticker(paneId, st.id, 0)}
       />
       <button
-        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
+        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-[120ms] active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
         title={t('Remove sticker')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
@@ -538,7 +538,7 @@ function LabelView({
       )}
       {!editing && (
         <button
-          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-opacity duration-[120ms] ${hot || selected ? ' opacity-100' : ''}`}
+          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-[120ms] active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
           title={t('Remove label')}
           onPointerDown={e => e.stopPropagation()}
           onClick={(e) => {
@@ -703,7 +703,7 @@ function PanePhotoContent({
           // stays in the neutral gray. Pointerdown bubbles: the pane still
           // focuses on the click.
           <button
-            className="absolute inset-0 grid cursor-pointer place-items-center border-0 bg-transparent p-0 focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent"
+            className="absolute inset-0 grid cursor-pointer place-items-center border-0 bg-transparent p-0 transition-colors duration-[120ms] active:bg-chip-hover focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent"
             title={t('Choose a photo')}
             aria-label={t('Choose a photo')}
             onClick={(e) => {
@@ -773,7 +773,7 @@ function PaneLiveBadge({ playing, onToggle }: { playing: boolean, onToggle: () =
   const t = useT()
   return (
     <button
-      className={`absolute left-[9px] top-[9px] z-[3] flex cursor-pointer items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] transition-colors duration-[140ms] backdrop-blur-[7px] hover:bg-chip-hover ${
+      className={`absolute left-[9px] top-[9px] z-[3] flex cursor-pointer items-center gap-[5px] rounded-none border border-float-line bg-float-bg py-[3px] pl-1.5 pr-[7px] text-[9px] font-bold tracking-[0.09em] transition-[background-color,border-color,color,scale] duration-[140ms] active:scale-[0.97] backdrop-blur-[7px] hover:bg-chip-hover ${
         // hover:text-txt carries class+pseudo specificity that would beat
         // text-danger, so it only rides the idle state.
         playing ? ' text-danger' : ' text-float-icon hover:text-txt'
@@ -957,7 +957,7 @@ function PaneCloseTool({
   const t = useT()
   return (
     <button
-      className={`absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color] duration-[140ms] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${
+      className={`absolute right-[9px] top-[9px] z-[3] grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-[15px] leading-none text-float-icon transition-[opacity,color,scale] duration-[140ms] active:scale-[0.97] drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:text-danger focus-visible:opacity-100 pointer-coarse:h-[30px] pointer-coarse:w-[30px] ${
         focused ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       }`}
       title={t('Close this pane')}
