@@ -41,7 +41,7 @@ const MOUSE: [string, string][] = [
   ['Drop a photo onto a pane', 'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)'],
   ['Press and hold inside a pane', 'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop, or tap the LIVE badge to toggle (it turns red and blinks while playing); export also records a video when a pane holds one'],
   ['"Sticker" in the tools panel', 'Pick an image and pin it onto the focused pane\'s photo (e.g. to cover faces); click to select; handles stay pinned like labels; drag to move, corner to scale, × to delete'],
-  ['"Make sticker" in the tools panel', 'Open the sticker maker: type text or pick an image, remove its background with a local AI model, pick a die-cut outline and finish, and insert the result onto that pane as a sticker'],
+  ['"Make" in the tools panel', 'Open the sticker maker: type text or pick an image, remove its background with a local AI model, pick a die-cut outline and finish, and insert the result onto that pane as a sticker'],
   ['"Text" in the tools panel', 'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, corner to resize, double-click to edit, click away or Esc to deselect'],
 ]
 

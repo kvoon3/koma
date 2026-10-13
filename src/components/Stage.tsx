@@ -28,7 +28,7 @@ const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x
    overrides the stage's `touch-none`; `.scroll-fade` softens the scrolled ends. */
 const toolsScrollCls = 'scroll-fade overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const toolsRowCls = 'flex w-max items-stretch'
-const toolsBtnCls = 'flex w-[120px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent p-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt'
+const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
 interface ToolDef {
@@ -253,9 +253,9 @@ export function Stage() {
   const toolsHidden = !hasPhoto
   // One row, so the order here is the order on screen.
   const tools: ToolDef[] = [
-    { key: 'photo', icon: ImagePlus, label: t('Replace photo'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
+    { key: 'photo', icon: ImagePlus, label: t('Replace'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
     { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
-    { key: 'make', icon: WandSparkles, label: t('Make sticker'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && openStickerMaker(focusId) },
+    { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && openStickerMaker(focusId) },
     { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
   ]
 
