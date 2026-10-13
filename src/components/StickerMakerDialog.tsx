@@ -1,9 +1,11 @@
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import { Dialog } from '@base-ui/react/dialog'
-import { X } from 'lucide'
+import { ImagePlus, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
+import { ColorField, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField, SelectField } from '@/components/ui/field'
+import { Tip } from '@/components/ui/tip'
 import { removeBackground } from '../lib/bgRemoval'
 import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
@@ -55,11 +57,6 @@ const TEXT_COLOR_DEFAULT = '#000000'
 const OUTLINE_COLOR_DEFAULT = '#ffffff'
 const PREVIEW_MAX = 480
 const INSERT_MAX = 960
-
-const labelCls = 'text-[11.5px] text-dim'
-const fieldCls = 'flex flex-col gap-1.5'
-const inputCls = 'box-border h-[30px] w-full cursor-pointer rounded-none border border-line bg-panel-2 px-2 text-[12px] text-txt outline-0 focus-visible:border-accent'
-const colorCls = 'box-border h-[30px] w-full cursor-pointer rounded-none border border-line bg-panel-2 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0'
 
 function buildSource(
   tab: 'text' | 'image',
@@ -164,7 +161,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material }: {
   const url = source && rendered?.key === renderKey ? rendered.url || null : null
   const rendering = !!source && rendered?.key !== renderKey
   return (
-    <div className="stage-clear flex h-[220px] items-center justify-center overflow-hidden border border-line">
+    <div className="stage-clear flex h-[220px] items-center justify-center overflow-hidden border border-line-strong">
       {url
         ? <img src={url} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
         : (
@@ -194,6 +191,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   const [hasCutout, setHasCutout] = useState(false)
   const urlRef = useRef<string | null>(null)
   const originalUrlRef = useRef<string | null>(null)
+  const bgJobRef = useRef(0)
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
 
@@ -212,54 +210,72 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     }
   }, [])
 
+  // Swap the displayed image URL; the pre-cutout original moves to
+  // originalUrlRef. Revoking urlRef here would kill the very URL Restore
+  // needs, because the two point at the same URL until the cutout lands.
+  const applyImage = (url: string, original: string) => {
+    originalUrlRef.current = original
+    urlRef.current = url
+    setImageSrc(url)
+    setHasCutout(true)
+  }
+
+  /**
+   * Local U²-Netᵖ cutout for one object URL. Jobs are token-guarded: picking a
+   * second image while the first is still processing drops the stale result
+   * (and frees its URL) instead of clobbering the newer pick.
+   */
+  const cutout = (src: string) => {
+    const job = ++bgJobRef.current
+    const isCurrent = () => bgJobRef.current === job
+    void cutoutBackground(
+      src,
+      (next) => {
+        if (isCurrent())
+          setBgJob(next)
+      },
+      (url) => {
+        if (isCurrent())
+          applyImage(url, src)
+        else
+          URL.revokeObjectURL(url)
+      },
+      () => {
+        if (isCurrent())
+          say(t('Background removal failed'))
+      },
+    )
+  }
+
   const pickImage = () => {
     pickImageFiles((files) => {
       const file = files[0]
       if (!file)
         return
-      if (urlRef.current)
-        URL.revokeObjectURL(urlRef.current)
+      // Drop the previous pick's URLs (original first: it may be the one
+      // urlRef still points at) before taking on the new one.
       if (originalUrlRef.current)
         URL.revokeObjectURL(originalUrlRef.current)
       originalUrlRef.current = null
-      setHasCutout(false)
+      if (urlRef.current)
+        URL.revokeObjectURL(urlRef.current)
       const url = URL.createObjectURL(file)
       urlRef.current = url
       setImageSrc(url)
       setImageName(file.name)
+      setHasCutout(false)
+      // A sticker wants the subject alone, so cut the background out on pick;
+      // Restore original brings the full frame back for a manual retry.
+      cutout(url)
     })
   }
 
-  // Swap the displayed image URL, keeping the pre-cutout original for Restore.
-  const applyImage = (url: string, keepOriginal: boolean) => {
-    if (keepOriginal) {
-      // Ownership of the old URL moves to originalUrlRef; revoking urlRef
-      // here would kill the original Restore needs (same URL).
-      originalUrlRef.current = imageSrc
-    }
-    else {
-      if (originalUrlRef.current)
-        URL.revokeObjectURL(originalUrlRef.current)
-      originalUrlRef.current = null
-      if (urlRef.current)
-        URL.revokeObjectURL(urlRef.current)
-    }
-    urlRef.current = url
-    setImageSrc(url)
-    setHasCutout(keepOriginal)
-  }
-
-  // Local U²-Netᵖ cutout: the preview and the insert both consume the new URL,
-  // the original stays owned by originalUrlRef until restored or replaced.
+  // Retry hook for the automatic cutout: used after Restore original or when
+  // the local model failed.
   const removeBg = () => {
     if (!imageSrc || bgJob)
       return
-    void cutoutBackground(
-      imageSrc,
-      setBgJob,
-      url => applyImage(url, true),
-      () => say(t('Background removal failed')),
-    )
+    cutout(imageSrc)
   }
 
   const restoreOriginal = () => {
@@ -302,7 +318,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-[180ms] ease-(--ease-out) data-ending-style:duration-[140ms] data-starting-style:opacity-0 data-ending-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 flex max-h-[min(86dvh,720px)] w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-none border border-line bg-panel text-txt shadow-pop outline-0 transition-[opacity,translate,scale] duration-[180ms] ease-(--ease-out) data-ending-style:duration-[140ms] data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-auto flex max-h-[min(86dvh,720px)] w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-none border border-line bg-panel text-txt shadow-pop outline-0 transition-[opacity,translate,scale] duration-[180ms] ease-(--ease-out) data-ending-style:duration-[140ms] data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
           <header className="flex items-center justify-between gap-2.5 border-b border-line py-[11px] pl-4 pr-3">
             <Dialog.Title className="m-0 text-[13.5px] font-semibold">{t('Sticker maker')}</Dialog.Title>
             <Dialog.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label={t('Close')}>
@@ -320,31 +336,28 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
               ? (
                   <div className="flex flex-col gap-2.5">
                     <textarea
-                      className="box-border min-h-[64px] w-full resize-none border border-line bg-panel-2 px-2.5 py-2 text-[18px] leading-[1.3] text-txt outline-0 focus-visible:border-accent"
-                      style={{ fontFamily: fontMeta.stack, fontWeight: fontMeta.weight, color }}
+                      className="box-border min-h-[64px] w-full resize-none border border-line-strong bg-panel-2 px-2.5 py-2 text-[18px] leading-[1.3] text-txt outline-0 focus-visible:border-accent"
+                      style={{ fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }}
                       value={text}
                       placeholder={t('Type some text')}
                       onChange={e => setText(e.target.value)}
                       rows={2}
                     />
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className={fieldCls}>
-                        <span className={labelCls}>{t('Text color')}</span>
-                        <input type="color" className={colorCls} aria-label={t('Text color')} value={color} onChange={e => setColor(e.target.value)} />
-                      </label>
-                      <label className={fieldCls}>
-                        <span className={labelCls}>{t('Font')}</span>
-                        <select className={inputCls} value={font} onChange={e => setFont(e.target.value)}>
-                          {FONTS.map(f => <option key={f.id} value={f.id}>{t(f.label)}</option>)}
-                        </select>
-                      </label>
-                    </div>
+                    <SelectField
+                      label={t('Font')}
+                      value={font}
+                      items={FONTS.map(f => ({ value: f.id, label: t(f.label), fontFamily: f.stack }))}
+                      onChange={setFont}
+                    />
                   </div>
                 )
               : (
                   <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-2.5">
-                      <Button variant="strong" onClick={pickImage}>{t('Choose an image')}</Button>
+                      <Button variant="strong" onClick={pickImage}>
+                        <MorphIcon icon={ImagePlus} size={15} strokeWidth={1.75} />
+                        {t('Choose an image')}
+                      </Button>
                       <span className="min-w-0 flex-1 truncate text-[11.5px] text-faint">
                         {imageSrc ? imageName : t('No image chosen')}
                       </span>
@@ -352,18 +365,12 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
                     {imageSrc && (
                       <div className="flex items-center gap-2.5">
                         {hasCutout
-                          ? (
-                              <button
-                                className="cursor-pointer border-0 bg-transparent p-0 text-[11.5px] text-accent underline underline-offset-2"
-                                onClick={restoreOriginal}
-                              >
-                                {t('Restore original')}
-                              </button>
-                            )
+                          ? <Button onClick={restoreOriginal}>{t('Restore original')}</Button>
                           : (
-                              <Button variant="flat" disabled={!!bgJob} title={t('AI runs locally · nothing is uploaded')} onClick={() => void removeBg()}>
-                                {t('Remove background')}
-                              </Button>
+                              <Tip
+                                label={t('AI runs locally · nothing is uploaded')}
+                                trigger={<Button disabled={!!bgJob} onClick={() => void removeBg()}>{t('Remove background')}</Button>}
+                              />
                             )}
                         {bgJob && (
                           <span className="text-[11.5px] text-faint">
@@ -377,36 +384,25 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
                   </div>
                 )}
 
+            {/* The two colors sit together, and the preview closes the body so
+                the controls above stay in place while it re-renders. */}
             <div className="flex flex-col gap-2.5 border-t border-line pt-3">
-              <label className={fieldCls}>
-                <span className={labelCls}>{`${t('Outline width')} · ${outlineWidth}`}</span>
-                <input
-                  type="range"
-                  className="w-full cursor-pointer"
-                  min={0}
-                  max={40}
-                  value={outlineWidth}
-                  aria-label={t('Outline width')}
-                  onChange={e => setOutlineWidth(Number(e.target.value))}
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className={fieldCls}>
-                  <span className={labelCls}>{t('Outline color')}</span>
-                  <input type="color" className={colorCls} aria-label={t('Outline color')} value={outlineColor} onChange={e => setOutlineColor(e.target.value)} />
-                </label>
-                <label className={fieldCls}>
-                  <span className={labelCls}>{t('Material')}</span>
-                  <select className={inputCls} value={material} onChange={e => setMaterial(e.target.value as StickerMaterialType)}>
-                    {MATERIALS.map(m => <option key={m.value} value={m.value}>{t(m.label)}</option>)}
-                  </select>
-                </label>
-              </div>
+              {tab === 'text' && <ColorField label={t('Text color')} value={color} onChange={setColor} />}
+              <ColorField label={t('Outline color')} value={outlineColor} onChange={setOutlineColor} />
+              <RangeField label={t('Outline width')} text={`${outlineWidth}`} max={40} value={outlineWidth} onChange={setOutlineWidth} />
+              <SelectField
+                label={t('Material')}
+                value={material}
+                items={MATERIALS.map(m => ({ value: m.value, label: t(m.label) }))}
+                onChange={v => setMaterial(v as StickerMaterialType)}
+              />
             </div>
 
-            <div className={fieldCls}>
-              <span className={labelCls}>{t('Preview')}</span>
-              <StickerPreview source={source} outlineWidth={outlineWidth} outlineColor={outlineColor} material={material} />
+            <div className={fieldRowCls}>
+              <span className={`${fieldLabelCls} self-start`}>{t('Preview')}</span>
+              <div className={fieldControlCls}>
+                <StickerPreview source={source} outlineWidth={outlineWidth} outlineColor={outlineColor} material={material} />
+              </div>
             </div>
           </div>
 

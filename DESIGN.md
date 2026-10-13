@@ -195,7 +195,10 @@ Tailwind v4 (via `@tailwindcss/vite`) with a token-only color system. Raw palett
 values live on `:root` / `html.dark` in `src/index.css`; `@theme inline` maps them
 to semantic tokens (`bg-panel`, `text-dim`, `border-line`, `bg-accent`, …) so
 `.dark` re-themes every utility at runtime; never reach for `dark:` variants for
-chrome colors. Shared UI primitives live in `src/components/ui/`.
+chrome colors. Shared UI primitives live in `src/components/ui/`; `field.tsx`
+holds the one labelled-control row (label / control / value), the range slider,
+the select and the color input, so the settings drawer and the sticker maker
+cannot drift apart.
 
 `@shadcn/lint` (see `eslint.config.mjs`) enforces this: `shadcn/no-raw-colors`,
 `shadcn/no-unknown-classes`, and `shadcn/no-restyle` run on `bun run lint`.
