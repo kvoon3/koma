@@ -1,29 +1,26 @@
+import type { ContextMenu } from '@base-ui/react/context-menu'
 import type { FontMeta } from '../lib/fonts'
 import type { Photo, Preview } from '../lib/imageStore'
 import type { Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
-import { ContextMenu } from '@base-ui/react/context-menu'
 import { Select } from '@base-ui/react/select'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowLeftRight, Check, ChevronDown, Contrast, ImagePlus, Move, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
+import { Check, ChevronDown, Contrast, ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePreview } from '../hooks'
-import { pickImageFiles } from '../lib/filePicker'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { getLiveVideoUrl } from '../lib/imageStore'
+import { pickPhotoForPane } from '../lib/paneCommands'
 import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, seamFadeWidth, seamMaskStyle, stickerRect } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
-import { activeWs, MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
+import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
+import { PaneMenu } from './PaneMenu'
 
 /* One split button. The chip's height is the page row's (back / reset), so the
    same chip reads the same in the top row and inside a hovered pane. */
 const splitBtnCls = 'grid w-[30px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:w-[38px]'
-
-const menuItemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
-
-const menuSeparatorCls = 'mx-1 my-1 h-px border-0 bg-line'
 
 const dropBtnCls = 'flex w-full cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-2 text-xs text-txt hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
@@ -757,16 +754,7 @@ function PaneImpl({
     void navigate({ to: '/', viewTransition: viewTransitionOption() })
   }, [navigate])
 
-  // The empty pane's own pick flow (Stage's tools row has the focused-pane
-  // one): import the files, then put the first photo straight into this pane.
-  const pickForPane = useCallback(() => {
-    pickImageFiles((files) => {
-      const s = useStore.getState()
-      const first = s.addPhotos(files, false)[0]
-      if (first)
-        s.assign(leaf.id, first.id)
-    })
-  }, [leaf.id])
+  const pickForPane = useCallback(() => pickPhotoForPane(leaf.id), [leaf.id])
 
   const pointersRef = useRef(new Map<number, { x: number, y: number }>())
   const gestureRef = useRef<Gesture | null>(null)
@@ -1161,12 +1149,6 @@ function PaneImpl({
     [rect.x, rect.y],
   )
 
-  const swapPhotos = useStore(s => s.swapPhotos)
-  // The menu's swap item targets the focused pane, so it only makes sense on
-  // an unfocused pane: right-clicking the focused one has nothing to swap with.
-  const focusId = useStore(s => activeWs(s).focusId)
-  const swapTargetId = !focused && focusId && focusId !== leaf.id ? focusId : null
-
   const paneNode = (
     <div
       ref={elRef}
@@ -1390,57 +1372,31 @@ function PaneImpl({
   )
 
   // Every pane keeps its context menu mounted: right-click works on the
-  // focused pane too (split / close), and the swap item shows up on unfocused
-  // panes only (see swapTargetId).
+  // focused pane too, and the swap item shows up on unfocused panes only (see
+  // swapTargetId). The menu is grouped by what the rows act on: this pane's
+  // photo, its decoration, their arrangement, then the pane itself.
   return (
-    <ContextMenu.Root onOpenChange={onMenuOpenChange}>
-      <ContextMenu.Trigger render={paneNode} />
-      <ContextMenu.Portal>
-        <ContextMenu.Positioner className="z-90">
-          <ContextMenu.Popup className="min-w-[180px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-[160ms] ease-(--ease-out) data-ending-style:duration-[120ms] data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]">
-            <ContextMenu.Item className={menuItemCls} onClick={() => onSplit(leaf.id, 'column')}>
-              <MorphIcon icon={SquareSplitVertical} size={13} strokeWidth={1.75} className="text-dim" />
-              {t('Split top/bottom')}
-            </ContextMenu.Item>
-            <ContextMenu.Item className={menuItemCls} onClick={() => onSplit(leaf.id, 'row')}>
-              <MorphIcon icon={SquareSplitHorizontal} size={13} strokeWidth={1.75} className="text-dim" />
-              {t('Split left/right')}
-            </ContextMenu.Item>
-            {(leaf.photoId || swapTargetId) && (
-              <ContextMenu.Separator className={menuSeparatorCls} />
-            )}
-            {/* Move is gated on the pane holding a photo: an empty pane has
-                nothing to carry. Unlike the swap item it works in both focus
-                states, since the carried photo swaps into whatever pane the
-                next click lands on. */}
-            {leaf.photoId && (
-              <ContextMenu.Item className={menuItemCls} onClick={e => startMove(e.clientX, e.clientY)}>
-                <MorphIcon icon={Move} size={13} strokeWidth={1.75} className="text-dim" />
-                {t('Move')}
-              </ContextMenu.Item>
-            )}
-            {swapTargetId && (
-              <ContextMenu.Item className={menuItemCls} onClick={() => swapPhotos(leaf.id, swapTargetId)}>
-                <MorphIcon icon={ArrowLeftRight} size={13} strokeWidth={1.75} className="text-dim" />
-                {t('Swap with focused pane')}
-              </ContextMenu.Item>
-            )}
-            {canClose && (
-              <>
-                <ContextMenu.Separator className={menuSeparatorCls} />
-                <ContextMenu.Item
-                  className="flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-danger data-highlighted:bg-danger data-highlighted:text-on-accent"
-                  onClick={() => onClose(leaf.id)}
-                >
-                  <MorphIcon icon={X} size={13} strokeWidth={1.75} />
-                  {t('Close pane')}
-                </ContextMenu.Item>
-              </>
-            )}
-          </ContextMenu.Popup>
-        </ContextMenu.Positioner>
-      </ContextMenu.Portal>
-    </ContextMenu.Root>
+    <PaneMenu
+      leaf={leaf}
+      rect={rect}
+      photo={photo}
+      iw={iw}
+      ih={ih}
+      live={live}
+      focused={focused}
+      canClose={canClose}
+      paneNode={paneNode}
+      onOpenChange={onMenuOpenChange}
+      onSplit={onSplit}
+      onClose={onClose}
+      onFocus={onFocus}
+      onToggleLive={() => {
+        if (photo)
+          setLivePin(live ? null : photo.id)
+      }}
+      onStartMove={startMove}
+      onPickPhoto={pickForPane}
+    />
   )
 }
 

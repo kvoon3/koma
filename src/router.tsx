@@ -1,9 +1,10 @@
 /* eslint-disable react-refresh/only-export-components -- a code-based route module necessarily mixes the exported router instance with its route components. */
 import type { Dispatch, SetStateAction } from 'react'
+import type { AppCommands } from './lib/appCommands'
 import type { ExportOptions } from './lib/exporter'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
 import { FloatActions } from './components/FloatActions'
@@ -15,6 +16,7 @@ import { Stage } from './components/Stage'
 import ToastHost from './components/ToastHost'
 import { TopBar } from './components/TopBar'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
+import { AppCommandsContext } from './lib/appCommands'
 import { buildCropReport, downloadBlob, hasLiveCells, renderCollage, renderCollageVideo } from './lib/exporter'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
@@ -290,6 +292,17 @@ function RootLayout() {
 
   const doCrops = useCallback(() => setReport(buildCropReport(exportOptions())), [])
 
+  // The chrome commands a menu deep in the tree may invoke (see CanvasMenu).
+  const commands = useMemo<AppCommands>(() => ({
+    exportNow: doExport,
+    showCrops: doCrops,
+    setLibraryOpen: setLibOpen,
+    setSettingsOpen,
+    setHelpOpen,
+    busy,
+    grid,
+  }), [doExport, doCrops, setLibOpen, setSettingsOpen, busy, grid])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey) {
@@ -395,9 +408,11 @@ function RootLayout() {
         />
 
         <main className="relative min-h-0 flex-1">
-          <Outlet />
-          {/* Floating page actions (back / reset) hover over the active view. */}
-          <FloatActions />
+          <AppCommandsContext value={commands}>
+            <Outlet />
+            {/* Floating page actions (back / reset) hover over the active view. */}
+            <FloatActions />
+          </AppCommandsContext>
         </main>
 
         <Footer />

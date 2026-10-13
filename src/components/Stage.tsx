@@ -5,10 +5,11 @@ import { ChevronDown, ChevronUp, ImagePlus, MoveDiagonal2, Scaling, Sticker as S
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
-import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
+import { addLabelToPane, pickPhotoForPane, pickStickersForPane } from '../lib/paneCommands'
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
+import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
 
@@ -57,7 +58,6 @@ export function Stage() {
   const stageRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState(false)
   const [sizing, setSizing] = useState(false)
-  const [stickerMakerFor, setStickerMakerFor] = useState<string | null>(null)
   const t = useT()
 
   const root = useStore(s => activeWs(s).root)
@@ -81,6 +81,9 @@ export function Stage() {
   const setCanvasSize = useStore(s => s.setCanvasSize)
   const toolsOpen = useStore(s => s.toolsOpen)
   const setToolsOpen = useStore(s => s.setToolsOpen)
+  // The sticker maker dialog is store-driven: the pane menu opens it too.
+  const stickerMakerFor = useStore(s => s.stickerMakerFor)
+  const openStickerMaker = useStore(s => s.openStickerMaker)
 
   const transparent = isTransparentBg(bg)
 
@@ -226,33 +229,19 @@ export function Stage() {
     s.setCanvasSize(first ? first.trueW / first.trueH : (activeWs(s).canvasRatio ?? 1.5), 1)
   }, [])
 
-  // Same pick flows as the tools row, aimed at the focused pane.
+  // Same pick flows as the tools row, aimed at the focused pane. The flows
+  // themselves live in lib/paneCommands so the pane menu can share them.
   const pickForFocused = () => {
-    pickImageFiles((files) => {
-      const s = useStore.getState()
-      const created = s.addPhotos(files, false)
-      const first = created[0]
-      if (first && focusId)
-        s.assign(focusId, first.id)
-    })
+    if (focusId)
+      pickPhotoForPane(focusId)
   }
   const pickStickerForFocused = () => {
-    pickImageFiles((files) => {
-      const s = useStore.getState()
-      const created = s.addPhotos(files, false)
-      created.forEach((ph, i) => {
-        const n = Math.min(0.8, 0.5 + i * 0.08)
-        if (focusId)
-          s.addSticker(focusId, ph.id, n, n)
-      })
-    })
+    if (focusId)
+      pickStickersForPane(focusId)
   }
   const addLabelToFocused = () => {
-    const s = useStore.getState()
-    if (!focusId)
-      return
-    s.ensureLabel(focusId)
-    s.requestLabelEdit(focusId)
+    if (focusId)
+      addLabelToPane(focusId)
   }
 
   const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
@@ -265,7 +254,7 @@ export function Stage() {
   const tools: ToolDef[] = [
     { key: 'photo', icon: ImagePlus, label: t('Replace photo'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
     { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
-    { key: 'make', icon: WandSparkles, label: t('Make sticker'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && setStickerMakerFor(focusId) },
+    { key: 'make', icon: WandSparkles, label: t('Make sticker'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && openStickerMaker(focusId) },
     { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
   ]
 
@@ -274,86 +263,88 @@ export function Stage() {
       ref={wrapRef}
       className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragging ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
     >
-      <div
-        className="flex min-h-0 w-full flex-1 items-center justify-center"
-        onPointerDown={(e) => {
-          if (e.target === e.currentTarget) {
-            focus('')
-            selectLabel(null)
-          }
-        }}
-      >
+      <CanvasMenu>
         <div
-          ref={stageRef}
-          className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
-          style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
+          className="flex min-h-0 w-full flex-1 items-center justify-center"
+          onPointerDown={(e) => {
+            if (e.target === e.currentTarget) {
+              focus('')
+              selectLabel(null)
+            }
+          }}
         >
-          {paneFade > 0 && (
-            <SeamBackdrop
-              leaves={view.leaves}
-              photoById={photoById}
-              radius={Math.max(view.unit * 40, view.fade)}
-              opacity={fadeStrength / 100}
-            />
-          )}
-
-          {view.leaves.map(({ node, rect }) => (
-            <Pane
-              key={node.id}
-              leaf={node}
-              rect={rect}
-              radius={view.radius}
-              bordered={paneBorder}
-              fade={paneFade}
-              seam={seams.get(node.id)}
-              unit={view.unit}
-              photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
-              photoById={photoById}
-              focused={focusId === node.id}
-              canClose={view.leaves.length > 1}
-              onFocus={focus}
-              onUpdate={updateLeaf}
-              onSplit={split}
-              onClose={closePane}
-            />
-          ))}
-
-          {view.dividers.map((d) => {
-            const line = dividerLine(d, view.gap)
-            const hit = Math.max(view.gap, HIT_MIN)
-            const style: React.CSSProperties
-              = d.dir === 'row'
-                ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
-                : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
-            return (
-              <div
-                key={d.id}
-                className={`group/divider absolute z-[5] touch-none ${d.dir === 'row' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
-                style={style}
-                onPointerDown={beginDrag(d)}
-              >
-                <span
-                  className={
-                    `absolute rounded-none bg-transparent transition-colors duration-[120ms] group-hover/divider:bg-accent ${
-                      d.dir === 'row'
-                        ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
-                        : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'}`
-                  }
-                />
-              </div>
-            )
-          })}
-
           <div
-            className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-colors duration-[120ms] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
-            onPointerDown={beginResize}
-            onDoubleClick={resetRatio}
-            title={t('Drag to change canvas aspect · double-click to reset')}
+            ref={stageRef}
+            className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
+            style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
           >
-            <MorphIcon icon={sizing ? Scaling : MoveDiagonal2} size={19} strokeWidth={2.5} />
+            {paneFade > 0 && (
+              <SeamBackdrop
+                leaves={view.leaves}
+                photoById={photoById}
+                radius={Math.max(view.unit * 40, view.fade)}
+                opacity={fadeStrength / 100}
+              />
+            )}
+
+            {view.leaves.map(({ node, rect }) => (
+              <Pane
+                key={node.id}
+                leaf={node}
+                rect={rect}
+                radius={view.radius}
+                bordered={paneBorder}
+                fade={paneFade}
+                seam={seams.get(node.id)}
+                unit={view.unit}
+                photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
+                photoById={photoById}
+                focused={focusId === node.id}
+                canClose={view.leaves.length > 1}
+                onFocus={focus}
+                onUpdate={updateLeaf}
+                onSplit={split}
+                onClose={closePane}
+              />
+            ))}
+
+            {view.dividers.map((d) => {
+              const line = dividerLine(d, view.gap)
+              const hit = Math.max(view.gap, HIT_MIN)
+              const style: React.CSSProperties
+                = d.dir === 'row'
+                  ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
+                  : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
+              return (
+                <div
+                  key={d.id}
+                  className={`group/divider absolute z-[5] touch-none ${d.dir === 'row' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
+                  style={style}
+                  onPointerDown={beginDrag(d)}
+                >
+                  <span
+                    className={
+                      `absolute rounded-none bg-transparent transition-colors duration-[120ms] group-hover/divider:bg-accent ${
+                        d.dir === 'row'
+                          ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
+                          : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'}`
+                    }
+                  />
+                </div>
+              )
+            })}
+
+            <div
+              className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-colors duration-[120ms] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
+              onPointerDown={beginResize}
+              onDoubleClick={resetRatio}
+              title={t('Drag to change canvas aspect · double-click to reset')}
+            >
+              <MorphIcon icon={sizing ? Scaling : MoveDiagonal2} size={19} strokeWidth={2.5} />
+            </div>
           </div>
         </div>
-      </div>
+      </CanvasMenu>
 
       {/* The focused pane's tools, laid over the canvas so the panel never
           takes layout space, opened by the handle alone. Every tool acts on
@@ -385,7 +376,7 @@ export function Stage() {
         </div>
       )}
 
-      <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => setStickerMakerFor(null)} />
+      <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => openStickerMaker(null)} />
     </div>
   )
 }

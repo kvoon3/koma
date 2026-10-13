@@ -208,6 +208,9 @@ export function TopBar({
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,
+      // The clipboard and the sticker maker point at the replaced board.
+      paneClip: null,
+      stickerMakerFor: null,
     })
     setOpenDoc(null)
     say(t('Workspace opened'))
