@@ -73,6 +73,7 @@ function SliderRow({ name, text, max, cur, onChange }: { name: string, text: str
 
 export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () => void }) {
   const gap = useStore(s => s.gap)
+  const gridGap = useStore(s => s.gridGap)
   const radius = useStore(s => s.radius)
   const edgeFade = useStore(s => s.edgeFade)
   const edgeFadeStrength = useStore(s => s.edgeFadeStrength)
@@ -145,6 +146,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
                 <Tabs.Panel className={panel} value="layout">
                   <section className={section}>
                     <SliderRow name={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} cur={gap} onChange={v => patch({ gap: v })} />
+                    <SliderRow name={t('Grid gap')} text={`${gridGap}px`} max={40} cur={gridGap} onChange={v => patch({ gridGap: v })} />
                     <SliderRow name={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} cur={radius} onChange={v => patch({ radius: v })} />
                     <div className={row}>
                       <span className={label}>{t('Pane border')}</span>

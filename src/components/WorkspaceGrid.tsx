@@ -5,7 +5,7 @@ import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSenso
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { ImagePlus } from 'lucide'
+import { LayoutDashboard } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -167,6 +167,7 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
   transparent: boolean
   dimmed: boolean
 }) {
+  const t = useT()
   const filled = leafList(ws.root).some(l => l.photoId)
   return (
     <div className={`absolute inset-0 transition-opacity duration-[160ms] ${dimmed ? ' opacity-25' : ''}`}>
@@ -177,8 +178,15 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
             </div>
           )
         : (
-            <span className="absolute inset-0 grid place-items-center border border-dashed border-line-strong bg-panel-2 text-faint">
-              <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
+            // The empty pane's look, worn by the cell: near-canvas fill and
+            // the same floating chip, lit on cell hover (group/cell). The
+            // collage-layout glyph marks this as "open a new collage", not the
+            // picker's image-plus.
+            <span className="absolute inset-0 grid place-items-center bg-pane-bg bg-pane-empty">
+              <span className="flex flex-col items-center gap-1.5 whitespace-nowrap border border-float-line bg-float-bg px-5 py-3 text-[12.5px] font-semibold text-float-icon backdrop-blur-[7px] transition-colors duration-[120ms] group-hover/cell:bg-chip-hover group-hover/cell:text-txt pointer-coarse:px-6 pointer-coarse:py-4">
+                <MorphIcon icon={LayoutDashboard} size={22} strokeWidth={1.75} />
+                {t('New collage')}
+              </span>
             </span>
           )}
     </div>
@@ -226,6 +234,7 @@ export function WorkspaceGrid() {
   const activeId = useStore(s => s.activeId)
   const photos = useStore(s => s.photos)
   const bg = useStore(s => s.bg)
+  const gridGap = useStore(s => s.gridGap)
   const moveWorkspace = useStore(s => s.moveWorkspace)
   const navigate = useNavigate()
 
@@ -311,9 +320,8 @@ export function WorkspaceGrid() {
   }
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const GAP_PX = 10
   const cell = Math.max(60, Math.floor(
-    Math.min((wrapSize.w - 48 - GAP_PX * 2) / 3, (wrapSize.h - 48 - GAP_PX * 2) / 3, 220),
+    Math.min((wrapSize.w - 48 - gridGap * 2) / 3, (wrapSize.h - 48 - gridGap * 2) / 3, 220),
   ))
   const box = { w: cell, h: cell }
 
@@ -333,7 +341,7 @@ export function WorkspaceGrid() {
         <SortableContext items={ids} strategy={rectSortingStrategy}>
           <div
             className="grid grid-cols-3"
-            style={{ gap: GAP_PX, width: cell * 3 + GAP_PX * 2 }}
+            style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}
           >
             {workspaces.map((ws, i) => (
               <SortableCell
@@ -387,7 +395,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,opacity,outline-color] duration-[160ms] ${
+      className={`group/cell relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,opacity,outline-color] duration-[160ms] ${
         highlighted ? ' outline-2 outline-txt -outline-offset-2' : ''
       }`}
       style={{

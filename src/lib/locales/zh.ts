@@ -49,6 +49,7 @@ export const zh: Record<string, string> = {
   'Pick a custom color': '选择自定义颜色',
   'Layout': '布局',
   'Photo gap': '照片间隙',
+  'Grid gap': '九宫格间隙',
   'Photo radius': '照片圆角',
   'Blend width': '融合宽度',
   'Blend strength': '融合浓度',
@@ -245,6 +246,7 @@ export const zh: Record<string, string> = {
   // WorkspaceGrid
   'Edit this workspace': '编辑这个工作区',
   'Start a new collage here': '在这里开始新的拼图',
+  'New collage': '新建拼图',
 
   // Workspace file (save / open the whole board)
   'Workspace': '工作区',
