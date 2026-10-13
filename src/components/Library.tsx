@@ -83,7 +83,7 @@ export const Thumb = memo(({
       title={photo.name}
       data-size={size}
     >
-      {url ? <img src={url} alt="" draggable={false} className="block h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <span className="block h-full w-full" />}
+      {url ? <img src={url} alt="" draggable={false} className="photo-in block h-full w-full select-none object-cover [-webkit-touch-callout:none]" /> : <span className="block h-full w-full" />}
       {selected && (
         // Same corner-badge treatment as the LIVE tag, so a batch selection
         // reads apart from the single active photo while sharing its border.

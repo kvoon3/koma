@@ -339,6 +339,17 @@ html.dark {
     animation: swap-ghost-in 150ms var(--ease-out);
   }
 
+  /* Decoded-photo entrance: bridges the placeholder → image swap. Opacity
+     only, so it composes with the pan/zoom transform and the app-wide
+     reduced-motion block keeps it as a fade. */
+  .photo-in {
+    transition: opacity 200ms var(--ease-out);
+
+    @starting-style {
+      opacity: 0;
+    }
+  }
+
   /*
    * The checkerboard that stands for "transparent". It borrows the stage's
    * clear tokens on purpose: the obvious pair, `panel2` with `line` squares,
