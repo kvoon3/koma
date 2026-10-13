@@ -33,7 +33,7 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint both chips are hidden; the pane menu and the S / V keys still split either way |
+| Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint the hover copy is dropped instead, a touch screen having no hover to fade it in, so the page-row chip is what a phone keeps |
 | Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make sticker / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane itself is the picker instead). The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
@@ -113,9 +113,10 @@ The old status-bar stats (panes / filled / focus) are gone; the footer shows
 the canvas ratio and the output size. The split chip is a pane's only hover
 chrome: hovering a pane, focused or not, fades it in at that pane's top center,
 and below lg the focused pane also draws the same chip in the page row between
-the back and reset buttons, so a split is never far away. Below the sm
-breakpoint both chips are hidden, where the pane menu and the S / V keys split
-instead. Everything else a pane shows stays focus-only, the × close button at
+the back and reset buttons, so a split is never far away. That page-row copy is
+the one a phone gets: below the sm breakpoint the hover copy is dropped, since
+there is no hover to fade it in, and the page row keeps its chip on every
+width. Everything else a pane shows stays focus-only, the × close button at
 the top right. The focused pane's tools (sticker / replace photo / text label)
 live in a panel that overlays the canvas above the footer, open by default and
 moved only by the handle on its top edge; the tools act on the focused pane, so
