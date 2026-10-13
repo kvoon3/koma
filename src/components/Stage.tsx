@@ -296,6 +296,7 @@ export function Stage() {
                 photoById={photoById}
                 radius={Math.max(view.unit * 40, view.fade)}
                 opacity={fadeStrength / 100}
+                gap={view.gap}
               />
             )}
 
@@ -474,19 +475,25 @@ function BackdropLeaf({ leaf, rect, photo, radius }: {
  * Shared with the 3×3 workspace preview (WorkspaceGrid), which renders it
  * scaled into the cell.
  */
-export function SeamBackdrop({ leaves, photoById, radius, opacity }: {
+export function SeamBackdrop({ leaves, photoById, radius, opacity, gap = 0 }: {
   leaves: { node: Leaf, rect: Rect }[]
   photoById: Map<string, Photo>
   radius: number
   opacity: number
+  gap?: number
 }) {
+  // Backdrop only where a photo seam exists; panes without a
+  // photo-bearing neighbor skip it, so empty neighbors stay blank
+  // instead of bleeding a blurred copy of the filled pane.
+  const seams = useMemo(() => seamSides(leaves, gap), [leaves, gap])
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity }}>
       {leaves.map(({ node, rect }) => {
         const photo = node.photoId ? photoById.get(node.photoId) : undefined
-        return photo
-          ? <BackdropLeaf key={node.id} leaf={node} rect={rect} photo={photo} radius={radius} />
-          : null
+        const seam = seams.get(node.id)
+        if (!photo || !seam || !(seam.left || seam.right || seam.top || seam.bottom))
+          return null
+        return <BackdropLeaf key={node.id} leaf={node} rect={rect} photo={photo} radius={radius} />
       })}
     </div>
   )

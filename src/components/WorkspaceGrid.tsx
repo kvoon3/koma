@@ -93,7 +93,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
   // No pane background: like the editor, the blurred field shows through the
   // feathered seam edges (an opaque leaf would hide the blend).
   return (
-    <div className="absolute overflow-hidden" style={style}>
+    <div className={`absolute overflow-hidden ${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`} style={style}>
       {preview && place
         ? (
             <div className="absolute inset-0" style={mask}>
