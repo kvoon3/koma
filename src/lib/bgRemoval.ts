@@ -38,6 +38,11 @@ interface PendingRequest {
 
 const WORKER_IDLE_TIMEOUT = 60_000
 
+// The worker is inlined as a blob:/data: URL in the single-file build, so it
+// cannot resolve root-relative URLs on its own: hand it an absolute base URL for
+// the model files instead (this also keeps sub-path deployments working).
+const MODEL_BASE_URL = new URL('models/', document.baseURI).href
+
 let worker: Worker | null = null
 let idleTimer: number | null = null
 let requestId = 0
@@ -150,7 +155,10 @@ export async function removeBackground(
     clearIdleTimer()
     pending.set(id, { resolve, reject, onProgress })
     try {
-      target.postMessage({ type: 'remove', id, image, mimeType: blob.type || 'image/png' }, [image])
+      target.postMessage(
+        { type: 'remove', id, image, mimeType: blob.type || 'image/png', modelBaseUrl: MODEL_BASE_URL },
+        [image],
+      )
     }
     catch (error) {
       pending.delete(id)

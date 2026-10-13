@@ -7,6 +7,8 @@ interface RemoveRequest {
   type: 'remove'
   image: ArrayBuffer
   mimeType: string
+  /** Absolute URL of the directory that holds the model files. */
+  modelBaseUrl: string
 }
 
 interface ProgressEvent {
@@ -18,7 +20,6 @@ interface ProgressEvent {
 }
 
 const MODEL_ID = 'BritishWerewolf/U-2-Netp'
-const LOCAL_MODEL_PATH = '/models/'
 
 // ponytail: transformers.js loads from the CDN on first use. Bundling it
 // statically would inline 86MB of onnxruntime wasm into the single-file
@@ -58,13 +59,15 @@ function postProgress(id: number, phase: 'loading' | 'processing', progress?: nu
   globalThis.postMessage({ type: 'progress', id, phase, progress })
 }
 
-async function createRemover(id: number) {
+async function createRemover(id: number, modelBaseUrl: string) {
   const { AutoModel, env, RawImage, Tensor } = await loadTransformers()
   // Serve model files from the same origin so background removal works where
-  // the Hugging Face Hub is unavailable.
+  // the Hugging Face Hub is unavailable. The path has to arrive absolute: the
+  // bundled worker runs from a blob:/data: URL, which cannot resolve a
+  // root-relative fetch, so `env.localModelPath = '/models/'` fails to parse.
   env.allowLocalModels = true
   env.allowRemoteModels = false
-  env.localModelPath = LOCAL_MODEL_PATH
+  env.localModelPath = modelBaseUrl
 
   const progressCallback = (event: ProgressEvent) => {
     if (event.status === 'ready') {
@@ -151,7 +154,7 @@ globalThis.addEventListener('message', async (event: MessageEvent<RemoveRequest>
 
   try {
     postProgress(request.id, 'loading', 0)
-    removerPromise ??= createRemover(request.id)
+    removerPromise ??= createRemover(request.id, request.modelBaseUrl)
     const remover = await removerPromise
     postProgress(request.id, 'processing')
 
