@@ -248,7 +248,7 @@ export function Stage() {
   const hasPhoto = !!(focusLeaf?.photoId)
   // Every tool acts on the focused pane, so with no focus (or a focused pane
   // that holds no photo) there is nothing to offer: the panel and its handle
-  // are put away while the pane itself carries the "Choose a photo" chip.
+  // are put away while the empty pane itself is the picker.
   const toolsHidden = !hasPhoto
   // One row, so the order here is the order on screen.
   const tools: ToolDef[] = [

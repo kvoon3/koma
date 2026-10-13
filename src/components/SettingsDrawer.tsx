@@ -7,9 +7,10 @@ import { Tabs } from '@base-ui/react/tabs'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
-import { buttonBase, buttonVariants } from '@/components/ui/button'
+import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
 import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
 import { useT } from '../lib/i18n'
+import { say } from '../lib/toast'
 import { isTransparentBg, useStore } from '../store'
 
 const CUSTOM_BG = '#18181b'
@@ -80,6 +81,7 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
   const paneBorder = useStore(s => s.paneBorder)
   const bg = useStore(s => s.bg)
   const patch = useStore(s => s.patch)
+  const resetSettings = useStore(s => s.resetSettings)
   const t = useT()
   const [mirror, setMirror] = useState(() => mirrorEnabled())
   const [tab, setTab] = useState<SettingsTab>('layout')
@@ -120,6 +122,18 @@ export function SettingsDrawer({ open, onClose }: { open: boolean, onClose: () =
               <header className="flex flex-none items-center gap-2.5 py-1.5 pl-3.5 pr-2.5">
                 <Drawer.Title className="m-0 text-[12.5px] font-bold">{t('Settings')}</Drawer.Title>
                 <span className="flex-1" />
+                <Button
+                  aria-label={t('Reset settings')}
+                  title={t('Reset settings')}
+                  onClick={() => {
+                    resetSettings()
+                    setMirror(true)
+                    setMirrorEnabled(true)
+                    say(t('Settings reset'))
+                  }}
+                >
+                  {t('Reset')}
+                </Button>
                 <Drawer.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label={t('Hide settings')}><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Drawer.Close>
               </header>
 

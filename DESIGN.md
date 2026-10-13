@@ -34,7 +34,7 @@ rows.
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
 | Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint both chips are hidden; the pane menu and the S / V keys still split either way |
-| Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make sticker / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane carries its own "Choose a photo" chip instead). The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
+| Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make sticker / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane itself is the picker instead). The buttons keep their 120px width and the row scrolls sideways when the screen is too narrow to hold them |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
@@ -44,7 +44,7 @@ rows.
 | Right-click the stage around the canvas | Workspace menu: add photos / a folder, the library, fill the empty panes from the library, canvas ratio (follow the first photo, flip the orientation), export, crop report, reset this workspace, settings |
 | "Move" in the pane menu | The photo follows the pointer with no button held; clicking another pane swaps the two panes' contents (an empty pane takes the photo in). Clicking the source pane, empty space, or pressing Esc drops it back |
 | Long-press a pane (touch) | Arms a swap: the drag that follows carries the pane's photo onto another pane, and dropping it there swaps the two panes' contents (an empty pane takes the photo in). Moving before the hold fires pans as usual, and releasing without dragging just focuses the pane |
-| An empty pane | Carries a "Choose a photo" chip at its center (icon over label, in the floating buttons' border/blur style, always visible, no hover gate): it opens the picker and drops the photo into that pane. Dropping a file straight onto the pane works too |
+| An empty pane | Is all picker: a centered "Choose a photo" hint (icon over label, neutral gray) marks it, and a click anywhere in the pane opens the picker and drops the photo into it. Dropping a file straight onto the pane works too |
 | Drop a photo onto a pane | An empty pane takes it directly; a pane that already holds a photo asks: "Use as photo" or "Use as sticker" (placed at the drop point) |
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
 | "Sticker" in the tools panel | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, × to delete) |
@@ -120,7 +120,7 @@ live in a panel that overlays the canvas above the footer, open by default and
 moved only by the handle on its top edge; the tools act on the focused pane, so
 the panel exists only while a pane is focused and holds a photo: with no focus
 at all, or a focused pane that holds no photo, the panel and its handle are
-put away (the empty pane carries its own "Choose a photo" chip instead).
+put away (the empty pane itself is the picker instead).
 Overlaying keeps the canvas at full size, and one placement serves desktop
 and touch. The Photo menu holds add photos / add folder / library; Help
 holds shortcuts + crop report. Settings, Export, the language menu and the
@@ -137,9 +137,9 @@ and lands left-aligned under its own trigger, with no cursor tracking.
 
 The 3×3 overview draws every workspace as a square mini canvas: a filled cell
 cover-fits its collage into the cell, an empty one wears the same near-canvas
-fill and floating chip as an empty pane, with a collage-layout glyph over
-“New collage” instead of the picker's image-plus. `Grid gap` (Layout tab)
-spaces the nine cells.
+fill as an empty pane, its content a collage-layout glyph over “New collage”
+in the neutral gray, with no button of its own (the whole cell is the click
+target). `Grid gap` (Layout tab) spaces the nine cells.
 
 ## Settings drawer (`,` or the top-right Settings button)
 
@@ -163,7 +163,9 @@ narrower than the old two-column one.
 | Text | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
 The language lives in the top bar's globe menu, next to the theme toggle:
-English / 简体中文, one row each.
+English / 简体中文, one row each. The drawer's header carries a `Reset` button
+that puts every visual knob back to its default (gap, grid gap, radius, gap
+fill, blend, pane border, font mirror) and toasts.
 
 The export-size setting was removed: the long edge is fixed at 2048 px; the
 footer shows the resulting resolution.
