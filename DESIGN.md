@@ -105,6 +105,7 @@ Settings; the ratio comes from `ratio`).
 │   ⌃ [replace] [sticker] [text] (pull-up)      │
 ├───────────────────────────────────────────────┤
 │ Footer:   Ratio 1.50 · Output 2048 × 1365 px  │
+│           [gh] Made with ♡ by Kevin Kwong     │
 └───────────────────────────────────────────────┘
 ```
 
