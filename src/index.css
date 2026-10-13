@@ -408,6 +408,22 @@ html.dark {
   animation-timing-function: var(--ease-in-out);
 }
 
+/*
+ * Light ⇄ dark (the top bar's toggle, via `fadeTheme` in theme.ts): the swap
+ * runs inside a view transition so the whole page crossfades. The UA default
+ * for the root pair is not a crossfade: it fades the old theme out over 90ms,
+ * holds the new one back another 90ms, then fades it in over 210ms, which
+ * reads as a two-step cut on a full page. Simultaneous and equally eased, the
+ * two snapshots composite through the UA's `plus-lighter` blend into one clean
+ * fade. Opacity only, so prefers-reduced-motion keeps it.
+ */
+html[data-theme-fade]::view-transition-old(root),
+html[data-theme-fade]::view-transition-new(root) {
+  animation-duration: 250ms;
+  animation-delay: 0s;
+  animation-timing-function: var(--ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
