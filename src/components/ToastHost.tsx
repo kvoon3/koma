@@ -14,7 +14,7 @@ function ToastList() {
           <Toast.Title className="m-0 text-xs leading-[1.4] font-medium text-txt" />
           {toast.description != null ? <Toast.Description className="m-0 text-xs leading-[1.4] text-dim" /> : null}
         </div>
-        <Toast.Close className="ml-auto flex h-4 w-4 flex-none cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-sm leading-none text-dim hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1" aria-label={t('Dismiss')}><MorphIcon icon={X} size={13} strokeWidth={1.75} /></Toast.Close>
+        <Toast.Close className="ml-auto flex h-4 w-4 flex-none cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-sm leading-none text-dim transition-colors duration-[120ms] active:scale-[0.97] hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1" aria-label={t('Dismiss')}><MorphIcon icon={X} size={13} strokeWidth={1.75} /></Toast.Close>
       </Toast.Content>
     </Toast.Root>
   ))
