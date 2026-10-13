@@ -34,6 +34,16 @@ export interface Workspace {
   canvasFill: number
 }
 
+/** The pane contents the menu's copy / paste pair carries: everything a leaf holds. */
+export interface PaneClip {
+  photoId: string | null
+  zoom: number
+  cx: number
+  cy: number
+  stickers: Sticker[]
+  label: PaneLabel | null
+}
+
 export interface State {
   photos: Photo[]
   workspaces: Workspace[]
@@ -63,6 +73,16 @@ export interface State {
    * manual collapse sticks.
    */
   toolsOpen: boolean
+  /**
+   * Copied pane contents for the menu's paste item, session-only so a reload
+   * forgets it. Pasting clones the stickers under fresh ids.
+   */
+  paneClip: PaneClip | null
+  /**
+   * The pane whose sticker maker dialog is open. A store field instead of
+   * Stage's own state because the pane menu opens the dialog too.
+   */
+  stickerMakerFor: string | null
 }
 
 export const GAP = 0
@@ -105,6 +125,7 @@ const clearedSelection = {
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
+  stickerMakerFor: null,
 }
 
 export const useStore = create<State & Actions>()(persist((set, get) => ({
@@ -124,6 +145,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   stickerSel: null,
   labelEditReq: null,
   toolsOpen: true,
+  paneClip: null,
+  stickerMakerFor: null,
 
   addPhotos: (files, autoFill = true) => {
     const { images, videos } = splitLiveFiles(files)
@@ -190,6 +213,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,
+      // The clipboard points at photos that no longer exist.
+      paneClip: null,
+      stickerMakerFor: null,
     }))
   },
 
@@ -221,6 +247,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,
+      paneClip: null,
+      stickerMakerFor: null,
     })
     // Re-probe photos whose header scan never finished before the page
     // closed (trueW/trueH drive export placement and the crop report).
@@ -248,6 +276,129 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       const focusId = created?.id ?? ws.focusId
       return { workspaces: mapActive(s, w => ({ ...w, root: next, focusId })) }
     }),
+
+  /** Split `paneId` and copy its whole leaf (photo, view, stickers, label) into the new half. */
+  duplicatePane: (paneId, dir) =>
+    set((s) => {
+      const ws = activeWs(s)
+      const src = findLeaf(ws.root, paneId)
+      if (!src)
+        return {}
+      const next = splitLeaf(ws.root, paneId, dir)
+      if (next === ws.root)
+        return {}
+      const created = leafList(next).find(l => !leafList(ws.root).some(o => o.id === l.id))
+      if (!created)
+        return {}
+      const root = updateLeafIn(next, created.id, {
+        photoId: src.photoId,
+        zoom: src.zoom,
+        cx: src.cx,
+        cy: src.cy,
+        // Fresh sticker ids: two panes must never share one selection.
+        stickers: src.stickers.map(st => ({ ...st, id: uid('t') })),
+        label: src.label ? { ...src.label } : null,
+      })
+      return { workspaces: mapActive(s, w => ({ ...w, root, focusId: created.id })) }
+    }),
+
+  /** Empty one pane back to a blank half of the canvas (label and stickers included). */
+  resetPane: paneId =>
+    set(s => ({
+      workspaces: mapActive(s, w => ({
+        ...w,
+        root: updateLeafIn(w.root, paneId, {
+          photoId: null,
+          zoom: 1,
+          cx: 0.5,
+          cy: 0.5,
+          stickers: [],
+          label: null,
+        }),
+      })),
+      labelSel: s.labelSel === paneId ? null : s.labelSel,
+      stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
+    })),
+
+  copyPane: paneId =>
+    set((s) => {
+      const leaf = findLeaf(activeWs(s).root, paneId)
+      if (!leaf)
+        return {}
+      return {
+        paneClip: {
+          photoId: leaf.photoId,
+          zoom: leaf.zoom,
+          cx: leaf.cx,
+          cy: leaf.cy,
+          stickers: leaf.stickers.map(st => ({ ...st })),
+          label: leaf.label ? { ...leaf.label } : null,
+        },
+      }
+    }),
+
+  pastePane: paneId =>
+    set((s) => {
+      const clip = s.paneClip
+      if (!clip)
+        return {}
+      return {
+        workspaces: mapActive(s, w => ({
+          ...w,
+          root: updateLeafIn(w.root, paneId, {
+            photoId: clip.photoId,
+            zoom: clip.zoom,
+            cx: clip.cx,
+            cy: clip.cy,
+            // Like duplicate: the pasted stickers are a second copy, not a share.
+            stickers: clip.stickers.map(st => ({ ...st, id: uid('t') })),
+            label: clip.label ? { ...clip.label } : null,
+          }),
+          focusId: paneId,
+        })),
+      }
+    }),
+
+  closeOtherPanes: paneId =>
+    set((s) => {
+      const ws = activeWs(s)
+      if (!findLeaf(ws.root, paneId))
+        return {}
+      let root: Node | null = ws.root
+      for (const l of leafList(ws.root)) {
+        if (l.id !== paneId)
+          root = root ? removeLeaf(root, l.id) : null
+      }
+      if (!root)
+        return {}
+      const next = root
+      return {
+        workspaces: mapActive(s, w => ({ ...w, root: next, focusId: paneId })),
+        ...clearedSelection,
+      }
+    }),
+
+  /** Close every pane without a photo; a no-op when that would empty the canvas. */
+  closeEmptyPanes: () =>
+    set((s) => {
+      const ws = activeWs(s)
+      let root: Node | null = ws.root
+      for (const l of leafList(ws.root)) {
+        if (!l.photoId)
+          root = root ? removeLeaf(root, l.id) : null
+      }
+      if (!root || root === ws.root)
+        return {}
+      const next = root
+      const leaves = leafList(next)
+      const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+      return {
+        workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
+        ...clearedSelection,
+      }
+    }),
+
+  openStickerMaker: paneId => set({ stickerMakerFor: paneId }),
 
   closePane: paneId =>
     set((s) => {
@@ -561,6 +712,13 @@ export function computeLayout(
 
 interface Actions {
   addPhotos: (files: File[], autoFill?: boolean) => Photo[]
+  duplicatePane: (paneId: string, dir: 'row' | 'column') => void
+  resetPane: (paneId: string) => void
+  copyPane: (paneId: string) => void
+  pastePane: (paneId: string) => void
+  closeOtherPanes: (paneId: string) => void
+  closeEmptyPanes: () => void
+  openStickerMaker: (paneId: string | null) => void
   clearLibrary: () => void
   resetWorkspace: (id: string) => void
   resetAllWorkspaces: () => void

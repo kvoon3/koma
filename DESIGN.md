@@ -40,7 +40,8 @@ rows.
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
 | Double-click inside a pane | Reset that pane's photo |
-| Right-click a pane | Context menu: split, Move (pick the photo up with the pointer; offered while the pane holds a photo), swap with the focused pane (unfocused panes), close |
+| Right-click a pane | Context menu, grouped by what each row acts on: the photo (replace / remove, reset zoom, fit, follow its ratio, save the file, play the Live Photo), the pane itself (split either way, duplicate, reset), its decoration (add / clear stickers, the sticker maker, add / edit / remove the text label), the arrangement (Move, swap with the focused pane, copy / paste, focus), then closing it (other panes, empty panes, this pane). Rows carry the keyboard hints where one exists (S, V, D, R, X) |
+| Right-click the stage around the canvas | Workspace menu: add photos / a folder, the library, fill the empty panes from the library, canvas ratio (follow the first photo, flip the orientation), export, crop report, reset this workspace, settings |
 | "Move" in the pane menu | The photo follows the pointer with no button held; clicking another pane swaps the two panes' contents (an empty pane takes the photo in). Clicking the source pane, empty space, or pressing Esc drops it back |
 | Long-press a pane (touch) | Arms a swap: the drag that follows carries the pane's photo onto another pane, and dropping it there swaps the two panes' contents (an empty pane takes the photo in). Moving before the hold fires pans as usual, and releasing without dragging just focuses the pane |
 | An empty pane | Carries a "Choose a photo" chip at its center (icon over label, in the floating buttons' border/blur style, always visible, no hover gate): it opens the picker and drops the photo into that pane. Dropping a file straight onto the pane works too |

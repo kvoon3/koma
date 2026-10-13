@@ -1,25 +1,38 @@
 // Shared hidden <input type="file"> so any component can open the native
 // picker without owning a ref (a fresh input per call would leak DOM nodes).
-let input: HTMLInputElement | null = null
+// The folder picker is a second input: `webkitdirectory` is fixed at creation.
+let fileInput: HTMLInputElement | null = null
+let dirInput: HTMLInputElement | null = null
 let onPick: ((files: File[]) => void) | null = null
 
+function makeInput(root: boolean): HTMLInputElement {
+  const el = document.createElement('input')
+  el.type = 'file'
+  el.accept = 'image/*,.heic,.heif,.hif,.mov'
+  el.multiple = true
+  el.hidden = true
+  if (root)
+    el.webkitdirectory = true
+  el.addEventListener('change', () => {
+    const files = [...(el.files ?? [])]
+    const picked = onPick
+    el.value = ''
+    if (files.length)
+      picked?.(files)
+  })
+  document.body.appendChild(el)
+  return el
+}
+
 export function pickImageFiles(cb: (files: File[]) => void): void {
-  if (!input) {
-    input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*,.heic,.heif,.hif,.mov'
-    input.multiple = true
-    input.hidden = true
-    input.addEventListener('change', () => {
-      const files = [...(input?.files ?? [])]
-      const picked = onPick
-      if (input)
-        input.value = ''
-      if (files.length)
-        picked?.(files)
-    })
-    document.body.appendChild(input)
-  }
+  fileInput ??= makeInput(false)
   onPick = cb
-  input.click()
+  fileInput.click()
+}
+
+/** Pick a whole folder: every image below it arrives in one batch. */
+export function pickImageFolder(cb: (files: File[]) => void): void {
+  dirInput ??= makeInput(true)
+  onPick = cb
+  dirInput.click()
 }
