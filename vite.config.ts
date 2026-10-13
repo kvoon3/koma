@@ -4,23 +4,20 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import mkcert from 'vite-plugin-mkcert'
 import { qrcode } from 'vite-plugin-qrcode'
-import { viteSingleFile } from 'vite-plugin-singlefile'
 
 function isRfc1918(host: string) {
   return /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
 }
 
 /**
- * Default build: regular chunked bundle for the Cloudflare deploy.
- * `--mode singlefile`: one self-contained HTML that works offline via file://.
+ * Default config: dev server + regular chunked build for the Cloudflare
+ * deploy. The offline single-file build lives in vite.singlefile.config.ts.
  */
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   base: './',
   plugins: [
     react(),
     tailwindcss(),
-    // Inline the HEIC decoder and every asset into a single HTML.
-    ...(mode === 'singlefile' ? [viteSingleFile()] : []),
     // A locally trusted CA (mkcert) for https: the certificate covers every
     // NIC IP on this machine, so a phone that trusts the root once gets no
     // warnings.
@@ -40,7 +37,5 @@ export default defineConfig(({ mode }) => ({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  build: mode === 'singlefile'
-    ? { target: 'es2022', assetsInlineLimit: 100_000_000, cssCodeSplit: false }
-    : { target: 'es2022' },
-}))
+  build: { target: 'es2022' },
+})
