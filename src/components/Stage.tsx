@@ -17,8 +17,8 @@ const MIN_CANVAS = 120
 
 /* The focused pane's tools: an overlay above the footer, so it never takes
    layout space. Only the handle on its top edge moves it; collapsed it rests
-   behind the footer with the handle showing. An empty focused pane puts the
-   panel away: the pane itself carries the photo button. */
+   behind the footer with the handle showing. The panel only exists while a
+   focused pane holds a photo. */
 const toolsPanelCls = 'pointer-events-auto relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-[260ms] ease-(--ease-drawer)'
 const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-opacity duration-[160ms] hover:text-txt'
 /* Fixed-width tools in a max-content row: the panel hugs them, and the row
@@ -27,54 +27,28 @@ const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x
    `touch-pan-x` overrides the stage's `touch-none` for finger panning. */
 const toolsScrollCls = 'overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const toolsRowCls = 'flex w-max items-stretch'
-const toolsBtnCls = 'flex w-[120px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent p-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt disabled:cursor-default disabled:opacity-35'
+const toolsBtnCls = 'flex w-[120px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent p-3 text-float-icon transition-colors duration-[120ms] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
-/* A tool is folded to width 0 instead of unmounted while it has no target: the
-   panel hugs the row, so its width follows the same move when the tool set
-   changes, and the icon and label clip away as the button folds. */
-const toolSlotCls = 'shrink-0 overflow-hidden transition-[width,opacity] duration-[260ms] ease-(--ease-in-out)'
 
 interface ToolDef {
   key: string
-  /** False folds the tool away: the focused pane has nothing for it to act on. */
-  shown: boolean
   icon: IconInput
   label: string
-  /** Second label that cross-fades in while the pane is empty (the photo tool). */
-  altLabel?: string
-  altOn?: boolean
   hint: string
   onClick: () => void
 }
 
-function ToolButton({ icon, label, altLabel, altOn = false, hint, shown, disabled, onClick }: Omit<ToolDef, 'key'> & {
-  /** No focused pane to act on (all tools act on the focused pane). */
-  disabled: boolean
-}) {
+function ToolButton({ icon, label, hint, onClick }: Omit<ToolDef, 'key'>) {
   return (
-    <div className={`${toolSlotCls} ${shown ? 'w-[120px] opacity-100' : 'w-0 opacity-0'}`} inert={!shown}>
-      <button
-        className={toolsBtnCls}
-        title={hint}
-        aria-label={altOn ? altLabel : label}
-        disabled={disabled}
-        onClick={onClick}
-      >
-        <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
-        <span className={toolsLabelCls}>
-          {/* Both labels share one grid cell, so the button never reflows while
-              they cross-fade (see the empty-pane photo tool). */}
-          {altLabel
-            ? (
-                <span className="relative grid">
-                  <span className={`col-start-1 row-start-1 transition-opacity duration-[180ms] ${altOn ? 'opacity-0' : 'opacity-100'}`}>{label}</span>
-                  <span className={`col-start-1 row-start-1 transition-opacity duration-[180ms] ${altOn ? 'opacity-100' : 'opacity-0'}`}>{altLabel}</span>
-                </span>
-              )
-            : label}
-        </span>
-      </button>
-    </div>
+    <button
+      className={toolsBtnCls}
+      title={hint}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
+      <span className={toolsLabelCls}>{label}</span>
+    </button>
   )
 }
 
@@ -283,21 +257,16 @@ export function Stage() {
 
   const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
   const hasPhoto = !!(focusLeaf?.photoId)
-  // Every tool acts on the focused pane, so with no focus the panel stays put
-  // (only its handle moves it now) and the tools are disabled instead of gone.
-  const toolsDisabled = !focusId
-  // An empty focused pane has no tools to offer: the panel and its handle are
-  // put away while the pane itself carries the "Choose a photo" button. With
-  // no focus at all the panel keeps today's shape (visible, tools greyed out).
-  const toolsHidden = !!focusId && !hasPhoto
-  // One row, so the order here is the order on screen. With no focus at all
-  // the photo tool reads "Choose a photo" and the other three fold away,
-  // since none of them has a pane to act on.
+  // Every tool acts on the focused pane, so with no focus (or a focused pane
+  // that holds no photo) there is nothing to offer: the panel and its handle
+  // are put away while the pane itself carries the "Choose a photo" chip.
+  const toolsHidden = !hasPhoto
+  // One row, so the order here is the order on screen.
   const tools: ToolDef[] = [
-    { key: 'photo', shown: true, icon: ImagePlus, label: t('Replace photo'), altLabel: t('Choose a photo'), altOn: !hasPhoto, hint: hasPhoto ? t('Pick a photo to replace this pane\'s photo') : t('Choose a photo'), onClick: pickForFocused },
-    { key: 'sticker', shown: hasPhoto, icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
-    { key: 'make', shown: hasPhoto, icon: WandSparkles, label: t('Make sticker'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && setStickerMakerFor(focusId) },
-    { key: 'text', shown: hasPhoto, icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
+    { key: 'photo', icon: ImagePlus, label: t('Replace photo'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
+    { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
+    { key: 'make', icon: WandSparkles, label: t('Make sticker'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && setStickerMakerFor(focusId) },
+    { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
   ]
 
   return (
@@ -387,8 +356,8 @@ export function Stage() {
       </div>
 
       {/* The focused pane's tools, laid over the canvas so the panel never
-          takes layout space. It opens on the handle alone, and the tools grey
-          out while no pane is focused; an empty focused pane hides it. */}
+          takes layout space, opened by the handle alone. Every tool acts on
+          the focused pane, so the panel exists only while it holds a photo. */}
       {!toolsHidden && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center">
           <div className={`${toolsPanelCls} ${
@@ -409,7 +378,7 @@ export function Stage() {
               squashing the fixed-width tools when they outgrow the screen. */}
             <div className={toolsScrollCls} inert={!toolsOpen}>
               <div className={toolsRowCls}>
-                {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} disabled={toolsDisabled} />)}
+                {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
               </div>
             </div>
           </div>
