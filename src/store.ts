@@ -457,6 +457,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         cx: lb.cx,
         cy: lb.cy,
         stickers: lb.stickers,
+        label: lb.label,
       })
       root = updateLeafIn(root, b, {
         photoId: la.photoId,
@@ -464,8 +465,14 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         cx: la.cx,
         cy: la.cy,
         stickers: la.stickers,
+        label: la.label,
       })
-      return { workspaces: mapActive(s, w => ({ ...w, root })) }
+      // The label selection names the pane, so it rides along with the box it
+      // picked; a sticker needs no help, its selection names the sticker.
+      const labelSel = s.labelSel === a
+        ? (la.label ? b : null)
+        : s.labelSel === b ? (lb.label ? a : null) : s.labelSel
+      return { workspaces: mapActive(s, w => ({ ...w, root })), labelSel }
     }),
 
   assign: (paneId, photoId) =>
@@ -795,6 +802,7 @@ interface Actions {
   assign: (paneId: string, photoId: string) => void
   assignMany: (photoIds: string[]) => void
   removePhoto: (paneId: string) => void
+  /** Swap two panes' contents: photo, view, stickers and label. */
   swapPhotos: (a: string, b: string) => void
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
   focus: (paneId: string) => void
