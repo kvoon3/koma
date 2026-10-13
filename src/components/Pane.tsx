@@ -652,6 +652,7 @@ function PanePhotoContent({
   photoId,
   mask,
   onPick,
+  carried,
 }: {
   preview: Preview | null
   place: ReturnType<typeof placement> | null
@@ -659,13 +660,20 @@ function PanePhotoContent({
   photoId: string | null
   mask?: React.CSSProperties
   onPick: () => void
+  /** The photo is being carried as the swap/Move ghost: dim the original. */
+  carried: boolean
 }) {
   const t = useT()
   return preview && place
     ? (
         // The mask wrapper spans the pane box, so the feather gradients line
         // up with the pane edges (the placed img itself overflows the pane).
-        <div className="absolute inset-0" style={mask}>
+        // Carried: fade, don't hide, so the ghost reads as lifted from here;
+        // stickers/labels stay sharp above the dimmed original.
+        <div
+          className={`absolute inset-0 transition-opacity duration-[150ms] ${carried ? ' opacity-25' : ''}`}
+          style={mask}
+        >
           <img
             src={preview.url}
             alt=""
@@ -901,6 +909,10 @@ function PaneImpl({
   // and dropping it on another pane swaps the two; dropping elsewhere cancels.
   const [swapAt, setSwapAt] = useState<{ x: number, y: number } | null>(null)
   const [moving, setMoving] = useState(false)
+  // Mirror of swapArmedRef for rendering: the hold registered (SWAP_HOLD_MS),
+  // the finger hasn't moved yet. The ref stays the synchronous source of truth
+  // for the gesture code; the state only drives the lifted-pane look.
+  const [swapArmed, setSwapArmed] = useState(false)
   const swapHoldRef = useRef<number | null>(null)
   const swapArmedRef = useRef(false)
   const clearSwapHold = useCallback(() => {
@@ -928,6 +940,8 @@ function PaneImpl({
       if (target) {
         target.dataset.swapOver = '1'
         overRef.current = target
+        // Crossing onto a new pane ticks the motor: "this pane would take it".
+        navigator.vibrate?.(5)
       }
     }
   }, [leaf.id, clearSwapOver])
@@ -937,6 +951,7 @@ function PaneImpl({
     document.body.style.cursor = ''
     setSwapAt(null)
     if (commit && targetId) {
+      navigator.vibrate?.(10)
       const s = useStore.getState()
       s.swapPhotos(leaf.id, targetId)
       s.focus(targetId)
@@ -1075,6 +1090,7 @@ function PaneImpl({
       clearHold()
       clearSwapHold()
       swapArmedRef.current = false
+      setSwapArmed(false)
       const [a, b] = [...pointersRef.current.values()]
       gestureRef.current = {
         mode: 'pinch',
@@ -1091,6 +1107,11 @@ function PaneImpl({
         swapHoldRef.current = window.setTimeout(() => {
           swapHoldRef.current = null
           swapArmedRef.current = true
+          // The arm is otherwise invisible: tick the motor and lift the pane
+          // so the user learns the hold registered (vibrate is a no-op where
+          // unsupported, iOS Safari included).
+          setSwapArmed(true)
+          navigator.vibrate?.(10)
         }, SWAP_HOLD_MS)
       }
       if (liveUrl) {
@@ -1107,6 +1128,7 @@ function PaneImpl({
     clearHold()
     clearSwapHold()
     swapArmedRef.current = false
+    setSwapArmed(false)
     downAtRef.current = null
     setLiveFor(null)
     gestureRef.current = { mode: 'swap', lastX: 0, lastY: 0, startDist: 0, base: { ...leaf } }
@@ -1183,6 +1205,7 @@ function PaneImpl({
       clearHold()
       clearSwapHold()
       swapArmedRef.current = false
+      setSwapArmed(false)
       downAtRef.current = null
       setLiveFor(null)
       // pointerup over another pane commits the swap; pointercancel drops it.
@@ -1192,6 +1215,7 @@ function PaneImpl({
     else {
       clearSwapHold()
       swapArmedRef.current = false
+      setSwapArmed(false)
       const only = [...pointersRef.current.values()][0]
       const p = local(only.x, only.y)
       downAtRef.current = { x: only.x, y: only.y }
@@ -1223,6 +1247,7 @@ function PaneImpl({
     clearHold()
     clearSwapHold()
     swapArmedRef.current = false
+    setSwapArmed(false)
     downAtRef.current = null
     setLiveFor(null)
   }
@@ -1283,6 +1308,8 @@ function PaneImpl({
     <div
       ref={elRef}
       data-pane-id={leaf.id}
+      data-swap-armed={swapArmed ? '' : undefined}
+      data-swap-source={swapAt ? '' : undefined}
       className={
         `group/pane absolute cursor-grab touch-none select-none overflow-hidden [contain:paint] ${
           focused
@@ -1340,6 +1367,7 @@ function PaneImpl({
         photoId={leaf.photoId}
         mask={photoMask}
         onPick={pickForPane}
+        carried={!!swapAt}
       />
 
       {liveUrl && place && (
