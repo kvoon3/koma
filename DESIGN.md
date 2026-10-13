@@ -221,7 +221,10 @@ Tailwind v4 (via `@tailwindcss/vite`) with a token-only color system. Raw palett
 values live on `:root` / `html.dark` in `src/index.css`; `@theme inline` maps them
 to semantic tokens (`bg-panel`, `text-dim`, `border-line`, `bg-accent`, …) so
 `.dark` re-themes every utility at runtime; never reach for `dark:` variants for
-chrome colors. Shared UI primitives live in `src/components/ui/`; `field.tsx`
+chrome colors. The theme toggle swaps `.dark` inside a view transition
+(`fadeTheme` in `src/theme.ts` + the `[data-theme-fade]` rules in `index.css`),
+so light ⇄ dark crossfades in 250ms instead of cutting; the OS-driven change
+stays instant. Shared UI primitives live in `src/components/ui/`; `field.tsx`
 holds the one labelled-control row (label / control / value), the range slider,
 the select and the color input, so the settings drawer and the sticker maker
 cannot drift apart.
