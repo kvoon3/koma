@@ -3,7 +3,7 @@ import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/pa
 import type { SessionMeta } from './lib/sessionStore'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { looksHeic, probeHeic } from './lib/heic'
+import { looksHeic, probeHeic, warmHeicDecoder } from './lib/heic'
 import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
 import {
@@ -163,6 +163,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const imgs = images.filter(f => f.type.startsWith('image/') || looksHeic(f))
     if (!imgs.length && !vids.size)
       return []
+    // Start the (heavy, lazily imported) HEIC decoder before the first pane
+    // asks for pixels, so its parse overlaps probing and rendering.
+    if (imgs.some(looksHeic))
+      warmHeicDecoder()
     imgs.sort((a, b) =>
       (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, {
         numeric: true,

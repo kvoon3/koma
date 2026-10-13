@@ -260,11 +260,72 @@ export async function probeHeic(file: File): Promise<Dims | null> {
 
 let libPromise: Promise<typeof import('heic-to')> | null = null
 
-export async function decodeHeicBitmap(file: File): Promise<ImageBitmap | null> {
+/** Kick the decoder's download/parse early, before the first pixels are needed. */
+export function warmHeicDecoder() {
+  libPromise ??= import('heic-to')
+}
+
+// heic-to decodes on one internal worker and clones the full-res ImageData
+// back; several at once freeze the tab, so WASM decodes run one at a time.
+// Interactive work (previews, export) jumps ahead of queued library thumbs;
+// a running decode is never preempted and equal priorities stay FIFO.
+type Priority = 0 | 1
+const waiting: [Priority, () => void][] = []
+let decoding = false
+
+function pumpQueue() {
+  if (decoding)
+    return
+  // First interactive entry, else the oldest background one.
+  const i = waiting.findIndex(([p]) => p === 0)
+  const next = waiting.splice(i < 0 ? 0 : i, 1)[0]
+  if (!next)
+    return
+  decoding = true
+  const start = next[1]
+  start()
+}
+
+function queued<T>(fn: () => Promise<T>, priority: Priority): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    waiting.push([priority, () => {
+      // Promise.resolve().then: a synchronous throw in fn must still clear
+      // `decoding`, or every later HEIC decode would queue forever.
+      Promise.resolve().then(fn).then(resolve, reject).finally(() => {
+        decoding = false
+        pumpQueue()
+      })
+    }])
+    pumpQueue()
+  })
+}
+
+// Safari/WebKit decode HEIC natively (hardware, no WASM, no full-res ImageData
+// round trip). One failed attempt teaches us to skip straight to libheif.
+let nativeHeic: boolean | null = null
+
+export async function decodeHeicBitmap(file: File, priority: Priority = 0): Promise<ImageBitmap | null> {
+  if (nativeHeic !== false) {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' })
+      nativeHeic = true
+      return bmp
+    }
+    catch {
+      // Confirmed-native browsers can still meet a file the decoder rejects:
+      // fall back for this file without unlearning native support.
+      if (!nativeHeic)
+        nativeHeic = false
+    }
+  }
+  return decodeViaLibheif(file, priority)
+}
+
+async function decodeViaLibheif(file: File, priority: Priority): Promise<ImageBitmap | null> {
   try {
-    libPromise ??= import('heic-to')
-    const { heicTo } = await libPromise
-    return await heicTo({ blob: file, type: 'bitmap' })
+    warmHeicDecoder()
+    const { heicTo } = await libPromise!
+    return await queued(() => heicTo({ blob: file, type: 'bitmap' }), priority)
   }
   catch (e) {
     console.warn('HEIC decode failed:', file.name, e)
