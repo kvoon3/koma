@@ -17,7 +17,7 @@ import ToastHost from './components/ToastHost'
 import { TopBar } from './components/TopBar'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { AppCommandsContext } from './lib/appCommands'
-import { buildCropReport, downloadBlob, hasLiveCells, renderCollage, renderCollageVideo } from './lib/exporter'
+import { buildCropReport, downloadBlob, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
@@ -42,6 +42,21 @@ function exportOptions(): ExportOptions {
   }
 }
 
+/** A canvas as a downloadable file: PNG carries the transparent gap fill, else the export format. */
+async function canvasBlob(canvas: HTMLCanvasElement): Promise<{ blob: Blob, ext: 'png' | 'jpg' }> {
+  const s = useStore.getState()
+  const format = isTransparentBg(s.bg) ? 'image/png' : s.format
+  const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, format, s.quality))
+  if (!blob)
+    throw new Error('Failed to create image')
+  return { blob, ext: format === 'image/png' ? 'png' : 'jpg' }
+}
+
+/** `MMDDHHmm`, the stamp every export file name carries. */
+function exportStamp(): string {
+  return new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
+}
+
 /** One export per non-empty workspace, in grid order, named by position. */
 async function exportGrid() {
   const s = useStore.getState()
@@ -61,20 +76,36 @@ async function exportGrid() {
       longSide: s.longSide,
     }
     const canvas = await renderCollage(opts)
-    const format = isTransparentBg(s.bg) ? 'image/png' : s.format
-    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, format, s.quality))
-    if (!blob)
-      throw new Error('Failed to create image')
-    const ext = format === 'image/png' ? 'png' : 'jpg'
-    const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
+    const { blob, ext } = await canvasBlob(canvas)
     // Position among the filled workspaces at export time, 1-based.
     const pos = s.workspaces.indexOf(ws) + 1
-    const base = `collage_${pos}_${canvas.width}x${canvas.height}_${stamp}`
+    const base = `collage_${pos}_${canvas.width}x${canvas.height}_${exportStamp()}`
     downloadBlob(blob, `${base}.${ext}`)
     await exportLiveVideo(opts, canvas, base)
     canvas.width = canvas.height = 0
   }
   say(filled.length === 1 ? t('Exported {n} image', { n: 1 }) : t('Exported {n} images', { n: filled.length }))
+}
+
+/** The whole 3×3 board as one image, named like the other exports. */
+async function exportGridSnapshot() {
+  const s = useStore.getState()
+  const canvas = await renderGridSnapshot({
+    workspaces: s.workspaces,
+    longSide: s.longSide,
+    gridGap: s.gridGap,
+    radius: s.radius,
+    bg: s.bg,
+    edgeFade: s.edgeFade,
+    edgeFadeStrength: s.edgeFadeStrength,
+    photos: photoMap(s.photos),
+  })
+  const { blob, ext } = await canvasBlob(canvas)
+  const W = canvas.width
+  const H = canvas.height
+  downloadBlob(blob, `grid_${W}x${H}_${exportStamp()}.${ext}`)
+  canvas.width = canvas.height = 0
+  say(t('Exported {w} × {h} ({ext})', { w: W, h: H, ext: ext.toUpperCase() }))
 }
 
 /**
@@ -268,14 +299,8 @@ function RootLayout() {
       else {
         const opts = exportOptions()
         const canvas = await renderCollage(opts)
-        const s = useStore.getState()
-        const format = isTransparentBg(s.bg) ? 'image/png' : s.format
-        const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, format, s.quality))
-        if (!blob)
-          throw new Error('Failed to create image')
-        const ext = format === 'image/png' ? 'png' : 'jpg'
-        const stamp = new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
-        const base = `collage_${canvas.width}x${canvas.height}_${stamp}`
+        const { blob, ext } = await canvasBlob(canvas)
+        const base = `collage_${canvas.width}x${canvas.height}_${exportStamp()}`
         downloadBlob(blob, `${base}.${ext}`)
         say(t('Exported {w} × {h} ({ext})', { w: canvas.width, h: canvas.height, ext: ext.toUpperCase() }))
         await exportLiveVideo(opts, canvas, base)
@@ -290,18 +315,33 @@ function RootLayout() {
     }
   }, [grid])
 
+  const doSnapshotGrid = useCallback(async () => {
+    setBusy(true)
+    say(t('Rendering the 3×3 snapshot...'))
+    try {
+      await exportGridSnapshot()
+    }
+    catch (e) {
+      say(t('Export failed: {msg}', { msg: (e as Error).message }))
+    }
+    finally {
+      setBusy(false)
+    }
+  }, [])
+
   const doCrops = useCallback(() => setReport(buildCropReport(exportOptions())), [])
 
   // The chrome commands a menu deep in the tree may invoke (see CanvasMenu).
   const commands = useMemo<AppCommands>(() => ({
     exportNow: doExport,
+    snapshotGrid: doSnapshotGrid,
     showCrops: doCrops,
     setLibraryOpen: setLibOpen,
     setSettingsOpen,
     setHelpOpen,
     busy,
     grid,
-  }), [doExport, doCrops, setLibOpen, setSettingsOpen, busy, grid])
+  }), [doExport, doSnapshotGrid, doCrops, setLibOpen, setSettingsOpen, busy, grid])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

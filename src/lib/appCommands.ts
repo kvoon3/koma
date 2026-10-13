@@ -9,6 +9,8 @@ import { createContext, use } from 'react'
 export interface AppCommands {
   /** Export the active view: the workspace in the editor, every non-empty workspace in the grid. */
   exportNow: () => void
+  /** Render the whole 3×3 overview as one image and download it. */
+  snapshotGrid: () => Promise<void>
   /** Open the per-pane crop report dialog. */
   showCrops: () => void
   setLibraryOpen: Dispatch<SetStateAction<boolean>>
@@ -24,6 +26,7 @@ function noop() {}
 
 export const AppCommandsContext = createContext<AppCommands>({
   exportNow: noop,
+  snapshotGrid: async () => {},
   showCrops: noop,
   setLibraryOpen: noop,
   setSettingsOpen: noop,
