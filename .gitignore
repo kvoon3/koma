@@ -1,5 +1,7 @@
 node_modules
 dist
 koma.html
+.mygo
+build
 *.local
 .DS_Store

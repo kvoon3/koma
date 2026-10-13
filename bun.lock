@@ -35,6 +35,7 @@
         "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.2",
         "eslint-plugin-slop": "^0.1.3",
         "eslint-plugin-sonarjs": "^4.2.2",
+        "mygo-cli": "^0.4.8",
         "nano-staged": "^1.0.2",
         "simple-git-hooks": "^2.14.0",
         "tailwindcss": "^4.3.3",
@@ -142,6 +143,18 @@
     "@dnd-kit/utilities": ["@dnd-kit/utilities@3.2.2", "", { "dependencies": { "tslib": "2.8.1" }, "peerDependencies": { "react": ">=16.8.0" } }, "sha512-+MKAJEOfaBe5SmV6t34p80MMKhjvUz0vRrvVJbPT0WElzaOJ/1xs+D+KDv+tD/NE5ujfrChEcshd4fLn0wpiqg=="],
 
     "@e18e/eslint-plugin": ["@e18e/eslint-plugin@0.8.1", "", { "dependencies": { "empathic": "2.1.0", "module-replacements": "3.4.0", "verkit": "0.4.1" }, "peerDependencies": { "eslint": "^9.0.0 || ^10.0.0", "oxlint": "^1.72.0" }, "optionalPeers": ["eslint", "oxlint"] }, "sha512-OV3T7l0r52/IglskdAuoO+BJyzsCs7AcIHpwpBMlIMO0+3RHskM2h5MuHdLuesIhSRhwCURGMKtp/XwnfXrfxg=="],
+
+    "@egoist/mygo-cli-darwin-arm64": ["@egoist/mygo-cli-darwin-arm64@0.4.8", "", { "os": "darwin", "cpu": "arm64" }, "sha512-2kj8dP++KassZih2eTvIdXmzi4aIPYocCxMOsOOmmivMwL87icXiQ2/YcricJm1pBL4OY8ZPJ+OFCVkrQBKu9w=="],
+
+    "@egoist/mygo-cli-darwin-x64": ["@egoist/mygo-cli-darwin-x64@0.4.8", "", { "os": "darwin", "cpu": "x64" }, "sha512-RVmmHftdIPgUyQ67vBAC45KrNz/Q4qM4cvjkqhmZfMINumcQgo3WUfpMbUObnnmWpnAFUy8UNTXF8KAZ3HG/gg=="],
+
+    "@egoist/mygo-cli-linux-arm64": ["@egoist/mygo-cli-linux-arm64@0.4.8", "", { "os": "linux", "cpu": "arm64" }, "sha512-N20rJZPXzOl9YpqGKTHJX9kOYVq8pnKCUHgMYLJZqOyn8DT1vtSqMdPZD/UpDz6cMI1hH60jhYUI6I0T/nPLbw=="],
+
+    "@egoist/mygo-cli-linux-x64": ["@egoist/mygo-cli-linux-x64@0.4.8", "", { "os": "linux", "cpu": "x64" }, "sha512-qx7FsT0CMjUsb3diGW6c8WluvWTuOmBqUSvE5vEeZ9grSrdhy7q4GqeR7bo4zZckD2PiiTzhj1NYMdCMvdmo2g=="],
+
+    "@egoist/mygo-cli-win32-arm64": ["@egoist/mygo-cli-win32-arm64@0.4.8", "", { "os": "win32", "cpu": "arm64" }, "sha512-GpAHzVn3jiN8vmRZWjMSi/e6yERgVOPR5NKeJ1ZLY8oAaDW3pYlF7SXTP4JAT5lTAMdD0DMVpp/zpAuD44xNOQ=="],
+
+    "@egoist/mygo-cli-win32-x64": ["@egoist/mygo-cli-win32-x64@0.4.8", "", { "os": "win32", "cpu": "x64" }, "sha512-fa0LCzp4quYh314SCKyNNOPKtAwKnWo5NF1luXX0nrwVfsvbJonkp+/tw5dO4R3pXmLJmieFN0K7Q1Wu9+XL6g=="],
 
     "@emnapi/runtime": ["@emnapi/runtime@1.11.3", "", { "dependencies": { "tslib": "2.8.1" } }, "sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA=="],
 
@@ -1062,6 +1075,8 @@
     "morphicons": ["morphicons@1.7.1", "", { "peerDependencies": { "react": ">=18", "react-native": ">=0.71", "react-native-svg": ">=14", "svelte": ">=5", "vue": ">=3.3" }, "optionalPeers": ["react", "react-native", "react-native-svg", "svelte", "vue"] }, "sha512-q5ylxy5/d7vBg0OAzanlooXf05PekovMYDuuQVpr6vAQZxl99lrJbaIi+jJ32PXQf9WEEaDO2pbNBsx1ZhEnFQ=="],
 
     "ms": ["ms@2.1.3", "", {}, "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="],
+
+    "mygo-cli": ["mygo-cli@0.4.8", "", { "optionalDependencies": { "@egoist/mygo-cli-darwin-arm64": "0.4.8", "@egoist/mygo-cli-darwin-x64": "0.4.8", "@egoist/mygo-cli-linux-arm64": "0.4.8", "@egoist/mygo-cli-linux-x64": "0.4.8", "@egoist/mygo-cli-win32-arm64": "0.4.8", "@egoist/mygo-cli-win32-x64": "0.4.8" }, "bin": { "mygo": "bin/mygo.js" } }, "sha512-Tb/CoT1V1XZEgbqhjwqgfQPyOFdu47pETk4ZHqdhfrMtygXWHZshyzyf/Jpy2vsk2f8TSdr9LsVZsNrLexND4A=="],
 
     "nano-staged": ["nano-staged@1.0.2", "", { "bin": { "nano-staged": "lib/bin.js" } }, "sha512-Fytar3zHLY99nlMfqPPbraxZodqQAHPpdPRyYaplL+lB9DCR6pUrafxbG+Btz4+7fO5Rm/+DO4ZeDO/nLSUMhw=="],
 
