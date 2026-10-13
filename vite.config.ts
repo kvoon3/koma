@@ -10,12 +10,17 @@ function isRfc1918(host: string) {
   return /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
 }
 
-export default defineConfig({
+/**
+ * Default build: regular chunked bundle for the Cloudflare deploy.
+ * `--mode singlefile`: one self-contained HTML that works offline via file://.
+ */
+export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
     react(),
     tailwindcss(),
-    viteSingleFile(),
+    // Inline the HEIC decoder and every asset into a single HTML.
+    ...(mode === 'singlefile' ? [viteSingleFile()] : []),
     // A locally trusted CA (mkcert) for https: the certificate covers every
     // NIC IP on this machine, so a phone that trusts the root once gets no
     // warnings.
@@ -35,5 +40,7 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  build: { target: 'es2022', assetsInlineLimit: 100_000_000, cssCodeSplit: false },
-})
+  build: mode === 'singlefile'
+    ? { target: 'es2022', assetsInlineLimit: 100_000_000, cssCodeSplit: false }
+    : { target: 'es2022' },
+}))
