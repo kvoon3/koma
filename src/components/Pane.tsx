@@ -585,8 +585,8 @@ function PanePhotoContent({
 
 /**
  * The two split buttons for one pane, drawn as a single chip. Hovering a pane
- * fades it in at that pane's top center, focused or not; the focused pane also
- * draws the same chip in the page row between back and reset
+ * fades it in at that pane's top center, focused or not; below lg the focused
+ * pane also draws the same chip in the page row between back and reset
  * (FloatActions.tsx). Both name the pane they split, so either one works.
  */
 export function PaneSplitTools({
@@ -1270,9 +1270,9 @@ function PaneImpl({
       )}
 
       {/* The pane's only hover chrome: the split chip, faded in while the
-          pointer is over the pane, focused or not. The focused pane draws the
-          same chip in the page row too (FloatActions.tsx); both act on
-          `leaf.id`, so either one splits this pane. */}
+          pointer is over the pane, focused or not. Below lg the focused pane
+          draws the same chip in the page row too (FloatActions.tsx); both act
+          on `leaf.id`, so either one splits this pane. */}
       <PaneSplitTools
         paneId={leaf.id}
         onSplit={onSplit}
