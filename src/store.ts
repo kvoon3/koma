@@ -50,6 +50,8 @@ export interface State {
   activeId: string
   /** The workspace the G key / center button returns to (tracked by id, not position). */
   gap: number
+  /** Space between the nine overview cells, in px (grid view only). */
+  gridGap: number
   radius: number
   bg: string
   edgeFade: number
@@ -86,6 +88,7 @@ export interface State {
 }
 
 export const GAP = 0
+export const GRID_GAP = 10
 export const RADIUS = 0
 export const BG = '#000000'
 export const EDGE_FADE = 60
@@ -133,6 +136,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   workspaces: bootWorkspaces,
   activeId: bootWorkspaces[0].id,
   gap: GAP,
+  gridGap: GRID_GAP,
   radius: RADIUS,
   bg: BG,
   edgeFade: EDGE_FADE,
@@ -643,6 +647,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   name: 'collage:settings',
   partialize: state => ({
     gap: state.gap,
+    gridGap: state.gridGap,
     radius: state.radius,
     bg: state.bg,
     edgeFade: state.edgeFade,

@@ -135,10 +135,17 @@ other hands the panel over without a second click. The incoming panel slides
 across from the trigger it left (160ms, the outgoing one is dropped at once)
 and lands left-aligned under its own trigger, with no cursor tracking.
 
+The 3×3 overview draws every workspace as a square mini canvas: a filled cell
+cover-fits its collage into the cell, an empty one wears the same near-canvas
+fill and floating chip as an empty pane, with a collage-layout glyph over
+“New collage” instead of the picker's image-plus. `Grid gap` (Layout tab)
+spaces the nine cells.
+
 ## Settings drawer (`,` or the top-right Settings button)
 
-Three tabs, one group each: `Layout` (photo gap, photo radius, pane border),
-`Appearance` (gap fill, blend width, blend strength) and `Text` (font mirror).
+Three tabs, one group each: `Layout` (photo gap, grid gap, photo radius, pane
+border), `Appearance` (gap fill, blend width, blend strength) and `Text` (font
+mirror).
 The strip is set in the drawer's heading type, the active tab lit
 and underlined, so it reads as the drawer's group labels rather than a second
 chrome layer; the arrow keys move through it and swap the panel, `Tab` walks in
@@ -148,6 +155,7 @@ narrower than the old two-column one.
 | Tab | Setting | Effect |
 |---|---|---|
 | Layout | Photo gap | Space between panes, 0–12% |
+| Layout | Grid gap | Space between the nine overview cells, 0–40 px (default 10) |
 | Layout | Photo radius | Corner radius of each pane, 0–20% |
 | Layout | Pane border | Draw a hairline around each pane |
 | Appearance | Gap fill | Black / white / custom color / **transparent** |
@@ -268,8 +276,8 @@ src/
 ```
 
 Fixed defaults (top of `store.ts`; the Settings drawer edits the same-named
-state fields): `GAP = 0`, `RADIUS = 0`, `BG = '#000000'` (black gap fill),
-`MIN_PANE_PX = 56`. Visual settings (gap / radius / bg) persist to
+state fields): `GAP = 0`, `GRID_GAP = 10`, `RADIUS = 0`, `BG = '#000000'`
+(black gap fill), `MIN_PANE_PX = 56`. Visual settings (gap / radius / bg) persist to
 localStorage as `collage:settings` via zustand `persist`; the font mirror
 defaults to on and persists as `collage:fontMirror`.
 
