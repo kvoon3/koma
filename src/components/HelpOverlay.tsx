@@ -13,7 +13,7 @@ const KEYS: [string, string][] = [
   ['Tab', 'Focus the next pane'],
   ['R', 'Reset the photo in the focused pane'],
   ['I', 'Toggle the library drawer'],
-  [',', 'Settings drawer (layout / appearance / text)'],
+  [',', 'Settings drawer (appearance / text)'],
   ['G', 'Toggle the 3×3 workspace grid / back'],
   ['⌘E', 'Export the collage'],
   ['C', 'Export crop params (ImageMagick command)'],
