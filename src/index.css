@@ -3,6 +3,18 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
+ * The MyGo desktop shell hides the title bar: the top bar drags the window
+ * (--app-region: drag), and its padding yields to the native window controls
+ * overlaying the page. In the browser the --mygo-titlebar-* variables are
+ * unset, so the fallbacks keep the plain 6 px padding.
+ */
+.app-titlebar {
+  --app-region: drag;
+  padding-left: max(0.375rem, var(--mygo-titlebar-inset-left, 0px));
+  padding-right: max(0.375rem, var(--mygo-titlebar-inset-right, 0px));
+}
+
+/*
  * Raw palette. The values live on :root / html.dark and every Tailwind color
  * token in @theme inline points at them, so switching .dark re-themes all
  * utilities at runtime. Tokens are consumed as bg-*, text-*, border-* classes.

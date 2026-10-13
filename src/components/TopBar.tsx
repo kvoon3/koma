@@ -267,7 +267,7 @@ export function TopBar({
   }
 
   return (
-    <header className="relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar px-1.5">
+    <header className="app-titlebar relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar">
       {/* The menubar is what makes a click-opened menu hand over to the next
           trigger on hover: the panel follows the open trigger. */}
       <Menubar className="flex items-stretch">
