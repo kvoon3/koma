@@ -21,7 +21,7 @@ const MIN_CANVAS = 120
    layout space. Only the handle on its top edge moves it; collapsed it rests
    behind the footer with the handle showing. The panel only exists while a
    focused pane holds a photo. */
-const toolsPanelCls = 'pointer-events-auto relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-(--dur-morph) ease-(--ease-drawer)'
+const toolsPanelCls = 'relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-(--dur-morph) ease-(--ease-drawer)'
 const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-(--dur-surface) active:scale-[0.97] hover:text-txt'
 /* Fixed-width tools in a max-content row: the panel hugs them, and the row
    scrolls sideways once they outgrow the screen. It stays inside a block, not a
@@ -326,16 +326,16 @@ export function Stage() {
 
       {/* The focused pane's tools, laid over the canvas so the panel never
           takes layout space, opened by the handle alone. Every tool acts on
-          the focused pane, so the panel exists only while it holds a photo. */}
-      {!toolsHidden && (
-        <ToolsDock
-          open={toolsOpen}
-          tools={tools}
-          scrollRef={toolsScrollRef}
-          handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-          onToggle={() => setToolsOpen(!toolsOpen)}
-        />
-      )}
+          the focused pane, so the panel exists only while it holds a photo;
+          its arrival and departure are a fade like the pane's other chrome. */}
+      <ToolsDock
+        hidden={toolsHidden}
+        open={toolsOpen}
+        tools={tools}
+        scrollRef={toolsScrollRef}
+        handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
+        onToggle={() => setToolsOpen(!toolsOpen)}
+      />
 
       <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => openStickerMaker(null)} />
     </div>
@@ -569,9 +569,15 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
 
 /**
  * The focused pane's tool dock, laid over the canvas so it never takes
- * layout space; only the handle on its top edge opens it.
+ * layout space; only the handle on its top edge opens it. The wrapper is
+ * always mounted: with no eligible focus it fades out over --dur-fast (the
+ * same fade as the pane's × chrome, which arrives with it) and goes inert,
+ * so a hidden dock neither catches canvas clicks nor answers Tab. The fade
+ * lives on the wrapper, not the panel, so it never shares a transition with
+ * the panel's own open/collapse slide (transform, --dur-morph).
  */
-function ToolsDock({ open, tools, scrollRef, handleLabel, onToggle }: {
+function ToolsDock({ hidden, open, tools, scrollRef, handleLabel, onToggle }: {
+  hidden: boolean
   open: boolean
   tools: ToolDef[]
   scrollRef: (el: HTMLDivElement | null) => void
@@ -579,8 +585,17 @@ function ToolsDock({ open, tools, scrollRef, handleLabel, onToggle }: {
   onToggle: () => void
 }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center">
+    <div
+      className={`tools-dock pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
+        hidden ? 'opacity-0' : 'opacity-100'
+      }`}
+      inert={hidden}
+    >
       <div className={`${toolsPanelCls} ${
+        // Mutually exclusive classes (see the pinned-toolbar note): a hidden
+        // panel must not sit over the canvas catching pointer events.
+        hidden ? 'pointer-events-none' : 'pointer-events-auto'
+      } ${
         open ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
       }`}
       >

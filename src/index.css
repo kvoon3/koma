@@ -480,6 +480,58 @@ html.dark {
 }
 
 /*
+ * Pane add/remove choreography, after Omarchy's Hyprland setup
+ * (default/hypr/looknfeel.lua): the pane a split creates pops in from 87% of
+ * its size (windowsIn `popin 87%`, easeOutQuint), a closed pane pops out the
+ * same way but fast and linear (windowsOut), and the survivors glide to
+ * their new rects with the same ease. Hyprland's easeOutQuint is the
+ * codebase's --ease-out verbatim (cubic-bezier(0.23, 1, 0.32, 1)), so the
+ * curves stay on-token. Survivors swap snapshots at once instead of
+ * crossfading: a tiled pane resizes like a live window, it does not ghost.
+ */
+::view-transition-group(.pane-move) {
+  animation-duration: var(--dur-morph);
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(.pane-move) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(.pane-move) {
+  animation: none;
+  opacity: 1;
+}
+::view-transition-new(.pane-in) {
+  animation: pane-pop-in var(--dur-morph) var(--ease-out) both;
+}
+::view-transition-old(.pane-out) {
+  animation: pane-pop-out var(--dur-surface) linear both;
+}
+@keyframes pane-pop-in {
+  from {
+    transform: scale(0.87);
+    opacity: 0;
+  }
+}
+@keyframes pane-pop-out {
+  to {
+    transform: scale(0.87);
+    opacity: 0;
+  }
+}
+
+/*
+ * While a pane morph runs (runPaneMorph sets html[data-pane-morph]) the
+ * tools dock freezes its own fade: the new snapshot must capture the dock at
+ * its final opacity, so the transition's root crossfade fades it in step
+ * with the panes instead of a CSS transition racing underneath the overlay
+ * and finishing behind it.
+ */
+html[data-pane-morph] .tools-dock {
+  transition: none;
+}
+
+/*
  * Light ⇄ dark (the top bar's toggle, via `fadeTheme` in theme.ts): the swap
  * runs inside a view transition so the whole page crossfades. The UA default
  * for the root pair is not a crossfade: it fades the old theme out over 90ms,
