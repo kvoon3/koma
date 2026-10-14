@@ -11,7 +11,6 @@ import { createPortal, flushSync } from 'react-dom'
 import { usePreview } from '../hooks'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { getLiveVideoUrl } from '../lib/imageStore'
 import { pickPhotoForPane } from '../lib/paneCommands'
 import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, rotateOffset, rotationCss, rotationOf, seamFadeWidth, seamMaskStyle, snapRotation, stickerRect } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
@@ -318,6 +317,7 @@ function StickerView({
 
 function LabelEditor({ text, onDone }: { text: string, onDone: (text: string) => void }) {
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const t = useT()
 
   // the editor only exists while editing, so focus and select all on mount
   useEffect(() => {
@@ -354,6 +354,8 @@ function LabelEditor({ text, onDone }: { text: string, onDone: (text: string) =>
   return (
     <div
       ref={editorRef}
+      role="textbox"
+      aria-label={t('Edit text label')}
       contentEditable
       suppressContentEditableWarning
       onBlur={finish}
@@ -364,31 +366,29 @@ function LabelEditor({ text, onDone }: { text: string, onDone: (text: string) =>
   )
 }
 
-function LabelView({
+/**
+ * The label's move/resize gesture and its hover intent, split out of LabelView
+ * so the component reads as its own markup. The gesture state stays local to
+ * the label: a press starts a move, the corner handle a resize, and the hover
+ * timeout keeps the chrome alive while the pointer crosses the gap to it.
+ */
+function useLabelGesture({
   paneId,
   lab,
-  unit,
   editing,
-  setEditing,
   elRef,
   onFocus,
+  setLabel,
+  selectLabel,
 }: {
   paneId: string
   lab: PaneLabel
-  unit: number
   editing: boolean
-  setEditing: (v: boolean) => void
   elRef: React.RefObject<HTMLDivElement | null>
   onFocus: (id: string) => void
+  setLabel: (id: string, patch: Partial<PaneLabel>) => void
+  selectLabel: (id: string | null) => void
 }) {
-  const setLabel = useStore(s => s.setLabel)
-  const removeLabel = useStore(s => s.removeLabel)
-  const selectLabel = useStore(s => s.selectLabel)
-  const t = useT()
-  const selected = useStore(s => s.labelSel === paneId)
-  const fontTick = useFontReady(lab.font)
-  const colors = labelColors(lab.theme)
-  const rot = rotationOf(lab)
   // hover intent: keep the toolbar alive while the pointer crosses the gap to it
   const [hot, setHot] = useState(false)
   const leaveRef = useRef<number | null>(null)
@@ -460,6 +460,248 @@ function LabelView({
     gestureRef.current = null
   }
 
+  const onPointerEnter = () => {
+    if (leaveRef.current != null) {
+      window.clearTimeout(leaveRef.current)
+      leaveRef.current = null
+    }
+    setHot(true)
+  }
+  const onPointerLeave = () => {
+    if (leaveRef.current != null)
+      window.clearTimeout(leaveRef.current)
+    leaveRef.current = window.setTimeout(() => {
+      leaveRef.current = null
+      setHot(false)
+    }, 220)
+  }
+
+  return { hot, onBoxDown, onBoxMove, onSizeDown, onSizeMove, endGesture, onPointerEnter, onPointerLeave }
+}
+
+/**
+ * The handles a selected label grows: the resize corner, the rotate handle,
+ * the reset-angle chip and the remove button. They exist only while the label
+ * is not being edited, and each reads `hot || selected` for its visibility.
+ */
+function LabelChrome({
+  editing,
+  paneId,
+  lab,
+  rot,
+  hot,
+  selected,
+  setLabel,
+  onRemove,
+  onSizeDown,
+  onSizeMove,
+  endGesture,
+}: {
+  editing: boolean
+  paneId: string
+  lab: PaneLabel
+  rot: number
+  hot: boolean
+  selected: boolean
+  setLabel: (id: string, patch: Partial<PaneLabel>) => void
+  onRemove: () => void
+  onSizeDown: (e: React.PointerEvent) => void
+  onSizeMove: (e: React.PointerEvent) => void
+  endGesture: () => void
+}) {
+  const t = useT()
+  if (editing)
+    return null
+  return (
+    <>
+      <span
+        className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${hot || selected ? ' opacity-100' : ''}`}
+        title={t('Drag to resize')}
+        onPointerDown={onSizeDown}
+        onPointerMove={onSizeMove}
+        onPointerUp={endGesture}
+        onPointerCancel={endGesture}
+      />
+      <RotationHandle
+        rot={rot}
+        shown={hot || selected}
+        onChange={value => setLabel(paneId, { rot: value })}
+      />
+      <ResetRotationButton
+        shown={rot !== 0 && (hot || selected)}
+        // The toolbar already takes the space under a label parked near the
+        // pane's top (see `lab.y < 0.3` below), so the chip moves up instead.
+        flip={lab.y < 0.3}
+        onReset={() => setLabel(paneId, { rot: 0 })}
+      />
+      <button
+        className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
+        title={t('Remove label')}
+        onPointerDown={e => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemove()
+        }}
+      >
+        <MorphIcon icon={X} size={12} strokeWidth={2} />
+      </button>
+    </>
+  )
+}
+
+/**
+ * The label's font/hue toolbar, pinned above or below the label and
+ * counter-rotated so it stays upright however the label is turned. Stays in
+ * the tree even when hidden so its popup keeps its anchor.
+ */
+function LabelToolbar({
+  paneId,
+  lab,
+  rot,
+  editing,
+  hot,
+  selected,
+  setLabel,
+  selectLabel,
+}: {
+  paneId: string
+  lab: PaneLabel
+  rot: number
+  editing: boolean
+  hot: boolean
+  selected: boolean
+  setLabel: (id: string, patch: Partial<PaneLabel>) => void
+  selectLabel: (id: string | null) => void
+}) {
+  const t = useT()
+  return (
+    <div
+      className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-(--dur-fast) ${
+        lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
+      } ${
+        // Mutually exclusive classes: a base `pointer-events-none` plus a
+        // conditional `pointer-events-auto` would both stay in the class
+        // list and `none` wins in Tailwind's output order, silently killing
+        // clicks on a pinned toolbar.
+        editing || hot || selected
+          ? 'pointer-events-auto opacity-100'
+          : 'pointer-events-none opacity-0'
+      }`}
+      style={{
+        // Counter-rotate about the edge that faces the label, so the
+        // toolbar stays upright and pinned no matter how the label is turned.
+        transform: `translateX(-50%) rotate(${-rot}rad)`,
+        transformOrigin: lab.y < 0.3 ? '50% 0%' : '50% 100%',
+      }}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        selectLabel(paneId)
+      }}
+    >
+      <Select.Root
+        items={LABEL_FONT_ITEMS}
+        value={lab.font}
+        onValueChange={value => setLabel(paneId, { font: String(value) })}
+        onOpenChange={(open) => {
+          // Keep the toolbar pinned while the font popup is open, also when
+          // the list was opened from the keyboard instead of a click.
+          if (open)
+            selectLabel(paneId)
+        }}
+      >
+        <Select.Trigger className="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover" title={t('Label font')} aria-label={t('Label font')}>
+          <Select.Value />
+          <Select.Icon className="flex flex-none text-dim">
+            <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
+          </Select.Icon>
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Positioner
+            className="z-[260] select-none outline-0"
+            sideOffset={4}
+            align="start"
+            alignItemWithTrigger={false}
+          >
+            <Select.Popup className="box-border min-w-[var(--anchor-width)] rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+              <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
+                {FONT_CATS.map((cat) => {
+                  const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
+                  if (!items.length)
+                    return null
+                  return (
+                    <Select.Group key={cat.id}>
+                      <Select.GroupLabel className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{t(cat.label)}</Select.GroupLabel>
+                      {items.map(item => (
+                        <Select.Item
+                          key={item.value || 'system'}
+                          value={item.value}
+                          className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-[13px] outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent"
+                          style={{ fontFamily: fontById(item.value).cssStack }}
+                        >
+                          <Select.ItemIndicator className="flex w-3.5 text-current">
+                            <MorphIcon icon={Check} size={12} strokeWidth={2} />
+                          </Select.ItemIndicator>
+                          <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                    </Select.Group>
+                  )
+                })}
+              </Select.List>
+            </Select.Popup>
+          </Select.Positioner>
+        </Select.Portal>
+      </Select.Root>
+      <button
+        className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
+        title={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
+        aria-label={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
+        onPointerDown={e => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          setLabel(paneId, { theme: nextLabelTheme(lab.theme) })
+        }}
+      >
+        <MorphIcon icon={Contrast} size={13} strokeWidth={1.75} />
+      </button>
+    </div>
+  )
+}
+
+function LabelView({
+  paneId,
+  lab,
+  unit,
+  editing,
+  setEditing,
+  elRef,
+  onFocus,
+}: {
+  paneId: string
+  lab: PaneLabel
+  unit: number
+  editing: boolean
+  setEditing: (v: boolean) => void
+  elRef: React.RefObject<HTMLDivElement | null>
+  onFocus: (id: string) => void
+}) {
+  const setLabel = useStore(s => s.setLabel)
+  const removeLabel = useStore(s => s.removeLabel)
+  const selectLabel = useStore(s => s.selectLabel)
+  const selected = useStore(s => s.labelSel === paneId)
+  const fontTick = useFontReady(lab.font)
+  const colors = labelColors(lab.theme)
+  const rot = rotationOf(lab)
+  const { hot, onBoxDown, onBoxMove, onSizeDown, onSizeMove, endGesture, onPointerEnter, onPointerLeave } = useLabelGesture({
+    paneId,
+    lab,
+    editing,
+    elRef,
+    onFocus,
+    setLabel,
+    selectLabel,
+  })
+
   const commitEdit = (text: string) => {
     setEditing(false)
     if (!text)
@@ -487,21 +729,8 @@ function LabelView({
       onPointerMove={onBoxMove}
       onPointerUp={endGesture}
       onPointerCancel={endGesture}
-      onPointerEnter={() => {
-        if (leaveRef.current != null) {
-          window.clearTimeout(leaveRef.current)
-          leaveRef.current = null
-        }
-        setHot(true)
-      }}
-      onPointerLeave={() => {
-        if (leaveRef.current != null)
-          window.clearTimeout(leaveRef.current)
-        leaveRef.current = window.setTimeout(() => {
-          leaveRef.current = null
-          setHot(false)
-        }, 220)
-      }}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       onDoubleClick={(e) => {
         e.stopPropagation()
         setEditing(true)
@@ -510,135 +739,29 @@ function LabelView({
       {editing
         ? <LabelEditor text={lab.text} onDone={commitEdit} />
         : <div>{lab.text}</div>}
-      {!editing && (
-        <span
-          className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${hot || selected ? ' opacity-100' : ''}`}
-          title={t('Drag to resize')}
-          onPointerDown={onSizeDown}
-          onPointerMove={onSizeMove}
-          onPointerUp={endGesture}
-          onPointerCancel={endGesture}
-        />
-      )}
-      {!editing && (
-        <RotationHandle
-          rot={rot}
-          shown={hot || selected}
-          onChange={value => setLabel(paneId, { rot: value })}
-        />
-      )}
-      {!editing && (
-        <ResetRotationButton
-          shown={rot !== 0 && (hot || selected)}
-          // The toolbar already takes the space under a label parked near the
-          // pane's top (see `lab.y < 0.3` below), so the chip moves up instead.
-          flip={lab.y < 0.3}
-          onReset={() => setLabel(paneId, { rot: 0 })}
-        />
-      )}
-      {!editing && (
-        <button
-          className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
-          title={t('Remove label')}
-          onPointerDown={e => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation()
-            removeLabel(paneId)
-          }}
-        >
-          <MorphIcon icon={X} size={12} strokeWidth={2} />
-        </button>
-      )}
-      <div
-        className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-(--dur-fast) ${
-          lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
-        } ${
-          // Mutually exclusive classes: a base `pointer-events-none` plus a
-          // conditional `pointer-events-auto` would both stay in the class
-          // list and `none` wins in Tailwind's output order, silently killing
-          // clicks on a pinned toolbar.
-          editing || hot || selected
-            ? 'pointer-events-auto opacity-100'
-            : 'pointer-events-none opacity-0'
-        }`}
-        style={{
-          // Counter-rotate about the edge that faces the label, so the
-          // toolbar stays upright and pinned no matter how the label is turned.
-          transform: `translateX(-50%) rotate(${-rot}rad)`,
-          transformOrigin: lab.y < 0.3 ? '50% 0%' : '50% 100%',
-        }}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-          selectLabel(paneId)
-        }}
-      >
-        <Select.Root
-          items={LABEL_FONT_ITEMS}
-          value={lab.font}
-          onValueChange={value => setLabel(paneId, { font: String(value) })}
-          onOpenChange={(open) => {
-            // Keep the toolbar pinned while the font popup is open, also when
-            // the list was opened from the keyboard instead of a click.
-            if (open)
-              selectLabel(paneId)
-          }}
-        >
-          <Select.Trigger className="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover" title={t('Label font')} aria-label={t('Label font')}>
-            <Select.Value />
-            <Select.Icon className="flex flex-none text-dim">
-              <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
-            </Select.Icon>
-          </Select.Trigger>
-          <Select.Portal>
-            <Select.Positioner
-              className="z-[260] select-none outline-0"
-              sideOffset={4}
-              align="start"
-              alignItemWithTrigger={false}
-            >
-              <Select.Popup className="box-border min-w-[var(--anchor-width)] rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-                <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
-                  {FONT_CATS.map((cat) => {
-                    const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
-                    if (!items.length)
-                      return null
-                    return (
-                      <Select.Group key={cat.id}>
-                        <Select.GroupLabel className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{t(cat.label)}</Select.GroupLabel>
-                        {items.map(item => (
-                          <Select.Item
-                            key={item.value || 'system'}
-                            value={item.value}
-                            className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-[13px] outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent"
-                            style={{ fontFamily: fontById(item.value).cssStack }}
-                          >
-                            <Select.ItemIndicator className="flex w-3.5 text-current">
-                              <MorphIcon icon={Check} size={12} strokeWidth={2} />
-                            </Select.ItemIndicator>
-                            <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
-                          </Select.Item>
-                        ))}
-                      </Select.Group>
-                    )
-                  })}
-                </Select.List>
-              </Select.Popup>
-            </Select.Positioner>
-          </Select.Portal>
-        </Select.Root>
-        <button
-          className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
-          title={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
-          aria-label={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
-          onPointerDown={e => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation()
-            setLabel(paneId, { theme: nextLabelTheme(lab.theme) })
-          }}
-        >
-          <MorphIcon icon={Contrast} size={13} strokeWidth={1.75} />
-        </button>
-      </div>
+      <LabelChrome
+        editing={editing}
+        paneId={paneId}
+        lab={lab}
+        rot={rot}
+        hot={hot}
+        selected={selected}
+        setLabel={setLabel}
+        onRemove={() => removeLabel(paneId)}
+        onSizeDown={onSizeDown}
+        onSizeMove={onSizeMove}
+        endGesture={endGesture}
+      />
+      <LabelToolbar
+        paneId={paneId}
+        lab={lab}
+        rot={rot}
+        editing={editing}
+        hot={hot}
+        selected={selected}
+        setLabel={setLabel}
+        selectLabel={selectLabel}
+      />
     </div>
   )
 }
@@ -680,7 +803,7 @@ function PanePhotoContent({
             alt=""
             draggable={false}
             data-photo-img
-            className="photo-in block max-w-none will-change-transform"
+            className="photo-in block max-w-none"
             style={{
               position: 'absolute',
               left: 0,
@@ -1014,44 +1137,718 @@ interface Props {
   onClose: (id: string) => void
 }
 
-function PaneImpl({
-  leaf,
-  rect,
-  radius,
-  bordered,
-  fade,
-  seam,
-  unit,
+/* The Live Photo video layer plus its play badge, drawn together because they
+   share the pane's mask and playback flag. */
+function PaneLivePhoto({
   photo,
+  place,
+  rect,
+  mask,
+  live,
+  videoRef,
+  onToggle,
+}: {
+  photo: Photo | null
+  place: { x: number, y: number, w: number, h: number }
+  rect: Rect
+  mask?: React.CSSProperties
+  live: boolean
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  onToggle: () => void
+}) {
+  const file = photo?.videoFile ?? null
+  // The video element owns its own object URL: minted when the paired file
+  // arrives, released when it changes or the pane goes away.
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el || !file)
+      return
+    const url = URL.createObjectURL(file)
+    el.src = url
+    return () => {
+      el.removeAttribute('src')
+      URL.revokeObjectURL(url)
+    }
+  }, [file, videoRef])
+  if (!file)
+    return null
+  return (
+    <>
+      <div className="absolute inset-0" style={mask}>
+        {/* The peek plays muted: the export's own recording is silent too (a
+            canvas capture carries no audio), and a silent layer is allowed to
+            start without waiting on the browser's audio permission. */}
+        <video
+          ref={videoRef}
+          className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
+          style={{
+            left: place.x - rect.x,
+            top: place.y - rect.y,
+            width: place.w,
+            height: place.h,
+          }}
+          muted
+          loop
+          playsInline
+          preload="auto"
+          draggable={false}
+        />
+      </div>
+      <PaneLiveBadge playing={live} onToggle={onToggle} />
+    </>
+  )
+}
+
+/* The pane's stickers, skipping any whose source photo is gone. */
+function PaneStickers({
+  place,
+  stickers,
+  paneId,
   photoById,
-  focused,
-  canClose,
+  rect,
+  toCanvas,
   onFocus,
-  onUpdate,
-  onSplit,
+}: {
+  place: { x: number, y: number, w: number, h: number } | null
+  stickers: Sticker[]
+  paneId: string
+  photoById: Map<string, Photo>
+  rect: Rect
+  toCanvas: (clientX: number, clientY: number) => { x: number, y: number }
+  onFocus: (id: string) => void
+}) {
+  if (!place)
+    return null
+  return (
+    <>
+      {stickers.map((st) => {
+        const sp = st.photoId ? photoById.get(st.photoId) : undefined
+        return sp
+          ? (
+              <StickerView
+                key={st.id}
+                paneId={paneId}
+                st={st}
+                photo={sp}
+                place={place}
+                paneRect={rect}
+                toCanvas={toCanvas}
+                onFocus={onFocus}
+              />
+            )
+          : null
+      })}
+    </>
+  )
+}
+
+/* The drop-choice overlay: a full-pane dismiss button under the panel, so the
+   backdrop is a real control (keyboard reachable) and the panel's own clicks
+   stay inside it. */
+function DropChoiceOverlay({
+  paneId,
+  photos,
+  at,
   onClose,
-}: Props) {
-  const elRef = useRef<HTMLDivElement | null>(null)
-  const preview = usePreview(photo)
+}: {
+  paneId: string
+  photos: Photo[]
+  at: { x: number, y: number }
+  onClose: () => void
+}) {
   const t = useT()
-  const navigate = useNavigate()
+  return (
+    <div className="absolute inset-0 z-[5] flex items-center justify-center">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default bg-overlay-dim"
+        aria-label={t('Close')}
+        onClick={onClose}
+        onPointerDown={e => e.stopPropagation()}
+      />
+      <div
+        className="relative flex w-[min(190px,85%)] flex-col gap-[3px] rounded-none border border-line-strong bg-panel p-1 shadow-pop"
+        onClick={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
+      >
+        <button
+          className={dropBtnCls}
+          onClick={() => {
+            const first = photos[0]
+            if (first)
+              useStore.getState().assign(paneId, first.id)
+            onClose()
+          }}
+        >
+          <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="text-dim" />
+          {t('Use as photo')}
+        </button>
+        <button
+          className={dropBtnCls}
+          onClick={() => {
+            const s = useStore.getState()
+            for (const ph of photos)
+              s.addSticker(paneId, ph.id, at.x, at.y)
+            onClose()
+          }}
+        >
+          <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="text-dim" />
+          {t('Use as sticker')}
+        </button>
+      </div>
+    </div>
+  )
+}
 
-  // Exit the editor back to the grid overview, morphing the canvas into its cell.
-  const exitToGrid = useCallback(() => {
-    useStore.getState().clearSelection()
-    void navigate({ to: '/', viewTransition: viewTransitionOption() })
-  }, [navigate])
+/* The dragged-out photo following the pointer in a portal above everything.
+   The wrapper takes the pointer position as a transform (compositor-only, so a
+   move writes no layout) and the img centers on it and pops in. */
+function SwapGhost({
+  at,
+  preview,
+  width,
+  height,
+  radius,
+}: {
+  at: { x: number, y: number } | null
+  preview: Preview | null
+  width: number
+  height: number
+  radius: number
+}) {
+  if (!at || !preview)
+    return null
+  return createPortal(
+    <div
+      className="pointer-events-none fixed left-0 top-0 z-[80]"
+      style={{ transform: `translate3d(${at.x}px, ${at.y}px, 0)` }}
+    >
+      <img
+        src={preview.url}
+        alt=""
+        draggable={false}
+        className="pointer-events-none block swap-ghost max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+        style={{
+          width,
+          height,
+          borderRadius: radius,
+          transform: 'translate(-50%, -55%)',
+        }}
+      />
+    </div>,
+    document.body,
+  )
+}
 
-  const pickForPane = useCallback(() => pickPhotoForPane(leaf.id), [leaf.id])
+/* A cancelled carry gliding back onto the dimmed original. */
+function SwapReturnPortal({
+  from,
+  preview,
+  to,
+  width,
+  height,
+  radius,
+  onDone,
+}: {
+  from: { x: number, y: number } | null
+  preview: Preview | null
+  to: { x: number, y: number } | null
+  width: number
+  height: number
+  radius: number
+  onDone: () => void
+}) {
+  if (!from || !preview || !to)
+    return null
+  return createPortal(
+    <SwapGhostReturn from={from} to={to} src={preview.url} width={width} height={height} radius={radius} onDone={onDone} />,
+    document.body,
+  )
+}
 
+/* Move mode: one full-screen catcher so the next click drops the carried photo
+   wherever it lands (source and empty space drop it back). The portal lives in
+   the pane's React tree, so events must not bubble on to the pane's own
+   handlers (or Base UI would reopen the menu). */
+function MoveCatcher({
+  active,
+  onMove,
+  onDrop,
+  onCancel,
+}: {
+  active: boolean
+  onMove: (x: number, y: number) => void
+  onDrop: (x: number, y: number) => void
+  onCancel: () => void
+}) {
+  if (!active)
+    return null
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[70] cursor-grabbing touch-none select-none"
+      onPointerMove={(e) => {
+        e.stopPropagation()
+        onMove(e.clientX, e.clientY)
+      }}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        if (e.button !== 0)
+          return
+        onDrop(e.clientX, e.clientY)
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onCancel()
+      }}
+    />,
+    document.body,
+  )
+}
+
+/* The pane's viewport math: pointer-local coords, the clamped commit, and zoom
+   about an anchor. Split out so the gesture hook below stays about events, not
+   about the transform. */
+function usePaneViewport({
+  leaf,
+  cell,
+  iw,
+  ih,
+  elRef,
+  onUpdate,
+}: {
+  leaf: Leaf
+  cell: Rect
+  iw: number
+  ih: number
+  elRef: React.RefObject<HTMLDivElement | null>
+  onUpdate: (id: string, patch: Partial<Leaf>) => void
+}) {
+  const local = useCallback((cx: number, cy: number) => {
+    const r = elRef.current?.getBoundingClientRect()
+    return r ? { x: cx - r.left, y: cy - r.top } : { x: 0, y: 0 }
+  }, [elRef])
+
+  const commit = useCallback(
+    (next: Leaf) => {
+      if (!iw || !ih)
+        return
+      onUpdate(leaf.id, clampLeaf(next, cell, iw, ih))
+    },
+    [leaf.id, iw, ih, onUpdate, cell],
+  )
+
+  const zoomAbout = useCallback(
+    (base: Leaf, nextZoom: number, mx: number, my: number) => {
+      if (!iw || !ih)
+        return
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
+      const before = placement(cell, base, iw, ih)
+      const u = (mx - before.x) / before.w
+      const v = (my - before.y) / before.h
+      const after = placement(cell, { ...base, zoom }, iw, ih)
+      const tx = mx - u * after.w
+      const ty = my - v * after.h
+      commit({ ...base, zoom, cx: (cell.w / 2 - tx) / after.w, cy: (cell.h / 2 - ty) / after.h })
+    },
+    [iw, ih, commit, cell],
+  )
+
+  return { local, commit, zoomAbout }
+}
+
+/* Everything the pointer-gesture helpers below need, in one bag: the pane's
+   live values, the refs the machine reads and writes, and the setters it
+   calls. Built once per render by usePaneGestures. */
+interface PaneGestureRuntime {
+  paneId: string
+  leaf: Leaf
+  cell: Rect
+  iw: number
+  ih: number
+  photo: Photo | null
+  hasLiveVideo: boolean
+  elRef: React.RefObject<HTMLDivElement | null>
+  pointersRef: React.RefObject<Map<number, { x: number, y: number }>>
+  gestureRef: React.RefObject<Gesture | null>
+  touchPressRef: React.RefObject<boolean>
+  downAtRef: React.RefObject<{ x: number, y: number } | null>
+  swapArmedRef: React.RefObject<boolean>
+  swapHoldRef: React.RefObject<number | null>
+  overRef: React.RefObject<HTMLElement | null>
+  swapAtRef: React.RefObject<{ x: number, y: number } | null>
+  holdTimerRef: React.RefObject<number | null>
+  onFocus: (id: string) => void
+  local: (cx: number, cy: number) => { x: number, y: number }
+  commit: (next: Leaf) => void
+  zoomAbout: (base: Leaf, nextZoom: number, mx: number, my: number) => void
+  exitToGrid: () => void
+  clearHold: () => void
+  clearSwapHold: () => void
+  setSwapAt: (v: { x: number, y: number } | null) => void
+  setSwapArmed: (v: boolean) => void
+  setSwapReturn: (v: { x: number, y: number } | null) => void
+  setLiveFor: (v: string | null) => void
+  setMoving: (v: boolean) => void
+}
+
+/** The slice a swap drop needs, so endSwapDrag can stay a stable callback. */
+interface SwapDropCtx {
+  paneId: string
+  overRef: React.RefObject<HTMLElement | null>
+  swapAtRef: React.RefObject<{ x: number, y: number } | null>
+  setSwapAt: (v: { x: number, y: number } | null) => void
+  setSwapReturn: (v: { x: number, y: number } | null) => void
+}
+
+/** The pane shell's class: focus and emptiness are the only things that vary. */
+function paneShellClass(focused: boolean, hasPhoto: boolean): string {
+  return `group/pane absolute cursor-grab touch-none select-none overflow-hidden [contain:paint] ${
+    focused ? ' z-1 cursor-grab' : ''
+  }${hasPhoto ? '' : ' bg-pane-bg bg-pane-empty'}`
+}
+
+function clearSwapOverEl(overRef: React.RefObject<HTMLElement | null>) {
+  if (overRef.current) {
+    delete overRef.current.dataset.swapOver
+    overRef.current = null
+  }
+}
+
+/**
+ * Highlight the pane a carried photo is over, ticking the motor on each new
+ * target. `elements`, not `element`: the Move overlay covers the stage, so the
+ * target has to be the topmost pane below it.
+ */
+function swapOverAtEl(rt: PaneGestureRuntime, x: number, y: number) {
+  const el = document.elementsFromPoint(x, y)
+    .map(n => n.closest<HTMLElement>('[data-pane-id]'))
+    .find(n => n != null) ?? null
+  const target = el && el.dataset.paneId !== rt.paneId ? el : null
+  if (rt.overRef.current !== target) {
+    clearSwapOverEl(rt.overRef)
+    if (target) {
+      target.dataset.swapOver = '1'
+      rt.overRef.current = target
+      navigator.vibrate?.(5)
+    }
+  }
+}
+
+/**
+ * Drop or cancel a carry. Only a drop that found a different pane commits the
+ * swap; anything else (empty space, the source pane, pointercancel, Escape)
+ * flies the ghost home.
+ */
+function finishSwapDrag(rt: SwapDropCtx, commit: boolean) {
+  const targetId = rt.overRef.current?.dataset.paneId
+  clearSwapOverEl(rt.overRef)
+  document.body.style.cursor = ''
+  if (commit && targetId) {
+    navigator.vibrate?.(10)
+    const sourceId = rt.paneId
+    runSwapTransition(sourceId, targetId, () => {
+      rt.setSwapAt(null)
+      const s = useStore.getState()
+      s.swapPhotos(sourceId, targetId)
+      s.focus(targetId)
+    })
+    return
+  }
+  // Read the last ghost point from the ref mirror so a cancel seeds the
+  // fly-home animation.
+  const at = rt.swapAtRef.current
+  if (at)
+    rt.setSwapReturn(at)
+  rt.setSwapAt(null)
+}
+
+/** The armed hold became a drag: carry the photo as a ghost from now on. */
+function beginSwapDrag(rt: PaneGestureRuntime, x: number, y: number) {
+  rt.clearHold()
+  rt.clearSwapHold()
+  rt.swapArmedRef.current = false
+  rt.setSwapArmed(false)
+  rt.downAtRef.current = null
+  rt.setLiveFor(null)
+  rt.gestureRef.current = { mode: 'swap', lastX: 0, lastY: 0, startDist: 0, base: { ...rt.leaf } }
+  document.body.style.cursor = 'grabbing'
+  rt.setSwapAt({ x, y })
+  swapOverAtEl(rt, x, y)
+}
+
+/**
+ * Move mode (the context menu item): the photo follows the pointer with no
+ * button held, and the next click drops it on the pane underneath.
+ */
+function startMovePane(rt: PaneGestureRuntime, x: number, y: number) {
+  rt.setMoving(true)
+  rt.setSwapAt({ x, y })
+  swapOverAtEl(rt, x, y)
+}
+
+/**
+ * Single-pointer pan. A touch held still (see SWAP_HOLD_MS) armed the swap:
+ * the first movement after that starts carrying the photo, so a drag that
+ * began as a hold never pans halfway through.
+ */
+function panPane(rt: PaneGestureRuntime, e: React.PointerEvent, g: Gesture) {
+  const p = rt.local(e.clientX, e.clientY)
+  const moved = rt.downAtRef.current
+    ? Math.hypot(e.clientX - rt.downAtRef.current.x, e.clientY - rt.downAtRef.current.y)
+    : 0
+  if (rt.swapArmedRef.current) {
+    if (moved > SWAP_SLOP)
+      beginSwapDrag(rt, e.clientX, e.clientY)
+    return
+  }
+  // Moving means panning, not holding: drop the Live Photo timer and the
+  // pending swap arm before they fire.
+  if (moved > SWAP_SLOP) {
+    rt.clearHold()
+    rt.clearSwapHold()
+  }
+  const dx = p.x - g.lastX
+  const dy = p.y - g.lastY
+  g.lastX = p.x
+  g.lastY = p.y
+  const pl = placement(rt.cell, rt.leaf, rt.iw, rt.ih)
+  rt.commit({ ...rt.leaf, cx: rt.leaf.cx - dx / pl.w, cy: rt.leaf.cy - dy / pl.h })
+}
+
+function beginPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
+  // Only the primary button focuses or starts a gesture. A right-click must
+  // leave focus alone so the menu's swap item can target the focused pane.
+  if (e.button !== 0)
+    return
+  // A second pointer while carrying a photo out must not start a new gesture.
+  if (rt.gestureRef.current?.mode === 'swap')
+    return
+  rt.onFocus(rt.paneId)
+  useStore.getState().selectLabel(null)
+  if (!rt.leaf.photoId)
+    return
+  const el = rt.elRef.current
+  el?.setPointerCapture(e.pointerId)
+  // The gesture rewrites the placed photo's transform on every move frame;
+  // the compositor hint rides its lifetime (see [data-gesture] in index.css).
+  if (el)
+    el.dataset.gesture = '1'
+  rt.pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  const p = rt.local(e.clientX, e.clientY)
+  if (rt.pointersRef.current.size >= 2) {
+    rt.clearHold()
+    rt.clearSwapHold()
+    rt.swapArmedRef.current = false
+    rt.setSwapArmed(false)
+    const [a, b] = [...rt.pointersRef.current.values()]
+    rt.gestureRef.current = {
+      mode: 'pinch',
+      lastX: 0,
+      lastY: 0,
+      startDist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      base: { ...rt.leaf },
+    }
+  }
+  else {
+    rt.gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...rt.leaf } }
+    rt.downAtRef.current = { x: e.clientX, y: e.clientY }
+    if (e.pointerType !== 'mouse') {
+      // The ring wipes in while the hold runs (see [data-swap-hold] in
+      // index.css); clearSwapHold retracts it on every cancel path.
+      if (rt.elRef.current)
+        rt.elRef.current.dataset.swapHold = '1'
+      rt.swapHoldRef.current = window.setTimeout(() => {
+        rt.swapHoldRef.current = null
+        // The hold completed: the ring has nothing left to show and the armed
+        // lift takes over. This path bypasses clearSwapHold.
+        delete rt.elRef.current?.dataset.swapHold
+        rt.swapArmedRef.current = true
+        // The arm is otherwise invisible: tick the motor and lift the pane so
+        // the user learns the hold registered (vibrate is a no-op where
+        // unsupported, iOS Safari included).
+        rt.setSwapArmed(true)
+        navigator.vibrate?.(10)
+      }, SWAP_HOLD_MS)
+    }
+    if (rt.hasLiveVideo) {
+      rt.holdTimerRef.current = window.setTimeout(() => {
+        rt.holdTimerRef.current = null
+        rt.setLiveFor(rt.photo?.id ?? null)
+      }, 320)
+    }
+  }
+}
+
+function movePointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
+  if (!rt.pointersRef.current.has(e.pointerId))
+    return
+  rt.pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  const g = rt.gestureRef.current
+  if (!g || !rt.iw || !rt.ih)
+    return
+
+  if (g.mode === 'pan' && rt.pointersRef.current.size === 1) {
+    panPane(rt, e, g)
+    return
+  }
+  if (g.mode === 'swap' && rt.pointersRef.current.size === 1) {
+    rt.setSwapAt({ x: e.clientX, y: e.clientY })
+    swapOverAtEl(rt, e.clientX, e.clientY)
+    return
+  }
+  if (g.mode === 'pinch' && rt.pointersRef.current.size >= 2) {
+    const [a, b] = [...rt.pointersRef.current.values()]
+    const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))
+    const mid = rt.local((a.x + b.x) / 2, (a.y + b.y) / 2)
+    const ratio = dist / g.startDist
+    // "Pinch past the floor": zoomAbout clamps to MIN_ZOOM, so judge the raw
+    // ratio: shrinking an already-minimum photo out of the pane is the
+    // explicit exit-to-grid gesture, and it must not commit a zoom either.
+    if (g.base.zoom * ratio <= MIN_ZOOM && ratio < 1) {
+      rt.exitToGrid()
+      return
+    }
+    rt.zoomAbout(g.base, g.base.zoom * ratio, mid.x, mid.y)
+  }
+}
+
+function endPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
+  const g = rt.gestureRef.current
+  rt.pointersRef.current.delete(e.pointerId)
+  if (rt.pointersRef.current.size === 0) {
+    rt.gestureRef.current = null
+    rt.clearHold()
+    rt.clearSwapHold()
+    rt.swapArmedRef.current = false
+    rt.setSwapArmed(false)
+    rt.downAtRef.current = null
+    rt.setLiveFor(null)
+    delete rt.elRef.current?.dataset.gesture
+    // pointerup over another pane commits the swap; pointercancel drops it.
+    if (g?.mode === 'swap')
+      finishSwapDrag(rt, e.type === 'pointerup')
+  }
+  else {
+    rt.clearSwapHold()
+    rt.swapArmedRef.current = false
+    rt.setSwapArmed(false)
+    const only = [...rt.pointersRef.current.values()][0]
+    const p = rt.local(only.x, only.y)
+    rt.downAtRef.current = { x: only.x, y: only.y }
+    rt.gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...rt.leaf } }
+  }
+}
+
+/**
+ * A touch long press arms the swap drag, not the menu, so cancel Base UI's own
+ * long-press open. A menu opened while a gesture runs (right-click mid-pan)
+ * hands the gesture back so the finger crossing the menu doesn't keep
+ * panning.
+ */
+function paneMenuOpenChange(rt: PaneGestureRuntime, open: boolean, details: ContextMenu.Root.ChangeEventDetails) {
+  if (open && rt.touchPressRef.current) {
+    details.cancel()
+    return
+  }
+  if (!open)
+    return
+  finishSwapDrag(rt, false)
+  const el = rt.elRef.current
+  if (el) {
+    for (const id of [...rt.pointersRef.current.keys()]) {
+      if (el.hasPointerCapture(id))
+        el.releasePointerCapture(id)
+    }
+  }
+  rt.pointersRef.current.clear()
+  rt.gestureRef.current = null
+  rt.clearHold()
+  rt.clearSwapHold()
+  rt.swapArmedRef.current = false
+  rt.setSwapArmed(false)
+  rt.downAtRef.current = null
+  rt.setLiveFor(null)
+  delete rt.elRef.current?.dataset.gesture
+}
+
+/**
+ * The slice the wheel handler needs, so its effect can depend only on the
+ * viewport inputs rather than the whole runtime bag.
+ */
+interface WheelCtx {
+  leaf: Leaf
+  iw: number
+  ih: number
+  exitToGrid: () => void
+  local: (cx: number, cy: number) => { x: number, y: number }
+  zoomAbout: (base: Leaf, nextZoom: number, mx: number, my: number) => void
+}
+
+function handleWheel(rt: WheelCtx, e: WheelEvent) {
+  // Pinch/ctrl+wheel must never fall through to browser page zoom, even when
+  // this pane has nothing to zoom (the stage forwards these here).
+  if (e.ctrlKey || (rt.leaf.photoId && rt.iw && rt.ih))
+    e.preventDefault()
+  // Pinching in (shrinking) on a pane without a photo: nothing to zoom, so the
+  // pinch itself is the exit-to-grid gesture.
+  if (!rt.leaf.photoId && e.ctrlKey && e.deltaY > 0) {
+    rt.exitToGrid()
+    return
+  }
+  if (!rt.leaf.photoId || !rt.iw || !rt.ih)
+    return
+  const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0012))
+  const nextZoom = rt.leaf.zoom * factor
+  // Ctrl+pinch that would shrink below MIN_ZOOM has hit the floor and is still
+  // pushing out: zoom out all the way into the 3×3 grid instead of clamping.
+  // Plain (non-ctrl) wheel is never an exit signal.
+  if (e.ctrlKey && nextZoom <= MIN_ZOOM) {
+    rt.exitToGrid()
+    return
+  }
+  const p = rt.local(e.clientX, e.clientY)
+  rt.zoomAbout(rt.leaf, nextZoom, p.x, p.y)
+}
+
+/**
+ * The pane's pointer machine: pan/pinch zoom, the long-press swap carry, and
+ * the Live Photo hold. It owns the gesture state and refs and hands the pane
+ * the handlers and render state; the branchy gesture math lives in the module
+ * helpers above.
+ */
+function usePaneGestures({
+  leaf,
+  cell,
+  iw,
+  ih,
+  photo,
+  elRef,
+  onFocus,
+  exitToGrid,
+  local,
+  commit,
+  zoomAbout,
+}: {
+  leaf: Leaf
+  cell: Rect
+  iw: number
+  ih: number
+  photo: Photo | null
+  elRef: React.RefObject<HTMLDivElement | null>
+  onFocus: (id: string) => void
+  exitToGrid: () => void
+  local: (cx: number, cy: number) => { x: number, y: number }
+  commit: (next: Leaf) => void
+  zoomAbout: (base: Leaf, nextZoom: number, mx: number, my: number) => void
+}) {
   const pointersRef = useRef(new Map<number, { x: number, y: number }>())
   const gestureRef = useRef<Gesture | null>(null)
   // The pointer type of the last press: Base UI opens the pane menu on a touch
   // long press too, and some browsers raise a native contextmenu for it, so
   // keying the suppression off the press is more reliable than off the event.
   const touchPressRef = useRef(false)
-  const [dropping, setDropping] = useState(false)
-  const [editing, setEditing] = useState(false)
+  const downAtRef = useRef<{ x: number, y: number } | null>(null)
 
   // ---- Long-press pane swap -------------------------------------------------
   // Touch arms the swap with a still hold; desktop uses the menu's Move item,
@@ -1085,7 +1882,7 @@ function PaneImpl({
       swapHoldRef.current = null
     }
     delete elRef.current?.dataset.swapHold
-  }, [])
+  }, [elRef])
   const overRef = useRef<HTMLElement | null>(null)
   const clearSwapOver = useCallback(() => {
     if (overRef.current) {
@@ -1093,101 +1890,17 @@ function PaneImpl({
       overRef.current = null
     }
   }, [])
-  const swapOverAt = useCallback((x: number, y: number) => {
-    // `elements`, not `element`: the Move overlay covers the stage, so the
-    // target has to be the topmost pane below it.
-    const el = document.elementsFromPoint(x, y)
-      .map(n => n.closest<HTMLElement>('[data-pane-id]'))
-      .find(n => n != null) ?? null
-    const target = el && el.dataset.paneId !== leaf.id ? el : null
-    if (overRef.current !== target) {
-      clearSwapOver()
-      if (target) {
-        target.dataset.swapOver = '1'
-        overRef.current = target
-        // Crossing onto a new pane ticks the motor: "this pane would take it".
-        navigator.vibrate?.(5)
-      }
-    }
-  }, [leaf.id, clearSwapOver])
-  const endSwapDrag = useCallback((commit: boolean) => {
-    const targetId = overRef.current?.dataset.paneId
-    clearSwapOver()
-    document.body.style.cursor = ''
-    // Only a drop that found a different pane commits the swap; anything else
-    // (empty space, the source pane, pointercancel, Escape) flies the ghost home.
-    if (commit && targetId) {
-      navigator.vibrate?.(10)
-      const sourceId = leaf.id
-      runSwapTransition(sourceId, targetId, () => {
-        setSwapAt(null)
-        const s = useStore.getState()
-        s.swapPhotos(sourceId, targetId)
-        s.focus(targetId)
-      })
-      return
-    }
-    // Read the last ghost point from the ref mirror so the deps stay stable;
-    // the value seeds the fly-home animation on cancel.
-    const at = swapAtRef.current
-    if (at)
-      setSwapReturn(at)
-    setSwapAt(null)
-  }, [leaf.id, clearSwapOver])
-  // Move mode (the context menu item): the photo follows the pointer with no
-  // button held, and the next click drops it on the pane underneath.
-  const startMove = (x: number, y: number) => {
-    setMoving(true)
-    setSwapAt({ x, y })
-    swapOverAt(x, y)
-  }
-  useEffect(() => {
-    if (!moving)
-      return
-    // Escape drops the carried pane; capture so it never reaches the global
-    // handler, which would close the tools panel and then leave the editor.
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape')
-        return
-      e.preventDefault()
-      e.stopPropagation()
-      setMoving(false)
-      endSwapDrag(false)
-    }
-    window.addEventListener('keydown', onKey, { capture: true })
-    return () => window.removeEventListener('keydown', onKey, { capture: true })
-  }, [moving, endSwapDrag])
-  useEffect(() => () => {
-    clearSwapOver()
-    clearSwapHold()
-    document.body.style.cursor = ''
-  }, [clearSwapOver, clearSwapHold])
-  // A drop on a pane that already holds a photo asks what the image should
-  // become; `at` is the drop point in pane-normalized coords for stickers.
-  const [dropChoice, setDropChoice] = useState<{ photos: Photo[], at: { x: number, y: number } } | null>(null)
-
-  // The global Text tool (tools bar) asks a pane's label into edit mode via
-  // the store. Consume the request during render; the monotonic sequence
-  // makes even repeated requests for the same pane fire every time.
-  const editReq = useStore(s => s.labelEditReq)
-  const [seenEditSeq, setSeenEditSeq] = useState(0)
-  if (editReq && editReq.seq !== seenEditSeq) {
-    setSeenEditSeq(editReq.seq)
-    if (editReq.paneId === leaf.id)
-      setEditing(true)
-  }
 
   // Live Photo: press and hold to play the paired video, release to stop; the
-  // play button pins playback instead (toggles, survives gestures). Both
-  // record which photo they belong to, so swapping the pane's photo
-  // invalidates playback without an effect.
+  // play button pins playback instead (toggles, survives gestures). Both record
+  // which photo they belong to, so swapping the pane's photo invalidates
+  // playback without an effect.
   const [liveFor, setLiveFor] = useState<string | null>(null)
   const [livePin, setLivePin] = useState<string | null>(null)
   const liveVideoRef = useRef<HTMLVideoElement | null>(null)
   const holdTimerRef = useRef<number | null>(null)
-  const downAtRef = useRef<{ x: number, y: number } | null>(null)
-  const liveUrl = photo?.videoFile ? getLiveVideoUrl(photo) : null
-  const live = !!liveUrl && !!photo && (liveFor === photo.id || livePin === photo.id)
+  const hasLiveVideo = !!photo?.videoFile
+  const live = hasLiveVideo && !!photo && (liveFor === photo.id || livePin === photo.id)
 
   const clearHold = useCallback(() => {
     if (holdTimerRef.current != null) {
@@ -1204,282 +1917,222 @@ function PaneImpl({
       return
     if (live) {
       v.currentTime = 0
-      v.play().catch(() => {
-        v.muted = true
-        v.play().catch(() => {})
-      })
+      v.play().catch(() => {})
     }
     else {
       v.pause()
     }
-  }, [live, liveUrl])
+  }, [live, photo?.videoFile])
 
-  const iw = preview?.w ?? 0
-  const ih = preview?.h ?? 0
-  const cell: Rect = rect
-
-  const local = useCallback((cx: number, cy: number) => {
-    const r = elRef.current?.getBoundingClientRect()
-    return r ? { x: cx - r.left, y: cy - r.top } : { x: 0, y: 0 }
-  }, [])
-
-  const commit = useCallback(
-    (next: Leaf) => {
-      if (!iw || !ih)
-        return
-      onUpdate(leaf.id, clampLeaf(next, cell, iw, ih))
-    },
-    [leaf.id, iw, ih, onUpdate, cell],
-  )
-
-  const zoomAbout = useCallback(
-    (base: Leaf, nextZoom: number, mx: number, my: number) => {
-      if (!iw || !ih)
-        return
-      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
-      const before = placement(cell, base, iw, ih)
-      const u = (mx - before.x) / before.w
-      const v = (my - before.y) / before.h
-      const after = placement(cell, { ...base, zoom }, iw, ih)
-      const tx = mx - u * after.w
-      const ty = my - v * after.h
-      commit({ ...base, zoom, cx: (cell.w / 2 - tx) / after.w, cy: (cell.h / 2 - ty) / after.h })
-    },
-    [iw, ih, commit, cell],
-  )
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    // Only the primary button focuses or starts a gesture. A right-click must
-    // leave focus alone so the menu's swap item can target the focused pane.
-    if (e.button !== 0)
-      return
-    // A second pointer while carrying a photo out must not start a new gesture.
-    if (gestureRef.current?.mode === 'swap')
-      return
-    onFocus(leaf.id)
-    useStore.getState().selectLabel(null)
-    if (!leaf.photoId)
-      return
-    elRef.current?.setPointerCapture(e.pointerId)
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    const p = local(e.clientX, e.clientY)
-    if (pointersRef.current.size >= 2) {
-      clearHold()
-      clearSwapHold()
-      swapArmedRef.current = false
-      setSwapArmed(false)
-      const [a, b] = [...pointersRef.current.values()]
-      gestureRef.current = {
-        mode: 'pinch',
-        lastX: 0,
-        lastY: 0,
-        startDist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-        base: { ...leaf },
-      }
-    }
-    else {
-      gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...leaf } }
-      downAtRef.current = { x: e.clientX, y: e.clientY }
-      if (e.pointerType !== 'mouse') {
-        // The ring wipes in while the hold runs (see [data-swap-hold] in
-        // index.css); clearSwapHold retracts it on every cancel path.
-        if (elRef.current)
-          elRef.current.dataset.swapHold = '1'
-        swapHoldRef.current = window.setTimeout(() => {
-          swapHoldRef.current = null
-          // The hold completed: the ring has nothing left to show and the
-          // armed lift takes over. This path bypasses clearSwapHold.
-          delete elRef.current?.dataset.swapHold
-          swapArmedRef.current = true
-          // The arm is otherwise invisible: tick the motor and lift the pane
-          // so the user learns the hold registered (vibrate is a no-op where
-          // unsupported, iOS Safari included).
-          setSwapArmed(true)
-          navigator.vibrate?.(10)
-        }, SWAP_HOLD_MS)
-      }
-      if (liveUrl) {
-        holdTimerRef.current = window.setTimeout(() => {
-          holdTimerRef.current = null
-          setLiveFor(photo?.id ?? null)
-        }, 320)
-      }
-    }
+  const runtime: PaneGestureRuntime = {
+    paneId: leaf.id,
+    leaf,
+    cell,
+    iw,
+    ih,
+    photo,
+    hasLiveVideo,
+    elRef,
+    pointersRef,
+    gestureRef,
+    touchPressRef,
+    downAtRef,
+    swapArmedRef,
+    swapHoldRef,
+    overRef,
+    swapAtRef,
+    holdTimerRef,
+    onFocus,
+    local,
+    commit,
+    zoomAbout,
+    exitToGrid,
+    clearHold,
+    clearSwapHold,
+    setSwapAt,
+    setSwapArmed,
+    setSwapReturn,
+    setLiveFor,
+    setMoving,
   }
+  const endSwapDrag = useCallback((commit: boolean) => {
+    finishSwapDrag({ paneId: leaf.id, overRef, swapAtRef, setSwapAt, setSwapReturn }, commit)
+  }, [leaf.id])
 
-  // The armed hold became a drag: carry the photo as a ghost from now on.
-  const startSwapDrag = (x: number, y: number) => {
-    clearHold()
+  useEffect(() => {
+    if (!moving)
+      return
+    // Escape drops the carried pane; capture so it never reaches the global
+    // handler, which would close the tools panel and then leave the editor.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape')
+        return
+      e.preventDefault()
+      e.stopPropagation()
+      setMoving(false)
+      endSwapDrag(false)
+    }
+    window.addEventListener('keydown', onKey, { capture: true })
+    return () => window.removeEventListener('keydown', onKey, { capture: true })
+  }, [moving, endSwapDrag])
+
+  useEffect(() => () => {
+    clearSwapOver()
     clearSwapHold()
-    swapArmedRef.current = false
-    setSwapArmed(false)
-    downAtRef.current = null
-    setLiveFor(null)
-    gestureRef.current = { mode: 'swap', lastX: 0, lastY: 0, startDist: 0, base: { ...leaf } }
-    document.body.style.cursor = 'grabbing'
-    setSwapAt({ x, y })
-    swapOverAt(x, y)
-  }
-
-  // Single-pointer pan. A touch held still (see SWAP_HOLD_MS) armed the swap:
-  // the first movement after that starts carrying the photo, so a drag that
-  // began as a hold never pans halfway through.
-  const panMove = (e: React.PointerEvent, g: Gesture) => {
-    const p = local(e.clientX, e.clientY)
-    const moved = downAtRef.current
-      ? Math.hypot(e.clientX - downAtRef.current.x, e.clientY - downAtRef.current.y)
-      : 0
-    if (swapArmedRef.current) {
-      if (moved > SWAP_SLOP)
-        startSwapDrag(e.clientX, e.clientY)
-      return
-    }
-    // Moving means panning, not holding: drop the Live Photo timer and the
-    // pending swap arm before they fire.
-    if (moved > SWAP_SLOP) {
-      clearHold()
-      clearSwapHold()
-    }
-    const dx = p.x - g.lastX
-    const dy = p.y - g.lastY
-    g.lastX = p.x
-    g.lastY = p.y
-    const pl = placement(cell, leaf, iw, ih)
-    commit({ ...leaf, cx: leaf.cx - dx / pl.w, cy: leaf.cy - dy / pl.h })
-  }
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!pointersRef.current.has(e.pointerId))
-      return
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    const g = gestureRef.current
-    if (!g || !iw || !ih)
-      return
-
-    if (g.mode === 'pan' && pointersRef.current.size === 1) {
-      panMove(e, g)
-      return
-    }
-    if (g.mode === 'swap' && pointersRef.current.size === 1) {
-      setSwapAt({ x: e.clientX, y: e.clientY })
-      swapOverAt(e.clientX, e.clientY)
-      return
-    }
-    if (g.mode === 'pinch' && pointersRef.current.size >= 2) {
-      const [a, b] = [...pointersRef.current.values()]
-      const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))
-      const mid = local((a.x + b.x) / 2, (a.y + b.y) / 2)
-      const ratio = dist / g.startDist
-      // "Pinch past the floor": zoomAbout clamps to MIN_ZOOM, so judge the
-      // raw ratio: shrinking an already-minimum photo out of the pane is the
-      // explicit exit-to-grid gesture, and it must not commit a zoom either.
-      if (g.base.zoom * ratio <= MIN_ZOOM && ratio < 1) {
-        exitToGrid()
-        return
-      }
-      zoomAbout(g.base, g.base.zoom * ratio, mid.x, mid.y)
-    }
-  }
-
-  const endPointer = (e: React.PointerEvent) => {
-    const g = gestureRef.current
-    pointersRef.current.delete(e.pointerId)
-    if (pointersRef.current.size === 0) {
-      gestureRef.current = null
-      clearHold()
-      clearSwapHold()
-      swapArmedRef.current = false
-      setSwapArmed(false)
-      downAtRef.current = null
-      setLiveFor(null)
-      // pointerup over another pane commits the swap; pointercancel drops it.
-      if (g?.mode === 'swap')
-        endSwapDrag(e.type === 'pointerup')
-    }
-    else {
-      clearSwapHold()
-      swapArmedRef.current = false
-      setSwapArmed(false)
-      const only = [...pointersRef.current.values()][0]
-      const p = local(only.x, only.y)
-      downAtRef.current = { x: only.x, y: only.y }
-      gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...leaf } }
-    }
-  }
-
-  // A touch long press arms the swap drag, not the menu, so cancel Base UI's
-  // own long-press open. A menu opened while a gesture runs (right-click
-  // mid-pan) hands the gesture back so the finger crossing the menu doesn't
-  // keep panning.
-  const onMenuOpenChange = (open: boolean, details: ContextMenu.Root.ChangeEventDetails) => {
-    if (open && touchPressRef.current) {
-      details.cancel()
-      return
-    }
-    if (!open)
-      return
-    endSwapDrag(false)
-    const el = elRef.current
-    if (el) {
-      for (const id of [...pointersRef.current.keys()]) {
-        if (el.hasPointerCapture(id))
-          el.releasePointerCapture(id)
-      }
-    }
-    pointersRef.current.clear()
-    gestureRef.current = null
-    clearHold()
-    clearSwapHold()
-    swapArmedRef.current = false
-    setSwapArmed(false)
-    downAtRef.current = null
-    setLiveFor(null)
-  }
+    document.body.style.cursor = ''
+  }, [clearSwapOver, clearSwapHold])
 
   useEffect(() => {
     const el = elRef.current
     if (!el)
       return
-    const handler = (e: WheelEvent) => {
-      // Pinch/ctrl+wheel must never fall through to browser page zoom, even
-      // when this pane has nothing to zoom (the stage forwards these here).
-      if (e.ctrlKey || (leaf.photoId && iw && ih))
-        e.preventDefault()
-      // Pinching in (shrinking) on a pane without a photo: nothing to zoom,
-      // so the pinch itself is the exit-to-grid gesture.
-      if (!leaf.photoId && e.ctrlKey && e.deltaY > 0) {
-        exitToGrid()
-        return
-      }
-      if (!leaf.photoId || !iw || !ih)
-        return
-      const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0012))
-      const nextZoom = leaf.zoom * factor
-      // Ctrl+pinch that would shrink below MIN_ZOOM has hit the floor and is
-      // still pushing out: zoom out all the way into the 3×3 grid instead of
-      // clamping. Plain (non-ctrl) wheel is never an exit signal.
-      if (e.ctrlKey && nextZoom <= MIN_ZOOM) {
-        exitToGrid()
-        return
-      }
-      const p = local(e.clientX, e.clientY)
-      zoomAbout(leaf, nextZoom, p.x, p.y)
-    }
+    const handler = (e: WheelEvent) => handleWheel({ leaf, iw, ih, exitToGrid, local, zoomAbout }, e)
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
-  }, [leaf, iw, ih, local, zoomAbout, exitToGrid])
+  }, [leaf, iw, ih, local, zoomAbout, exitToGrid, elRef])
 
+  const toggleLivePin = useCallback(() => {
+    if (photo)
+      setLivePin(live ? null : photo.id)
+  }, [photo, live])
+
+  return {
+    swapAt,
+    moving,
+    swapReturn,
+    swapArmed,
+    live,
+    liveVideoRef,
+    toggleLivePin,
+    clearSwapReturn,
+    onPointerDown: (e: React.PointerEvent) => beginPointer(runtime, e),
+    onPointerMove: (e: React.PointerEvent) => movePointer(runtime, e),
+    onPointerUp: (e: React.PointerEvent) => endPointer(runtime, e),
+    onPointerDownCapture: (e: React.PointerEvent) => {
+      touchPressRef.current = e.pointerType !== 'mouse'
+    },
+    onMenuOpenChange: (open: boolean, details: ContextMenu.Root.ChangeEventDetails) => paneMenuOpenChange(runtime, open, details),
+    startMove: (x: number, y: number) => startMovePane(runtime, x, y),
+    moveGhostTo: (x: number, y: number) => {
+      setSwapAt({ x, y })
+      swapOverAtEl(runtime, x, y)
+    },
+    dropMoveAt: (x: number, y: number) => {
+      swapOverAtEl(runtime, x, y)
+      setMoving(false)
+      finishSwapDrag(runtime, true)
+    },
+    cancelMove: () => {
+      setMoving(false)
+      finishSwapDrag(runtime, false)
+    },
+  }
+}
+
+/* The global Text tool asks a pane's label into edit mode via the store; the
+   monotonic sequence makes even repeated requests for the same pane fire. */
+function usePaneEditing(paneId: string) {
+  const [editing, setEditing] = useState(false)
+  const editReq = useStore(s => s.labelEditReq)
+  const [seenEditSeq, setSeenEditSeq] = useState(0)
+  if (editReq && editReq.seq !== seenEditSeq) {
+    setSeenEditSeq(editReq.seq)
+    if (editReq.paneId === paneId)
+      setEditing(true)
+  }
+  return { editing, setEditing }
+}
+
+interface DropChoice {
+  photos: Photo[]
+  at: { x: number, y: number }
+}
+
+/**
+ * The pane's file drag-and-drop: track the drag-over look, ingest the dropped
+ * files, and either assign straight into an empty pane or raise the choice
+ * overlay for a filled one.
+ */
+function usePaneDrop({
+  paneId,
+  hasPhoto,
+  place,
+  toCanvas,
+  setDropChoice,
+}: {
+  paneId: string
+  hasPhoto: boolean
+  place: { x: number, y: number, w: number, h: number } | null
+  toCanvas: (clientX: number, clientY: number) => { x: number, y: number }
+  setDropChoice: (v: DropChoice | null) => void
+}) {
+  const [dropping, setDropping] = useState(false)
+  const onDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files'))
+      return
+    e.preventDefault()
+    e.stopPropagation()
+    setDropping(true)
+  }
+  const onDragLeave = () => setDropping(false)
+  const onDrop = (e: React.DragEvent) => {
+    const files = [...(e.dataTransfer?.files ?? [])]
+    setDropping(false)
+    if (!files.length)
+      return
+    e.preventDefault()
+    e.stopPropagation()
+    const s = useStore.getState()
+    const created = s.addPhotos(files, false)
+    if (!created.length)
+      return
+    // A pane with a photo asks what the dropped image should become.
+    if (hasPhoto) {
+      const pt = place ? toCanvas(e.clientX, e.clientY) : null
+      const at = pt && place ? photoNorm(place, pt.x, pt.y) : { x: 0.5, y: 0.5 }
+      setDropChoice({ photos: created, at })
+      return
+    }
+    const first = created[0]
+    if (first)
+      s.assign(paneId, first.id)
+  }
+  return { dropping, onDragOver, onDragLeave, onDrop }
+}
+
+function PaneImpl({
+  leaf,
+  rect,
+  radius,
+  bordered,
+  fade,
+  seam,
+  unit,
+  photo,
+  photoById,
+  focused,
+  canClose,
+  onFocus,
+  onUpdate,
+  onSplit,
+  onClose,
+}: Props) {
+  const elRef = useRef<HTMLDivElement | null>(null)
+  const preview = usePreview(photo)
+  const navigate = useNavigate()
+
+  // Exit the editor back to the grid overview, morphing the canvas into its cell.
+  const exitToGrid = useCallback(() => {
+    useStore.getState().clearSelection()
+    void navigate({ to: '/', viewTransition: viewTransitionOption() })
+  }, [navigate])
+
+  const pickForPane = useCallback(() => pickPhotoForPane(leaf.id), [leaf.id])
+
+  const iw = preview?.w ?? 0
+  const ih = preview?.h ?? 0
+  const cell: Rect = rect
   const place = iw && ih ? placement(cell, leaf, iw, ih) : null
-  // Feather the photo's seam edges (and the Live Photo video that replaces
-  // it visually); stickers/labels stay sharp above it.
-  const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
-
-  // The carried photo rides the pointer at roughly its pane size (capped).
-  const ghostW = Math.min(rect.w, 180)
-  const ghostH = iw ? (ghostW * ih) / iw : ghostW
-  // Where a cancelled carry lands, computed once per render from the dimmed
-  // original's live box (the pane can shift while the carry is in flight).
-  const swapReturnTo = swapReturnLanding(swapReturn, place, rect, elRef.current)
 
   const toCanvas = useCallback(
     (clientX: number, clientY: number) => {
@@ -1491,60 +2144,68 @@ function PaneImpl({
     [rect.x, rect.y],
   )
 
+  const { local, commit, zoomAbout } = usePaneViewport({ leaf, cell, iw, ih, elRef, onUpdate })
+  const {
+    swapAt,
+    moving,
+    swapReturn,
+    swapArmed,
+    live,
+    liveVideoRef,
+    toggleLivePin,
+    clearSwapReturn,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerDownCapture,
+    onMenuOpenChange,
+    startMove,
+    moveGhostTo,
+    dropMoveAt,
+    cancelMove,
+  } = usePaneGestures({ leaf, cell, iw, ih, photo, elRef, onFocus, exitToGrid, local, commit, zoomAbout })
+
+  const { editing, setEditing } = usePaneEditing(leaf.id)
+
+  // A drop on a pane that already holds a photo asks what the image should
+  // become; `at` is the drop point in pane-normalized coords for stickers.
+  const [dropChoice, setDropChoice] = useState<DropChoice | null>(null)
+  const { dropping, onDragOver, onDragLeave, onDrop } = usePaneDrop({
+    paneId: leaf.id,
+    hasPhoto: !!leaf.photoId,
+    place,
+    toCanvas,
+    setDropChoice,
+  })
+
+  // Feather the photo's seam edges (and the Live Photo video that replaces
+  // it visually); stickers/labels stay sharp above it.
+  const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
+
+  // The carried photo rides the pointer at roughly its pane size (capped).
+  const ghostW = Math.min(rect.w, 180)
+  const ghostH = iw ? (ghostW * ih) / iw : ghostW
+  // Where a cancelled carry lands, computed once per render from the dimmed
+  // original's live box (the pane can shift while the carry is in flight).
+  const swapReturnTo = swapReturnLanding(swapReturn, place, rect, elRef.current)
+
   const paneNode = (
     <div
       ref={elRef}
       data-pane-id={leaf.id}
       data-swap-armed={swapArmed ? '' : undefined}
       data-swap-source={swapAt ? '' : undefined}
-      className={
-        `group/pane absolute cursor-grab touch-none select-none overflow-hidden [contain:paint] ${
-          focused
-            ? ' z-1 cursor-grab'
-            : ''
-        }${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`
-      }
+      className={paneShellClass(focused, !!leaf.photoId)}
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radius }}
       onPointerDown={onPointerDown}
-      // Capture, not bubble: pressing a sticker or label stops propagation, but
-      // the press pointer type still has to reach the menu suppression below.
-      onPointerDownCapture={(e) => {
-        touchPressRef.current = e.pointerType !== 'mouse'
-      }}
+      onPointerDownCapture={onPointerDownCapture}
       onPointerMove={onPointerMove}
-      onPointerUp={endPointer}
-      onPointerCancel={endPointer}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
       onDoubleClick={() => leaf.photoId && onUpdate(leaf.id, { zoom: 1, cx: 0.5, cy: 0.5 })}
-      onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes('Files'))
-          return
-        e.preventDefault()
-        e.stopPropagation()
-        setDropping(true)
-      }}
-      onDragLeave={() => setDropping(false)}
-      onDrop={(e) => {
-        const files = [...(e.dataTransfer?.files ?? [])]
-        setDropping(false)
-        if (!files.length)
-          return
-        e.preventDefault()
-        e.stopPropagation()
-        const s = useStore.getState()
-        const created = s.addPhotos(files, false)
-        if (!created.length)
-          return
-        // A pane with a photo asks what the dropped image should become.
-        if (leaf.photoId) {
-          const pt = place ? toCanvas(e.clientX, e.clientY) : null
-          const at = pt && place ? photoNorm(place, pt.x, pt.y) : { x: 0.5, y: 0.5 }
-          setDropChoice({ photos: created, at })
-          return
-        }
-        const first = created[0]
-        if (first)
-          s.assign(leaf.id, first.id)
-      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       onContextMenu={e => e.preventDefault()}
     >
       <PanePhotoContent
@@ -1557,48 +2218,27 @@ function PaneImpl({
         carried={!!swapAt}
       />
 
-      {liveUrl && place && (
-        <div className="absolute inset-0" style={photoMask}>
-          <video
-            ref={liveVideoRef}
-            className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
-            src={liveUrl}
-            style={{
-              left: place.x - rect.x,
-              top: place.y - rect.y,
-              width: place.w,
-              height: place.h,
-            }}
-            loop
-            playsInline
-            preload="auto"
-            draggable={false}
-          />
-        </div>
+      {place && (
+        <PaneLivePhoto
+          photo={photo}
+          place={place}
+          rect={rect}
+          mask={photoMask}
+          live={live}
+          videoRef={liveVideoRef}
+          onToggle={toggleLivePin}
+        />
       )}
 
-      {photo?.videoFile && place && (
-        <PaneLiveBadge playing={live} onToggle={() => setLivePin(live ? null : photo!.id)} />
-      )}
-
-      {place
-        && leaf.stickers.map((st) => {
-          const sp = st.photoId ? photoById.get(st.photoId) : undefined
-          return sp
-            ? (
-                <StickerView
-                  key={st.id}
-                  paneId={leaf.id}
-                  st={st}
-                  photo={sp}
-                  place={place}
-                  paneRect={rect}
-                  toCanvas={toCanvas}
-                  onFocus={onFocus}
-                />
-              )
-            : null
-        })}
+      <PaneStickers
+        place={place}
+        stickers={leaf.stickers}
+        paneId={leaf.id}
+        photoById={photoById}
+        rect={rect}
+        toCanvas={toCanvas}
+        onFocus={onFocus}
+      />
 
       {leaf.label && (
         <LabelView
@@ -1623,102 +2263,24 @@ function PaneImpl({
       />
 
       {dropChoice && (
-        <div
-          className="absolute inset-0 z-[5] flex items-center justify-center bg-overlay-dim"
-          onClick={() => setDropChoice(null)}
-          onPointerDown={e => e.stopPropagation()}
-        >
-          <div
-            className="flex w-[min(190px,85%)] flex-col gap-[3px] rounded-none border border-line-strong bg-panel p-1 shadow-pop"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              className={dropBtnCls}
-              onClick={() => {
-                const first = dropChoice.photos[0]
-                if (first)
-                  useStore.getState().assign(leaf.id, first.id)
-                setDropChoice(null)
-              }}
-            >
-              <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="text-dim" />
-              {t('Use as photo')}
-            </button>
-            <button
-              className={dropBtnCls}
-              onClick={() => {
-                const s = useStore.getState()
-                for (const ph of dropChoice.photos)
-                  s.addSticker(leaf.id, ph.id, dropChoice.at.x, dropChoice.at.y)
-                setDropChoice(null)
-              }}
-            >
-              <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="text-dim" />
-              {t('Use as sticker')}
-            </button>
-          </div>
-        </div>
+        <DropChoiceOverlay
+          paneId={leaf.id}
+          photos={dropChoice.photos}
+          at={dropChoice.at}
+          onClose={() => setDropChoice(null)}
+        />
       )}
 
-      {/* The dragged-out photo follows the pointer in a portal above everything.
-          The wrapper takes the pointer position as a transform (compositor-only,
-          so a move writes no layout) and the img centers on it and pops in. */}
-      {swapAt && preview && createPortal(
-        <div
-          className="pointer-events-none fixed left-0 top-0 z-[80]"
-          style={{ transform: `translate3d(${swapAt.x}px, ${swapAt.y}px, 0)` }}
-        >
-          <img
-            src={preview.url}
-            alt=""
-            draggable={false}
-            className="pointer-events-none block swap-ghost max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
-            style={{
-              width: ghostW,
-              height: ghostH,
-              borderRadius: radius,
-              transform: 'translate(-50%, -55%)',
-            }}
-          />
-        </div>,
-        document.body,
-      )}
+      <SwapGhost at={swapAt} preview={preview} width={ghostW} height={ghostH} radius={radius} />
 
       {/* A cancelled carry glides back onto the dimmed original. */}
-      {swapReturn && preview && swapReturnTo && createPortal(
-        <SwapGhostReturn from={swapReturn} to={swapReturnTo} src={preview.url} width={ghostW} height={ghostH} radius={radius} onDone={clearSwapReturn} />,
-        document.body,
-      )}
+      <SwapReturnPortal from={swapReturn} preview={preview} to={swapReturnTo} width={ghostW} height={ghostH} radius={radius} onDone={clearSwapReturn} />
 
       {/* Move mode: one full-screen catcher so the next click drops the carried
           photo wherever it lands (source and empty space drop it back). The
           portal lives in the pane's React tree, so events must not bubble on
           to the pane's own handlers (or Base UI would reopen the menu). */}
-      {moving && createPortal(
-        <div
-          className="fixed inset-0 z-[70] cursor-grabbing touch-none select-none"
-          onPointerMove={(e) => {
-            e.stopPropagation()
-            setSwapAt({ x: e.clientX, y: e.clientY })
-            swapOverAt(e.clientX, e.clientY)
-          }}
-          onPointerDown={(e) => {
-            e.stopPropagation()
-            if (e.button !== 0)
-              return
-            swapOverAt(e.clientX, e.clientY)
-            setMoving(false)
-            endSwapDrag(true)
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setMoving(false)
-            endSwapDrag(false)
-          }}
-        />,
-        document.body,
-      )}
+      <MoveCatcher active={moving} onMove={moveGhostTo} onDrop={dropMoveAt} onCancel={cancelMove} />
 
       {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
@@ -1746,10 +2308,7 @@ function PaneImpl({
       onSplit={onSplit}
       onClose={onClose}
       onFocus={onFocus}
-      onToggleLive={() => {
-        if (photo)
-          setLivePin(live ? null : photo.id)
-      }}
+      onToggleLive={toggleLivePin}
       onStartMove={startMove}
       onPickPhoto={pickForPane}
     />

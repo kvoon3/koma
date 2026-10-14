@@ -471,7 +471,7 @@ The default build is a regular chunked bundle; wrangler deploys `dist/` to
 koma.kvoon.me. `bun run build:single` instead runs the same config in
 `--mode single`, which switches on `vite-plugin-singlefile` to produce
 `koma.html`, one self-contained file (it inlines the HEIC decoder and
-all assets) that works fully offline, opened directly via file:// — which
+all assets) that works fully offline, opened directly via file://, which
 is also why the router uses hash history.
 
 ## Debug

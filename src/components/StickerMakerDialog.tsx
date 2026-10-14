@@ -3,7 +3,8 @@ import { Dialog } from '@base-ui/react/dialog'
 import { ImagePlus, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
+import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { ColorField, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField, SelectField } from '@/components/ui/field'
 import { Tip } from '@/components/ui/tip'
 import { removeBackground } from '../lib/bgRemoval'
@@ -84,7 +85,13 @@ async function cutoutBackground(
 ) {
   onJob({ phase: 'loading', progress: 0 })
   try {
-    const blob = await fetch(imageSrc).then(r => r.blob())
+    const res = await fetch(imageSrc)
+    // A revoked or cross-origin blob: URL makes `fetch` reject rather than
+    // answer non-2xx, so this guard never fires for today's inputs. It stays
+    // as the required response check and a net for any future non-blob source.
+    if (!res.ok)
+      throw new Error(`Could not read the picked image (HTTP ${res.status})`)
+    const blob = await res.blob()
     const cutout = await removeBackground(blob, p => onJob(p))
     onDone(URL.createObjectURL(cutout))
   }
@@ -177,70 +184,34 @@ function StickerPreview({ source, outlineWidth, outlineColor, material }: {
   )
 }
 
-export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, paneId: string | null, onClose: () => void }) {
+/** One background-removal job's progress report for the UI. */
+interface BgJob {
+  phase: 'loading' | 'processing'
+  progress?: number
+}
+
+/**
+ * Local U²-Netᵖ cutouts. Jobs are token-guarded: a second run while the
+ * first still goes drops the stale result and frees its URL instead of
+ * clobbering the newer pick.
+ */
+function useCutoutJob(onDone: (url: string) => void) {
+  const [job, setJob] = useState<BgJob | null>(null)
+  const jobRef = useRef(0)
   const t = useT()
 
-  const [tab, setTab] = useState<'text' | 'image'>('text')
-  const [text, setText] = useState('')
-  const [color, setColor] = useState(TEXT_COLOR_DEFAULT)
-  const [font, setFont] = useState(FONTS[0].id)
-  const [imageSrc, setImageSrc] = useState<string | null>(null)
-  const [imageName, setImageName] = useState('')
-  const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
-  const [outlineColor, setOutlineColor] = useState(OUTLINE_COLOR_DEFAULT)
-  const [material, setMaterial] = useState<StickerMaterialType>('original')
-
-  const [inserting, setInserting] = useState(false)
-  const [bgJob, setBgJob] = useState<{ phase: 'loading' | 'processing', progress?: number } | null>(null)
-  const [hasCutout, setHasCutout] = useState(false)
-  const urlRef = useRef<string | null>(null)
-  const originalUrlRef = useRef<string | null>(null)
-  const bgJobRef = useRef(0)
-
-  const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
-
-  const source = useMemo(
-    () => buildSource(tab, text, color, fontMeta, imageSrc, imageName),
-    [tab, text, color, fontMeta, imageSrc, imageName],
-  )
-
-  // Release the picked image's object URL on unmount (it stays alive while the
-  // dialog is open so the preview and the insert both read the same bytes),
-  // plus the pre-cutout original kept around for Restore.
-  useEffect(() => () => {
-    for (const url of [urlRef.current, originalUrlRef.current]) {
-      if (url)
-        URL.revokeObjectURL(url)
-    }
-  }, [])
-
-  // Swap the displayed image URL; the pre-cutout original moves to
-  // originalUrlRef. Revoking urlRef here would kill the very URL Restore
-  // needs, because the two point at the same URL until the cutout lands.
-  const applyImage = (url: string, original: string) => {
-    originalUrlRef.current = original
-    urlRef.current = url
-    setImageSrc(url)
-    setHasCutout(true)
-  }
-
-  /**
-   * Local U²-Netᵖ cutout for one object URL. Jobs are token-guarded: picking a
-   * second image while the first is still processing drops the stale result
-   * (and frees its URL) instead of clobbering the newer pick.
-   */
-  const cutout = (src: string) => {
-    const job = ++bgJobRef.current
-    const isCurrent = () => bgJobRef.current === job
+  const run = (src: string) => {
+    const token = ++jobRef.current
+    const isCurrent = () => jobRef.current === token
     void cutoutBackground(
       src,
       (next) => {
         if (isCurrent())
-          setBgJob(next)
+          setJob(next)
       },
       (url) => {
         if (isCurrent())
-          applyImage(url, src)
+          onDone(url)
         else
           URL.revokeObjectURL(url)
       },
@@ -255,47 +226,97 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     )
   }
 
+  return { job, run }
+}
+
+/**
+ * The sticker maker's picked image: the pick's own URL plus the cutout that
+ * replaces it, each owned by the pick or cutout that made it. The cutout
+ * runs automatically on pick; Restore original brings the full frame back.
+ */
+function useStickerImage() {
+  const [pick, setPick] = useState<{ url: string, name: string } | null>(null)
+  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null)
+  const pickRef = useRef<string | null>(null)
+  const { job: bgJob, run: runCutout } = useCutoutJob(setCutoutUrl)
+
+  // The displayed image: the cutout while one is showing, else the pick.
+  const imageSrc = cutoutUrl ?? pick?.url ?? null
+  const hasCutout = !!cutoutUrl
+
+  // The pick's URL outlives the render that minted it, so the unmount cleanup
+  // reaches it through the ref.
+  useEffect(() => () => {
+    if (pickRef.current)
+      URL.revokeObjectURL(pickRef.current)
+  }, [])
+
+  // A sticker wants the subject alone, so the background is cut out as the
+  // pick lands, not through a state round trip.
   const pickImage = () => {
     pickImageFiles((files) => {
       const file = files[0]
       if (!file)
         return
-      // Drop the previous pick's URLs (original first: it may be the one
-      // urlRef still points at) before taking on the new one.
-      if (originalUrlRef.current)
-        URL.revokeObjectURL(originalUrlRef.current)
-      originalUrlRef.current = null
-      if (urlRef.current)
-        URL.revokeObjectURL(urlRef.current)
-      const url = URL.createObjectURL(file)
-      urlRef.current = url
-      setImageSrc(url)
-      setImageName(file.name)
-      setHasCutout(false)
-      // A sticker wants the subject alone, so cut the background out on pick;
-      // Restore original brings the full frame back for a manual retry.
-      cutout(url)
+      // The pick owns the URL it mints: the release below drops the one it
+      // replaces (after the mint, so the two are never the same), and the
+      // unmount cleanup above drops the last one.
+      const next = { url: URL.createObjectURL(file), name: file.name }
+      if (pickRef.current)
+        URL.revokeObjectURL(pickRef.current)
+      pickRef.current = next.url
+      setCutoutUrl(null)
+      setPick(next)
+      runCutout(next.url)
     })
   }
+
+  // The displayed cutout's URL, owned until Restore drops it, a newer pick
+  // replaces it, or the dialog goes.
+  useEffect(() => {
+    if (!cutoutUrl)
+      return
+    return () => URL.revokeObjectURL(cutoutUrl)
+  }, [cutoutUrl])
 
   // Retry hook for the automatic cutout: used after Restore original or when
   // the local model failed.
   const removeBg = () => {
     if (!imageSrc || bgJob)
       return
-    cutout(imageSrc)
+    runCutout(imageSrc)
   }
 
+  // Restore original: release the cutout, the display falls back to the pick.
   const restoreOriginal = () => {
-    if (!originalUrlRef.current)
+    if (!cutoutUrl)
       return
-    if (urlRef.current)
-      URL.revokeObjectURL(urlRef.current)
-    urlRef.current = originalUrlRef.current
-    originalUrlRef.current = null
-    setHasCutout(false)
-    setImageSrc(urlRef.current)
+    setCutoutUrl(null)
   }
+
+  return { imageSrc, imageName: pick?.name ?? '', hasCutout, bgJob, pickImage, removeBg, restoreOriginal }
+}
+
+export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, paneId: string | null, onClose: () => void }) {
+  const t = useT()
+
+  const [tab, setTab] = useState<'text' | 'image'>('text')
+  const [text, setText] = useState('')
+  const [color, setColor] = useState(TEXT_COLOR_DEFAULT)
+  const [font, setFont] = useState(FONTS[0].id)
+  const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
+  const [outlineColor, setOutlineColor] = useState(OUTLINE_COLOR_DEFAULT)
+  const [material, setMaterial] = useState<StickerMaterialType>('original')
+
+  const [inserting, setInserting] = useState(false)
+  const { imageSrc, imageName, hasCutout, bgJob, pickImage, removeBg, restoreOriginal } = useStickerImage()
+
+  const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
+
+  const source = useMemo(
+    () => buildSource(tab, text, color, fontMeta, imageSrc, imageName),
+    [tab, text, color, fontMeta, imageSrc, imageName],
+  )
 
   const insert = async () => {
     // Text stickers take their name from the first line, not a leftover image pick.

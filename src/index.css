@@ -369,6 +369,14 @@ html.dark {
     outline-offset: -2px;
   }
 
+  /* Panning/pinching rewrites the placed photo's transform on every
+     pointer-move frame, so the compositor hint rides exactly that gesture:
+     [data-gesture] is set on pointerdown (pre-promoting before the first
+     move needs it) and cleared on release, never lingering on an idle pane. */
+  [data-pane-id][data-gesture] [data-photo-img] {
+    will-change: transform;
+  }
+
   /* The ghost pops in under the finger. It animates the individual `scale`
      property so it composes with the centering translate already on the img. */
   @keyframes swap-ghost-in {

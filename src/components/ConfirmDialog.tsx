@@ -1,6 +1,6 @@
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { useT } from '../lib/i18n'
-import { dialogButton } from './ui/button'
+import { dialogButton } from './ui/buttonStyles'
 
 /** Generic destructive-or-not confirm (clear library, open workspace file, …). */
 export function ConfirmDialog({ open, title, description, confirmLabel, danger, onClose, onConfirm }: {

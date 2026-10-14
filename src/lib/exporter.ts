@@ -1,6 +1,7 @@
-import type { FullSourceBatch, Photo } from './imageStore'
+import type { FullSource, FullSourceBatch, Photo } from './imageStore'
 import type { Leaf, Node, Rect, SeamSides } from './panes'
 import { isTransparentBg } from '../store'
+import { mapSeq } from './async'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
@@ -163,12 +164,42 @@ function drawFadedPhoto(
   ctx.drawImage(scratch, rect.x, rect.y, rect.w, rect.h)
 }
 
+/** Every photo a collage paint will draw, cells first then their stickers, deduped. */
+function paintPhotos(prep: Prepared, photos: Map<string, Photo>): Photo[] {
+  const wanted: Photo[] = []
+  for (const { leaf, photo } of prep.cells) {
+    wanted.push(photo)
+    for (const st of leaf.stickers) {
+      const sp = photos.get(st.photoId)
+      if (sp?.trueW && sp.trueH)
+        wanted.push(sp)
+    }
+  }
+  return [...new Set(wanted)]
+}
+
+/**
+ * Resolve the batch's sources one decode at a time, the same pace the old
+ * per-cell awaits kept, before the first draw. The chain keeps the order
+ * explicit without a loop whose awaits read as an accident.
+ */
+async function resolveSources(wanted: Photo[], sources: FullSourceBatch): Promise<Map<Photo, FullSource | null>> {
+  const entries = await wanted.reduce<Promise<[Photo, FullSource | null][]>>(
+    (chain, photo) => chain.then(async (acc) => {
+      acc.push([photo, await sources.get(photo)])
+      return acc
+    }),
+    Promise.resolve([]),
+  )
+  return new Map(entries)
+}
+
 /**
  * The shared blurred backdrop field (backdrop mode): every photo painted
  *  unclipped and blurred behind the panes, so their feathered edges melt
  *  into one continuous field. Mirrors the preview's SeamBackdrop layer.
  */
-async function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, sources: FullSourceBatch) {
+function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, src: Map<Photo, FullSource | null>) {
   if (typeof ctx.filter !== 'string' || prep.fade <= 0)
     return
   const R = Math.max(prep.u * 40, prep.fade)
@@ -181,7 +212,7 @@ async function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts:
     const seam = prep.seam.get(leaf.id)
     if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
       continue
-    const full = await sources.get(photo)
+    const full = src.get(photo)
     if (!full)
       continue
     const p = placement(rect, leaf, photo.trueW, photo.trueH)
@@ -195,11 +226,11 @@ async function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts:
 
 /**
  * Clip each photo into its pane, draw it placed (feathered at seams), then
- *  its stickers; `sources` hands out each photo's shared full bitmap.
+ *  its stickers; `src` hands out each photo's resolved full bitmap.
  */
-async function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, sources: FullSourceBatch) {
+function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, src: Map<Photo, FullSource | null>) {
   for (const { leaf, rect, photo } of prep.cells) {
-    const full = await sources.get(photo)
+    const full = src.get(photo)
     if (!full)
       continue
     const p = placement(rect, leaf, photo.trueW, photo.trueH)
@@ -211,24 +242,24 @@ async function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opt
       drawFadedPhoto(ctx, full.src, p, rect, seam, prep.fade)
     else
       ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
-    await drawStickers(ctx, p, leaf, opts.photos, sources)
+    drawStickers(ctx, p, leaf, opts.photos, src)
     ctx.restore()
   }
 }
 
-/** Draw one leaf's stickers over its photo, through the run's shared batch. */
-async function drawStickers(
+/** Draw one leaf's stickers over its photo, through the run's resolved sources. */
+function drawStickers(
   ctx: CanvasRenderingContext2D,
   p: { x: number, y: number, w: number, h: number },
   leaf: Leaf,
   photos: Map<string, Photo>,
-  sources: FullSourceBatch,
+  src: Map<Photo, FullSource | null>,
 ) {
   for (const st of leaf.stickers) {
     const sp = photos.get(st.photoId)
     if (!sp?.trueW || !sp.trueH)
       continue
-    const full = await sources.get(sp)
+    const full = src.get(sp)
     if (!full)
       continue
     const sr = stickerRect(p, st, sp.trueW, sp.trueH, sp.trueW / sp.trueH)
@@ -307,9 +338,12 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
   // batch releases (release closes the last-referenced bitmap).
   const sources = acquireFullBatch()
   try {
+    // Resolve every source before the first draw, then paint synchronously:
+    // the draws share one 2D context, so their order is the output.
+    const src = await resolveSources(paintPhotos(prep, opts.photos), sources)
     // The blurred field goes under the panes; their feathered edges melt into it.
-    await drawBackdrop(ctx, prep, opts, sources)
-    await drawPhotoCells(ctx, prep, opts, sources)
+    drawBackdrop(ctx, prep, opts, src)
+    drawPhotoCells(ctx, prep, opts, src)
     await ensureLabelFonts(prep)
     drawLabelCells(ctx, prep)
   }
@@ -329,20 +363,61 @@ export function hasLiveCells(opts: ExportOptions): boolean {
   return prepare(opts, W, H).cells.some(c => !!c.photo.videoFile)
 }
 
-function loadVideoEl(file: File): Promise<HTMLVideoElement | null> {
+/** Decode one already-owned object URL; the caller owns the URL's lifetime. */
+function loadVideoEl(url: string): Promise<HTMLVideoElement | null> {
   return new Promise((res) => {
     const v = document.createElement('video')
     v.muted = true
     v.playsInline = true
     v.preload = 'auto'
-    const url = URL.createObjectURL(file)
     v.onloadeddata = () => res(v)
-    v.onerror = () => {
-      URL.revokeObjectURL(url)
-      res(null)
-    }
+    v.onerror = () => res(null)
     v.src = url
   })
+}
+
+interface LiveVid {
+  cell: Prepared['cells'][number]
+  v: HTMLVideoElement
+  url: string
+}
+
+/**
+ * One ownership scope for the paired MOV decoders: the object URLs are minted
+ * here, and every one of them, loaded or not, is released here when the
+ * recording ends or the scope unwinds.
+ */
+async function withLiveVideos<T>(
+  lives: Prepared['cells'],
+  run: (vids: LiveVid[]) => Promise<T>,
+): Promise<T | null> {
+  const urls: string[] = []
+  const vids: LiveVid[] = []
+  try {
+    for (const cell of lives)
+      urls.push(URL.createObjectURL(cell.photo.videoFile!))
+    if (!urls.length)
+      return null
+    // Loads run together: every decoder is alive for the whole recording
+    // either way, so staggering the starts only delays the first frame.
+    const loaded = await Promise.all(urls.map(url => loadVideoEl(url)))
+    for (const [i, v] of loaded.entries()) {
+      if (v)
+        vids.push({ cell: lives[i], v, url: urls[i] })
+    }
+    if (!vids.length)
+      return null
+    return await run(vids)
+  }
+  finally {
+    for (const { v } of vids) {
+      v.pause()
+      v.removeAttribute('src')
+      v.load()
+    }
+    for (const url of urls)
+      URL.revokeObjectURL(url)
+  }
 }
 
 /**
@@ -364,97 +439,72 @@ export async function renderCollageVideo(
     return null
   const { W, H } = computeExportSize(opts)
   const prep = prepare(opts, W, H)
-  const vids = await loadLiveVideos(prep.cells.filter(c => !!c.photo.videoFile))
-  if (!vids.length)
-    return null
 
-  const canvas = document.createElement('canvas')
-  canvas.width = W
-  canvas.height = H
-  const ctx = canvas.getContext('2d')!
-  ctx.imageSmoothingQuality = 'high'
+  return await withLiveVideos(prep.cells.filter(c => !!c.photo.videoFile), async (vids) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = W
+    canvas.height = H
+    const ctx = canvas.getContext('2d')!
+    ctx.imageSmoothingQuality = 'high'
 
-  // Sticker sources decode through the same refcounted batch as an export;
-  //  prewarming keeps the frame loop's fire-and-forget drawStickers from doing
-  //  async work (or a late acquire) mid-frame.
-  const sources = acquireFullBatch()
-  const stream = canvas.captureStream(30)
-  try {
-    await prewarmStickerSrcs(vids, opts, sources)
+    // Sticker sources decode through the same refcounted batch as an export
+    // and are resolved up front, so the frame loop below is fully
+    // synchronous: no decode or late acquire can land mid-frame.
+    const sources = acquireFullBatch()
+    const stream = canvas.captureStream(30)
+    try {
+      const src = await resolveSources(stickerPhotos(vids, opts), sources)
 
-    const drawFrame = () => {
-      ctx.drawImage(still, 0, 0)
-      for (const { cell, v } of vids)
-        drawLiveCell(ctx, prep, cell, v, opts, sources)
-    }
-
-    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
-    const chunks: BlobPart[] = []
-    rec.ondataavailable = e => e.data.size && chunks.push(e.data)
-
-    const duration = Math.max(3, ...vids.map(({ v }) => (Number.isFinite(v.duration) ? v.duration : 0)))
-    await new Promise<void>((resolve) => {
-      rec.onstop = () => resolve()
-      const t0 = performance.now()
-      const step = () => {
-        drawFrame()
-        if ((performance.now() - t0) / 1000 < duration)
-          requestAnimationFrame(step)
-        else
-          rec.stop()
+      const drawFrame = () => {
+        ctx.drawImage(still, 0, 0)
+        for (const { cell, v } of vids)
+          drawLiveCell(ctx, prep, cell, v, opts, src)
       }
-      for (const { v } of vids) {
-        v.currentTime = 0
-        v.play().catch(() => {})
-      }
-      rec.start()
-      step()
-    })
 
-    return { blob: new Blob(chunks, { type: mime }), ext: mime.includes('mp4') ? 'mp4' : 'webm' }
-  }
-  finally {
-    sources.release()
-    for (const { v, url } of vids) {
-      v.pause()
-      v.removeAttribute('src')
-      v.load()
-      URL.revokeObjectURL(url)
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
+      const chunks: BlobPart[] = []
+      rec.ondataavailable = e => e.data.size && chunks.push(e.data)
+
+      const duration = Math.max(3, ...vids.map(({ v }) => (Number.isFinite(v.duration) ? v.duration : 0)))
+      await new Promise<void>((resolve) => {
+        rec.onstop = () => resolve()
+        const t0 = performance.now()
+        const step = () => {
+          drawFrame()
+          if ((performance.now() - t0) / 1000 < duration)
+            requestAnimationFrame(step)
+          else
+            rec.stop()
+        }
+        for (const { v } of vids) {
+          v.currentTime = 0
+          v.play().catch(() => {})
+        }
+        rec.start()
+        step()
+      })
+
+      return { blob: new Blob(chunks, { type: mime }), ext: mime.includes('mp4') ? 'mp4' : 'webm' }
     }
-    stream.getTracks().forEach(tr => tr.stop())
-    canvas.width = canvas.height = 0
-  }
+    finally {
+      sources.release()
+      stream.getTracks().forEach(tr => tr.stop())
+      canvas.width = canvas.height = 0
+    }
+  })
 }
 
-interface LiveVid {
-  cell: Prepared['cells'][number]
-  v: HTMLVideoElement
-  url: string
-}
-
-/** Decode every live cell's paired video; cells whose MOV fails to load drop out (their still stays). */
-async function loadLiveVideos(lives: Prepared['cells']): Promise<LiveVid[]> {
-  const vids: LiveVid[] = []
-  for (const cell of lives) {
-    const v = await loadVideoEl(cell.photo.videoFile!)
-    if (v)
-      vids.push({ cell, v, url: v.src })
-  }
-  return vids
-}
-
-async function prewarmStickerSrcs(
-  vids: LiveVid[],
-  opts: ExportOptions,
-  sources: FullSourceBatch,
-): Promise<void> {
+/** The sticker sources the live frame loop will draw, deduped. */
+function stickerPhotos(vids: LiveVid[], opts: ExportOptions): Photo[] {
+  const wanted: Photo[] = []
   for (const { cell } of vids) {
     for (const st of cell.leaf.stickers) {
       const sp = opts.photos.get(st.photoId)
       if (sp?.trueW)
-        await sources.get(sp)
+        wanted.push(sp)
     }
   }
+  return [...new Set(wanted)]
 }
 
 /** One live cell's video frame clipped into its pane, with stickers and label back on top. */
@@ -464,7 +514,7 @@ function drawLiveCell(
   cell: Prepared['cells'][number],
   v: HTMLVideoElement,
   opts: ExportOptions,
-  sources: FullSourceBatch,
+  src: Map<Photo, FullSource | null>,
 ) {
   const { leaf, rect } = cell
   const p = placement(rect, leaf, v.videoWidth, v.videoHeight)
@@ -477,7 +527,7 @@ function drawLiveCell(
   else
     ctx.drawImage(v, p.x, p.y, p.w, p.h)
   ctx.restore()
-  void drawStickers(ctx, p, leaf, opts.photos, sources)
+  drawStickers(ctx, p, leaf, opts.photos, src)
   drawLabelCell(ctx, prep, leaf, rect)
 }
 
@@ -524,10 +574,11 @@ export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTM
     ctx.fillStyle = opts.bg
     ctx.fillRect(0, 0, size, size)
   }
-  for (let i = 0; i < Math.min(9, opts.workspaces.length); i++) {
-    const ws = opts.workspaces[i]
+  // Up to nine full-resolution collage renders, each drawn into the reused
+  // grid canvas in cell order; the first failure aborts the snapshot.
+  await mapSeq(opts.workspaces.slice(0, 9), async (ws, i) => {
     if (!leafList(ws.root).some(l => l.photoId))
-      continue
+      return
     const ratio = ws.canvasRatio ?? 1.5
     // Large enough to cover the square cell, like CellPreview's cover-fit scale.
     const c = await renderCollage({
@@ -555,7 +606,7 @@ export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTM
       cell,
     )
     c.width = c.height = 0
-  }
+  })
   return canvas
 }
 
@@ -617,27 +668,32 @@ async function pngBlob(blob: Blob): Promise<Blob> {
     return blob
   const url = URL.createObjectURL(blob)
   try {
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
-      const el = new Image()
-      el.onload = () => res(el)
-      el.onerror = () => rej(new Error('Failed to decode the image'))
-      el.src = url
-    })
-    const c = document.createElement('canvas')
-    c.width = img.naturalWidth
-    c.height = img.naturalHeight
-    const ctx = c.getContext('2d')
-    if (!ctx)
-      throw new Error('Failed to get a 2D context')
-    ctx.drawImage(img, 0, 0)
-    const png = await new Promise<Blob | null>(res => c.toBlob(res, 'image/png'))
-    if (!png)
-      throw new Error('Failed to encode the image')
-    return png
+    return await pngFromUrl(url)
   }
   finally {
     URL.revokeObjectURL(url)
   }
+}
+
+/** Decode one already-object-URL image, draw it 1:1, and hand back a PNG. */
+async function pngFromUrl(url: string): Promise<Blob> {
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const el = new Image()
+    el.onload = () => res(el)
+    el.onerror = () => rej(new Error('Failed to decode the image'))
+    el.src = url
+  })
+  const c = document.createElement('canvas')
+  c.width = img.naturalWidth
+  c.height = img.naturalHeight
+  const ctx = c.getContext('2d')
+  if (!ctx)
+    throw new Error('Failed to get a 2D context')
+  ctx.drawImage(img, 0, 0)
+  const png = await new Promise<Blob | null>(res => c.toBlob(res, 'image/png'))
+  if (!png)
+    throw new Error('Failed to encode the image')
+  return png
 }
 
 /**
