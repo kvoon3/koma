@@ -25,6 +25,7 @@ import {
   wrapAngle,
 } from './lib/panes'
 import { clearSession } from './lib/sessionStore'
+import { runPaneMorph } from './lib/viewTransition'
 
 /** One of the nine collage workspaces. Array order is the grid order. */
 export interface Workspace {
@@ -282,42 +283,44 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }
   },
 
-  split: (paneId, dir) =>
-    set((s) => {
-      const ws = activeWs(s)
-      const next = splitLeaf(ws.root, paneId, dir)
-      if (next === ws.root)
-        return {}
-      const leaves = leafList(next)
-      const created = leaves.find(l => !leafList(ws.root).some(o => o.id === l.id))
-      const focusId = created?.id ?? ws.focusId
-      return { workspaces: mapActive(s, w => ({ ...w, root: next, focusId })) }
-    }),
+  split: (paneId, dir) => {
+    const s = get()
+    const ws = activeWs(s)
+    const next = splitLeaf(ws.root, paneId, dir)
+    if (next === ws.root)
+      return
+    const leaves = leafList(next)
+    const created = leaves.find(l => !leafList(ws.root).some(o => o.id === l.id))
+    const focusId = created?.id ?? ws.focusId
+    runPaneMorph([], () =>
+      set({ workspaces: mapActive(s, w => ({ ...w, root: next, focusId })) }))
+  },
 
   /** Split `paneId` and copy its whole leaf (photo, view, stickers, label) into the new half. */
-  duplicatePane: (paneId, dir) =>
-    set((s) => {
-      const ws = activeWs(s)
-      const src = findLeaf(ws.root, paneId)
-      if (!src)
-        return {}
-      const next = splitLeaf(ws.root, paneId, dir)
-      if (next === ws.root)
-        return {}
-      const created = leafList(next).find(l => !leafList(ws.root).some(o => o.id === l.id))
-      if (!created)
-        return {}
-      const root = updateLeafIn(next, created.id, {
-        photoId: src.photoId,
-        zoom: src.zoom,
-        cx: src.cx,
-        cy: src.cy,
-        // Fresh sticker ids: two panes must never share one selection.
-        stickers: src.stickers.map(st => ({ ...st, id: uid('t') })),
-        label: src.label ? { ...src.label } : null,
-      })
-      return { workspaces: mapActive(s, w => ({ ...w, root, focusId: created.id })) }
-    }),
+  duplicatePane: (paneId, dir) => {
+    const s = get()
+    const ws = activeWs(s)
+    const src = findLeaf(ws.root, paneId)
+    if (!src)
+      return
+    const next = splitLeaf(ws.root, paneId, dir)
+    if (next === ws.root)
+      return
+    const created = leafList(next).find(l => !leafList(ws.root).some(o => o.id === l.id))
+    if (!created)
+      return
+    const root = updateLeafIn(next, created.id, {
+      photoId: src.photoId,
+      zoom: src.zoom,
+      cx: src.cx,
+      cy: src.cy,
+      // Fresh sticker ids: two panes must never share one selection.
+      stickers: src.stickers.map(st => ({ ...st, id: uid('t') })),
+      label: src.label ? { ...src.label } : null,
+    })
+    runPaneMorph([], () =>
+      set({ workspaces: mapActive(s, w => ({ ...w, root, focusId: created.id })) }))
+  },
 
   /** Empty one pane back to a blank half of the canvas (label and stickers included). */
   resetPane: paneId =>
@@ -376,56 +379,57 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       }
     }),
 
-  closeOtherPanes: paneId =>
-    set((s) => {
-      const ws = activeWs(s)
-      if (!findLeaf(ws.root, paneId))
-        return {}
-      let root: Node | null = ws.root
-      for (const l of leafList(ws.root)) {
-        if (l.id !== paneId)
-          root = root ? removeLeaf(root, l.id) : null
-      }
-      if (!root)
-        return {}
-      const next = root
-      return {
+  closeOtherPanes: (paneId) => {
+    const s = get()
+    const ws = activeWs(s)
+    if (!findLeaf(ws.root, paneId))
+      return
+    const others = leafList(ws.root).filter(l => l.id !== paneId)
+    let root: Node | null = ws.root
+    for (const l of others)
+      root = root ? removeLeaf(root, l.id) : null
+    if (!root)
+      return
+    const next = root
+    runPaneMorph(others.map(l => l.id), () =>
+      set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId: paneId })),
         ...clearedSelection,
-      }
-    }),
+      }))
+  },
 
   /** Close every pane without a photo; a no-op when that would empty the canvas. */
-  closeEmptyPanes: () =>
-    set((s) => {
-      const ws = activeWs(s)
-      let root: Node | null = ws.root
-      for (const l of leafList(ws.root)) {
-        if (!l.photoId)
-          root = root ? removeLeaf(root, l.id) : null
-      }
-      if (!root || root === ws.root)
-        return {}
-      const next = root
-      const leaves = leafList(next)
-      const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
-      return {
+  closeEmptyPanes: () => {
+    const s = get()
+    const ws = activeWs(s)
+    const empty = leafList(ws.root).filter(l => !l.photoId)
+    let root: Node | null = ws.root
+    for (const l of empty)
+      root = root ? removeLeaf(root, l.id) : null
+    if (!root || root === ws.root)
+      return
+    const next = root
+    const leaves = leafList(next)
+    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    runPaneMorph(empty.map(l => l.id), () =>
+      set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
         ...clearedSelection,
-      }
-    }),
+      }))
+  },
 
   openStickerMaker: paneId => set({ stickerMakerFor: paneId }),
 
-  closePane: paneId =>
-    set((s) => {
-      const ws = activeWs(s)
-      const next = removeLeaf(ws.root, paneId)
-      if (!next || next === ws.root)
-        return {}
-      const leaves = leafList(next)
-      const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
-      return {
+  closePane: (paneId) => {
+    const s = get()
+    const ws = activeWs(s)
+    const next = removeLeaf(ws.root, paneId)
+    if (!next || next === ws.root)
+      return
+    const leaves = leafList(next)
+    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    runPaneMorph([paneId], () =>
+      set({
         workspaces: mapActive(s, w => ({
           ...w,
           root: next,
@@ -433,8 +437,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           labelSel: s.labelSel === paneId ? null : s.labelSel,
           stickerSel: s.stickerSel?.paneId === paneId ? null : s.stickerSel,
         })),
-      }
-    }),
+      }))
+  },
 
   resizeSplit: (splitId, ratio) =>
     set(s => ({
