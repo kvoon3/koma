@@ -3,9 +3,10 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { ExportItem } from './components/ExportDialog'
 import type { AppCommands } from './lib/appCommands'
 import type { ExportOptions } from './lib/exporter'
+import type { RenderedItem } from './lib/exportRun'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
 import { ExportDialog } from './components/ExportDialog'
@@ -20,7 +21,9 @@ import { TopBar } from './components/TopBar'
 import { WeChatGuard } from './components/WeChatGuard'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { AppCommandsContext } from './lib/appCommands'
+import { mapSeq } from './lib/async'
 import { buildCropReport, computeExportSize, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
+import { armRun, releaseRun } from './lib/exportRun'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
@@ -60,55 +63,43 @@ function exportStamp(): string {
   return new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
 }
 
-/** Object URLs are owned by the run that created them (see `showRun`). */
-function releaseRun(run: ExportItem[] | null) {
-  if (!run)
-    return
-  for (const item of run)
-    URL.revokeObjectURL(item.url)
-}
-
 /** One export per non-empty workspace, in grid order, named by position. */
-async function renderGridItems(): Promise<ExportItem[]> {
+async function renderGridItems(): Promise<RenderedItem[]> {
   const s = useStore.getState()
   const filled = s.workspaces.filter(w => leafList(w.root).some(l => l.photoId))
-  const items: ExportItem[] = []
-  try {
-    for (let i = 0; i < filled.length; i++) {
-      const ws = filled[i]
-      say(t('Rendering {n} / {total}...', { n: i + 1, total: filled.length }))
-      const opts: ExportOptions = {
-        root: ws.root,
-        ratio: ws.canvasRatio ?? 1.5,
-        gap: s.gap,
-        radius: s.radius,
-        bg: s.bg,
-        edgeFade: s.edgeFade,
-        edgeFadeStrength: s.edgeFadeStrength,
-        photos: photoMap(s.photos),
-        longSide: s.longSide,
-      }
-      // Position among the filled workspaces at export time, 1-based.
-      const pos = s.workspaces.indexOf(ws) + 1
-      const canvas = await renderCollage(opts)
-      const base = `collage_${pos}_${canvas.width}x${canvas.height}_${exportStamp()}`
-      items.push(await itemFromCanvas(canvas, base, pos))
-      const live = await renderLiveVideoItem(opts, canvas, base, pos)
-      if (live)
-        items.push(live)
-      canvas.width = canvas.height = 0
+  return (await mapSeq(filled, async (ws, i) => {
+    say(t('Rendering {n} / {total}...', { n: i + 1, total: filled.length }))
+    const opts: ExportOptions = {
+      root: ws.root,
+      ratio: ws.canvasRatio ?? 1.5,
+      gap: s.gap,
+      radius: s.radius,
+      bg: s.bg,
+      edgeFade: s.edgeFade,
+      edgeFadeStrength: s.edgeFadeStrength,
+      photos: photoMap(s.photos),
+      longSide: s.longSide,
     }
-  }
-  catch (e) {
-    // A half-finished run has nothing to show: let its URLs go and report.
-    releaseRun(items)
-    throw e
-  }
-  return items
+    // Position among the filled workspaces at export time, 1-based.
+    const pos = s.workspaces.indexOf(ws) + 1
+    // One workspace at a time: each pass paints a full-resolution canvas and
+    // may record a Live Photo video, and each pass releases its canvases
+    // before the next one starts.
+    const canvas = await renderCollage(opts)
+    const base = `collage_${pos}_${canvas.width}x${canvas.height}_${exportStamp()}`
+    // The still's encode and the live recording only read the canvas, so
+    // they run together; both finish before the canvas is released.
+    const [still, live] = await Promise.all([
+      itemFromCanvas(canvas, base, pos),
+      renderLiveVideoItem(opts, canvas, base, pos),
+    ])
+    canvas.width = canvas.height = 0
+    return live ? [still, live] : [still]
+  })).flat()
 }
 
 /** The whole 3×3 board as one image, named like the other exports. */
-async function renderGridSnapshotItem(): Promise<ExportItem> {
+async function renderGridSnapshotItem(): Promise<RenderedItem> {
   const s = useStore.getState()
   const canvas = await renderGridSnapshot({
     workspaces: s.workspaces,
@@ -126,7 +117,7 @@ async function renderGridSnapshotItem(): Promise<ExportItem> {
 }
 
 /** The active workspace: the still, plus the paired video when a Live Photo pane is in frame. */
-async function renderWorkspaceItems(): Promise<ExportItem[]> {
+async function renderWorkspaceItems(): Promise<RenderedItem[]> {
   const opts = exportOptions()
   const canvas = await renderCollage(opts)
   const base = `collage_${canvas.width}x${canvas.height}_${exportStamp()}`
@@ -142,13 +133,13 @@ async function renderWorkspaceItems(): Promise<ExportItem[]> {
  * A rendered canvas as a previewable export item. The canvas is left alone:
  * the video recorder needs it as its first frame, so the caller releases it
  * (`canvas.width = canvas.height = 0`) once the whole run has drawn from it.
+ * The preview URL is minted by the run that adopts the item (see armRun).
  */
-async function itemFromCanvas(canvas: HTMLCanvasElement, stem: string, group?: number): Promise<ExportItem> {
+async function itemFromCanvas(canvas: HTMLCanvasElement, stem: string, group?: number): Promise<RenderedItem> {
   const { blob, ext } = await canvasBlob(canvas)
   return {
     kind: 'image',
     blob,
-    url: URL.createObjectURL(blob),
     name: `${stem}.${ext}`,
     w: canvas.width,
     h: canvas.height,
@@ -161,7 +152,7 @@ async function itemFromCanvas(canvas: HTMLCanvasElement, stem: string, group?: n
  * collage with those panes playing, named to pair with the still by
  * basename (the same convention as Apple's IMG_1234.HEIC + IMG_1234.MOV).
  */
-async function renderLiveVideoItem(opts: ExportOptions, still: HTMLCanvasElement, base: string, group?: number): Promise<ExportItem | null> {
+async function renderLiveVideoItem(opts: ExportOptions, still: HTMLCanvasElement, base: string, group?: number): Promise<RenderedItem | null> {
   if (!hasLiveCells(opts))
     return null
   say(t('Recording live video...'))
@@ -174,7 +165,6 @@ async function renderLiveVideoItem(opts: ExportOptions, still: HTMLCanvasElement
   return {
     kind: 'video',
     blob: r.blob,
-    url: URL.createObjectURL(r.blob),
     name: `${base}.${r.ext}`,
     w: W,
     h: H,
@@ -351,10 +341,10 @@ function RootLayout() {
   }, [])
 
   /** Hand a finished run to the dialog, letting the run it replaces go. */
-  const showRun = useCallback((items: ExportItem[]) => {
-    releaseRun(runRef.current)
-    runRef.current = items
-    setExportItems(items)
+  const showRun = useCallback((rendered: RenderedItem[]) => {
+    const run = armRun(rendered, runRef.current)
+    runRef.current = run
+    setExportItems(run)
   }, [])
 
   /** The dialog has animated out: its run is off screen, its URLs can go. */
@@ -379,6 +369,15 @@ function RootLayout() {
       setBusy(false)
     }
   }, [grid, showRun])
+
+  // The ⌘E branch only has to *call* the latest export; re-subscribing the
+  // window listener whenever `doExport` changes identity (which happens when
+  // `grid` flips) buys nothing. `doExport` itself stays a plain callback:
+  // TopBar and the AppCommands context hand it to children, where an effect
+  // event would be wrong.
+  const exportHotkey = useEffectEvent(() => {
+    void doExport()
+  })
 
   const doSnapshotGrid = useCallback(async () => {
     setBusy(true)
@@ -418,7 +417,7 @@ function RootLayout() {
       if (e.metaKey || e.ctrlKey) {
         if (e.key.toLowerCase() === 'e') {
           e.preventDefault()
-          doExport()
+          exportHotkey()
         }
         return
       }
@@ -465,7 +464,7 @@ function RootLayout() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [helpOpen, libOpen, settingsOpen, report, setLibOpen, setSettingsOpen, doExport, doCrops, grid, navigate, exportItems])
+  }, [helpOpen, libOpen, settingsOpen, report, setLibOpen, setSettingsOpen, doCrops, grid, navigate, exportItems])
 
   useEffect(() => {
     const over = (e: DragEvent) => e.preventDefault()

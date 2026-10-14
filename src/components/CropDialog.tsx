@@ -1,7 +1,8 @@
 import { Dialog } from '@base-ui/react/dialog'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
+import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { downloadBlob } from '../lib/exporter'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
@@ -35,7 +36,14 @@ export function CropDialog({ report, onClose }: { report: string | null, onClose
               <Dialog.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label={t('Close')}><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Dialog.Close>
             </div>
           </header>
-          <textarea className="min-h-[360px] flex-1 resize-none border-0 bg-code-bg p-[13px] text-[11.5px] leading-[1.65] whitespace-pre text-code-txt outline-0 select-text font-mono" readOnly value={report ?? ''} spellCheck={false} />
+          {/* The report is a read-only view; the header title is its accessible name. */}
+          <textarea
+            className="min-h-[360px] flex-1 resize-none border-0 bg-code-bg p-[13px] text-[11.5px] leading-[1.65] whitespace-pre text-code-txt outline-0 select-text font-mono"
+            readOnly
+            value={report ?? ''}
+            spellCheck={false}
+            aria-label={t('Per-pane crop parameters')}
+          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

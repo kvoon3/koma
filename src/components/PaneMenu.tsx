@@ -160,6 +160,186 @@ function ArrangeSubmenu({
   )
 }
 
+/**
+ * The swap target is the focused pane other than this one; a focused pane
+ * itself has nothing to swap with, so the row is gone there.
+ */
+function swapTargetFor(focused: boolean, focusId: string, leafId: string): string | null {
+  return !focused && focusId && focusId !== leafId ? focusId : null
+}
+
+/**
+ * Move leads the menu: it is the one row that acts on the pane as a whole, so
+ * it sits above the photo header instead of inside the Arrange submenu.
+ */
+function MoveRow({ leaf, onStartMove }: { leaf: Leaf, onStartMove: (x: number, y: number) => void }) {
+  const t = useT()
+  if (!leaf.photoId)
+    return null
+  return (
+    <>
+      <MenuGroup>
+        <MenuItem icon={Move} onClick={e => onStartMove(e.clientX, e.clientY)}>
+          {t('Move')}
+        </MenuItem>
+      </MenuGroup>
+      <MenuSeparator />
+    </>
+  )
+}
+
+/**
+ * The header names the photo under the pointer, so the rows below stay
+ * unambiguous on a canvas full of panes.
+ */
+function PhotoHeaderGroup({ leaf, photo, onPickPhoto, onRemovePhoto }: {
+  leaf: Leaf
+  photo: Photo | null
+  onPickPhoto: () => void
+  onRemovePhoto: (id: string) => void
+}) {
+  const t = useT()
+  return (
+    <MenuGroup variant="title" label={photo?.name ?? t('Empty pane')}>
+      <MenuItem icon={ImagePlus} onClick={onPickPhoto}>
+        {leaf.photoId ? t('Replace photo…') : t('Choose photo…')}
+      </MenuItem>
+      {leaf.photoId && (
+        <MenuItem icon={Trash2} hint="D" onClick={() => onRemovePhoto(leaf.id)}>
+          {t('Remove photo')}
+        </MenuItem>
+      )}
+    </MenuGroup>
+  )
+}
+
+/** Splitting, duplicating, and resetting: the pane's own layout. */
+function LayoutGroup({ leaf, rect, onSplit }: {
+  leaf: Leaf
+  rect: Rect
+  onSplit: (id: string, dir: 'row' | 'column') => void
+}) {
+  const t = useT()
+  const duplicatePane = useStore(s => s.duplicatePane)
+  const resetPane = useStore(s => s.resetPane)
+  const hasContent = !!leaf.photoId || !!leaf.label || leaf.stickers.length > 0
+  return (
+    <MenuGroup>
+      <MenuItem icon={SquareSplitVertical} hint="S" onClick={() => onSplit(leaf.id, 'column')}>
+        {t('Split top/bottom')}
+      </MenuItem>
+      <MenuItem icon={SquareSplitHorizontal} hint="V" onClick={() => onSplit(leaf.id, 'row')}>
+        {t('Split left/right')}
+      </MenuItem>
+      {/* Duplicating toward the longer side keeps both halves usable
+          instead of slivering the copy off the short edge. */}
+      <MenuItem
+        icon={CopyPlus}
+        onClick={() => duplicatePane(leaf.id, rect.w >= rect.h ? 'row' : 'column')}
+      >
+        {t('Duplicate pane')}
+      </MenuItem>
+      {hasContent && (
+        <MenuItem icon={RotateCcw} onClick={() => resetPane(leaf.id)}>
+          {t('Reset this pane')}
+        </MenuItem>
+      )}
+    </MenuGroup>
+  )
+}
+
+/** The photo submenu and its decoration, as one block between separators. */
+function PhotoSection({ leaf, rect, photo, iw, ih, live, onToggleLive }: {
+  leaf: Leaf
+  rect: Rect
+  photo: Photo | null
+  iw: number
+  ih: number
+  live: boolean
+  onToggleLive: () => void
+}) {
+  if (!photo)
+    return null
+  return (
+    <>
+      <MenuSeparator />
+      <PhotoSubmenu
+        leaf={leaf}
+        rect={rect}
+        photo={photo}
+        iw={iw}
+        ih={ih}
+        live={live}
+        onToggleLive={onToggleLive}
+      />
+      <DecorateSubmenu leaf={leaf} />
+    </>
+  )
+}
+
+/** Swap, copy / paste, focus: shown when any of them can act. */
+function ArrangeSection({ leaf, focused, swapTargetId, paneClip, onFocus }: {
+  leaf: Leaf
+  focused: boolean
+  swapTargetId: string | null
+  paneClip: PaneClip | null
+  onFocus: (id: string) => void
+}) {
+  const canArrange = !!leaf.photoId || !!paneClip || !!swapTargetId || !focused
+  if (!canArrange)
+    return null
+  return (
+    <>
+      <MenuSeparator />
+      <ArrangeSubmenu
+        leaf={leaf}
+        focused={focused}
+        swapTargetId={swapTargetId}
+        paneClip={paneClip}
+        onFocus={onFocus}
+      />
+    </>
+  )
+}
+
+/**
+ * Closing rows: the other panes, the empty ones (only when some exist), and
+ * this pane. "Close empty panes" must never close the pane it was invoked on,
+ * so it stays hidden while this is the only empty one.
+ */
+function CloseSection({ leaf, canClose, onClose, closeOtherPanes, closeEmptyPanes }: {
+  leaf: Leaf
+  canClose: boolean
+  onClose: (id: string) => void
+  closeOtherPanes: (id: string) => void
+  closeEmptyPanes: () => void
+}) {
+  const t = useT()
+  const emptyOthers = useStore(s =>
+    leafList(activeWs(s).root).filter(l => l.id !== leaf.id && !l.photoId).length)
+  if (!canClose)
+    return null
+  return (
+    <>
+      <MenuSeparator />
+      <MenuGroup>
+        <MenuItem icon={SquareX} onClick={() => closeOtherPanes(leaf.id)}>
+          {t('Close other panes')}
+        </MenuItem>
+        {emptyOthers > 0 && (
+          <MenuItem icon={X} onClick={() => closeEmptyPanes()}>
+            {t('Close empty panes ({n})', { n: emptyOthers })}
+          </MenuItem>
+        )}
+      </MenuGroup>
+      <MenuSeparator />
+      <MenuItem danger icon={X} hint="X" onClick={() => onClose(leaf.id)}>
+        {t('Close pane')}
+      </MenuItem>
+    </>
+  )
+}
+
 export function PaneMenu({
   leaf,
   rect,
@@ -195,7 +375,6 @@ export function PaneMenu({
   onStartMove: (x: number, y: number) => void
   onPickPhoto: () => void
 }) {
-  const t = useT()
   // Escape is ours to handle: Base UI only runs its own Escape handling while
   // the popup holds focus, and a pointer-opened menu leaves focus on the body
   // (see useMenuEscapeClose).
@@ -205,20 +384,11 @@ export function PaneMenu({
   // The swap item targets the focused pane, so it only makes sense on an
   // unfocused pane: right-clicking the focused one has nothing to swap with.
   const focusId = useStore(s => activeWs(s).focusId)
-  const swapTargetId = !focused && focusId && focusId !== leaf.id ? focusId : null
+  const swapTargetId = swapTargetFor(focused, focusId, leaf.id)
   const paneClip = useStore(s => s.paneClip)
   const removePhoto = useStore(s => s.removePhoto)
-  const resetPane = useStore(s => s.resetPane)
-  const duplicatePane = useStore(s => s.duplicatePane)
   const closeOtherPanes = useStore(s => s.closeOtherPanes)
   const closeEmptyPanes = useStore(s => s.closeEmptyPanes)
-  const hasPhoto = !!leaf.photoId
-  const hasContent = hasPhoto || !!leaf.label || leaf.stickers.length > 0
-  const canArrange = hasPhoto || !!paneClip || !!swapTargetId || !focused
-  // Empty panes other than this one: "close empty panes" must never close the
-  // pane it was invoked on, so it stays hidden while this is the only empty one.
-  const emptyOthers = useStore(s =>
-    leafList(activeWs(s).root).filter(l => l.id !== leaf.id && !l.photoId).length)
 
   return (
     <ContextMenu.Root
@@ -232,105 +402,44 @@ export function PaneMenu({
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-90">
           <ContextMenu.Popup className={menuPopupCls}>
-            {/* Move leads the menu: it is the one row that acts on the pane as
-                a whole, so it sits above the photo header instead of inside
-                the Arrange submenu. */}
-            {hasPhoto && (
-              <>
-                <MenuGroup>
-                  <MenuItem icon={Move} onClick={e => onStartMove(e.clientX, e.clientY)}>
-                    {t('Move')}
-                  </MenuItem>
-                </MenuGroup>
-                <MenuSeparator />
-              </>
-            )}
+            <MoveRow leaf={leaf} onStartMove={onStartMove} />
 
-            {/* The header names the photo under the pointer, so the rows below
-                stay unambiguous on a canvas full of panes. */}
-            <MenuGroup variant="title" label={photo?.name ?? t('Empty pane')}>
-              <MenuItem icon={ImagePlus} onClick={onPickPhoto}>
-                {hasPhoto ? t('Replace photo…') : t('Choose photo…')}
-              </MenuItem>
-              {hasPhoto && (
-                <MenuItem icon={Trash2} hint="D" onClick={() => removePhoto(leaf.id)}>
-                  {t('Remove photo')}
-                </MenuItem>
-              )}
-            </MenuGroup>
+            <PhotoHeaderGroup
+              leaf={leaf}
+              photo={photo}
+              onPickPhoto={onPickPhoto}
+              onRemovePhoto={removePhoto}
+            />
 
             <MenuSeparator />
 
-            <MenuGroup>
-              <MenuItem icon={SquareSplitVertical} hint="S" onClick={() => onSplit(leaf.id, 'column')}>
-                {t('Split top/bottom')}
-              </MenuItem>
-              <MenuItem icon={SquareSplitHorizontal} hint="V" onClick={() => onSplit(leaf.id, 'row')}>
-                {t('Split left/right')}
-              </MenuItem>
-              {/* Duplicating toward the longer side keeps both halves usable
-                  instead of slivering the copy off the short edge. */}
-              <MenuItem
-                icon={CopyPlus}
-                onClick={() => duplicatePane(leaf.id, rect.w >= rect.h ? 'row' : 'column')}
-              >
-                {t('Duplicate pane')}
-              </MenuItem>
-              {hasContent && (
-                <MenuItem icon={RotateCcw} onClick={() => resetPane(leaf.id)}>
-                  {t('Reset this pane')}
-                </MenuItem>
-              )}
-            </MenuGroup>
+            <LayoutGroup leaf={leaf} rect={rect} onSplit={onSplit} />
 
-            {photo && (
-              <>
-                <MenuSeparator />
-                <PhotoSubmenu
-                  leaf={leaf}
-                  rect={rect}
-                  photo={photo}
-                  iw={iw}
-                  ih={ih}
-                  live={live}
-                  onToggleLive={onToggleLive}
-                />
-                <DecorateSubmenu leaf={leaf} />
-              </>
-            )}
+            <PhotoSection
+              leaf={leaf}
+              rect={rect}
+              photo={photo}
+              iw={iw}
+              ih={ih}
+              live={live}
+              onToggleLive={onToggleLive}
+            />
 
-            {canArrange && (
-              <>
-                <MenuSeparator />
-                <ArrangeSubmenu
-                  leaf={leaf}
-                  focused={focused}
-                  swapTargetId={swapTargetId}
-                  paneClip={paneClip}
-                  onFocus={onFocus}
-                />
-              </>
-            )}
+            <ArrangeSection
+              leaf={leaf}
+              focused={focused}
+              swapTargetId={swapTargetId}
+              paneClip={paneClip}
+              onFocus={onFocus}
+            />
 
-            {canClose && (
-              <>
-                <MenuSeparator />
-                <MenuGroup>
-                  <MenuItem icon={SquareX} onClick={() => closeOtherPanes(leaf.id)}>
-                    {t('Close other panes')}
-                  </MenuItem>
-                  {emptyOthers > 0 && (
-                    <MenuItem icon={X} onClick={() => closeEmptyPanes()}>
-                      {t('Close empty panes ({n})', { n: emptyOthers })}
-                    </MenuItem>
-                  )}
-                </MenuGroup>
-                <MenuSeparator />
-                <MenuItem danger icon={X} hint="X" onClick={() => onClose(leaf.id)}>
-                  {t('Close pane')}
-                </MenuItem>
-              </>
-            )}
+            <CloseSection
+              leaf={leaf}
+              canClose={canClose}
+              onClose={onClose}
+              closeOtherPanes={closeOtherPanes}
+              closeEmptyPanes={closeEmptyPanes}
+            />
           </ContextMenu.Popup>
         </ContextMenu.Positioner>
       </ContextMenu.Portal>

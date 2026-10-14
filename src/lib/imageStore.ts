@@ -154,7 +154,6 @@ const previews = new Map<string, Preview>()
 const thumbJobs = new Map<string, Promise<string | null>>()
 const previewJobs = new Map<string, Promise<Preview | null>>()
 const trueDims = new Map<string, Dims>()
-const liveUrls = new Map<string, string>()
 
 function loadViaImg(url: string): Promise<HTMLImageElement | null> {
   return new Promise((res) => {
@@ -277,18 +276,6 @@ export function getTrueDims(photoId: string): Dims | null {
   return trueDims.get(photoId) ?? null
 }
 
-/** Object URL for a paired Live Photo video, cached until the library is cleared. */
-export function getLiveVideoUrl(photo: Photo): string | null {
-  if (!photo.videoFile)
-    return null
-  let url = liveUrls.get(photo.id)
-  if (!url) {
-    url = URL.createObjectURL(photo.videoFile)
-    liveUrls.set(photo.id, url)
-  }
-  return url
-}
-
 export function clearImageCaches() {
   for (const url of thumbs.values())
     URL.revokeObjectURL(url)
@@ -299,9 +286,6 @@ export function clearImageCaches() {
   thumbJobs.clear()
   previewJobs.clear()
   trueDims.clear()
-  for (const url of liveUrls.values())
-    URL.revokeObjectURL(url)
-  liveUrls.clear()
 }
 
 export function peekPreview(photoId: string): Preview | null {

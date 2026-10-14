@@ -3,7 +3,8 @@ import { Drawer } from '@base-ui/react/drawer'
 import { LayoutGrid, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, buttonBase, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
+import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
 import { say } from '../lib/toast'
@@ -127,7 +128,10 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
       <Drawer.Portal>
         <Drawer.Backdrop className="fixed inset-0 z-44 min-h-dvh bg-overlay-dim opacity-[calc(1-var(--drawer-swipe-progress,0))] transition-opacity duration-(--dur-drawer) ease-(--ease-drawer) data-starting-style:opacity-0 data-ending-style:opacity-0 data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)]" />
         <Drawer.Viewport className="fixed inset-0 z-45 flex items-end justify-center">
-          <Drawer.Popup className="relative box-border flex h-[190px] w-[min(920px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[var(--drawer-swipe-movement-y,0px)] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) will-change-transform mb-[calc(var(--statusH)+env(safe-area-inset-bottom))] pointer-coarse:h-[232px] max-sm:h-[232px] data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]">
+          {/* The swipe rewrites the popup's translate every frame with the
+              transition off (data-swiping), so the compositor hint rides the
+              same state instead of the popup's whole mounted life. */}
+          <Drawer.Popup className="relative box-border flex h-[190px] w-[min(920px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[var(--drawer-swipe-movement-y,0px)] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform mb-[calc(var(--statusH)+env(safe-area-inset-bottom))] pointer-coarse:h-[232px] max-sm:h-[232px] data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]">
             <Drawer.Content className="flex min-h-0 flex-1 flex-col outline-0">
               <header className="flex flex-none items-center gap-2.5 py-1.5 pl-3.5 pr-2.5">
                 <Drawer.Title className="m-0 text-[12.5px] font-bold">{t('Library')}</Drawer.Title>

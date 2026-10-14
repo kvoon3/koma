@@ -5,7 +5,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { isWeChat, tryOpenInBrowser, weChatPlatform } from '../lib/browser'
 import { useT } from '../lib/i18n'
-import { buttonBase, buttonVariants, dialogButton } from './ui/button'
+import { buttonBase, buttonVariants, dialogButton } from './ui/buttonStyles'
 
 /**
  * Asked once per tab session: stay in WeChat, or leave for the system browser.

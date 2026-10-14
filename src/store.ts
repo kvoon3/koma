@@ -193,7 +193,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       ],
     }))
 
-    added.forEach(async (p) => {
+    // `forEach` would drop each probe's promise on the floor. The probes are
+    // independent and nothing waits on them, so start one per photo and let the
+    // loop finish; each patch lands on its own leaf when it does.
+    const probeDims = async (p: Photo) => {
       const d = (await (looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file))) ?? await probePng(p.file)
       if (!d)
         return
@@ -205,7 +208,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           ? { ...w, canvasRatio: d.w / d.h }
           : w)),
       }))
-    })
+    }
+
+    for (const p of added)
+      void probeDims(p)
 
     if (autoFill && leafList(activeWs(get()).root).every(l => !l.photoId))
       get().autoFill()

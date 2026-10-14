@@ -1,6 +1,7 @@
 import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
-import type { Divider, Leaf, Rect } from '../lib/panes'
+import type { Divider, Leaf, Rect, SeamSides } from '../lib/panes'
+import type { Derived } from '../store'
 import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -290,115 +291,35 @@ export function Stage() {
             className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
             style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
           >
-            {paneFade > 0 && (
-              <SeamBackdrop
-                leaves={view.leaves}
-                photoById={photoById}
-                radius={Math.max(view.unit * 40, view.fade)}
-                opacity={fadeStrength / 100}
-                gap={view.gap}
-              />
-            )}
+            <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
 
-            {view.leaves.map(({ node, rect }) => (
-              <Pane
-                key={node.id}
-                leaf={node}
-                rect={rect}
-                radius={view.radius}
-                bordered={paneBorder}
-                fade={paneFade}
-                seam={seams.get(node.id)}
-                unit={view.unit}
-                photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
-                photoById={photoById}
-                focused={focusId === node.id}
-                canClose={view.leaves.length > 1}
-                onFocus={focus}
-                onUpdate={updateLeaf}
-                onSplit={split}
-                onClose={closePane}
-              />
-            ))}
+            <PaneLayers
+              view={view}
+              seams={seams}
+              photoById={photoById}
+              focusId={focusId}
+              paneBorder={paneBorder}
+              paneFade={paneFade}
+              onFocus={focus}
+              onUpdate={updateLeaf}
+              onSplit={split}
+              onClose={closePane}
+            />
 
-            {view.dividers.map((d) => {
-              const line = dividerLine(d, view.gap)
-              const hit = Math.max(view.gap, HIT_MIN)
-              const vertical = d.dir === 'row'
-              const style: React.CSSProperties
-                = vertical
-                  ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
-                  : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
-              return (
-                <div
-                  key={d.id}
-                  className={`absolute z-[5] touch-none ${vertical ? 'cursor-col-resize' : 'cursor-row-resize'}`}
-                  style={style}
-                  onPointerDown={beginDrag(d)}
-                  // The grip lives in the layer above, so it cannot light itself
-                  // off this hover: a mouse is tracked here, a finger only
-                  // through the drag (no hover to lose).
-                  onPointerEnter={(e) => {
-                    if (e.pointerType === 'mouse')
-                      setHotId(d.id)
-                  }}
-                  onPointerLeave={() => setHotId(h => (h === d.id ? null : h))}
-                >
-                  <span
-                    className={
-                      `absolute rounded-none transition-colors duration-(--dur-fast) ${
-                        vertical
-                          ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
-                          : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'} ${
-                        isLit(d.id) ? 'bg-accent' : 'bg-transparent'}`
-                    }
-                  />
-                </div>
-              )
-            })}
+            <DividerChrome
+              view={view}
+              focused={!!focusId}
+              isLit={isLit}
+              onBeginDrag={beginDrag}
+              onHotChange={setHotId}
+            />
 
-            {/* Grips, one layer above every line: shadcn/`react-resizable-panels`
-                style, as wide as the 15px band, so the thing you see is the
-                thing you grab. Shown only while a pane is focused. (Above the
-                lines: see the T-junction note in DESIGN.md.) */}
-            <div
-              className={`pointer-events-none absolute inset-0 z-[6] transition-opacity duration-(--dur-fast) ${
-                focusId ? 'opacity-100' : 'opacity-0'}`}
-            >
-              {view.dividers.map((d) => {
-                const vertical = d.dir === 'row'
-                const lit = isLit(d.id)
-                const line = dividerLine(d, view.gap)
-                return (
-                  <span
-                    key={d.id}
-                    style={vertical
-                      ? { left: line.x, top: d.area.y + d.area.h / 2 }
-                      : { left: d.area.x + d.area.w / 2, top: line.y }}
-                    className={
-                      `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border backdrop-blur-[7px] transition-colors duration-(--dur-fast) ${
-                        lit
-                          ? 'border-accent bg-accent text-on-accent'
-                          : 'border-float-line bg-float-bg text-float-icon'} ${
-                        vertical
-                          ? 'h-[30px] w-[15px] pointer-coarse:h-[38px] pointer-coarse:w-[19px]'
-                          : 'h-[15px] w-[30px] pointer-coarse:h-[19px] pointer-coarse:w-[38px]'}`
-                    }
-                  >
-                    <MorphIcon icon={GripVertical} size={15} strokeWidth={1.75} className={vertical ? '' : 'rotate-90'} />
-                  </span>
-                )
-              })}
-            </div>
-
-            <div
-              className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
+            <CanvasResizeHandle
+              sizing={sizing}
+              label={t('Drag to change canvas aspect · double-click to reset')}
               onPointerDown={beginResize}
               onDoubleClick={resetRatio}
-              title={t('Drag to change canvas aspect · double-click to reset')}
-            >
-              <MorphIcon icon={sizing ? Scaling : MoveDiagonal2} size={19} strokeWidth={2.5} />
-            </div>
+            />
           </div>
         </div>
       </CanvasMenu>
@@ -407,30 +328,13 @@ export function Stage() {
           takes layout space, opened by the handle alone. Every tool acts on
           the focused pane, so the panel exists only while it holds a photo. */}
       {!toolsHidden && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center">
-          <div className={`${toolsPanelCls} ${
-            toolsOpen ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
-          }`}
-          >
-            <button
-              className={toolsHandleCls}
-              title={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-              aria-expanded={toolsOpen}
-              aria-label={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-              onClick={() => setToolsOpen(!toolsOpen)}
-            >
-              <MorphIcon icon={toolsOpen ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
-            </button>
-            {/* inert while collapsed: the tools are off-screen behind the
-              footer. Open or not the row scrolls sideways instead of
-              squashing the fixed-width tools when they outgrow the screen. */}
-            <div ref={toolsScrollRef} className={toolsScrollCls} inert={!toolsOpen}>
-              <div className={toolsRowCls}>
-                {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ToolsDock
+          open={toolsOpen}
+          tools={tools}
+          scrollRef={toolsScrollRef}
+          handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
+          onToggle={() => setToolsOpen(!toolsOpen)}
+        />
       )}
 
       <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => openStickerMaker(null)} />
@@ -495,6 +399,209 @@ export function SeamBackdrop({ leaves, photoById, radius, opacity, gap = 0 }: {
           return null
         return <BackdropLeaf key={node.id} leaf={node} rect={rect} photo={photo} radius={radius} />
       })}
+    </div>
+  )
+}
+
+/** The shared blurred backdrop layer, drawn only while the edge fade is on. */
+function SeamLayer({ view, photoById, paneFade, fadeStrength }: {
+  view: Derived
+  photoById: Map<string, Photo>
+  paneFade: number
+  fadeStrength: number
+}) {
+  if (paneFade <= 0)
+    return null
+  return (
+    <SeamBackdrop
+      leaves={view.leaves}
+      photoById={photoById}
+      radius={Math.max(view.unit * 40, view.fade)}
+      opacity={fadeStrength / 100}
+      gap={view.gap}
+    />
+  )
+}
+
+/** The photo panes themselves: one `Pane` per leaf of the layout. */
+function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onFocus, onUpdate, onSplit, onClose }: {
+  view: Derived
+  seams: Map<string, SeamSides>
+  photoById: Map<string, Photo>
+  focusId: string | null
+  paneBorder: boolean
+  paneFade: number
+  onFocus: React.ComponentProps<typeof Pane>['onFocus']
+  onUpdate: React.ComponentProps<typeof Pane>['onUpdate']
+  onSplit: React.ComponentProps<typeof Pane>['onSplit']
+  onClose: React.ComponentProps<typeof Pane>['onClose']
+}) {
+  return (
+    <>
+      {view.leaves.map(({ node, rect }) => (
+        <Pane
+          key={node.id}
+          leaf={node}
+          rect={rect}
+          radius={view.radius}
+          bordered={paneBorder}
+          fade={paneFade}
+          seam={seams.get(node.id)}
+          unit={view.unit}
+          photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
+          photoById={photoById}
+          focused={focusId === node.id}
+          canClose={view.leaves.length > 1}
+          onFocus={onFocus}
+          onUpdate={onUpdate}
+          onSplit={onSplit}
+          onClose={onClose}
+        />
+      ))}
+    </>
+  )
+}
+
+/**
+ * The divider drag chrome: a 15px hit band per divider, plus the grip that
+ * rides a layer above every line so the thing you see is the thing you grab.
+ */
+function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
+  view: Derived
+  focused: boolean
+  isLit: (id: string) => boolean
+  onBeginDrag: (d: Divider) => (e: React.PointerEvent) => void
+  onHotChange: React.Dispatch<React.SetStateAction<string | null>>
+}) {
+  return (
+    <>
+      {view.dividers.map((d) => {
+        const line = dividerLine(d, view.gap)
+        const hit = Math.max(view.gap, HIT_MIN)
+        const vertical = d.dir === 'row'
+        const style: React.CSSProperties
+          = vertical
+            ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
+            : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
+        return (
+          <div
+            key={d.id}
+            className={`absolute z-[5] touch-none ${vertical ? 'cursor-col-resize' : 'cursor-row-resize'}`}
+            style={style}
+            onPointerDown={onBeginDrag(d)}
+            // The grip lives in the layer above, so it cannot light itself
+            // off this hover: a mouse is tracked here, a finger only
+            // through the drag (no hover to lose).
+            onPointerEnter={(e) => {
+              if (e.pointerType === 'mouse')
+                onHotChange(d.id)
+            }}
+            onPointerLeave={() => onHotChange(h => (h === d.id ? null : h))}
+          >
+            <span
+              className={
+                `absolute rounded-none transition-colors duration-(--dur-fast) ${
+                  vertical
+                    ? 'bottom-0 left-1/2 top-0 w-[5px] -translate-x-1/2'
+                    : 'left-0 right-0 top-1/2 h-[5px] -translate-y-1/2'} ${
+                  isLit(d.id) ? 'bg-accent' : 'bg-transparent'}`
+              }
+            />
+          </div>
+        )
+      })}
+
+      {/* Grips, one layer above every line: shadcn/`react-resizable-panels`
+          style, as wide as the 15px band, so the thing you see is the
+          thing you grab. Shown only while a pane is focused. (Above the
+          lines: see the T-junction note in DESIGN.md.) */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-[6] transition-opacity duration-(--dur-fast) ${
+          focused ? 'opacity-100' : 'opacity-0'}`}
+      >
+        {view.dividers.map((d) => {
+          const vertical = d.dir === 'row'
+          const lit = isLit(d.id)
+          const line = dividerLine(d, view.gap)
+          return (
+            <span
+              key={d.id}
+              style={vertical
+                ? { left: line.x, top: d.area.y + d.area.h / 2 }
+                : { left: d.area.x + d.area.w / 2, top: line.y }}
+              className={
+                `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border backdrop-blur-[7px] transition-colors duration-(--dur-fast) ${
+                  lit
+                    ? 'border-accent bg-accent text-on-accent'
+                    : 'border-float-line bg-float-bg text-float-icon'} ${
+                  vertical
+                    ? 'h-[30px] w-[15px] pointer-coarse:h-[38px] pointer-coarse:w-[19px]'
+                    : 'h-[15px] w-[30px] pointer-coarse:h-[19px] pointer-coarse:w-[38px]'}`
+              }
+            >
+              <MorphIcon icon={GripVertical} size={15} strokeWidth={1.75} className={vertical ? '' : 'rotate-90'} />
+            </span>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+/** The bottom-right canvas resize handle. */
+function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
+  sizing: boolean
+  label: string
+  onPointerDown: React.PointerEventHandler<HTMLDivElement>
+  onDoubleClick: React.MouseEventHandler<HTMLDivElement>
+}) {
+  return (
+    <div
+      className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
+      onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
+      title={label}
+    >
+      <MorphIcon icon={sizing ? Scaling : MoveDiagonal2} size={19} strokeWidth={2.5} />
+    </div>
+  )
+}
+
+/**
+ * The focused pane's tool dock, laid over the canvas so it never takes
+ * layout space; only the handle on its top edge opens it.
+ */
+function ToolsDock({ open, tools, scrollRef, handleLabel, onToggle }: {
+  open: boolean
+  tools: ToolDef[]
+  scrollRef: (el: HTMLDivElement | null) => void
+  handleLabel: string
+  onToggle: () => void
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center">
+      <div className={`${toolsPanelCls} ${
+        open ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
+      }`}
+      >
+        <button
+          className={toolsHandleCls}
+          title={handleLabel}
+          aria-expanded={open}
+          aria-label={handleLabel}
+          onClick={onToggle}
+        >
+          <MorphIcon icon={open ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
+        </button>
+        {/* inert while collapsed: the tools are off-screen behind the
+          footer. Open or not the row scrolls sideways instead of
+          squashing the fixed-width tools when they outgrow the screen. */}
+        <div ref={scrollRef} className={toolsScrollCls} inert={!open}>
+          <div className={toolsRowCls}>
+            {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
