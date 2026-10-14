@@ -4,9 +4,9 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, Languages, LayoutGrid, LoaderCircle, Moon, Save, Settings, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, Languages, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
@@ -16,6 +16,7 @@ import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import { ConfirmDialog } from './ConfirmDialog'
+import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
 import { buttonBase, buttonVariants } from './ui/buttonStyles'
 import { Tip } from './ui/tip'
@@ -31,9 +32,19 @@ const hintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums
 // the trigger it left (no fade re-run), the outgoing one is gone at once.
 const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_var(--dur-surface)_var(--ease-out)]'
 
-function CatMenu({ label, hop, onTriggerEnter, children }: { label: string, hop: number, onTriggerEnter: (e: MouseEvent<HTMLButtonElement>) => void, children: ReactNode }) {
+/** The top bar's dropdowns: they trade the open panel with each other on hover. */
+type HeaderMenuId = 'workspace' | 'photo' | 'help' | 'lang'
+
+/** What one dropdown trigger needs from the hand-over: its state and hover hook. */
+interface MenuWiring {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onTriggerEnter: (e: MouseEvent<HTMLButtonElement>) => void
+}
+
+function CatMenu({ label, hop, open, onOpenChange, onTriggerEnter, children }: { label: string, hop: number } & MenuWiring & { children: ReactNode }) {
   return (
-    <Menu.Root>
+    <Menu.Root open={open} onOpenChange={onOpenChange}>
       <Menu.Trigger className={triggerCls} onMouseEnter={onTriggerEnter}>
         {label}
         <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
@@ -59,17 +70,19 @@ const LANG_ITEMS: [Lang, string][] = [
  * toggle. It used to live in the settings drawer; a preference picked once in
  * a while belongs with the chrome, not behind a tab.
  */
-function LangMenu() {
+function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
   const t = useT()
   const lang = useLang()
   return (
-    <Menu.Root>
+    <Menu.Root open={open} onOpenChange={onOpenChange}>
       <Tip
         label={t('Language')}
         trigger={(
           <Menu.Trigger
             className={`${buttonBase} ${buttonVariants.flat} data-popup-open:bg-chip-hover data-popup-open:text-txt`}
             aria-label={t('Language')}
+            data-bar-trigger="lang"
+            onMouseEnter={onTriggerEnter}
           >
             <MorphIcon icon={Languages} size={15} strokeWidth={1.75} />
           </Menu.Trigger>
@@ -98,7 +111,9 @@ function LangMenu() {
 function TopBarActions({
   grid,
   settingsOpen,
-  onToggleSettings,
+  onSettingsOpenChange,
+  onSettingsTriggerEnter,
+  menuAt,
   busy,
   onExport,
   anyFilled,
@@ -107,7 +122,9 @@ function TopBarActions({
 }: {
   grid: boolean
   settingsOpen: boolean
-  onToggleSettings: () => void
+  onSettingsOpenChange: (open: boolean) => void
+  onSettingsTriggerEnter: () => void
+  menuAt: (id: HeaderMenuId) => MenuWiring
   busy: boolean
   onExport: () => void
   anyFilled: boolean
@@ -117,18 +134,11 @@ function TopBarActions({
   const t = useT()
   return (
     <div className="flex items-center gap-[5px]">
-      <Tip
-        label={t('Settings · Shortcut: ,')}
-        trigger={(
-          <Button
-            variant={settingsOpen ? 'on' : 'flat'}
-            onClick={onToggleSettings}
-            aria-label={t('Settings · Shortcut: ,')}
-          >
-            <MorphIcon icon={Settings} size={15} strokeWidth={1.75} />
-            <span className="pointer-coarse:hidden max-sm:hidden">{t('Settings')}</span>
-          </Button>
-        )}
+      {/* The dropdown hangs off this button, so the panel and its trigger are one component. */}
+      <SettingsPanel
+        open={settingsOpen}
+        onOpenChange={onSettingsOpenChange}
+        onTriggerEnter={onSettingsTriggerEnter}
       />
       <Tip
         label={grid ? t('Export every non-empty workspace · ⌘E') : t('Export image · ⌘E')}
@@ -148,7 +158,7 @@ function TopBarActions({
           </Button>
         )}
       />
-      <LangMenu />
+      <LangMenu {...menuAt('lang')} />
       <Tip
         label={dark ? t('Switch to light theme') : t('Switch to dark theme')}
         trigger={(
@@ -198,7 +208,7 @@ export function TopBar({
   busy,
   settingsOpen,
   onToggleLib,
-  onToggleSettings,
+  onSettingsOpenChange,
   onToggleHelp,
   onExport,
   onCrops,
@@ -207,7 +217,7 @@ export function TopBar({
   busy: boolean
   settingsOpen: boolean
   onToggleLib: () => void
-  onToggleSettings: () => void
+  onSettingsOpenChange: (open: boolean) => void
   onToggleHelp: () => void
   onExport: () => void
   onCrops: () => void
@@ -226,14 +236,82 @@ export function TopBar({
 
   const prevTriggerXRef = useRef<number | null>(null)
   const [hop, setHop] = useState(0)
+  /** The header dropdown holding the open panel; the settings panel keeps its own state. */
+  const [openMenu, setOpenMenu] = useState<HeaderMenuId | null>(null)
+
+  // The panel can be opened without a pointer on the bar (the `,` shortcut,
+  // the canvas menu), so a menu left open gives way to it here, at render
+  // time: it never paints over the panel for a frame.
+  if (settingsOpen && openMenu != null)
+    setOpenMenu(null)
+
+  /**
+   * The pointer moved from one header dropdown to the next, so the open panel
+   * follows it, the move the menubar already makes between its own menus. With
+   * nothing open this is a plain hover and opens nothing. The settings panel
+   * runs with the menus: reached from one, left for one.
+   */
+  const handOver = useCallback((target: HeaderMenuId | 'settings') => {
+    if (settingsOpen) {
+      if (target === 'settings')
+        return
+      onSettingsOpenChange(false)
+      setOpenMenu(target)
+      return
+    }
+    if (openMenu == null || target === openMenu)
+      return
+    if (target === 'settings') {
+      setOpenMenu(null)
+      onSettingsOpenChange(true)
+    }
+    else {
+      setOpenMenu(target)
+    }
+  }, [settingsOpen, openMenu, onSettingsOpenChange])
 
   // Menus hand over on hover: remember how far the incoming panel has to travel
-  // (the gap between the trigger it left and the one it lands on).
-  const onTriggerEnter = (e: MouseEvent<HTMLButtonElement>) => {
+  // (the gap between the trigger it left and the one it lands on) and give the
+  // trigger the panel when one is already open.
+  const triggerEnter = (id: HeaderMenuId) => (e: MouseEvent<HTMLButtonElement>) => {
     const x = e.currentTarget.getBoundingClientRect().left
     setHop((prevTriggerXRef.current ?? x) - x)
     prevTriggerXRef.current = x
+    handOver(id)
   }
+
+  /** One trigger's props: its own open state plus the hover hand-over above. */
+  const menuAt = (id: HeaderMenuId): MenuWiring => ({
+    open: openMenu === id,
+    // A sibling's close must not clear the menu that just took over from it.
+    onOpenChange: open => setOpenMenu(cur => (open ? id : cur === id ? null : cur)),
+    onTriggerEnter: triggerEnter(id),
+  })
+
+  /**
+   * An open category menu lays a modal backdrop over the rest of the bar (the
+   * menubar's own element is its only cutout), so the pointer reaching the
+   * settings and language triggers never fires their mouseenter and the panel
+   * could not be picked up from a menu. While any dropdown is open, watch the
+   * window's pointer instead and hit-test the triggers marked `data-bar-trigger`
+   * through that backdrop, so the hand-over runs in both directions.
+   */
+  useEffect(() => {
+    if (openMenu == null && !settingsOpen)
+      return
+    const triggers = [...document.querySelectorAll<HTMLElement>('[data-bar-trigger]')]
+    const onMove = (e: globalThis.MouseEvent) => {
+      for (const el of triggers) {
+        const r = el.getBoundingClientRect()
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          handOver(el.dataset.barTrigger as HeaderMenuId | 'settings')
+          return
+        }
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [openMenu, settingsOpen, handOver])
 
   const photos = useStore(s => s.photos.length)
   const root = useStore(s => activeWs(s).root)
@@ -296,7 +374,7 @@ export function TopBar({
       <Menubar className="flex items-stretch">
         {/* Whole-board save/open lives outside the Photo menu: it is available
             in both views and covers the grid + library, not just photos. */}
-        <CatMenu label={t('Workspace')} hop={hop} onTriggerEnter={onTriggerEnter}>
+        <CatMenu label={t('Workspace')} hop={hop} {...menuAt('workspace')}>
           <Menu.Item className={itemCls} onClick={() => void doSaveFile()} disabled={saving || !anyFilled}>
             <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
             {t('Save workspace file…')}
@@ -311,7 +389,7 @@ export function TopBar({
           ? (
             // Grid view is pure navigation: Help only (crop report is an
             // editing aid, library tools are hidden).
-              <CatMenu label={t('Help')} hop={hop} onTriggerEnter={onTriggerEnter}>
+              <CatMenu label={t('Help')} hop={hop} {...menuAt('help')}>
                 <Menu.Item className={itemCls} onClick={onToggleHelp}>
                   <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
                   {t('Keyboard shortcuts')}
@@ -320,7 +398,7 @@ export function TopBar({
               </CatMenu>
             )
           : (
-              <CatMenu label={t('Photo')} hop={hop} onTriggerEnter={onTriggerEnter}>
+              <CatMenu label={t('Photo')} hop={hop} {...menuAt('photo')}>
                 <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
                   <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
                   {t('Add photos…')}
@@ -350,7 +428,7 @@ export function TopBar({
             )}
 
         {!grid && (
-          <CatMenu label={t('Help')} hop={hop} onTriggerEnter={onTriggerEnter}>
+          <CatMenu label={t('Help')} hop={hop} {...menuAt('help')}>
             <Menu.Item className={itemCls} onClick={onToggleHelp}>
               <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
               {t('Keyboard shortcuts')}
@@ -370,7 +448,9 @@ export function TopBar({
       <TopBarActions
         grid={grid}
         settingsOpen={settingsOpen}
-        onToggleSettings={onToggleSettings}
+        onSettingsOpenChange={onSettingsOpenChange}
+        onSettingsTriggerEnter={() => handOver('settings')}
+        menuAt={menuAt}
         busy={busy}
         onExport={onExport}
         anyFilled={anyFilled}

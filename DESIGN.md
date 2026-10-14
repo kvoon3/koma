@@ -63,7 +63,7 @@ rows.
 | `Tab` | Cycle focused pane |
 | `R` | Reset focused pane's photo |
 | `I` | Library drawer |
-| `,` | Settings drawer (appearance / text) |
+| `,` | Settings dropdown (appearance / text) |
 | `⌘E` | Export collage (renders, then opens the export preview) |
 | `C` | Export crop report |
 | `?` | Help |
@@ -167,7 +167,16 @@ with the photos falling back to the library.
 The Photo and Help menus are a menubar: clicking one and then hovering the
 other hands the panel over without a second click. The incoming panel slides
 across from the trigger it left (160ms, the outgoing one is dropped at once)
-and lands left-aligned under its own trigger, with no cursor tracking.
+and lands left-aligned under its own trigger, with no cursor tracking. The
+settings panel is not a member of that menubar (it is a popover of form
+controls under its own button, so it never slides), but it takes part in the
+same hand-over: the pointer reaching the Settings button while a menu is open
+hands the panel over, and reaching a menu trigger hands it back, so the bar
+reads as one row of dropdowns. A category menu lays a modal backdrop over the
+rest of the bar while it is open, which would swallow the pointer before it
+reached the panel's trigger; `TopBar` therefore watches the window's pointer
+and hit-tests the triggers marked `data-bar-trigger` through that backdrop, so
+the hand-over runs in both directions.
 
 The 3×3 overview draws every workspace as a square mini canvas: a filled cell
 cover-fits its collage (photos, stickers and labels, all placed through the
@@ -240,16 +249,22 @@ library.
   still on screen; they are released once the close transition has finished
   painting (`onOpenChangeComplete`), below the close animation's paint.
 
-## Settings drawer (`,` or the top-right Settings button)
+## Settings panel (`,` or the top-right Settings button)
+
+A dropdown hung off the Settings button itself: right-aligned to it, 4px under
+it, wearing the chrome of the menus beside it (panel fill, `line-strong`
+hairline, the same scale-out-of-the-trigger motion). It was a bottom drawer, a
+screen away from the button that opened it; trigger and panel now share a
+corner, so the switch and the surface it opens are one gesture.
 
 Two tabs: `Appearance` (photo gap, gap fill, photo radius, pane border, blend
 width / strength, grid gap) and `Text` (font mirror). Photo gap sits next to
 gap fill, since they are two halves of the same seam; grid gap is last because
 it spaces the 3×3 overview, not the collage.
-The strip is set in the drawer's heading type, the active tab lit
-and underlined, so it reads as the drawer's group labels rather than a second
+The strip is set in the panel's heading type, the active tab lit
+and underlined, so it reads as the panel's group labels rather than a second
 chrome layer; the arrow keys move through it and swap the panel, `Tab` walks in
-and out. Only one group is on screen at a time, which is why the drawer is
+and out. Only one group is on screen at a time, which is why the panel is
 narrower than the old two-column one.
 
 | Tab | Setting | Effect |
@@ -263,9 +278,12 @@ narrower than the old two-column one.
 | Text | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
 The language lives in the top bar's globe menu, next to the theme toggle:
-English / 简体中文, one row each. The drawer's header carries a `Reset` button
-that puts every visual knob back to its default (gap, grid gap, radius, gap
-fill, blend, pane border, font mirror) and toasts.
+English / 简体中文, one row each. The panel's header carries the title and a
+`Reset` button that puts every visual knob back to its default (gap, grid gap,
+radius, gap fill, blend, pane border, font mirror) and toasts. It closes the way
+the other dropdowns do: the trigger again, a click outside, or `Esc` — which no
+longer backs out of the editor, base-ui having claimed the key for the open
+popover.
 
 The export-size setting was removed: the long edge is fixed at 2048 px; the
 footer shows the resulting resolution. The 3×3 snapshot board has the same long
@@ -278,11 +296,13 @@ on a shared x, so the sliders line up; below `sm` the value moves onto the label
 line and the control takes the full width beneath it, which gives a phone a
 ~320px slider instead of the ~200px the 84px and 46px columns would leave it.
 Each panel is one grid of rows and scrolls on its own between the fixed strip
-and the popup's max height, so a tab never grows the drawer past its cap and the
-drawer still covers as little of the canvas it edits as it can. Off toggles and
-swatches draw their outline with `line-strong`, because `line` equals the
-drawer's own color in the dark theme and would leave the control a featureless
-patch of background.
+and the popup's max height (`min(70dvh, 520px)`), so a tab never grows the panel
+past its cap and the panel still covers as little of the canvas it edits as it
+can. Its width is the field row plus its gutters (350px); below `sm` it takes
+the viewport's width less the collision padding, so the shift that keeps it on
+screen leaves the same margin on either side. Off toggles and swatches draw
+their outline with `line-strong`, because `line` equals the panel's own color in
+the dark theme and would leave the control a featureless patch of background.
 
 **Gap and radius are per-mille of the canvas short edge, not pixels.** Once set,
 exporting at 1080 or 6000 looks identical; preview and export share the same
@@ -399,7 +419,7 @@ src/
     TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
     FloatActions.tsx floating back / split / reset buttons under the top bar
     LibraryDrawer.tsx / Library.tsx
-    SettingsDrawer.tsx
+    SettingsPanel.tsx
     HelpOverlay.tsx
     ExportDialog.tsx    the preview every export lands in: download / copy / long-press
     ConfirmDialog.tsx   generic confirm (clear library, reset workspace, open workspace file)
@@ -407,7 +427,7 @@ src/
   store.ts           zustand: tree + photos + visual params + export params
 ```
 
-Fixed defaults (top of `store.ts`; the Settings drawer edits the same-named
+Fixed defaults (top of `store.ts`; the Settings panel edits the same-named
 state fields): `GAP = 0`, `GRID_GAP = 10`, `RADIUS = 0`, `BG = '#000000'`
 (black gap fill), `MIN_PANE_PX = 56`. Visual settings (gap / radius / bg) persist to
 localStorage as `collage:settings` via zustand `persist`; the font mirror

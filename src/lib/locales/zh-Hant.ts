@@ -38,8 +38,7 @@ export const zhHant: Record<string, string> = {
   'Reset all': '全部重設',
   'All workspaces reset': '所有工作區已重設',
 
-  // SettingsDrawer
-  'Hide settings': '隱藏設定',
+  // SettingsPanel
   'Reset settings': '重設設定',
   'Settings reset': '設定已重設',
   'Settings sections': '設定分區',
@@ -189,13 +188,13 @@ export const zhHant: Record<string, string> = {
   'Focus the next pane': '將焦點切到下一個窗格',
   'Reset the photo in the focused pane': '重設焦點窗格裡的照片',
   'Toggle the library drawer': '切換素材庫抽屜',
-  'Settings drawer (layout / appearance / text)': '設定抽屜（版面 / 外觀 / 文字）',
+  'Settings panel (appearance / text)': '設定面板（外觀 / 文字）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作區總覽與編輯之間切換',
   'Export the collage (renders, then opens the preview dialog)': '匯出拼貼（先算圖，再開啟匯出預覽）',
   'Export crop params (ImageMagick command)': '匯出裁切參數（ImageMagick 指令）',
   'This help': '本說明',
   'Open the highlighted grid cell (grid view only)': '開啟高亮的那一格（僅總覽畫面）',
-  'Close drawer / deselect label / back to the grid': '關閉抽屜 / 取消選取文字 / 回到九宮格',
+  'Close panel or drawer / deselect label / back to the grid': '關閉面板或抽屜 / 取消選取文字 / 回到九宮格',
   'Split chip in the top row (between Back and Reset)': '頂列正中央的切割按鈕（介於返回與重設之間）',
   'Back button floating at the top left': '懸浮在左上角的返回按鈕',
   'Back to the 3×3 workspace grid (edit view only)': '回到 3×3 工作區總覽（僅編輯畫面）',

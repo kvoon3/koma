@@ -40,8 +40,7 @@ export const zhHans: Record<string, string> = {
   'Reset all': '全部重置',
   'All workspaces reset': '所有工作区已重置',
 
-  // SettingsDrawer
-  'Hide settings': '隐藏设置',
+  // SettingsPanel
   'Reset settings': '重置设置',
   'Settings reset': '设置已重置',
   'Settings sections': '设置分区',
@@ -189,13 +188,13 @@ export const zhHans: Record<string, string> = {
   'Focus the next pane': '聚焦下一个窗格',
   'Reset the photo in the focused pane': '重置聚焦窗格里的照片',
   'Toggle the library drawer': '开关素材库抽屉',
-  'Settings drawer (appearance / text)': '设置抽屉（外观 / 文字）',
+  'Settings panel (appearance / text)': '设置面板（外观 / 文字）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作区网格和编辑之间切换',
   'Export the collage (renders, then opens the preview dialog)': '导出拼图（先渲染，然后打开导出预览）',
   'Export crop params (ImageMagick command)': '导出裁剪参数（ImageMagick 命令）',
   'This help': '本帮助',
   'Open the highlighted grid cell (grid view only)': '打开高亮的网格单元（仅网格视图）',
-  'Close drawer / deselect label / back to the grid': '关闭抽屉 / 取消选中文字 / 返回九宫格',
+  'Close panel or drawer / deselect label / back to the grid': '关闭面板或抽屉 / 取消选中文字 / 返回九宫格',
   'Split chip in the top row (between Back and Reset)': '顶栏中间的拆分按钮（在返回与重置之间）',
   'Back button floating at the top left': '悬浮在左上角的返回按钮',
   'Back to the 3×3 workspace grid (edit view only)': '返回 3×3 工作区网格（仅编辑视图）',
