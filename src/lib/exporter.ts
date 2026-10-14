@@ -601,3 +601,51 @@ export function downloadBlob(blob: Blob, name: string) {
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
+
+/** Can this browser put an image on the clipboard? (Needs HTTPS and `ClipboardItem`.) */
+export function canCopyImage(): boolean {
+  return typeof ClipboardItem !== 'undefined' && typeof navigator.clipboard?.write === 'function'
+}
+
+/**
+ * The clipboard takes PNG and little else (Safari and Firefox refuse a JPEG),
+ * so a JPEG still is re-encoded through a canvas. Keeping PNG also keeps a
+ * transparent gap fill transparent on the way in.
+ */
+async function pngBlob(blob: Blob): Promise<Blob> {
+  if (blob.type === 'image/png')
+    return blob
+  const url = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const el = new Image()
+      el.onload = () => res(el)
+      el.onerror = () => rej(new Error('Failed to decode the image'))
+      el.src = url
+    })
+    const c = document.createElement('canvas')
+    c.width = img.naturalWidth
+    c.height = img.naturalHeight
+    const ctx = c.getContext('2d')
+    if (!ctx)
+      throw new Error('Failed to get a 2D context')
+    ctx.drawImage(img, 0, 0)
+    const png = await new Promise<Blob | null>(res => c.toBlob(res, 'image/png'))
+    if (!png)
+      throw new Error('Failed to encode the image')
+    return png
+  }
+  finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+/**
+ * Copy an image to the clipboard. The `ClipboardItem` is built and `write()`
+ * called before the PNG encode resolves, on purpose: Safari only holds the
+ * user-gesture permission while the item is being constructed, and every
+ * implementation accepts a promise as the item's value.
+ */
+export async function copyImageToClipboard(blob: Blob): Promise<void> {
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob(blob) })])
+}

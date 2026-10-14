@@ -1,5 +1,5 @@
 import type { Photo, Preview } from './lib/imageStore'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
 
 export function usePreview(photo: Photo | null): Preview | null {
@@ -143,4 +143,21 @@ export function useInView<T extends HTMLElement>(rootMargin = '200px') {
   }, [seen, rootMargin])
 
   return [ref, seen] as const
+}
+
+/**
+ * Follow a CSS media query from React. For input traits (`pointer: coarse`) the
+ * answer is fixed for a session, but reading it through a media query rather
+ * than at mount keeps it correct when a hybrid device hands the page back and
+ * forth between a finger and a mouse.
+ */
+export function useMediaQuery(query: string): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mql = window.matchMedia(query)
+      mql.addEventListener('change', onChange)
+      return () => mql.removeEventListener('change', onChange)
+    },
+    () => window.matchMedia(query).matches,
+  )
 }
