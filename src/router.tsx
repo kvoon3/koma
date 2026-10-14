@@ -14,7 +14,6 @@ import { FloatActions } from './components/FloatActions'
 import { Footer } from './components/Footer'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
-import { SettingsDrawer } from './components/SettingsDrawer'
 import { Stage } from './components/Stage'
 import ToastHost from './components/ToastHost'
 import { TopBar } from './components/TopBar'
@@ -506,9 +505,12 @@ function RootLayout() {
             setLibOpen(v => !v)
             setSettingsOpen(false)
           }}
-          onToggleSettings={() => {
-            setSettingsOpen(v => !v)
-            setLibOpen(false)
+          onSettingsOpenChange={(open) => {
+            setSettingsOpen(open)
+            // The library drawer and the settings dropdown never share the
+            // screen: opening either puts the other away.
+            if (open)
+              setLibOpen(false)
           }}
           onToggleHelp={() => setHelpOpen(v => !v)}
           onExport={doExport}
@@ -527,7 +529,6 @@ function RootLayout() {
         <Footer />
 
         <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} onRequestClear={() => setClearAsk(true)} />
-        <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
         <HelpOverlay open={helpOpen} onClose={closeHelp} />
 

@@ -13,13 +13,13 @@ const KEYS: [string, string][] = [
   ['Tab', 'Focus the next pane'],
   ['R', 'Reset the photo in the focused pane'],
   ['I', 'Toggle the library drawer'],
-  [',', 'Settings drawer (appearance / text)'],
+  [',', 'Settings panel (appearance / text)'],
   ['G', 'Toggle the 3×3 workspace grid / back'],
   ['⌘E', 'Export the collage (renders, then opens the preview dialog)'],
   ['C', 'Export crop params (ImageMagick command)'],
   ['?', 'This help'],
   ['Enter', 'Open the highlighted grid cell (grid view only)'],
-  ['Esc', 'Close drawer / deselect label / back to the grid'],
+  ['Esc', 'Close panel or drawer / deselect label / back to the grid'],
 ]
 
 const MOUSE: [string, string][] = [
