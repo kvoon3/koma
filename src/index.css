@@ -277,6 +277,20 @@ html.dark {
   }
 
   /*
+   * The export preview is the one image in the app that is meant to leave
+   * through the browser's own menus: the global `touch-callout: none` /
+   * `user-select: none` (which keeps a long-press from louping over the
+   * canvas) is undone here, so press-and-hold raises the iOS "Save to Photos" /
+   * "Copy" sheet and its Android / desktop equivalents, and a drag or
+   * right-click still offers "Save image as…".
+   */
+  .export-shot {
+    -webkit-user-select: auto;
+    user-select: auto;
+    -webkit-touch-callout: default;
+  }
+
+  /*
    * Long-press pane swap (touch) and the menu's Move item share these states:
    * [data-swap-armed]: the hold registered (SWAP_HOLD_MS), finger not yet moving;
    * [data-swap-source]: the photo is being carried, this pane is its origin;

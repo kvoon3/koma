@@ -1,12 +1,14 @@
 /* eslint-disable react-refresh/only-export-components -- a code-based route module necessarily mixes the exported router instance with its route components. */
 import type { Dispatch, SetStateAction } from 'react'
+import type { ExportItem } from './components/ExportDialog'
 import type { AppCommands } from './lib/appCommands'
 import type { ExportOptions } from './lib/exporter'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
+import { ExportDialog } from './components/ExportDialog'
 import { FloatActions } from './components/FloatActions'
 import { Footer } from './components/Footer'
 import { HelpOverlay } from './components/HelpOverlay'
@@ -18,7 +20,7 @@ import { TopBar } from './components/TopBar'
 import { WeChatGuard } from './components/WeChatGuard'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { AppCommandsContext } from './lib/appCommands'
-import { buildCropReport, downloadBlob, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
+import { buildCropReport, computeExportSize, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
@@ -58,38 +60,55 @@ function exportStamp(): string {
   return new Date().toISOString().slice(5, 16).replace(/[-:T]/g, '')
 }
 
+/** Object URLs are owned by the run that created them (see `showRun`). */
+function releaseRun(run: ExportItem[] | null) {
+  if (!run)
+    return
+  for (const item of run)
+    URL.revokeObjectURL(item.url)
+}
+
 /** One export per non-empty workspace, in grid order, named by position. */
-async function exportGrid() {
+async function renderGridItems(): Promise<ExportItem[]> {
   const s = useStore.getState()
   const filled = s.workspaces.filter(w => leafList(w.root).some(l => l.photoId))
-  for (let i = 0; i < filled.length; i++) {
-    const ws = filled[i]
-    say(t('Rendering {n} / {total}...', { n: i + 1, total: filled.length }))
-    const opts: ExportOptions = {
-      root: ws.root,
-      ratio: ws.canvasRatio ?? 1.5,
-      gap: s.gap,
-      radius: s.radius,
-      bg: s.bg,
-      edgeFade: s.edgeFade,
-      edgeFadeStrength: s.edgeFadeStrength,
-      photos: photoMap(s.photos),
-      longSide: s.longSide,
+  const items: ExportItem[] = []
+  try {
+    for (let i = 0; i < filled.length; i++) {
+      const ws = filled[i]
+      say(t('Rendering {n} / {total}...', { n: i + 1, total: filled.length }))
+      const opts: ExportOptions = {
+        root: ws.root,
+        ratio: ws.canvasRatio ?? 1.5,
+        gap: s.gap,
+        radius: s.radius,
+        bg: s.bg,
+        edgeFade: s.edgeFade,
+        edgeFadeStrength: s.edgeFadeStrength,
+        photos: photoMap(s.photos),
+        longSide: s.longSide,
+      }
+      // Position among the filled workspaces at export time, 1-based.
+      const pos = s.workspaces.indexOf(ws) + 1
+      const canvas = await renderCollage(opts)
+      const base = `collage_${pos}_${canvas.width}x${canvas.height}_${exportStamp()}`
+      items.push(await itemFromCanvas(canvas, base, pos))
+      const live = await renderLiveVideoItem(opts, canvas, base, pos)
+      if (live)
+        items.push(live)
+      canvas.width = canvas.height = 0
     }
-    const canvas = await renderCollage(opts)
-    const { blob, ext } = await canvasBlob(canvas)
-    // Position among the filled workspaces at export time, 1-based.
-    const pos = s.workspaces.indexOf(ws) + 1
-    const base = `collage_${pos}_${canvas.width}x${canvas.height}_${exportStamp()}`
-    downloadBlob(blob, `${base}.${ext}`)
-    await exportLiveVideo(opts, canvas, base)
-    canvas.width = canvas.height = 0
   }
-  say(filled.length === 1 ? t('Exported {n} image', { n: 1 }) : t('Exported {n} images', { n: filled.length }))
+  catch (e) {
+    // A half-finished run has nothing to show: let its URLs go and report.
+    releaseRun(items)
+    throw e
+  }
+  return items
 }
 
 /** The whole 3×3 board as one image, named like the other exports. */
-async function exportGridSnapshot() {
+async function renderGridSnapshotItem(): Promise<ExportItem> {
   const s = useStore.getState()
   const canvas = await renderGridSnapshot({
     workspaces: s.workspaces,
@@ -101,30 +120,67 @@ async function exportGridSnapshot() {
     edgeFadeStrength: s.edgeFadeStrength,
     photos: photoMap(s.photos),
   })
-  const { blob, ext } = await canvasBlob(canvas)
-  const W = canvas.width
-  const H = canvas.height
-  downloadBlob(blob, `grid_${W}x${H}_${exportStamp()}.${ext}`)
+  const item = await itemFromCanvas(canvas, `grid_${canvas.width}x${canvas.height}_${exportStamp()}`)
   canvas.width = canvas.height = 0
-  say(t('Exported {w} × {h} ({ext})', { w: W, h: H, ext: ext.toUpperCase() }))
+  return item
+}
+
+/** The active workspace: the still, plus the paired video when a Live Photo pane is in frame. */
+async function renderWorkspaceItems(): Promise<ExportItem[]> {
+  const opts = exportOptions()
+  const canvas = await renderCollage(opts)
+  const base = `collage_${canvas.width}x${canvas.height}_${exportStamp()}`
+  const items = [await itemFromCanvas(canvas, base)]
+  const live = await renderLiveVideoItem(opts, canvas, base)
+  if (live)
+    items.push(live)
+  canvas.width = canvas.height = 0
+  return items
 }
 
 /**
- * When any pane holds a Live Photo, export also records a video of the
- *  collage with those panes playing, named to pair with the still by
- *  basename (the same convention as Apple's IMG_1234.HEIC + IMG_1234.MOV).
+ * A rendered canvas as a previewable export item. The canvas is left alone:
+ * the video recorder needs it as its first frame, so the caller releases it
+ * (`canvas.width = canvas.height = 0`) once the whole run has drawn from it.
  */
-async function exportLiveVideo(opts: ExportOptions, still: HTMLCanvasElement, base: string) {
+async function itemFromCanvas(canvas: HTMLCanvasElement, stem: string, group?: number): Promise<ExportItem> {
+  const { blob, ext } = await canvasBlob(canvas)
+  return {
+    kind: 'image',
+    blob,
+    url: URL.createObjectURL(blob),
+    name: `${stem}.${ext}`,
+    w: canvas.width,
+    h: canvas.height,
+    group,
+  }
+}
+
+/**
+ * When any pane holds a Live Photo, a run also records a video of the
+ * collage with those panes playing, named to pair with the still by
+ * basename (the same convention as Apple's IMG_1234.HEIC + IMG_1234.MOV).
+ */
+async function renderLiveVideoItem(opts: ExportOptions, still: HTMLCanvasElement, base: string, group?: number): Promise<ExportItem | null> {
   if (!hasLiveCells(opts))
-    return
+    return null
   say(t('Recording live video...'))
   const r = await renderCollageVideo(opts, still)
   if (!r) {
     say(t('Live video export is not supported in this browser'))
-    return
+    return null
   }
-  downloadBlob(r.blob, `${base}.${r.ext}`)
-  say(t('Exported live video ({ext})', { ext: r.ext.toUpperCase() }))
+  const { W, H } = computeExportSize(opts)
+  return {
+    kind: 'video',
+    blob: r.blob,
+    url: URL.createObjectURL(r.blob),
+    name: `${base}.${r.ext}`,
+    w: W,
+    h: H,
+    group,
+    live: true,
+  }
 }
 
 type StoreState = ReturnType<typeof useStore.getState>
@@ -272,6 +328,10 @@ function RootLayout() {
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
   const [clearAsk, setClearAsk] = useState(false)
+  /** The finished export run the dialog is showing; null while none is open. */
+  const [exportItems, setExportItems] = useState<ExportItem[] | null>(null)
+  /** The run the preview URLs belong to, held past the dialog's close. */
+  const runRef = useRef<ExportItem[] | null>(null)
 
   const [libOpen, setLibOpen] = usePersisted('libOpen', false)
   const [settingsOpen, setSettingsOpen] = usePersisted('settingsOpen', false)
@@ -290,23 +350,27 @@ function RootLayout() {
     return () => window.removeEventListener('wheel', onWheel)
   }, [])
 
+  /** Hand a finished run to the dialog, letting the run it replaces go. */
+  const showRun = useCallback((items: ExportItem[]) => {
+    releaseRun(runRef.current)
+    runRef.current = items
+    setExportItems(items)
+  }, [])
+
+  /** The dialog has animated out: its run is off screen, its URLs can go. */
+  const dropRun = useCallback(() => {
+    releaseRun(runRef.current)
+    runRef.current = null
+    setExportItems(null)
+  }, [])
+
   const doExport = useCallback(async () => {
     setBusy(true)
     say(t('Rendering at original resolution...'))
     try {
-      if (grid) {
-        await exportGrid()
-      }
-      else {
-        const opts = exportOptions()
-        const canvas = await renderCollage(opts)
-        const { blob, ext } = await canvasBlob(canvas)
-        const base = `collage_${canvas.width}x${canvas.height}_${exportStamp()}`
-        downloadBlob(blob, `${base}.${ext}`)
-        say(t('Exported {w} × {h} ({ext})', { w: canvas.width, h: canvas.height, ext: ext.toUpperCase() }))
-        await exportLiveVideo(opts, canvas, base)
-        canvas.width = canvas.height = 0
-      }
+      const items = grid ? await renderGridItems() : await renderWorkspaceItems()
+      if (items.length)
+        showRun(items)
     }
     catch (e) {
       say(t('Export failed: {msg}', { msg: (e as Error).message }))
@@ -314,13 +378,13 @@ function RootLayout() {
     finally {
       setBusy(false)
     }
-  }, [grid])
+  }, [grid, showRun])
 
   const doSnapshotGrid = useCallback(async () => {
     setBusy(true)
     say(t('Rendering the 3×3 snapshot...'))
     try {
-      await exportGridSnapshot()
+      showRun([await renderGridSnapshotItem()])
     }
     catch (e) {
       say(t('Export failed: {msg}', { msg: (e as Error).message }))
@@ -328,7 +392,7 @@ function RootLayout() {
     finally {
       setBusy(false)
     }
-  }, [])
+  }, [showRun])
 
   const doCrops = useCallback(() => setReport(buildCropReport(exportOptions())), [])
 
@@ -346,6 +410,11 @@ function RootLayout() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A surface that already claimed the key owns it (base-ui closes a dialog
+      // on Escape and calls `preventDefault`), and while the export dialog is
+      // up the board behind it must not react to the keyboard at all.
+      if (e.defaultPrevented || exportItems)
+        return
       if (e.metaKey || e.ctrlKey) {
         if (e.key.toLowerCase() === 'e') {
           e.preventDefault()
@@ -396,7 +465,7 @@ function RootLayout() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [helpOpen, libOpen, settingsOpen, report, setLibOpen, setSettingsOpen, doExport, doCrops, grid, navigate])
+  }, [helpOpen, libOpen, settingsOpen, report, setLibOpen, setSettingsOpen, doExport, doCrops, grid, navigate, exportItems])
 
   useEffect(() => {
     const over = (e: DragEvent) => e.preventDefault()
@@ -468,6 +537,8 @@ function RootLayout() {
         <ToastHost />
 
         <CropDialog report={report} onClose={() => setReport(null)} />
+
+        <ExportDialog items={exportItems} onClose={() => setExportItems(null)} onReleased={dropRun} />
 
         <ConfirmDialog
           open={clearAsk}

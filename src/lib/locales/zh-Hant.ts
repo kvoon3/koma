@@ -75,7 +75,6 @@ export const zhHant: Record<string, string> = {
   'Stop Live Photo': '停止播放即時照片',
   'Recording live video...': '正在錄製即時影片…',
   'Live video export is not supported in this browser': '此瀏覽器不支援即時影片匯出',
-  'Exported live video ({ext})': '已匯出即時影片（{ext}）',
   'Split top/bottom': '上下切分',
   'Split left/right': '左右切分',
   'Pick images and pin them onto this photo': '挑選圖片並釘選到這張照片上',
@@ -192,7 +191,7 @@ export const zhHant: Record<string, string> = {
   'Toggle the library drawer': '切換素材庫抽屜',
   'Settings drawer (layout / appearance / text)': '設定抽屜（版面 / 外觀 / 文字）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作區總覽與編輯之間切換',
-  'Export the collage': '匯出拼貼',
+  'Export the collage (renders, then opens the preview dialog)': '匯出拼貼（先算圖，再開啟匯出預覽）',
   'Export crop params (ImageMagick command)': '匯出裁切參數（ImageMagick 指令）',
   'This help': '本說明',
   'Open the highlighted grid cell (grid view only)': '開啟高亮的那一格（僅總覽畫面）',
@@ -202,6 +201,10 @@ export const zhHant: Record<string, string> = {
   'Back to the 3×3 workspace grid (edit view only)': '回到 3×3 工作區總覽（僅編輯畫面）',
   'Reset button floating at the top right': '懸浮在右上角的重設按鈕',
   'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library': '重設為單一空白窗格：在編輯畫面重設目前的工作區，在九宮格總覽重設全部（會先確認）；照片會回到素材庫',
+  'Snapshot chip above the 3×3 grid': '九宮格上方的快照按鈕',
+  'Render the whole overview as one image and open it in the export preview: every non-empty cell exactly as the grid draws it (cover-fit, panes flush), the gap between cells scaled with the board, empty cells left blank; a JPEG, or a PNG while the gap fill is transparent': '把整塊總覽算成一張圖片並開啟匯出預覽：每個非空格子都與九宮格所見一致（cover 填滿、窗格貼齊），格子間距隨畫布縮放，空格子留白；輸出 JPEG，間隙填色為透明時輸出 PNG',
+  'Export preview (Export or ⌘E in the editor, the snapshot chip above the grid, Export image in the canvas menu)': '匯出預覽（編輯中按匯出或 ⌘E、九宮格上方的快照按鈕、畫布選單的「匯出圖片」）',
+  'Every export renders first and then opens here, so nothing downloads unasked. The preview is the finished image at full resolution, on the app\'s transparency checkerboard, with its size, format and file size, and Download image / Copy image beside it. On a phone, press and hold the preview to save it to the photo library or copy it through the system sheet. In the grid view one image is exported per non-empty workspace: they line up in a strip above the preview, each with its own download, plus Download all. When a pane holds a Live Photo, the recorded video follows its still in the strip': '每次匯出都先算圖，再開啟這裡，不會未經確認就下載。預覽就是成品圖本身（原始解析度），襯在應用的透明棋盤格上，下方標註尺寸、格式與檔案大小，旁邊是「下載圖片」「複製圖片」。在手機上長按預覽圖即可透過系統選單存到相簿或複製。九宮格檢視會為每個非空工作區各匯出一張：它們在預覽上方排成一列，各自可單獨下載，也可「全部下載」。任一窗格帶即時照片時，錄製的影片會緊接其靜態影格出現在列中',
   'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. The top-row copy is only there below lg (a large screen has the pane chip to aim at), and below the sm breakpoint it is the only copy left, a touch screen having no hover to fade the other one in': '將焦點窗格上下或左右切分；滑鼠移至任一窗格（無論是否為焦點）都會在它的正上方淡入同一組按鈕，因此可以隨時就地切分。頂列正中央那組只在視窗寬度小於 lg 時出現（大螢幕會直接看到窗格內的那組），視窗寬度再小於 sm 斷點時它就是唯一的一組，因為觸控螢幕沒有 hover 可以淡入另一組',
   'Tools panel above the footer': '底部列上方的工具面板',
   'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because the empty pane itself is the picker': '預設為展開，只有面板上緣的把手能收合：換照片、貼上貼圖、用文字或圖片製作貼圖、新增文字；沒有焦點窗格、或焦點窗格為空時整個面板都會收起來，因為空白窗格本身就是挑選器',
@@ -254,6 +257,18 @@ export const zhHant: Record<string, string> = {
   'Download crop.sh': '下載 crop.sh',
   'Copied': '已複製',
 
+  // ExportDialog (the export preview every export lands in)
+  'Space {n}': '位置 {n}',
+  'Download image': '下載圖片',
+  'Download video': '下載影片',
+  'Download all ({n})': '全部下載（{n}）',
+  'Copy image': '複製圖片',
+  'Image copied': '已複製圖片',
+  'Could not copy the image': '無法複製圖片',
+  'Long-press the preview to save it to your photos.': '長按預覽圖可儲存到相簿。',
+  'Saved': '已儲存',
+  'Saved {n} files': '已儲存 {n} 個檔案',
+
   // WorkspaceGrid
   'Edit this workspace': '編輯這個工作區',
   'Start a new collage here': '在這裡開始新的拼貼',
@@ -275,10 +290,8 @@ export const zhHant: Record<string, string> = {
 
   // Toasts
   'Rendering {n} / {total}...': '算圖中 {n} / {total}…',
-  'Exported {n} image': '已匯出 {n} 張圖片',
-  'Exported {n} images': '已匯出 {n} 張圖片',
+  'Rendering the 3×3 snapshot...': '正在算九宮格快照…',
   'Rendering at original resolution...': '正在以原始解析度算圖…',
-  'Exported {w} × {h} ({ext})': '已匯出 {w} × {h}（{ext}）',
   'Export failed: {msg}': '匯出失敗：{msg}',
   'Added {n} photos': '已新增 {n} 張照片',
   'No image files found': '找不到任何圖片檔',

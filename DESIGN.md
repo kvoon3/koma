@@ -33,7 +33,7 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Camera chip above the 3×3 grid (grid view) | Snapshot the whole board as one image and download it: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
+| Camera chip above the 3×3 grid (grid view) | Snapshot the whole board as one image and open it in the export preview: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
 | Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint the hover copy is dropped instead, a touch screen having no hover to fade it in, so the page-row chip is what a phone keeps |
 | Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane itself is the picker instead). The buttons keep their 80px width and the row scrolls sideways when the screen is too narrow to hold them, the end that still hides tools fading out as it goes: nothing fades while the row fits its panel or sits flush against an end |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
@@ -64,7 +64,7 @@ rows.
 | `R` | Reset focused pane's photo |
 | `I` | Library drawer |
 | `,` | Settings drawer (appearance / text) |
-| `⌘E` | Export collage |
+| `⌘E` | Export collage (renders, then opens the export preview) |
 | `C` | Export crop report |
 | `?` | Help |
 | `Esc` | Close overlay / deselect label / clear focus |
@@ -178,8 +178,67 @@ cell is the click target). `Grid gap` (Appearance tab) spaces the nine cells.
 A camera chip floats above the grid as part of the same centered group (the
 only chrome the overview has, and the layout reserves room for it while sizing
 the cells). It renders the whole board as **one image** (`renderGridSnapshot`)
-and downloads it: the same cover-fit cells at export scale, the grid gap scaled
-with the board, empty cells left blank.
+and opens it in the export preview: the same cover-fit cells at export scale,
+the grid gap scaled with the board, empty cells left blank.
+
+## Export preview (`components/ExportDialog.tsx`)
+
+Rendering is the slow half and happens first (the top bar's Export chip keeps
+its spinner and the progress toasts run). The finished run then lands in a
+dialog rather than straight in the Downloads folder, because the browsers that
+matter most here are the ones that block or bury a programmatic download:
+WeChat's WebView on a phone, where saving an exported blob either fails or
+vanishes, and iOS Safari, where it drops into Files instead of the photo
+library.
+
+```
+┌─────────────────────────────────────────────┐
+│ Export · 3                                × │
+├─────────────────────────────────────────────┤
+│ [1][2][3]                     ← run strip   │  one thumb per item, in order
+├─────────────────────────────────────────────┤
+│           ▦ (image on the checker)          │  the still, full size
+├─────────────────────────────────────────────┤
+│ Space 1 · 2048 × 1365 · JPEG · 1.2 MB       │
+│ Long-press the preview to save it …         │  coarse pointer (or WeChat) only
+├─────────────────────────────────────────────┤
+│        [Copy image] [Download all] [Download]│
+└─────────────────────────────────────────────┘
+```
+
+- **Nothing is saved unasked**: the dialog is the delivery step, so the user
+  sees exactly what is about to be written, at what size and in what format.
+- The still is the one image in the app meant to leave through the browser's
+  own menus. It sits on the transparency checkerboard on purpose, and
+  `.export-shot` (index.css) restores `-webkit-touch-callout` and
+  `user-select`, which the app switches off globally so a long-press cannot
+  loupe over the canvas: press-and-hold then raises iOS's "Save to Photos" /
+  "Copy" sheet, Android's "Download image", and the desktop's right-click
+  "Save image as…". The explicit buttons sit right below it.
+- **Copy image** writes PNG through `copyImageToClipboard()` (exporter.ts):
+  JPEG stills are re-encoded, because the clipboard implementations only
+  reliably take `image/png`. A PNG still also keeps a transparent gap fill
+  transparent. The `ClipboardItem` is built and `write()` called before the
+  encode resolves, which is the only shape Safari keeps its user gesture for.
+  The button only exists when `canCopyImage()` says the browser has the API
+  (needs HTTPS and `ClipboardItem`).
+- **One run per non-empty workspace** in the grid view: they line up in a strip
+  above the preview, each thumb captioned by workspace position, size, format
+  and file size, with Download image acting on the selection and Download all
+  on the run (staggered, because browsers throttle a burst of downloads from
+  one gesture).
+- **A Live Photo** adds its recorded video as the item right after its still,
+  with a LIVE badge, a `<video controls>` preview and its own download; the
+  file name still pairs with the still by basename.
+- Escape (or the backdrop, or the close chip) dismisses it without touching the
+  board: the global shortcut handler yields while the dialog is open
+  (`exportItems` in `RootLayout`) and to any key a surface has already claimed
+  (`defaultPrevented`), so Escape closes the dialog and does not back out of
+  the editor behind it.
+- The run owns its preview object URLs (`showRun` / `dropRun` in router.tsx),
+  not the dialog instance, so a remount can never blank a preview that is
+  still on screen; they are released once the close transition has finished
+  painting (`onOpenChangeComplete`), below the close animation's paint.
 
 ## Settings drawer (`,` or the top-right Settings button)
 
@@ -329,7 +388,7 @@ src/
   lib/panes.ts       pane tree: split/remove/layout/placement, shared by preview and export
   lib/imageStore.ts  three-tier image assets + JPEG/HEIC header probing
   lib/heic.ts        HEIC: meta box probing + WASM decoding (heic-to)
-  lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot) + crop report export
+  lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot), file download / clipboard copy, crop report export
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
@@ -342,6 +401,7 @@ src/
     LibraryDrawer.tsx / Library.tsx
     SettingsDrawer.tsx
     HelpOverlay.tsx
+    ExportDialog.tsx    the preview every export lands in: download / copy / long-press
     ConfirmDialog.tsx   generic confirm (clear library, reset workspace, open workspace file)
     WeChatGuard.tsx     the WeChat browser prompt and its menu guide
   store.ts           zustand: tree + photos + visual params + export params

@@ -9,7 +9,7 @@ import { createContext, use } from 'react'
 export interface AppCommands {
   /** Export the active view: the workspace in the editor, every non-empty workspace in the grid. */
   exportNow: () => void
-  /** Render the whole 3×3 overview as one image and download it. */
+  /** Render the whole 3×3 overview as one image and open it in the export dialog. */
   snapshotGrid: () => Promise<void>
   /** Open the per-pane crop report dialog. */
   showCrops: () => void
