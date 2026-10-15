@@ -10,7 +10,7 @@ import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/co
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
-import { labelBgAlpha, labelPaint, nextLabelTheme, rotationCss, rotationOf, snapRotation } from '../lib/panes'
+import { labelBgAlpha, labelPaint, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { useStore } from '../store'
 
 /** A label icon drawn inline at the label's font size, in its text color. */
@@ -93,8 +93,15 @@ export function RotationHandle({ rot, shown, onChange }: {
     if (e.button !== 0)
       return
     e.stopPropagation()
-    const box = (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect()
-    if (!box)
+    // Climb past display:contents wrappers (LabelChrome): those return an
+    // empty rect, which parked the pivot at (0,0) and made label rotation
+    // feel sticky. Stickers nest the handle directly in the box, so they
+    // were already 1:1; labels need the same visual-box center.
+    let node: HTMLElement | null = (e.currentTarget as HTMLElement).parentElement
+    while (node && getComputedStyle(node).display === 'contents')
+      node = node.parentElement
+    const box = node?.getBoundingClientRect()
+    if (!box || (box.width === 0 && box.height === 0))
       return
     const el = e.currentTarget as HTMLElement
     el.setPointerCapture(e.pointerId)
@@ -423,7 +430,7 @@ function LabelToolbar({
 }) {
   return (
     <div
-      className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none max-lg:hidden border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-(--dur-fast) ${
+      className={`absolute left-1/2 z-[4] flex items-center gap-[3px] rounded-none max-lg:hidden border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-(--dur-fast) ${
         lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
       } ${
         // Mutually exclusive classes: a base `pointer-events-none` plus a
@@ -538,7 +545,7 @@ function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
       <Select.Portal>
         <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
           <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-            <Select.List className="relative grid max-h-[var(--available-height)] grid-cols-4 gap-0.5 overflow-y-auto px-1">
+            <Select.List className="relative grid max-h-[var(--available-height)] grid-cols-4 gap-0.5 overflow-y-auto p-1">
               {LABEL_ICON_ITEMS.map(item => (
                 <Select.Item
                   key={item.value}
@@ -576,13 +583,14 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelCont
       />
       <button
         className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
-        title={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
-        aria-label={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
+        title={t('Invert colors')}
+        aria-label={t('Invert colors')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
-          // The quick toggle resets custom colors back to a theme pair.
-          setLabel(labelId, { theme: nextLabelTheme(lab.theme), fg: undefined, bg: undefined })
+          // Swap effective text/background; leave bgAlpha alone.
+          const paint = labelPaint(lab)
+          setLabel(labelId, { fg: paint.bg, bg: paint.fg })
         }}
       >
         <MorphIcon icon={Contrast} size={13} strokeWidth={1.75} />
@@ -605,7 +613,7 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelCont
         onPointerDown={e => e.stopPropagation()}
         onChange={e => setLabel(labelId, { bg: e.target.value })}
       />
-      <div className="box-border h-[22px] w-[72px] self-center" onPointerDown={e => e.stopPropagation()}>
+      <div className="box-border flex h-[22px] w-[72px] items-center" onPointerDown={e => e.stopPropagation()}>
         <AppSlider
           dense
           min={0}
@@ -712,7 +720,6 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
   const opacityPct = Math.round(labelBgAlpha(lab) * 100)
   const paint = labelPaint(lab)
   const icon = labelIconNode(lab.icon)
-  const themeLabel = lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')
   const pop = { openTool, setOpenTool }
   return (
     <div className="flex items-center gap-0.5 px-1.5 py-1" data-label-dock="">
@@ -767,7 +774,7 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
         label={t('Label icon')}
         trigger={icon ? <LabelIconGlyph node={icon} size="18" /> : <MorphIcon icon={Smile} size={18} strokeWidth={1.75} />}
       >
-        <div className="grid max-h-[min(40dvh,260px)] grid-cols-6 gap-0.5 overflow-y-auto">
+        <div className="grid max-h-[min(40dvh,260px)] grid-cols-6 gap-0.5 overflow-y-auto p-1">
           {LABEL_ICON_ITEMS.map(item => (
             <button
               key={item.value}
@@ -775,7 +782,7 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
               title={t(item.label)}
               aria-label={t(item.label)}
               aria-pressed={(lab.icon ?? ICON_NONE) === item.value}
-              className="grid h-9 w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-txt hover:bg-chip-hover aria-pressed:outline-1 aria-pressed:outline-accent"
+              className="grid h-9 w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-txt outline-0 hover:bg-chip-hover aria-pressed:outline-1 aria-pressed:outline-accent focus-visible:outline-1 focus-visible:outline-accent"
               onClick={() => setLabel(labelId, { icon: item.value === ICON_NONE ? undefined : item.value })}
             >
               {item.value === ICON_NONE
@@ -788,9 +795,12 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
       <button
         type="button"
         className={dockBtnCls}
-        title={themeLabel}
-        aria-label={themeLabel}
-        onClick={() => setLabel(labelId, { theme: nextLabelTheme(lab.theme), fg: undefined, bg: undefined })}
+        title={t('Invert colors')}
+        aria-label={t('Invert colors')}
+        onClick={() => {
+          const paint = labelPaint(lab)
+          setLabel(labelId, { fg: paint.bg, bg: paint.fg })
+        }}
       >
         <MorphIcon icon={Contrast} size={18} strokeWidth={1.75} />
       </button>
