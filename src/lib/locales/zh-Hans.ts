@@ -157,6 +157,7 @@ export const zhHans: Record<string, string> = {
   'Restore original': '恢复原图',
   'Loading AI model…': '正在加载 AI 模型…',
   'Processing…': '处理中…',
+  'Cutting out…': '抠图中…',
   'Background removal failed': '背景移除失败',
 
   // Library / LibraryDrawer

@@ -9,6 +9,8 @@ interface RemoveRequest {
   mimeType: string
   /** Absolute URL of the directory that holds the model files. */
   modelBaseUrl: string
+  /** Absolute URL of the directory that holds the transformers.js and onnxruntime files. */
+  vendorBaseUrl: string
 }
 
 interface ProgressEvent {
@@ -21,16 +23,10 @@ interface ProgressEvent {
 
 const MODEL_ID = 'BritishWerewolf/U-2-Netp'
 
-// ponytail: transformers.js loads from the CDN on first use. Bundling it
-// statically would inline 86MB of onnxruntime wasm into the single-file
-// build. To go fully local later: bundle the package, copy the ort wasm
-// files to public/, set env.backends.onnx.wasm.wasmPaths.
-const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.1/dist/transformers.min.js'
-
 let transformersPromise: Promise<TransformersModule> | null = null
 
-function loadTransformers() {
-  transformersPromise ??= import(/* @vite-ignore */ TRANSFORMERS_CDN) as Promise<TransformersModule>
+function loadTransformers(vendorBaseUrl: string) {
+  transformersPromise ??= import(/* @vite-ignore */ `${vendorBaseUrl}transformers.min.js`) as Promise<TransformersModule>
   return transformersPromise
 }
 
@@ -59,8 +55,8 @@ function postProgress(id: number, phase: 'loading' | 'processing', progress?: nu
   globalThis.postMessage({ type: 'progress', id, phase, progress })
 }
 
-async function createRemover(id: number, modelBaseUrl: string) {
-  const { AutoModel, env, RawImage, Tensor } = await loadTransformers()
+async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: string) {
+  const { AutoModel, env, RawImage, Tensor } = await loadTransformers(vendorBaseUrl)
   // Serve model files from the same origin so background removal works where
   // the Hugging Face Hub is unavailable. The path has to arrive absolute: the
   // bundled worker runs from a blob:/data: URL, which cannot resolve a
@@ -68,6 +64,10 @@ async function createRemover(id: number, modelBaseUrl: string) {
   env.allowLocalModels = true
   env.allowRemoteModels = false
   env.localModelPath = modelBaseUrl
+  env.backends.onnx.wasm!.wasmPaths = {
+    mjs: `${vendorBaseUrl}ort-wasm-simd-threaded.mjs`,
+    wasm: `${vendorBaseUrl}ort-wasm-simd-threaded.wasm`,
+  }
 
   const progressCallback = (event: ProgressEvent) => {
     if (event.status === 'ready') {
@@ -154,7 +154,7 @@ globalThis.addEventListener('message', async (event: MessageEvent<RemoveRequest>
 
   try {
     postProgress(request.id, 'loading', 0)
-    removerPromise ??= createRemover(request.id, request.modelBaseUrl)
+    removerPromise ??= createRemover(request.id, request.modelBaseUrl, request.vendorBaseUrl)
     const remover = await removerPromise
     postProgress(request.id, 'processing')
 
