@@ -1,11 +1,11 @@
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
-import type { Leaf, Node, Rect, SeamSides } from './panes'
+import type { Leaf, Node, Rect, SeamSides, Sticker } from './panes'
 import { isTransparentBg } from '../store'
 import { mapSeq } from './async'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
-import { labelColors, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides, stickerRect } from './panes'
+import { boardStickerRect, labelColors, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -18,6 +18,8 @@ export interface ExportOptions {
   edgeFadeStrength: number
   photos: Map<string, Photo>
   longSide: number
+  /** Board-level stickers (canvas-normalized). */
+  stickers?: Sticker[]
 }
 
 export interface ExportSize {
@@ -165,15 +167,14 @@ function drawFadedPhoto(
 }
 
 /** Every photo a collage paint will draw, cells first then their stickers, deduped. */
-function paintPhotos(prep: Prepared, photos: Map<string, Photo>): Photo[] {
+function paintPhotos(prep: Prepared, photos: Map<string, Photo>, stickers: Sticker[] = []): Photo[] {
   const wanted: Photo[] = []
-  for (const { leaf, photo } of prep.cells) {
+  for (const { photo } of prep.cells)
     wanted.push(photo)
-    for (const st of leaf.stickers) {
-      const sp = photos.get(st.photoId)
-      if (sp?.trueW && sp.trueH)
-        wanted.push(sp)
-    }
+  for (const st of stickers) {
+    const sp = photos.get(st.photoId)
+    if (sp?.trueW && sp.trueH)
+      wanted.push(sp)
   }
   return [...new Set(wanted)]
 }
@@ -225,10 +226,10 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
 }
 
 /**
- * Clip each photo into its pane, draw it placed (feathered at seams), then
- *  its stickers; `src` hands out each photo's resolved full bitmap.
+ * Clip each photo into its pane and draw it placed (feathered at seams).
+ * Board stickers are drawn later, unclipped.
  */
-function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, src: Map<Photo, FullSource | null>) {
+function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: ExportOptions, src: Map<Photo, FullSource | null>) {
   for (const { leaf, rect, photo } of prep.cells) {
     const full = src.get(photo)
     if (!full)
@@ -242,28 +243,27 @@ function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Exp
       drawFadedPhoto(ctx, full.src, p, rect, seam, prep.fade)
     else
       ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
-    drawStickers(ctx, p, leaf, opts.photos, src)
     ctx.restore()
   }
 }
 
-/** Draw one leaf's stickers over its photo, through the run's resolved sources. */
-function drawStickers(
+/** Draw board-level stickers over the whole collage (not clipped to panes). */
+function drawBoardStickers(
   ctx: CanvasRenderingContext2D,
-  p: { x: number, y: number, w: number, h: number },
-  leaf: Leaf,
+  prep: Prepared,
+  stickers: Sticker[],
   photos: Map<string, Photo>,
   src: Map<Photo, FullSource | null>,
 ) {
-  for (const st of leaf.stickers) {
+  const board = { w: prep.W, h: prep.H }
+  for (const st of stickers) {
     const sp = photos.get(st.photoId)
     if (!sp?.trueW || !sp.trueH)
       continue
     const full = src.get(sp)
     if (!full)
       continue
-    const sr = stickerRect(p, st, sp.trueW, sp.trueH, sp.trueW / sp.trueH)
-    // Rotation is about the box center, exactly like the preview's CSS transform.
+    const sr = boardStickerRect(board, st, sp.trueW / sp.trueH)
     ctx.save()
     ctx.translate(sr.x + sr.w / 2, sr.y + sr.h / 2)
     ctx.rotate(rotationOf(st))
@@ -304,10 +304,7 @@ function drawLabelCell(ctx: CanvasRenderingContext2D, prep: Prepared, leaf: Leaf
   const r = labelRect(rect, lab, m.w, lineH, fontPx)
   const colors = labelColors(lab.theme)
   ctx.save()
-  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
-  ctx.clip()
-  // Draw the box around its center, turned like the preview's label box, so
-  // the rotated label sits in the same spot the editor shows.
+  // Labels are not clipped to the pane so they can sit across the board.
   ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
   ctx.rotate(rotationOf(lab))
   ctx.fillStyle = colors.bg
@@ -340,10 +337,12 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
   try {
     // Resolve every source before the first draw, then paint synchronously:
     // the draws share one 2D context, so their order is the output.
-    const src = await resolveSources(paintPhotos(prep, opts.photos), sources)
+    const stickers = opts.stickers ?? []
+    const src = await resolveSources(paintPhotos(prep, opts.photos, stickers), sources)
     // The blurred field goes under the panes; their feathered edges melt into it.
     drawBackdrop(ctx, prep, opts, src)
     drawPhotoCells(ctx, prep, opts, src)
+    drawBoardStickers(ctx, prep, stickers, opts.photos, src)
     await ensureLabelFonts(prep)
     drawLabelCells(ctx, prep)
   }
@@ -459,6 +458,7 @@ export async function renderCollageVideo(
         ctx.drawImage(still, 0, 0)
         for (const { cell, v } of vids)
           drawLiveCell(ctx, prep, cell, v, opts, src)
+        drawBoardStickers(ctx, prep, opts.stickers ?? [], opts.photos, src)
       }
 
       const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
@@ -495,14 +495,12 @@ export async function renderCollageVideo(
 }
 
 /** The sticker sources the live frame loop will draw, deduped. */
-function stickerPhotos(vids: LiveVid[], opts: ExportOptions): Photo[] {
+function stickerPhotos(_vids: LiveVid[], opts: ExportOptions): Photo[] {
   const wanted: Photo[] = []
-  for (const { cell } of vids) {
-    for (const st of cell.leaf.stickers) {
-      const sp = opts.photos.get(st.photoId)
-      if (sp?.trueW)
-        wanted.push(sp)
-    }
+  for (const st of opts.stickers ?? []) {
+    const sp = opts.photos.get(st.photoId)
+    if (sp?.trueW)
+      wanted.push(sp)
   }
   return [...new Set(wanted)]
 }
@@ -513,8 +511,8 @@ function drawLiveCell(
   prep: Prepared,
   cell: Prepared['cells'][number],
   v: HTMLVideoElement,
-  opts: ExportOptions,
-  src: Map<Photo, FullSource | null>,
+  _opts: ExportOptions,
+  _src: Map<Photo, FullSource | null>,
 ) {
   const { leaf, rect } = cell
   const p = placement(rect, leaf, v.videoWidth, v.videoHeight)
@@ -527,7 +525,6 @@ function drawLiveCell(
   else
     ctx.drawImage(v, p.x, p.y, p.w, p.h)
   ctx.restore()
-  drawStickers(ctx, p, leaf, opts.photos, src)
   drawLabelCell(ctx, prep, leaf, rect)
 }
 
@@ -542,7 +539,7 @@ export const GRID_CELL_MAX = 220
 
 export interface GridSnapshotOptions {
   /** The nine workspaces in grid order; anything past 9 is ignored. */
-  workspaces: { root: Node, canvasRatio: number | null }[]
+  workspaces: { root: Node, canvasRatio: number | null, stickers?: Sticker[] }[]
   /** Long edge of the finished board, in px: each cell gets about a third. */
   longSide: number
   /** Space between the nine overview cells, in px (the store's grid gap). */
@@ -593,6 +590,7 @@ export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTM
       edgeFadeStrength: opts.edgeFadeStrength,
       photos: opts.photos,
       longSide: Math.round(cell * Math.max(ratio, 1 / ratio)),
+      stickers: ws.stickers ?? [],
     })
     ctx.drawImage(
       c,

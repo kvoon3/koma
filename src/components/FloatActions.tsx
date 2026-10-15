@@ -45,7 +45,7 @@ export function FloatActions() {
   const resettable = useStore((s) => {
     const dirty = (w: Workspace) => {
       const r = w.root
-      return r.type !== 'leaf' || r.photoId != null || r.label != null || r.stickers.length > 0
+      return r.type !== 'leaf' || r.photoId != null || r.label != null
         || w.canvasRatio != null || w.canvasFill !== 1
     }
     return (grid ? s.workspaces : s.workspaces.filter(w => w.id === s.activeId)).some(dirty)

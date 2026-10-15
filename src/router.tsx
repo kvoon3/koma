@@ -44,6 +44,7 @@ function exportOptions(): ExportOptions {
     edgeFadeStrength: s.edgeFadeStrength,
     photos: photoMap(s.photos),
     longSide: s.longSide,
+    stickers: ws.stickers ?? [],
   }
 }
 
@@ -78,6 +79,7 @@ async function renderGridItems(): Promise<RenderedItem[]> {
       edgeFadeStrength: s.edgeFadeStrength,
       photos: photoMap(s.photos),
       longSide: s.longSide,
+      stickers: ws.stickers ?? [],
     }
     // Position among the filled workspaces at export time, 1-based.
     const pos = s.workspaces.indexOf(ws) + 1
