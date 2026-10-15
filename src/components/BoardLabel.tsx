@@ -419,10 +419,9 @@ function LabelToolbar({
   setLabel: (id: string, patch: Partial<PaneLabel>) => void
   selectLabel: (id: string | null) => void
 }) {
-  const t = useT()
   return (
     <div
-      className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-(--dur-fast) ${
+      className={`absolute left-1/2 z-[4] flex gap-[3px] rounded-none max-lg:hidden border border-float-line bg-float-bg p-[3px] backdrop-blur-[7px] transition-opacity duration-(--dur-fast) ${
         lab.y < 0.3 ? 'bottom-auto top-[calc(100%+10px)]' : 'bottom-[calc(100%+10px)]'
       } ${
         // Mutually exclusive classes: a base `pointer-events-none` plus a
@@ -444,13 +443,28 @@ function LabelToolbar({
         selectLabel(labelId)
       }}
     >
+      <LabelControls labelId={labelId} lab={lab} setLabel={setLabel} selectLabel={selectLabel} />
+    </div>
+  )
+}
+
+/** The label's style controls, shared by the floating toolbar (desktop) and the mobile tools dock. */
+export function LabelControls({ labelId, lab, setLabel, selectLabel }: {
+  labelId: string
+  lab: PaneLabel
+  setLabel: (id: string, patch: Partial<PaneLabel>) => void
+  selectLabel: (id: string | null) => void
+}) {
+  const t = useT()
+  return (
+    <>
       <Select.Root
         items={LABEL_FONT_ITEMS}
         value={lab.font}
         onValueChange={value => setLabel(labelId, { font: String(value) })}
         onOpenChange={(open) => {
-          // Keep the toolbar pinned while the font popup is open, also when
-          // the list was opened from the keyboard instead of a click.
+        // Keep the toolbar pinned while the font popup is open, also when
+        // the list was opened from the keyboard instead of a click.
           if (open)
             selectLabel(labelId)
         }}
@@ -577,7 +591,7 @@ function LabelToolbar({
           </Select.Positioner>
         </Select.Portal>
       </Select.Root>
-    </div>
+    </>
   )
 }
 

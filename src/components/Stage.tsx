@@ -2,15 +2,16 @@ import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
-import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
+import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, usePreview, useScrollFade } from '../hooks'
+import { useElementSize, useMediaQuery, usePreview, useScrollFade } from '../hooks'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, pickPhotoForPane, pickStickersForPane } from '../lib/paneCommands'
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { BoardInserts } from './BoardInserts'
+import { LabelControls } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
@@ -268,7 +269,14 @@ export function Stage() {
   // Every tool acts on the focused pane, so with no focus (or a focused pane
   // that holds no photo) there is nothing to offer: the panel and its handle
   // are put away while the empty pane itself is the picker.
-  const toolsHidden = !hasPhoto
+  const labelSel = useStore(s => s.labelSel)
+  const setLabel = useStore(s => s.setLabel)
+  const removeLabel = useStore(s => s.removeLabel)
+  // Below lg the label's floating toolbar is hidden, so the dock takes over
+  // its controls while a label is selected.
+  const compact = useMediaQuery('(max-width: 1023.98px)')
+  const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
+  const toolsHidden = !hasPhoto && !dockLabel
   // One row, so the order here is the order on screen.
   const tools: ToolDef[] = [
     { key: 'photo', icon: ImagePlus, label: t('Replace'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
@@ -346,11 +354,22 @@ export function Stage() {
       <ToolsDock
         hidden={toolsHidden}
         open={toolsOpen}
-        tools={tools}
+        contextKey={dockLabel ? 'label' : 'pane'}
         scrollRef={toolsScrollRef}
         handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
         onToggle={() => setToolsOpen(!toolsOpen)}
-      />
+      >
+        {dockLabel
+          ? (
+              <>
+                <div className="flex items-center gap-1.5 px-3 [&>*]:h-9 [&>*]:min-w-9">
+                  <LabelControls labelId={dockLabel.id} lab={dockLabel} setLabel={setLabel} selectLabel={selectLabel} />
+                </div>
+                <ToolButton icon={Trash2} label={t('Delete')} hint={t('Remove label')} onClick={() => removeLabel(dockLabel.id)} />
+              </>
+            )
+          : tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+      </ToolsDock>
 
       <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => openStickerMaker(null)} />
     </div>
@@ -591,10 +610,11 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
  * lives on the wrapper, not the panel, so it never shares a transition with
  * the panel's own open/collapse slide (transform, --dur-morph).
  */
-function ToolsDock({ hidden, open, tools, scrollRef, handleLabel, onToggle }: {
+function ToolsDock({ hidden, open, contextKey, children, scrollRef, handleLabel, onToggle }: {
   hidden: boolean
   open: boolean
-  tools: ToolDef[]
+  contextKey: string
+  children: React.ReactNode
   scrollRef: (el: HTMLDivElement | null) => void
   handleLabel: string
   onToggle: () => void
@@ -627,8 +647,8 @@ function ToolsDock({ hidden, open, tools, scrollRef, handleLabel, onToggle }: {
           footer. Open or not the row scrolls sideways instead of
           squashing the fixed-width tools when they outgrow the screen. */}
         <div ref={scrollRef} className={toolsScrollCls} inert={!open}>
-          <div className={toolsRowCls}>
-            {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+          <div key={contextKey} className={`${toolsRowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}>
+            {children}
           </div>
         </div>
       </div>
