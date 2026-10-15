@@ -775,6 +775,7 @@ function PanePhotoContent({
   rect,
   photoId,
   mask,
+  radius,
   onPick,
   carried,
 }: {
@@ -783,6 +784,7 @@ function PanePhotoContent({
   rect: Rect
   photoId: string | null
   mask?: React.CSSProperties
+  radius: number
   onPick: () => void
   /** The photo is being carried as the swap/Move ghost: dim the original. */
   carried: boolean
@@ -792,11 +794,12 @@ function PanePhotoContent({
     ? (
         // The mask wrapper spans the pane box, so the feather gradients line
         // up with the pane edges (the placed img itself overflows the pane).
-        // Carried: fade, don't hide, so the ghost reads as lifted from here;
-        // stickers/labels stay sharp above the dimmed original.
+        // It clips too, which is what the swap transition names (tagSwapClip).
+        // Carried: fade, don't hide, so the ghost reads as lifted from here.
         <div
-          className={`absolute inset-0 transition-opacity duration-(--dur-surface) ${carried ? ' opacity-25' : ''}`}
-          style={mask}
+          data-photo-clip=""
+          className={`absolute inset-0 overflow-hidden transition-opacity duration-(--dur-surface) ${carried ? ' opacity-25' : ''}`}
+          style={{ ...mask, borderRadius: radius }}
         >
           <img
             src={preview.url}
@@ -1018,14 +1021,15 @@ function swapReturnLanding(
 const SWAP_SRC_NAME = 'pane-swap-src'
 const SWAP_DST_NAME = 'pane-swap-dst'
 
-/* Tag a pane's placed photo with a view-transition-name. A fresh query each
-   call: the store commit re-renders the panes, so a node held across it can be
-   stale. */
-function tagSwapPhoto(paneId: string, name: string): HTMLElement | null {
-  const img = document.querySelector<HTMLElement>(`[data-pane-id="${paneId}"] [data-photo-img]`)
-  if (img)
-    img.style.viewTransitionName = name
-  return img
+/* Tag the clip wrapper, never the img: an element is snapshotted at its own
+   box, so naming the img (laid out at full pixel size) glided the whole image
+   over the neighbouring panes, while the wrapper snapshots the pane's crop.
+   Query fresh: the commit re-renders the panes. */
+function tagSwapClip(paneId: string, name: string): HTMLElement | null {
+  const clip = document.querySelector<HTMLElement>(`[data-pane-id="${paneId}"] [data-photo-clip]`)
+  if (clip)
+    clip.style.viewTransitionName = name
+  return clip
 }
 
 /**
@@ -1044,9 +1048,9 @@ function runSwapTransition(sourceId: string, targetId: string, apply: () => void
   // The old snapshot has to carry the names, so set them before the capture.
   const tagged = new Set<HTMLElement>()
   const tag = (paneId: string, name: string) => {
-    const img = tagSwapPhoto(paneId, name)
-    if (img)
-      tagged.add(img)
+    const clip = tagSwapClip(paneId, name)
+    if (clip)
+      tagged.add(clip)
   }
   tag(sourceId, SWAP_SRC_NAME)
   tag(targetId, SWAP_DST_NAME)
@@ -1063,8 +1067,8 @@ function runSwapTransition(sourceId: string, targetId: string, apply: () => void
   // Drop the names once the morph is done so they never clash with the grid's
   // ws-<id> morphs; an interrupted transition rejects, hence the catch.
   void vt.finished.finally(() => {
-    for (const img of tagged)
-      img.style.viewTransitionName = ''
+    for (const el of tagged)
+      el.style.viewTransitionName = ''
   }).catch(() => {})
 }
 
@@ -2214,6 +2218,7 @@ function PaneImpl({
         rect={rect}
         photoId={leaf.photoId}
         mask={photoMask}
+        radius={radius}
         onPick={pickForPane}
         carried={!!swapAt}
       />
