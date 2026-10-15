@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
-import { labelPaint, nextLabelTheme, rotationCss, rotationOf, snapRotation } from '../lib/panes'
+import { labelBgAlpha, labelPaint, nextLabelTheme, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { useStore } from '../store'
 
 /** A label icon drawn inline at the label's font size, in its text color. */
@@ -529,6 +529,18 @@ function LabelToolbar({
         onPointerDown={e => e.stopPropagation()}
         onChange={e => setLabel(labelId, { bg: e.target.value })}
       />
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        className="h-[22px] w-[56px] cursor-pointer accent-accent"
+        value={Math.round(labelBgAlpha(lab) * 100)}
+        title={`${t('Background opacity')} ${Math.round(labelBgAlpha(lab) * 100)}%`}
+        aria-label={t('Background opacity')}
+        onPointerDown={e => e.stopPropagation()}
+        onChange={e => setLabel(labelId, { bgAlpha: Number(e.target.value) / 100 })}
+      />
       <Select.Root
         items={LABEL_ICON_ITEMS}
         value={lab.icon ?? ICON_NONE}
@@ -624,7 +636,7 @@ function LabelView({
         transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
         fontSize: `${lab.size * unit}px`,
         fontFamily: fontById(lab.font).cssStack,
-        background: colors.bg,
+        background: colors.fill,
         color: colors.fg,
       }}
       onPointerDown={onBoxDown}
