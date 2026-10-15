@@ -62,6 +62,7 @@ export const zhHans: Record<string, string> = {
   // Pane
   'Drag to resize': '拖动调整大小',
   'Remove sticker': '删除贴图',
+  'Delete': '删除',
   'Remove label': '删除文字',
   'Drag to rotate · hold Shift to snap to 15°': '拖动旋转 · 按住 Shift 以 15° 吸附',
   'Reset rotation': '重置角度',
