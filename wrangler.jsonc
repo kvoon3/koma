@@ -2,6 +2,9 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "koma",
   "compatibility_date": "2026-10-11",
+  // Branch Previews (wrangler preview / Workers Builds preview builds)
+  "preview_urls": true,
+  "previews": {},
   // Pure static site; no worker script needed
   "assets": {
     "directory": "./dist",
