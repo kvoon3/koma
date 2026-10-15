@@ -40,12 +40,24 @@ export function labelColors(theme?: LabelTheme) {
   return LABEL_THEMES[theme && theme in LABEL_THEMES ? theme : DEFAULT_LABEL_THEME]
 }
 
+/** A label's effective colors: custom fg / bg win over its theme pair. */
+export function labelPaint(lab: { theme?: LabelTheme, fg?: string, bg?: string }) {
+  const base = labelColors(lab.theme)
+  return { fg: lab.fg ?? base.fg, bg: lab.bg ?? base.bg }
+}
+
 export interface PaneLabel {
   /** Stable id: labels are a board-level list, many per workspace. */
   id: string
   text: string
   font: string
   theme: LabelTheme
+  /** Custom text color; absent falls back to the theme's. */
+  fg?: string
+  /** Custom box color; absent falls back to the theme's. */
+  bg?: string
+  /** Leading icon id from `LABEL_ICONS`; absent means text only. */
+  icon?: string
   /** Board-normalized center in [0, 1] of the canvas (legacy Leaf.label: pane-normalized). */
   x: number
   y: number

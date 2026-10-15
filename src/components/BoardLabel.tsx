@@ -1,13 +1,47 @@
+import type { IconNode } from 'lucide'
 import type { FontMeta } from '../lib/fonts'
 import type { PaneLabel } from '../lib/panes'
 import { Select } from '@base-ui/react/select'
-import { Check, ChevronDown, Contrast, RefreshCw, RotateCcw, X } from 'lucide'
+import { Ban, Check, ChevronDown, Contrast, RefreshCw, RotateCcw, Shapes, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { labelColors, nextLabelTheme, rotationCss, rotationOf, snapRotation } from '../lib/panes'
+import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
+import { labelPaint, nextLabelTheme, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { useStore } from '../store'
+
+/** A label icon drawn inline at the label's font size, in its text color. */
+export function LabelIconGlyph({ node, size = `${LABEL_ICON_EM}em` }: { node: IconNode, size?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="flex-none"
+    >
+      {node.map(([tag, attrs], i) => {
+        const Tag = tag as 'path'
+        // eslint-disable-next-line react/no-array-index-key -- icon nodes are static and never reorder
+        return <Tag key={i} {...(attrs as React.SVGProps<SVGPathElement>)} />
+      })}
+    </svg>
+  )
+}
+
+const ICON_NONE = '__none'
+const LABEL_ICON_ITEMS = [
+  { value: ICON_NONE, label: 'No icon' },
+  ...LABEL_ICONS.map(i => ({ value: i.id, label: i.label })),
+]
+
+const colorInputCls = 'h-[22px] w-[22px] cursor-pointer rounded-none border border-float-line bg-float-bg-2 p-[2px] [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-none [&::-webkit-color-swatch]:border-0'
 
 const LABEL_FONT_ITEMS = [
   { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
@@ -471,11 +505,66 @@ function LabelToolbar({
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
-          setLabel(labelId, { theme: nextLabelTheme(lab.theme) })
+          // The quick toggle resets custom colors back to a theme pair.
+          setLabel(labelId, { theme: nextLabelTheme(lab.theme), fg: undefined, bg: undefined })
         }}
       >
         <MorphIcon icon={Contrast} size={13} strokeWidth={1.75} />
       </button>
+      <input
+        type="color"
+        className={colorInputCls}
+        value={labelPaint(lab).fg}
+        title={t('Text color')}
+        aria-label={t('Text color')}
+        onPointerDown={e => e.stopPropagation()}
+        onChange={e => setLabel(labelId, { fg: e.target.value })}
+      />
+      <input
+        type="color"
+        className={colorInputCls}
+        value={labelPaint(lab).bg}
+        title={t('Background color')}
+        aria-label={t('Background color')}
+        onPointerDown={e => e.stopPropagation()}
+        onChange={e => setLabel(labelId, { bg: e.target.value })}
+      />
+      <Select.Root
+        items={LABEL_ICON_ITEMS}
+        value={lab.icon ?? ICON_NONE}
+        onValueChange={value => setLabel(labelId, { icon: value === ICON_NONE ? undefined : String(value) })}
+        onOpenChange={(open) => {
+          if (open)
+            selectLabel(labelId)
+        }}
+      >
+        <Select.Trigger className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover" title={t('Label icon')} aria-label={t('Label icon')}>
+          {labelIconNode(lab.icon)
+            ? <LabelIconGlyph node={labelIconNode(lab.icon)!} size="13" />
+            : <MorphIcon icon={Shapes} size={13} strokeWidth={1.75} />}
+        </Select.Trigger>
+        <Select.Portal>
+          <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
+            <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+              <Select.List className="relative grid max-h-[var(--available-height)] grid-cols-4 gap-0.5 overflow-y-auto px-1">
+                {LABEL_ICON_ITEMS.map(item => (
+                  <Select.Item
+                    key={item.value}
+                    value={item.value}
+                    title={t(item.label)}
+                    aria-label={t(item.label)}
+                    className="grid h-8 w-8 cursor-default select-none place-items-center outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent data-selected:outline-1 data-selected:outline-accent"
+                  >
+                    {item.value === ICON_NONE
+                      ? <MorphIcon icon={Ban} size={15} strokeWidth={1.75} />
+                      : <LabelIconGlyph node={labelIconNode(item.value)!} size="16" />}
+                  </Select.Item>
+                ))}
+              </Select.List>
+            </Select.Popup>
+          </Select.Positioner>
+        </Select.Portal>
+      </Select.Root>
     </div>
   )
 }
@@ -502,7 +591,8 @@ function LabelView({
   const selectLabel = useStore(s => s.selectLabel)
   const selected = useStore(s => s.labelSel === labelId)
   const fontTick = useFontReady(lab.font)
-  const colors = labelColors(lab.theme)
+  const colors = labelPaint(lab)
+  const icon = labelIconNode(lab.icon)
   const rot = rotationOf(lab)
   const { hot, onBoxDown, onBoxMove, onSizeDown, onSizeMove, endGesture, onPointerEnter, onPointerLeave } = useLabelGesture({
     labelId,
@@ -550,7 +640,12 @@ function LabelView({
     >
       {editing
         ? <LabelEditor text={lab.text} onDone={commitEdit} />
-        : <div>{lab.text}</div>}
+        : (
+            <div className="flex items-center" style={{ gap: `${LABEL_ICON_GAP_EM}em` }}>
+              {icon && <LabelIconGlyph node={icon} />}
+              <span>{lab.text}</span>
+            </div>
+          )}
       <LabelChrome
         editing={editing}
         labelId={labelId}

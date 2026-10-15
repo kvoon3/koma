@@ -5,7 +5,8 @@ import { mapSeq } from './async'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
-import { boardStickerRect, labelColors, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
+import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, labelIconNode, loadLabelIcon } from './labelIcons'
+import { boardStickerRect, labelPaint, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -283,14 +284,28 @@ async function ensureLabelFonts(prep: Prepared) {
   }
 }
 
-/** Board labels draw on top of everything, unclipped, in canvas-normalized coords. */
-function drawLabels(ctx: CanvasRenderingContext2D, prep: Prepared) {
-  const board: Rect = { x: 0, y: 0, w: prep.W, h: prep.H }
-  for (const lab of prep.labels)
-    drawLabel(ctx, prep, lab, board)
+type LabelIcons = Map<string, HTMLImageElement>
+
+/** Rasterize each label's icon once, in its text color, keyed by label id. */
+async function loadLabelIcons(prep: Prepared): Promise<LabelIcons> {
+  const out: LabelIcons = new Map()
+  await Promise.all(prep.labels.map(async (lab) => {
+    const node = labelIconNode(lab.icon)
+    const img = node && await loadLabelIcon(node, labelPaint(lab).fg)
+    if (img)
+      out.set(lab.id, img)
+  }))
+  return out
 }
 
-function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel, board: Rect) {
+/** Board labels draw on top of everything, unclipped, in canvas-normalized coords. */
+function drawLabels(ctx: CanvasRenderingContext2D, prep: Prepared, icons: LabelIcons) {
+  const board: Rect = { x: 0, y: 0, w: prep.W, h: prep.H }
+  for (const lab of prep.labels)
+    drawLabel(ctx, prep, lab, board, icons.get(lab.id))
+}
+
+function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel, board: Rect, icon?: HTMLImageElement) {
   const meta = fontById(lab.font)
   const fontPx = lab.size * prep.u
   const m = measureLabel(meta, fontPx, lab.text)
@@ -298,18 +313,25 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
   // box height = measured line box, baseline offset follows the half-leading model.
   const lineH = normalLineHeightRatio(meta, lab.text) * fontPx || (m.fontAscent + m.fontDescent)
   const halfLead = Math.max(0, (lineH - (m.fontAscent + m.fontDescent)) / 2)
-  const r = labelRect(board, lab, m.w, lineH, fontPx)
-  const colors = labelColors(lab.theme)
+  // Mirror the DOM's flex row: [icon][gap][text], all centered vertically.
+  const iconW = icon ? fontPx * (LABEL_ICON_EM + LABEL_ICON_GAP_EM) : 0
+  const r = labelRect(board, lab, m.w + iconW, lineH, fontPx)
+  const colors = labelPaint(lab)
   ctx.save()
   ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
   ctx.rotate(rotationOf(lab))
   ctx.fillStyle = colors.bg
   ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h)
+  const left = -r.w / 2 + fontPx * 0.38
+  if (icon) {
+    const s = fontPx * LABEL_ICON_EM
+    ctx.drawImage(icon, left, -s / 2, s, s)
+  }
   ctx.fillStyle = colors.fg
   ctx.font = `400 ${fontPx}px ${meta.cssStack}`
-  ctx.textAlign = 'center'
+  ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
-  ctx.fillText(lab.text, 0, -r.h / 2 + fontPx * 0.22 + halfLead + m.fontAscent)
+  ctx.fillText(lab.text, left + iconW, -r.h / 2 + fontPx * 0.22 + halfLead + m.fontAscent)
   ctx.restore()
 }
 
@@ -340,7 +362,7 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     drawPhotoCells(ctx, prep, opts, src)
     drawBoardStickers(ctx, prep, stickers, opts.photos, src)
     await ensureLabelFonts(prep)
-    drawLabels(ctx, prep)
+    drawLabels(ctx, prep, await loadLabelIcons(prep))
   }
   finally {
     sources.release()
@@ -449,13 +471,14 @@ export async function renderCollageVideo(
     const stream = canvas.captureStream(30)
     try {
       const src = await resolveSources(stickerPhotos(vids, opts), sources)
+      const labelIcons = await loadLabelIcons(prep)
 
       const drawFrame = () => {
         ctx.drawImage(still, 0, 0)
         for (const { cell, v } of vids)
           drawLiveCell(ctx, prep, cell, v, opts, src)
         drawBoardStickers(ctx, prep, opts.stickers ?? [], opts.photos, src)
-        drawLabels(ctx, prep)
+        drawLabels(ctx, prep, labelIcons)
       }
 
       const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })

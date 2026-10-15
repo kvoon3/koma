@@ -13,9 +13,11 @@ import { useAppCommands } from '../lib/appCommands'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { boardStickerRect, labelColors, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
+import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
+import { boardStickerRect, labelPaint, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
+import { LabelIconGlyph } from './BoardLabel'
 import { SeamBackdrop } from './Stage'
 import { Tip } from './ui/tip'
 
@@ -199,11 +201,15 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
               transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
               fontSize: lab.size * unit,
               fontFamily: fontById(lab.font).cssStack,
-              background: labelColors(lab.theme).bg,
-              color: labelColors(lab.theme).fg,
+              background: labelPaint(lab).bg,
+              color: labelPaint(lab).fg,
               padding: '0.22em 0.38em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: `${LABEL_ICON_GAP_EM}em`,
             }}
           >
+            {labelIconNode(lab.icon) && <LabelIconGlyph node={labelIconNode(lab.icon)!} />}
             {lab.text}
           </span>
         ))}
