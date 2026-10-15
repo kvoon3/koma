@@ -356,12 +356,12 @@ function LabelChrome({
   endGesture: () => void
 }) {
   const t = useT()
-  if (editing)
-    return null
+  const shown = !editing && (hot || selected)
+  const hover = editing ? '' : 'group-hover/label:opacity-100'
   return (
-    <>
+    <div inert={editing} className="contents">
       <span
-        className={`group-hover/label:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${hot || selected ? ' opacity-100' : ''}`}
+        className={`${hover} absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${shown ? ' opacity-100' : ''}`}
         title={t('Drag to resize')}
         onPointerDown={onSizeDown}
         onPointerMove={onSizeMove}
@@ -370,18 +370,18 @@ function LabelChrome({
       />
       <RotationHandle
         rot={rot}
-        shown={hot || selected}
+        shown={shown}
         onChange={value => setLabel(labelId, { rot: value })}
       />
       <ResetRotationButton
-        shown={rot !== 0 && (hot || selected)}
+        shown={rot !== 0 && shown}
         // The toolbar already takes the space under a label parked near the
         // pane's top (see `lab.y < 0.3` below), so the chip moves up instead.
         flip={lab.y < 0.3}
         onReset={() => setLabel(labelId, { rot: 0 })}
       />
       <button
-        className={`group-hover/label:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
+        className={`${hover} absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${shown ? ' opacity-100' : ''}`}
         title={t('Remove label')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {
@@ -391,7 +391,7 @@ function LabelChrome({
       >
         <MorphIcon icon={X} size={12} strokeWidth={2} />
       </button>
-    </>
+    </div>
   )
 }
 
@@ -626,9 +626,9 @@ function LabelView({
 
   return (
     <div
-      className={`group/label absolute z-[6] touch-none px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre ${
-        editing ? ' cursor-text select-text outline-1 outline-txt outline-offset-3' : ' cursor-grab active:cursor-grabbing'
-      }${selected ? ' outline-1 outline-txt outline-offset-3' : ''}`}
+      className={`group/label absolute z-[6] touch-none px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre outline-1 outline-offset-3 transition-[outline-color] duration-(--dur-fast) ease-(--ease-out) ${
+        editing ? 'cursor-text select-text' : 'cursor-grab active:cursor-grabbing'
+      } ${editing || selected ? 'outline-txt' : 'outline-transparent'}`}
       data-font-tick={fontTick}
       style={{
         left: `${lab.x * 100}%`,

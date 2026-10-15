@@ -384,9 +384,9 @@ function PaneOutline({
     <div
       aria-hidden
       className={
-        `pointer-events-none absolute inset-0 z-[4] -outline-offset-1 ${
-          bordered ? ' outline-1 outline-line' : ''
-        }${focused ? ' outline-1 outline-txt' : ''}${dropping ? ' outline-dashed outline-1 outline-txt' : ''}`
+        `pointer-events-none absolute inset-0 z-[4] outline-1 -outline-offset-1 transition-[outline-color] duration-(--dur-fast) ease-(--ease-out) ${
+          focused || dropping ? 'outline-txt' : bordered ? 'outline-line' : 'outline-transparent'
+        }${dropping ? ' outline-dashed' : ''}`
       }
       style={{ borderRadius: radius }}
     />
