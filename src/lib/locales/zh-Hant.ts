@@ -132,6 +132,8 @@ export const zhHant: Record<string, string> = {
   'Type some text': '輸入文字',
   'Text color': '文字顏色',
   'Style': '樣式',
+  'Icon': '圖示',
+  'None': '無',
   'Classic': '經典',
   'Inverted': '反色',
   'Pop': '亮色',

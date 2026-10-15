@@ -22,8 +22,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+import type { IconNode } from 'morphicons/react'
+import { getStickerIcon } from './stickerIcons'
+
 export type StickerSource
-  = | { type: 'text', text: string, color?: string, background?: string | null, fontFamily?: string, fontWeight?: number | string }
+  = | { type: 'text', text: string, color?: string, background?: string | null, fontFamily?: string, fontWeight?: number | string, iconId?: string | null }
     | { type: 'image', src: string, name?: string }
 
 export type StickerMaterialType = 'original' | 'holographic' | 'glitter'
@@ -150,6 +153,30 @@ function imageHasTransparency(image: HTMLImageElement): boolean {
   return false
 }
 
+function iconNodeToSvgDataUrl(node: IconNode, color: string, size: number, strokeWidth = 2) {
+  const body = node.map(([tag, attrs]) => {
+    const attr = Object.entries(attrs)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${key}="${String(value).replace(/"/g, '&quot;')}"`)
+      .join(' ')
+    return `<${tag} ${attr}/>`
+  }).join('')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+async function drawStickerIcon(
+  context: CanvasRenderingContext2D,
+  node: IconNode,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+) {
+  const image = await loadImage(iconNodeToSvgDataUrl(node, color, Math.max(24, Math.round(size))))
+  context.drawImage(image, x, y, size, size)
+}
+
 async function renderTextSource(source: StickerTextSource) {
   const fontFamily = source.fontFamily ?? 'Arial Rounded MT Bold, Arial Black, sans-serif'
   const fontWeight = source.fontWeight ?? 900
@@ -182,8 +209,14 @@ async function renderTextSource(source: StickerTextSource) {
   const lineHeight = fontSize * 1.15
   const ascent = Math.max(1, ...lineMetrics.map(m => m.actualBoundingBoxAscent || fontSize * 0.76))
   const descent = Math.max(1, ...lineMetrics.map(m => m.actualBoundingBoxDescent || fontSize * 0.2))
+  const color = source.color ?? DEFAULT_TEXT_COLOR
+  const iconEntry = getStickerIcon(source.iconId)
+  const textWidth = Math.max(1, ...lineMetrics.map(m => m.width))
+  const iconSize = iconEntry ? fontSize * 0.92 : 0
+  const iconGap = iconEntry ? fontSize * 0.28 : 0
+  const contentWidth = textWidth + (iconEntry ? iconSize + iconGap : 0)
   const padding = TEXTURE_PADDING
-  const width = clamp(Math.ceil(Math.max(...lineMetrics.map(m => m.width)) + padding * 2), MIN_TEXTURE_EDGE, MAX_TEXTURE_EDGE)
+  const width = clamp(Math.ceil(contentWidth + padding * 2), MIN_TEXTURE_EDGE, MAX_TEXTURE_EDGE)
   const contentHeight = lineHeight * (lines.length - 1) + ascent + descent
   const height = clamp(Math.ceil(contentHeight + padding * 2), MIN_TEXTURE_EDGE, 1280)
   const canvas = document.createElement('canvas')
@@ -195,11 +228,10 @@ async function renderTextSource(source: StickerTextSource) {
 
   context.clearRect(0, 0, width, height)
 
-  // Solid fill behind glyphs (before die-cut). Null/undefined keeps today's
-  // transparent source so the outline hugs letter shapes alone.
+  // Solid fill behind glyphs (+ optional icon) before die-cut. Null/undefined
+  // keeps a transparent source so the outline hugs letter shapes alone.
   const background = source.background
   if (background) {
-    const contentWidth = Math.max(1, ...lineMetrics.map(m => m.width))
     const padX = fontSize * 0.42
     const padY = fontSize * 0.3
     const boxW = contentWidth + padX * 2
@@ -213,13 +245,22 @@ async function renderTextSource(source: StickerTextSource) {
     context.fill()
   }
 
+  const groupX = (width - contentWidth) / 2
+  const contentTop = (height - contentHeight) / 2
+
+  if (iconEntry) {
+    const iconY = contentTop + (contentHeight - iconSize) / 2
+    await drawStickerIcon(context, iconEntry.icon, groupX, iconY, iconSize, color)
+  }
+
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`
   context.textBaseline = 'alphabetic'
   context.textAlign = 'center'
-  context.fillStyle = source.color ?? DEFAULT_TEXT_COLOR
-  const firstBaseline = (height - contentHeight) / 2 + ascent
+  context.fillStyle = color
+  const textCenterX = groupX + (iconEntry ? iconSize + iconGap : 0) + textWidth / 2
+  const firstBaseline = contentTop + ascent
   lines.forEach((line, i) => {
-    context.fillText(line, width / 2, firstBaseline + lineHeight * i)
+    context.fillText(line, textCenterX, firstBaseline + lineHeight * i)
   })
   return canvas
 }

@@ -11,6 +11,7 @@ import { removeBackground } from '../lib/bgRemoval'
 import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
 import { makeSticker } from '../lib/sticker'
+import { STICKER_ICONS } from '../lib/stickerIcons'
 import { say } from '../lib/toast'
 import { dataUrlToFile } from '../lib/workspaceFile'
 import { useStore } from '../store'
@@ -114,13 +115,14 @@ function buildSource(
   color: string,
   background: string | null,
   fontMeta: (typeof FONTS)[number],
+  iconId: string | null,
   imageSrc: string | null,
   imageName: string,
 ): StickerSource | null {
   if (tab === 'text') {
     const value = text.trim()
     return value
-      ? { type: 'text', text: value, color, background, fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }
+      ? { type: 'text', text: value, color, background, fontFamily: fontMeta.stack, fontWeight: fontMeta.weight, iconId }
       : null
   }
   return imageSrc ? { type: 'image', src: imageSrc, name: imageName } : null
@@ -481,6 +483,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   const [text, setText] = useState('')
   const [color, setColor] = useState(TEXT_COLOR_DEFAULT)
   const [background, setBackground] = useState<string | null>(BACKGROUND_DEFAULT)
+  const [iconId, setIconId] = useState<string | null>(null)
   const [font, setFont] = useState(FONTS[0].id)
   const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
   const [outlineColor, setOutlineColor] = useState(OUTLINE_COLOR_DEFAULT)
@@ -499,8 +502,8 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   }
 
   const source = useMemo(
-    () => buildSource(tab, text, color, background, fontMeta, imageSrc, imageName),
-    [tab, text, color, background, fontMeta, imageSrc, imageName],
+    () => buildSource(tab, text, color, background, fontMeta, iconId, imageSrc, imageName),
+    [tab, text, color, background, fontMeta, iconId, imageSrc, imageName],
   )
 
   const imageStage = imageStageOf(imageSrc, bgJob)
@@ -558,6 +561,32 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
                   onChange={e => setText(e.target.value)}
                   rows={2}
                 />
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-dim">{t('Icon')}</span>
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('Icon')}>
+                    <button
+                      type="button"
+                      aria-label={t('None')}
+                      aria-pressed={iconId === null}
+                      className={`${swatchBtnCls} w-auto min-w-[30px] px-1.5 flex items-center justify-center bg-panel-2 text-[10px] font-semibold text-dim ${iconId === null ? swatchActiveCls : ''}`}
+                      onClick={() => setIconId(null)}
+                    >
+                      {t('None')}
+                    </button>
+                    {STICKER_ICONS.map(entry => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        aria-label={entry.label}
+                        aria-pressed={iconId === entry.id}
+                        className={`${swatchBtnCls} flex items-center justify-center bg-panel-2 text-txt ${iconId === entry.id ? swatchActiveCls : ''}`}
+                        onClick={() => setIconId(entry.id)}
+                      >
+                        <MorphIcon icon={entry.icon} size={14} strokeWidth={1.75} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <SelectField
                   label={t('Font')}
                   value={font}

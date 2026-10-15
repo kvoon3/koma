@@ -133,6 +133,8 @@ export const zhHans: Record<string, string> = {
   'Type some text': '输入文字',
   'Text color': '文字颜色',
   'Style': '样式',
+  'Icon': '图标',
+  'None': '无',
   'Classic': '经典',
   'Inverted': '反色',
   'Pop': '亮色',
