@@ -11,6 +11,7 @@ import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
 import { labelBgAlpha, labelPaint, rotationCss, rotationOf, snapRotation } from '../lib/panes'
+import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 
 /** A label icon drawn inline at the label's font size, in its text color. */
@@ -525,6 +526,7 @@ function LabelFontSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
 }
 
 function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName, glyphSize = '13' }: LabelControlProps & { triggerClassName: string, glyphSize?: string }) {
+  const iconFadeRef = useScrollFade<HTMLDivElement>()
   const t = useT()
   const icon = labelIconNode(lab.icon)
   return (
@@ -545,7 +547,7 @@ function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
       <Select.Portal>
         <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
           <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-            <Select.List className="relative grid max-h-[min(var(--available-height),176px)] grid-cols-4 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
+            <Select.List ref={iconFadeRef} style={scrollFadeStyle} data-icon-fade="" className="relative grid max-h-[min(var(--available-height),176px)] grid-cols-4 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
               {LABEL_ICON_ITEMS.map(item => (
                 <Select.Item
                   key={item.value}
@@ -715,6 +717,7 @@ function SwatchGrid({ value, label, onChange }: { value: string, label: string, 
  * stays in view; only one is open at a time.
  */
 export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void }) {
+  const iconFadeRef = useScrollFade<HTMLDivElement>()
   const t = useT()
   const [openTool, setOpenTool] = useState<DockTool | null>(null)
   const opacityPct = Math.round(labelBgAlpha(lab) * 100)
@@ -774,7 +777,7 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
         label={t('Label icon')}
         trigger={icon ? <LabelIconGlyph node={icon} size="18" /> : <MorphIcon icon={Smile} size={18} strokeWidth={1.75} />}
       >
-        <div className="grid h-[120px] max-h-[min(40dvh,260px)] grid-cols-6 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
+        <div ref={iconFadeRef} style={scrollFadeStyle} data-icon-fade="" className="grid h-[120px] max-h-[min(40dvh,260px)] grid-cols-6 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
           {LABEL_ICON_ITEMS.map(item => (
             <button
               key={item.value}
