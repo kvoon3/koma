@@ -2,12 +2,13 @@ import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
-import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
+import { Popover } from '@base-ui/react/popover'
+import { ChevronDown, ChevronUp, Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview, useScrollFade } from '../hooks'
 import { useT } from '../lib/i18n'
-import { addLabelToPane, pickPhotoForPane, pickStickersForPane } from '../lib/paneCommands'
+import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { BoardInserts } from './BoardInserts'
@@ -15,6 +16,7 @@ import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
+import { menuItemCls, menuPopupCls } from './ui/menu'
 
 const NO_STICKERS: Sticker[] = []
 const NO_LABELS: PaneLabel[] = []
@@ -42,15 +44,69 @@ interface ToolDef {
   icon: IconInput
   label: string
   hint: string
+  onClick?: () => void
+  /** Options: the icon opens a small popover above itself instead of acting. */
+  options?: ToolOption[]
+  danger?: boolean
+}
+
+interface ToolOption {
+  key: string
+  icon: IconInput
+  label: string
+  disabled?: boolean
   onClick: () => void
 }
 
-function ToolButton({ icon, label, hint, onClick }: Omit<ToolDef, 'key'>) {
+const toolPopupCls = `${menuPopupCls} min-w-[170px]`
+
+/** A dock tool with options: a Base UI Popover anchored above the icon. */
+function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> & { options: ToolOption[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
+        className={`${toolsBtnCls}${open ? ' bg-chip-hover text-txt' : ''}`}
+        title={hint}
+        aria-label={label}
+        data-dock-tool={label}
+      >
+        <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
+        <span className={toolsLabelCls}>{label}</span>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
+          <Popover.Popup className={toolPopupCls}>
+            {options.map(o => (
+              <button
+                key={o.key}
+                className={`${menuItemCls} hover:bg-chip-hover disabled:cursor-default disabled:opacity-35`}
+                disabled={o.disabled}
+                onClick={() => {
+                  setOpen(false)
+                  o.onClick()
+                }}
+              >
+                <MorphIcon icon={o.icon} size={15} strokeWidth={1.75} />
+                {o.label}
+              </button>
+            ))}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+function ToolButton({ icon, label, hint, onClick, options, danger }: Omit<ToolDef, 'key'>) {
+  if (options)
+    return <ToolPopoverButton icon={icon} label={label} hint={hint} options={options} />
   return (
     <button
-      className={toolsBtnCls}
+      className={`${toolsBtnCls}${danger ? ' text-danger hover:text-danger' : ''}`}
       title={hint}
       aria-label={label}
+      data-dock-tool={label}
       onClick={onClick}
     >
       <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
@@ -249,26 +305,7 @@ export function Stage() {
     s.setCanvasSize(first ? first.trueW / first.trueH : (activeWs(s).canvasRatio ?? 1.5), 1)
   }, [])
 
-  // Same pick flows as the tools row, aimed at the focused pane. The flows
-  // themselves live in lib/paneCommands so the pane menu can share them.
-  const pickForFocused = () => {
-    if (focusId)
-      pickPhotoForPane(focusId)
-  }
-  const pickStickerForFocused = () => {
-    if (focusId)
-      pickStickersForPane(focusId)
-  }
-  const addLabelToFocused = () => {
-    if (focusId)
-      addLabelToPane(focusId)
-  }
-
-  const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
-  const hasPhoto = !!(focusLeaf?.photoId)
-  // Every tool acts on the focused pane, so with no focus (or a focused pane
-  // that holds no photo) there is nothing to offer: the panel and its handle
-  // are put away while the empty pane itself is the picker.
+  const { tools, toolsHidden: paneToolsHidden } = usePaneTools(focusId, view, photoById)
   const labelSel = useStore(s => s.labelSel)
   const setLabel = useStore(s => s.setLabel)
   const removeLabel = useStore(s => s.removeLabel)
@@ -276,14 +313,7 @@ export function Stage() {
   // its controls while a label is selected.
   const compact = useMediaQuery('(max-width: 1023.98px)')
   const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
-  const toolsHidden = !hasPhoto && !dockLabel
-  // One row, so the order here is the order on screen.
-  const tools: ToolDef[] = [
-    { key: 'photo', icon: ImagePlus, label: t('Replace'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
-    { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
-    { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && openStickerMaker(focusId) },
-    { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
-  ]
+  const toolsHidden = paneToolsHidden && !dockLabel
 
   return (
     <div
@@ -599,6 +629,94 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
       <MorphIcon icon={sizing ? Scaling : MoveDiagonal2} size={19} strokeWidth={2.5} />
     </div>
   )
+}
+
+/**
+ * The focused pane's dock tools. Below lg the dock also carries the split and
+ * the pane context menu's touch-friendly rows (desktop keeps those in the
+ * hover chip and right-click menu); every command comes from lib/paneCommands.
+ */
+function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Photo>) {
+  const t = useT()
+  const mobile = useMediaQuery('(max-width: 1023.98px)')
+  const removePhoto = useStore(s => s.removePhoto)
+  const resetPane = useStore(s => s.resetPane)
+  const closePane = useStore(s => s.closePane)
+  const openStickerMaker = useStore(s => s.openStickerMaker)
+  // Same pick flows as the tools row, aimed at the focused pane. The flows
+  // themselves live in lib/paneCommands so the pane menu can share them.
+  const pickForFocused = () => {
+    if (focusId)
+      pickPhotoForPane(focusId)
+  }
+  const pickStickerForFocused = () => {
+    if (focusId)
+      pickStickersForPane(focusId)
+  }
+  const addLabelToFocused = () => {
+    if (focusId)
+      addLabelToPane(focusId)
+  }
+
+  const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
+  const hasPhoto = !!(focusLeaf?.photoId)
+  // Desktop: the dock shows only for a focused pane holding a photo. Below lg
+  // it is also where a phone splits and edits panes, so any focus shows it.
+  const toolsHidden = mobile ? !focusLeaf : !hasPhoto
+  const focusPhoto = focusLeaf?.photoId ? photoById.get(focusLeaf.photoId) : undefined
+  const focusRect = focusId ? view.leaves.find(l => l.node.id === focusId)?.rect : undefined
+  const onFocused = (fn: (id: string) => void) => () => {
+    if (focusId)
+      fn(focusId)
+  }
+  const splitTool: ToolDef = {
+    key: 'split',
+    icon: Columns2,
+    label: t('Split'),
+    hint: t('Split this pane'),
+    options: [
+      { key: 'column', icon: SquareSplitVertical, label: t('Split top/bottom'), onClick: onFocused(id => splitPane(id, 'column')) },
+      { key: 'row', icon: SquareSplitHorizontal, label: t('Split left/right'), onClick: onFocused(id => splitPane(id, 'row')) },
+    ],
+  }
+  const canClosePane = view.leaves.length > 1
+  const closeTool: ToolDef = { key: 'close', icon: X, label: t('Close'), hint: t('Close pane'), danger: true, onClick: onFocused(closePane) }
+  // One row, so the order here is the order on screen.
+  const tools: ToolDef[] = !hasPhoto
+    ? [
+        { key: 'photo', icon: ImagePlus, label: t('Photo'), hint: t('Choose a photo'), onClick: pickForFocused },
+        splitTool,
+        { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
+        ...(canClosePane ? [closeTool] : []),
+      ]
+    : [
+        { key: 'photo', icon: ImagePlus, label: t('Replace'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
+        ...(mobile ? [splitTool] : []),
+        { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
+        { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && openStickerMaker(focusId) },
+        { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
+        ...(mobile
+          ? [
+            {
+              key: 'view',
+              icon: ImageIcon,
+              label: t('Fit'),
+              hint: t('Photo'),
+              options: [
+                { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: onFocused(resetPaneView) },
+                { key: 'fit', icon: Frame, label: t('Fit whole photo'), disabled: !focusPhoto, onClick: onFocused(id => focusPhoto && fitPanePhoto(id, focusPhoto.trueW, focusPhoto.trueH, focusRect)) },
+                { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), disabled: !focusPhoto?.trueW, onClick: () => focusPhoto && matchCanvasToPhoto(focusPhoto.trueW, focusPhoto.trueH) },
+              ],
+            },
+            { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: onFocused(id => duplicatePaneAuto(id, focusRect)) },
+            { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: onFocused(removePhoto) },
+            { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: onFocused(resetPane) },
+            ...(canClosePane ? [closeTool] : []),
+          ] satisfies ToolDef[]
+          : []),
+      ]
+
+  return { tools, toolsHidden }
 }
 
 /**

@@ -6,9 +6,8 @@ import { useState } from 'react'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
 import { viewTransitionOption } from '../lib/viewTransition'
-import { activeWs, useStore } from '../store'
+import { useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
-import { PaneSplitTools } from './Pane'
 import { Tip } from './ui/tip'
 
 // The floating-chrome idiom shared with the pane buttons and the resize
@@ -17,14 +16,12 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
 
 /**
  * Floating page chrome just under the top bar: back-to-grid on the left
- * (edit view only), the focused pane's split chip in the center, and
+ * (edit view only) and
  * reset-workspace on the right (both views: the active workspace in the
  * editor, all nine from the grid overview). Floating keeps the top bar to
  * menus and export; the buttons hover over the stage / grid instead of taking
  * layout space, and sit below the drawers (z-44) so an open drawer covers
- * them. The split chip acts on the focused pane and only shows up to lg: from
- * there the panes' own hover chips take over, and on a phone it is the only
- * split there is.
+ * them. Below lg the focused pane's split lives in the tools dock (Stage).
  */
 export function FloatActions() {
   const navigate = useNavigate()
@@ -35,14 +32,6 @@ export function FloatActions() {
   // 1-based grid position of the active workspace: it names the reset target
   // in the confirm (the grid itself carries no active-cell marker).
   const pos = useStore(s => s.workspaces.findIndex(w => w.id === s.activeId) + 1)
-  // The center of this row is the focused pane's split chip; with no focus in
-  // the editor the page row is just back and reset. It is looked up in the
-  // store rather than handed down by the stage, which floats in the same box.
-  const focusId = useStore(s => activeWs(s).focusId)
-  const [chipPane, setChipPane] = useState(focusId)
-  if (focusId && focusId !== chipPane)
-    setChipPane(focusId)
-  const split = useStore(s => s.split)
   // Nothing to reset while every target is still a fresh blank canvas: the
   // active workspace in the editor, all nine in the grid overview.
   const resettable = useStore((s) => {
@@ -85,21 +74,6 @@ export function FloatActions() {
             </button>
           )}
         />
-      )}
-
-      {/* The focused pane's split chip, centered between back and reset, and
-          dropped from lg up, where the panes' own hover chips take over. It is
-          the only copy a phone gets: the hover one is hidden below sm. */}
-      {!grid && chipPane && (
-        <div inert={!focusId} className="contents">
-          <PaneSplitTools
-            paneId={chipPane}
-            onSplit={split}
-            className={`absolute left-1/2 top-2.5 -translate-x-1/2 transition-opacity duration-(--dur-fast) ease-(--ease-out) starting:opacity-0 lg:hidden ${
-              focusId ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-            }`}
-          />
-        </div>
       )}
 
       <Tip

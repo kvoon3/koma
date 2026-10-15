@@ -117,11 +117,8 @@ function PanePhotoContent({
 
 /**
  * The two split buttons for one pane, drawn as a single chip. Hovering a pane
- * fades it in at that pane's top center, focused or not; below lg the focused
- * pane also draws the same chip in the page row between back and reset
- * (FloatActions.tsx), and that page-row copy is the only one a phone gets: it
- * drops the hover copy below sm, where nothing can fade it in. Both name the
- * pane they split, so either one works.
+ * fades it in at that pane's top center, focused or not, from lg up; below lg
+ * the split lives in the focused pane's tools dock (Stage.tsx) instead.
  */
 export function PaneSplitTools({
   paneId,
@@ -1446,13 +1443,12 @@ function PaneImpl({
       )}
 
       {/* The pane's only hover chrome: the split chip, faded in while the
-          pointer is over the pane, focused or not. Hidden below sm, where
-          there is no hover, that leaves the page-row copy to phones
-          (FloatActions.tsx); both act on `leaf.id`. */}
+          pointer is over the pane, focused or not. Hidden below lg, where
+          splitting lives in the focused pane's tools dock (Stage.tsx). */}
       <PaneSplitTools
         paneId={leaf.id}
         onSplit={onSplit}
-        className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-(--dur-fast) group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-sm:hidden"
+        className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-(--dur-fast) group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-lg:hidden"
       />
 
       {dropChoice && (
