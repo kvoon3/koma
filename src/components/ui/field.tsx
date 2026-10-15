@@ -26,13 +26,49 @@ export const colorInputCls = 'box-border h-[26px] cursor-pointer rounded-none bo
 /** The drawer's square slider thumb: accent hairline, panel fill. */
 const sliderThumbCls = 'box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2'
 
+/**
+ * The shared Base UI slider chrome (track + square thumb). Settings and the
+ * sticker maker wrap it in `RangeField`; compact surfaces (the label toolbar)
+ * mount it alone so they never fall back to a native `<input type=range>`.
+ */
+export function AppSlider({ value, min = 0, max, step, label, onChange, className = '', dense = false }: {
+  value: number
+  min?: number
+  max: number
+  step?: number
+  label: string
+  onChange: (value: number) => void
+  className?: string
+  /** Tighter padding for icon toolbars (the floating label chrome). */
+  dense?: boolean
+}) {
+  return (
+    <Slider.Root
+      className={className}
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onValueChange={v => onChange(v as number)}
+    >
+      <Slider.Control className={`flex h-full touch-none select-none items-center ${dense ? 'px-1' : 'px-1.5 py-2 sm:px-0'}`}>
+        <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
+          <Slider.Indicator className="bg-accent" />
+          <Slider.Thumb className={sliderThumbCls} aria-label={label} />
+        </Slider.Track>
+      </Slider.Control>
+    </Slider.Root>
+  )
+}
+
 /** A labelled range slider whose live value sits in the row's value column. */
-export function RangeField({ label, text, value, min = 0, max, onChange }: {
+export function RangeField({ label, text, value, min = 0, max, step, onChange }: {
   label: string
   text: string
   value: number
   min?: number
   max: number
+  step?: number
   onChange: (value: number) => void
 }) {
   return (
@@ -40,14 +76,15 @@ export function RangeField({ label, text, value, min = 0, max, onChange }: {
       <span className={fieldLabelCls}>{label}</span>
       {/* Half a thumb of inline padding, so a full-width narrow track keeps its
           handle inside the row at 0% and 100% instead of poking past the text. */}
-      <Slider.Root className={fieldControlCls} min={min} max={max} value={value} onValueChange={v => onChange(v as number)}>
-        <Slider.Control className="flex touch-none select-none items-center px-1.5 py-2 sm:px-0">
-          <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
-            <Slider.Indicator className="bg-accent" />
-            <Slider.Thumb className={sliderThumbCls} aria-label={label} />
-          </Slider.Track>
-        </Slider.Control>
-      </Slider.Root>
+      <AppSlider
+        className={fieldControlCls}
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        label={label}
+        onChange={onChange}
+      />
       <span className={fieldValueCls}>{text}</span>
     </div>
   )
