@@ -39,6 +39,9 @@ export function FloatActions() {
   // the editor the page row is just back and reset. It is looked up in the
   // store rather than handed down by the stage, which floats in the same box.
   const focusId = useStore(s => activeWs(s).focusId)
+  const [chipPane, setChipPane] = useState(focusId)
+  if (focusId && focusId !== chipPane)
+    setChipPane(focusId)
   const split = useStore(s => s.split)
   // Nothing to reset while every target is still a fresh blank canvas: the
   // active workspace in the editor, all nine in the grid overview.
@@ -87,12 +90,16 @@ export function FloatActions() {
       {/* The focused pane's split chip, centered between back and reset, and
           dropped from lg up, where the panes' own hover chips take over. It is
           the only copy a phone gets: the hover one is hidden below sm. */}
-      {!grid && focusId && (
-        <PaneSplitTools
-          paneId={focusId}
-          onSplit={split}
-          className="pointer-events-auto absolute left-1/2 top-2.5 -translate-x-1/2 lg:hidden"
-        />
+      {!grid && chipPane && (
+        <div inert={!focusId} className="contents">
+          <PaneSplitTools
+            paneId={chipPane}
+            onSplit={split}
+            className={`absolute left-1/2 top-2.5 -translate-x-1/2 transition-opacity duration-(--dur-fast) ease-(--ease-out) starting:opacity-0 lg:hidden ${
+              focusId ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          />
+        </div>
       )}
 
       <Tip
