@@ -10,8 +10,11 @@ export interface Rect {
 export interface Sticker {
   id: string
   photoId: string
+  /** Board-normalized center x in [0, 1] of the canvas width. */
   x: number
+  /** Board-normalized center y in [0, 1] of the canvas height. */
   y: number
+  /** Sticker width as a fraction of min(canvas W, H). */
   s: number
   /** Rotation in radians; absent means unrotated (see `rotationOf`). */
   rot?: number
@@ -55,6 +58,10 @@ export interface Leaf {
   zoom: number
   cx: number
   cy: number
+  /**
+   * Legacy per-pane stickers. New inserts live on `Workspace.stickers` (board
+   * space). Kept so session / `.koma.json` files migrate without data loss.
+   */
   stickers: Sticker[]
   label: PaneLabel | null
 }
@@ -439,6 +446,10 @@ export function clampLeaf(leaf: Leaf, cell: Rect, iw: number, ih: number): Leaf 
   }
 }
 
+/**
+ * Legacy photo-local sticker rect (pre board-layer). Used only when migrating
+ * old `Leaf.stickers` into board space.
+ */
 export function stickerRect(
   place: { x: number, y: number, w: number, h: number },
   st: Sticker,
@@ -454,6 +465,42 @@ export function stickerRect(
     y: place.y + st.y * place.h - h / 2,
     w,
     h,
+  }
+}
+
+/** Board-space sticker rect: `st.x/y` are canvas-normalized, `st.s` is min-side fraction. */
+export function boardStickerRect(
+  board: { w: number, h: number },
+  st: Sticker,
+  aspect: number,
+): Rect {
+  const unit = Math.min(board.w, board.h)
+  const w = Math.max(4, st.s * unit)
+  const h = w / aspect
+  return {
+    x: st.x * board.w - w / 2,
+    y: st.y * board.h - h / 2,
+    w,
+    h,
+  }
+}
+
+/** Convert a legacy photo-local sticker into board-normalized form. */
+export function stickerToBoard(
+  st: Sticker,
+  place: { x: number, y: number, w: number, h: number },
+  board: { w: number, h: number },
+  trueW: number,
+  trueH: number,
+): Sticker {
+  const aspect = trueW / trueH
+  const r = stickerRect(place, st, trueW, trueH, aspect)
+  const unit = Math.min(board.w, board.h)
+  return {
+    ...st,
+    x: (r.x + r.w / 2) / board.w,
+    y: (r.y + r.h / 2) / board.h,
+    s: unit > 0 ? r.w / unit : st.s,
   }
 }
 

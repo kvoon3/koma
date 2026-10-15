@@ -17,13 +17,13 @@ export function pickPhotoForPane(paneId: string) {
   })
 }
 
-/** Import images and pin each one onto the pane as a sticker, fanned out from the center. */
-export function pickStickersForPane(paneId: string) {
+/** Import images and pin each one as a board sticker, fanned near the canvas center. */
+export function pickStickersForPane(_paneId: string) {
   pickImageFiles((files) => {
     const s = useStore.getState()
     s.addPhotos(files, false).forEach((ph, i) => {
       const n = Math.min(0.8, 0.5 + i * 0.08)
-      s.addSticker(paneId, ph.id, n, n)
+      s.addSticker(ph.id, n, n)
     })
   })
 }

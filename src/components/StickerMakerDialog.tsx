@@ -129,7 +129,7 @@ async function insertSticker(
   const s = useStore.getState()
   const photo = s.addPhotos([file], false)[0]
   if (photo) {
-    s.addSticker(paneId, photo.id, 0.5, 0.5)
+    s.addSticker(photo.id, 0.5, 0.5)
     say(t('Sticker added'))
   }
   onDone()

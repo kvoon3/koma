@@ -13,7 +13,7 @@ import { useAppCommands } from '../lib/appCommands'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { labelColors, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides, stickerRect } from '../lib/panes'
+import { boardStickerRect, labelColors, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { SeamBackdrop } from './Stage'
@@ -32,29 +32,31 @@ const SNAP_ROW_H = 50
 /** The floating-chip idiom shared with FloatActions (back / reset). */
 const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
 
-/**
- * One sticker of a workspace preview: the editor's `StickerView` anchoring via
- * the shared `stickerRect()`, without the interaction (the grid is read-only).
- * The sticker scales by the same `place` the pane's photo got, so cell and
- * canvas agree on where it sits and how big it is.
- */
-function PreviewSticker({ st, place, photoById }: {
+/** One board sticker in a workspace preview (canvas-normalized, scaled by k). */
+function PreviewSticker({ st, board, k, photoById }: {
   st: Sticker
-  place: ReturnType<typeof placement>
+  board: { w: number, h: number }
+  k: number
   photoById: Map<string, Photo>
 }) {
   const photo = photoById.get(st.photoId)
   const preview = usePreview(photo ?? null)
   if (!photo?.trueW || !photo?.trueH || !preview)
     return null
-  const r = stickerRect(place, st, photo.trueW, photo.trueH, photo.trueW / photo.trueH)
+  const r = boardStickerRect(board, st, photo.trueW / photo.trueH)
   return (
     <img
       src={preview.url}
       alt=""
       draggable={false}
       className="pointer-events-none absolute max-w-none"
-      style={{ left: r.x, top: r.y, width: r.w, height: r.h, transform: rotationCss(st) }}
+      style={{
+        left: r.x * k,
+        top: r.y * k,
+        width: r.w * k,
+        height: r.h * k,
+        transform: rotationCss(st),
+      }}
     />
   )
 }
@@ -113,12 +115,6 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
             </div>
           )
         : null}
-      {/* Stickers sit outside the photo's seam mask, exactly as the editor's
-          StickerView does, and under the label. */}
-      {place
-        && leaf.stickers.map(st => (
-          <PreviewSticker key={st.id} st={st} place={place} photoById={photoById} />
-        ))}
       {leaf.label && leaf.label.text.trim() && (
         <span
           className="absolute whitespace-pre leading-[normal]"
@@ -141,11 +137,12 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
 }
 
 /** Read-only live preview of a workspace's full collage in a square cell. */
-function CellPreview({ root, canvasRatio, box, photoById }: {
+function CellPreview({ root, canvasRatio, box, photoById, stickers = [] }: {
   root: Node
   canvasRatio: number | null
   box: { w: number, h: number }
   photoById: Map<string, Photo>
+  stickers?: Sticker[]
 }) {
   const bg = useStore(s => s.bg)
   const edgeFade = useStore(s => s.edgeFade)
@@ -199,6 +196,15 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
             photoById={photoById}
           />
         ))}
+        {stickers.map(st => (
+          <PreviewSticker
+            key={st.id}
+            st={st}
+            board={{ w: VW, h: VH }}
+            k={k}
+            photoById={photoById}
+          />
+        ))}
       </div>
     </div>
   )
@@ -206,7 +212,7 @@ function CellPreview({ root, canvasRatio, box, photoById }: {
 
 /** The cell's visible body, shared by the in-grid cell and the drag overlay. */
 function CellBody({ ws, box, photoById, transparent, dimmed }: {
-  ws: { root: Node, canvasRatio: number | null }
+  ws: { root: Node, canvasRatio: number | null, stickers?: Sticker[] }
   box: { w: number, h: number }
   photoById: Map<string, Photo>
   transparent: boolean
@@ -219,7 +225,7 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
       {filled
         ? (
             <div className={`absolute inset-0 ${transparent ? ' stage-clear' : ''}`}>
-              <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} />
+              <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} stickers={ws.stickers ?? []} />
             </div>
           )
         : (
