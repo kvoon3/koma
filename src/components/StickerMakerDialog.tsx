@@ -418,7 +418,7 @@ function useStickerImage() {
 export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, paneId: string | null, onClose: () => void }) {
   const t = useT()
 
-  const [tab, setTab] = useState<'text' | 'image'>('text')
+  const [tab, setTab] = useState<'text' | 'image'>('image')
   const [text, setText] = useState('')
   const [color, setColor] = useState(TEXT_COLOR_DEFAULT)
   const [font, setFont] = useState(FONTS[0].id)
@@ -477,8 +477,8 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
             <div className="flex gap-[5px]">
-              <Button variant={tab === 'text' ? 'on' : 'flat'} aria-pressed={tab === 'text'} onClick={() => setTab('text')}>{t('Text')}</Button>
               <Button variant={tab === 'image' ? 'on' : 'flat'} aria-pressed={tab === 'image'} onClick={() => setTab('image')}>{t('Image')}</Button>
+              <Button variant={tab === 'text' ? 'on' : 'flat'} aria-pressed={tab === 'text'} onClick={() => setTab('text')}>{t('Text')}</Button>
             </div>
 
             {tab === 'text' && (
