@@ -23,7 +23,7 @@
 // SOFTWARE.
 
 export type StickerSource
-  = | { type: 'text', text: string, color?: string, fontFamily?: string, fontWeight?: number | string }
+  = | { type: 'text', text: string, color?: string, background?: string | null, fontFamily?: string, fontWeight?: number | string }
     | { type: 'image', src: string, name?: string }
 
 export type StickerMaterialType = 'original' | 'holographic' | 'glitter'
@@ -194,6 +194,25 @@ async function renderTextSource(source: StickerTextSource) {
     throw new Error('Canvas 2D is unavailable.')
 
   context.clearRect(0, 0, width, height)
+
+  // Solid fill behind glyphs (before die-cut). Null/undefined keeps today's
+  // transparent source so the outline hugs letter shapes alone.
+  const background = source.background
+  if (background) {
+    const contentWidth = Math.max(1, ...lineMetrics.map(m => m.width))
+    const padX = fontSize * 0.42
+    const padY = fontSize * 0.3
+    const boxW = contentWidth + padX * 2
+    const boxH = contentHeight + padY * 2
+    const boxX = (width - boxW) / 2
+    const boxY = (height - contentHeight) / 2 - padY
+    const radius = Math.min(fontSize * 0.28, boxH / 2)
+    context.fillStyle = background
+    context.beginPath()
+    context.roundRect(boxX, boxY, boxW, boxH, radius)
+    context.fill()
+  }
+
   context.font = `${fontWeight} ${fontSize}px ${fontFamily}`
   context.textBaseline = 'alphabetic'
   context.textAlign = 'center'

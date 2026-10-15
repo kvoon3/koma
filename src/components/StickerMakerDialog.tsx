@@ -53,11 +53,58 @@ const MATERIALS: { value: StickerMaterialType, label: string }[] = [
 ]
 
 const OUTLINE_DEFAULT = 18
-/** Text stickers read as black lettering inside a white die-cut border. */
+/** Classic preset: black lettering on a white fill, white die-cut border. */
 const TEXT_COLOR_DEFAULT = '#000000'
+const BACKGROUND_DEFAULT = '#ffffff'
 const OUTLINE_COLOR_DEFAULT = '#ffffff'
 const PREVIEW_MAX = 480
 const INSERT_MAX = 960
+
+/** Curated text-color swatches; ColorField still covers any custom hex. */
+const TEXT_COLOR_SWATCHES = [
+  '#000000',
+  '#ffffff',
+  '#ff2d55',
+  '#ff9500',
+  '#34c759',
+  '#007aff',
+  '#5856d6',
+  '#af52de',
+]
+
+/** Background swatches. First entry is transparent (glyph-only die-cut). */
+const BACKGROUND_SWATCHES: (string | null)[] = [
+  null,
+  '#ffffff',
+  '#111111',
+  '#ff2d55',
+  '#ff9500',
+  '#ffe566',
+  '#34c759',
+  '#0a7ea4',
+  '#f5e6ff',
+]
+
+interface TextStylePreset {
+  id: string
+  label: string
+  color: string
+  background: string | null
+  outlineColor: string
+}
+
+/** Named bundles that set fill + text (+ outline when it reads as one look). */
+const STYLE_PRESETS: TextStylePreset[] = [
+  { id: 'classic', label: 'Classic', color: '#000000', background: '#ffffff', outlineColor: '#ffffff' },
+  { id: 'inverted', label: 'Inverted', color: '#ffffff', background: '#111111', outlineColor: '#111111' },
+  { id: 'pop', label: 'Pop', color: '#ffffff', background: '#ff2d55', outlineColor: '#ffffff' },
+  { id: 'pastel', label: 'Pastel', color: '#5b4a6a', background: '#f5e6ff', outlineColor: '#ffffff' },
+  { id: 'ocean', label: 'Ocean', color: '#ffffff', background: '#0a7ea4', outlineColor: '#ffffff' },
+  { id: 'sunshine', label: 'Sunshine', color: '#1a1a1a', background: '#ffe566', outlineColor: '#ffffff' },
+]
+
+const swatchBtnCls = 'box-border h-[26px] w-[30px] shrink-0 cursor-pointer rounded-none border border-line-strong p-0 transition-[border-color,scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
+const swatchActiveCls = 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]'
 
 const stageFrameCls = 'stage-clear relative flex h-[220px] items-center justify-center overflow-hidden border border-line-strong'
 
@@ -65,6 +112,7 @@ function buildSource(
   tab: 'text' | 'image',
   text: string,
   color: string,
+  background: string | null,
   fontMeta: (typeof FONTS)[number],
   imageSrc: string | null,
   imageName: string,
@@ -72,10 +120,21 @@ function buildSource(
   if (tab === 'text') {
     const value = text.trim()
     return value
-      ? { type: 'text', text: value, color, fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }
+      ? { type: 'text', text: value, color, background, fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }
       : null
   }
   return imageSrc ? { type: 'image', src: imageSrc, name: imageName } : null
+}
+
+function sameHex(a: string, b: string) {
+  return a.toLowerCase() === b.toLowerCase()
+}
+
+function presetMatches(preset: TextStylePreset, color: string, background: string | null, outlineColor: string) {
+  const bgOk = preset.background === null
+    ? background === null
+    : background !== null && sameHex(preset.background, background)
+  return sameHex(preset.color, color) && bgOk && sameHex(preset.outlineColor, outlineColor)
 }
 
 /** Local U²-Netᵖ cutout; reports progress and hands back a PNG object URL. */
@@ -421,6 +480,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   const [tab, setTab] = useState<'text' | 'image'>('image')
   const [text, setText] = useState('')
   const [color, setColor] = useState(TEXT_COLOR_DEFAULT)
+  const [background, setBackground] = useState<string | null>(BACKGROUND_DEFAULT)
   const [font, setFont] = useState(FONTS[0].id)
   const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
   const [outlineColor, setOutlineColor] = useState(OUTLINE_COLOR_DEFAULT)
@@ -430,10 +490,17 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   const { imageSrc, imageName, hasCutout, bgJob, pickImage, removeBg, restoreOriginal } = useStickerImage()
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
+  const activePresetId = STYLE_PRESETS.find(p => presetMatches(p, color, background, outlineColor))?.id ?? null
+
+  const applyPreset = (preset: TextStylePreset) => {
+    setColor(preset.color)
+    setBackground(preset.background)
+    setOutlineColor(preset.outlineColor)
+  }
 
   const source = useMemo(
-    () => buildSource(tab, text, color, fontMeta, imageSrc, imageName),
-    [tab, text, color, fontMeta, imageSrc, imageName],
+    () => buildSource(tab, text, color, background, fontMeta, imageSrc, imageName),
+    [tab, text, color, background, fontMeta, imageSrc, imageName],
   )
 
   const imageStage = imageStageOf(imageSrc, bgJob)
@@ -497,7 +564,62 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
                   items={FONTS.map(f => ({ value: f.id, label: t(f.label), fontFamily: f.stack }))}
                   onChange={setFont}
                 />
-                <ColorField label={t('Text color')} value={color} onChange={setColor} />
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-dim">{t('Style')}</span>
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('Style')}>
+                    {STYLE_PRESETS.map(preset => (
+                      <Button
+                        key={preset.id}
+                        variant={activePresetId === preset.id ? 'on' : 'flat'}
+                        aria-pressed={activePresetId === preset.id}
+                        onClick={() => applyPreset(preset)}
+                      >
+                        {t(preset.label)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-dim">{t('Text color')}</span>
+                  <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('Text color')}>
+                    {TEXT_COLOR_SWATCHES.map(swatch => (
+                      <button
+                        key={swatch}
+                        type="button"
+                        aria-label={swatch}
+                        aria-pressed={sameHex(color, swatch)}
+                        className={`${swatchBtnCls} ${sameHex(color, swatch) ? swatchActiveCls : ''}`}
+                        style={{ background: swatch }}
+                        onClick={() => setColor(swatch)}
+                      />
+                    ))}
+                  </div>
+                  <ColorField label={t('Custom text color')} value={color} onChange={setColor} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-dim">{t('Background')}</span>
+                  <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('Background')}>
+                    {BACKGROUND_SWATCHES.map((swatch) => {
+                      const active = swatch === null ? background === null : background !== null && sameHex(background, swatch)
+                      return (
+                        <button
+                          key={swatch ?? 'none'}
+                          type="button"
+                          aria-label={swatch ?? t('Transparent')}
+                          aria-pressed={active}
+                          className={`${swatchBtnCls} ${active ? swatchActiveCls : ''} ${swatch === null ? 'swatch-clear' : ''}`}
+                          style={swatch ? { background: swatch } : undefined}
+                          onClick={() => setBackground(swatch)}
+                        />
+                      )
+                    })}
+                  </div>
+                  <ColorField
+                    label={t('Custom background')}
+                    value={background ?? '#ffffff'}
+                    onChange={setBackground}
+                  />
+                </div>
               </div>
             )}
 
