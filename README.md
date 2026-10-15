@@ -20,3 +20,8 @@ Requires [mise](https://mise.jdx.dev) (provides Bun); `mise.toml` pins `bun = 1`
 
 Design notes: pane tree model, interaction reference, implementation details
 live in [DESIGN.md](DESIGN.md).
+
+## License
+
+[MIT](LICENSE) © Kevin Kwong. Third-party notices live in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
