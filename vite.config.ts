@@ -1,3 +1,5 @@
+import type { Plugin } from 'vite'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -8,6 +10,36 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 
 function isRfc1918(host: string) {
   return /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
+}
+
+/**
+ * Self-host the transformers.js runtime and the onnxruntime wasm it loads, so
+ * background removal does not depend on cdn.jsdelivr.net being reachable.
+ */
+const VENDOR_FILES: Record<string, string> = {
+  'transformers.min.js': 'node_modules/@huggingface/transformers/dist/transformers.min.js',
+  'ort-wasm-simd-threaded.mjs': 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
+  'ort-wasm-simd-threaded.wasm': 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+}
+
+function vendorRuntime(): Plugin {
+  const read = (name: string) => readFileSync(fileURLToPath(new URL(VENDOR_FILES[name], import.meta.url)))
+  return {
+    name: 'koma:vendor-runtime',
+    configureServer(server) {
+      server.middlewares.use('/vendor/', (req, res, next) => {
+        const name = req.url?.slice(1).split('?')[0] ?? ''
+        if (!(name in VENDOR_FILES))
+          return next()
+        res.setHeader('Content-Type', name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript')
+        res.end(read(name))
+      })
+    },
+    generateBundle() {
+      for (const name of Object.keys(VENDOR_FILES))
+        this.emitFile({ type: 'asset', fileName: `vendor/${name}`, source: read(name) })
+    },
+  }
 }
 
 /**
@@ -23,6 +55,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      vendorRuntime(),
       // A locally trusted CA (mkcert) for https: the certificate covers every
       // NIC IP on this machine, so a phone that trusts the root once gets no
       // warnings. Dev-server only (apply: serve).

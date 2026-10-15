@@ -5,7 +5,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
-import { ColorField, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField, SelectField } from '@/components/ui/field'
+import { ColorField, RangeField, SelectField } from '@/components/ui/field'
 import { Tip } from '@/components/ui/tip'
 import { removeBackground } from '../lib/bgRemoval'
 import { pickImageFiles } from '../lib/filePicker'
@@ -58,6 +58,8 @@ const TEXT_COLOR_DEFAULT = '#000000'
 const OUTLINE_COLOR_DEFAULT = '#ffffff'
 const PREVIEW_MAX = 480
 const INSERT_MAX = 960
+
+const stageFrameCls = 'stage-clear relative flex h-[220px] items-center justify-center overflow-hidden border border-line-strong'
 
 function buildSource(
   tab: 'text' | 'image',
@@ -171,16 +173,13 @@ function StickerPreview({ source, outlineWidth, outlineColor, material }: {
 
   const url = source && rendered?.key === renderKey ? rendered.url || null : null
   const rendering = !!source && rendered?.key !== renderKey
+  if (url) {
+    return <img src={url} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
+  }
   return (
-    <div className="stage-clear flex h-[220px] items-center justify-center overflow-hidden border border-line-strong">
-      {url
-        ? <img src={url} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
-        : (
-            <span className="text-[11.5px] text-faint">
-              {rendering ? t('Rendering…') : t('Nothing to preview')}
-            </span>
-          )}
-    </div>
+    <span className="text-[11.5px] text-faint">
+      {rendering ? t('Rendering…') : t('Nothing to preview')}
+    </span>
   )
 }
 
@@ -188,6 +187,125 @@ function StickerPreview({ source, outlineWidth, outlineColor, material }: {
 interface BgJob {
   phase: 'loading' | 'processing'
   progress?: number
+}
+
+/** Frosted cutout progress over the raw pick while the local model runs. */
+function CutoutOverlay({ job }: { job: BgJob }) {
+  const t = useT()
+  const loading = job.phase === 'loading'
+  const pct = Math.round(job.progress ?? 0)
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-panel/75 backdrop-blur-[6px]">
+      <span className="text-[12.5px] font-semibold text-txt">
+        {loading ? t('Loading AI model…') : t('Cutting out…')}
+      </span>
+      <div className="h-1.5 w-40 overflow-hidden border border-line bg-panel">
+        <div
+          className={`h-full bg-accent transition-[width] duration-(--dur-fast) ${loading ? '' : ' w-2/3 animate-pulse'}`}
+          style={loading ? { width: `${pct}%` } : undefined}
+        />
+      </div>
+      {loading && (
+        <span className="text-[11px] tabular-nums text-faint">
+          {pct}
+          %
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Image-tab stage shape derived from the pick and the cutout job. */
+type ImageStage = 'empty' | 'cuttingOut' | 'ready'
+
+function imageStageOf(imageSrc: string | null, bgJob: BgJob | null): ImageStage {
+  if (!imageSrc)
+    return 'empty'
+  if (bgJob)
+    return 'cuttingOut'
+  return 'ready'
+}
+
+/**
+ * Shared stage for both tabs: empty image pick target, cutout overlay on the
+ * raw pick, or the live makeSticker preview (with image action chips).
+ */
+function StickerStage({
+  tab,
+  imageStage,
+  imageSrc,
+  bgJob,
+  hasCutout,
+  source,
+  outlineWidth,
+  outlineColor,
+  material,
+  onPick,
+  onRemoveBg,
+  onRestore,
+}: {
+  tab: 'text' | 'image'
+  imageStage: ImageStage
+  imageSrc: string | null
+  bgJob: BgJob | null
+  hasCutout: boolean
+  source: StickerSource | null
+  outlineWidth: number
+  outlineColor: string
+  material: StickerMaterialType
+  onPick: () => void
+  onRemoveBg: () => void
+  onRestore: () => void
+}) {
+  const t = useT()
+
+  if (tab === 'image' && imageStage === 'empty') {
+    return (
+      <button
+        type="button"
+        className={`${stageFrameCls} w-full cursor-pointer text-dim transition-colors duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-[-1px]`}
+        onClick={onPick}
+      >
+        <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold">
+          <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
+          {t('Choose an image')}
+        </span>
+      </button>
+    )
+  }
+
+  if (tab === 'image' && imageStage === 'cuttingOut' && imageSrc && bgJob) {
+    return (
+      <div className={stageFrameCls}>
+        <img src={imageSrc} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
+        <CutoutOverlay job={bgJob} />
+        <div className="absolute right-1.5 top-1.5 z-[1]">
+          <Button variant="strong" onClick={onPick}>{t('Replace')}</Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={stageFrameCls}>
+      <StickerPreview source={source} outlineWidth={outlineWidth} outlineColor={outlineColor} material={material} />
+      {tab === 'image' && imageSrc && (
+        <div className="absolute inset-x-0 top-0 z-[1] flex items-start justify-between gap-1.5 p-1.5">
+          <div className="flex flex-wrap gap-1">
+            {hasCutout
+              ? <Button variant="strong" onClick={onRestore}>{t('Restore original')}</Button>
+              : (
+                  <Tip
+                    label={t('AI runs locally · nothing is uploaded')}
+                    trigger={<Button variant="strong" onClick={onRemoveBg}>{t('Remove background')}</Button>}
+                  />
+                )}
+          </div>
+          <Button variant="strong" onClick={onPick}>{t('Replace')}</Button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -318,6 +436,8 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     [tab, text, color, fontMeta, imageSrc, imageName],
   )
 
+  const imageStage = imageStageOf(imageSrc, bgJob)
+
   const insert = async () => {
     // Text stickers take their name from the first line, not a leftover image pick.
     const baseName = tab === 'text'
@@ -361,62 +481,43 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
               <Button variant={tab === 'image' ? 'on' : 'flat'} aria-pressed={tab === 'image'} onClick={() => setTab('image')}>{t('Image')}</Button>
             </div>
 
-            {tab === 'text'
-              ? (
-                  <div className="flex flex-col gap-2.5">
-                    <textarea
-                      className="box-border min-h-[64px] w-full resize-none border border-line-strong bg-panel-2 px-2.5 py-2 text-[18px] leading-[1.3] text-txt outline-0 focus-visible:border-accent"
-                      style={{ fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }}
-                      value={text}
-                      placeholder={t('Type some text')}
-                      onChange={e => setText(e.target.value)}
-                      rows={2}
-                    />
-                    <SelectField
-                      label={t('Font')}
-                      value={font}
-                      items={FONTS.map(f => ({ value: f.id, label: t(f.label), fontFamily: f.stack }))}
-                      onChange={setFont}
-                    />
-                  </div>
-                )
-              : (
-                  <div className="flex flex-col gap-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Button variant="strong" onClick={pickImage}>
-                        <MorphIcon icon={ImagePlus} size={15} strokeWidth={1.75} />
-                        {t('Choose an image')}
-                      </Button>
-                      <span className="min-w-0 flex-1 truncate text-[11.5px] text-faint">
-                        {imageSrc ? imageName : t('No image chosen')}
-                      </span>
-                    </div>
-                    {imageSrc && (
-                      <div className="flex items-center gap-2.5">
-                        {hasCutout
-                          ? <Button onClick={restoreOriginal}>{t('Restore original')}</Button>
-                          : (
-                              <Tip
-                                label={t('AI runs locally · nothing is uploaded')}
-                                trigger={<Button disabled={!!bgJob} onClick={() => void removeBg()}>{t('Remove background')}</Button>}
-                              />
-                            )}
-                        {bgJob && (
-                          <span className="text-[11.5px] text-faint">
-                            {bgJob.phase === 'loading'
-                              ? `${t('Loading AI model…')} ${Math.round(bgJob.progress ?? 0)}%`
-                              : t('Processing…')}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+            {tab === 'text' && (
+              <div className="flex flex-col gap-2.5">
+                <textarea
+                  className="box-border min-h-[64px] w-full resize-none border border-line-strong bg-panel-2 px-2.5 py-2 text-[18px] leading-[1.3] text-txt outline-0 focus-visible:border-accent"
+                  style={{ fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }}
+                  value={text}
+                  placeholder={t('Type some text')}
+                  onChange={e => setText(e.target.value)}
+                  rows={2}
+                />
+                <SelectField
+                  label={t('Font')}
+                  value={font}
+                  items={FONTS.map(f => ({ value: f.id, label: t(f.label), fontFamily: f.stack }))}
+                  onChange={setFont}
+                />
+                <ColorField label={t('Text color')} value={color} onChange={setColor} />
+              </div>
+            )}
 
-            {/* The two colors sit together, and the preview closes the body so
-                the controls above stay in place while it re-renders. */}
+            {/* Upload + live preview share one stage; cutout progress frosts the raw pick. */}
+            <StickerStage
+              tab={tab}
+              imageStage={imageStage}
+              imageSrc={imageSrc}
+              bgJob={bgJob}
+              hasCutout={hasCutout}
+              source={source}
+              outlineWidth={outlineWidth}
+              outlineColor={outlineColor}
+              material={material}
+              onPick={pickImage}
+              onRemoveBg={removeBg}
+              onRestore={restoreOriginal}
+            />
+
             <div className="flex flex-col gap-2.5 border-t border-line pt-3">
-              {tab === 'text' && <ColorField label={t('Text color')} value={color} onChange={setColor} />}
               <ColorField label={t('Outline color')} value={outlineColor} onChange={setOutlineColor} />
               <RangeField label={t('Outline width')} text={`${outlineWidth}`} max={40} value={outlineWidth} onChange={setOutlineWidth} />
               <SelectField
@@ -425,13 +526,6 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
                 items={MATERIALS.map(m => ({ value: m.value, label: t(m.label) }))}
                 onChange={v => setMaterial(v as StickerMaterialType)}
               />
-            </div>
-
-            <div className={fieldRowCls}>
-              <span className={`${fieldLabelCls} self-start`}>{t('Preview')}</span>
-              <div className={fieldControlCls}>
-                <StickerPreview source={source} outlineWidth={outlineWidth} outlineColor={outlineColor} material={material} />
-              </div>
             </div>
           </div>
 

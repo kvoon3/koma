@@ -155,6 +155,7 @@ export const zhHant: Record<string, string> = {
   'Restore original': '還原原圖',
   'Loading AI model…': '正在載入 AI 模型…',
   'Processing…': '處理中…',
+  'Cutting out…': '去背中…',
   'Background removal failed': '背景移除失敗',
 
   // Library / LibraryDrawer
