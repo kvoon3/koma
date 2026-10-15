@@ -102,6 +102,7 @@ export const zhHans: Record<string, string> = {
   'Make sticker…': '制作贴图…',
   'Clear stickers ({n})': '清除贴图（{n}）',
   'Add text label': '添加文字',
+  'Background opacity': '背景不透明度',
   'Background color': '背景颜色',
   'Label icon': '图标',
   'No icon': '无图标',

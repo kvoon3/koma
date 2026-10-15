@@ -101,6 +101,7 @@ export const zhHant: Record<string, string> = {
   'Make sticker…': '製作貼圖…',
   'Clear stickers ({n})': '清除貼圖（{n}）',
   'Add text label': '新增文字',
+  'Background opacity': '背景不透明度',
   'Background color': '背景顏色',
   'Label icon': '圖示',
   'No icon': '無圖示',

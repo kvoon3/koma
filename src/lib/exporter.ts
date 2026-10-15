@@ -320,7 +320,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
   ctx.save()
   ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
   ctx.rotate(rotationOf(lab))
-  ctx.fillStyle = colors.bg
+  ctx.fillStyle = colors.fill
   ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h)
   const left = -r.w / 2 + fontPx * 0.38
   if (icon) {

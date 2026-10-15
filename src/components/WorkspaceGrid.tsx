@@ -201,7 +201,7 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
               transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
               fontSize: lab.size * unit,
               fontFamily: fontById(lab.font).cssStack,
-              background: labelPaint(lab).bg,
+              background: labelPaint(lab).fill,
               color: labelPaint(lab).fg,
               padding: '0.22em 0.38em',
               display: 'flex',
