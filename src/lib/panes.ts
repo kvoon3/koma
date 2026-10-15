@@ -41,9 +41,24 @@ export function labelColors(theme?: LabelTheme) {
 }
 
 /** A label's effective colors: custom fg / bg win over its theme pair. */
-export function labelPaint(lab: { theme?: LabelTheme, fg?: string, bg?: string }) {
+export function labelPaint(lab: { theme?: LabelTheme, fg?: string, bg?: string, bgAlpha?: number }) {
   const base = labelColors(lab.theme)
-  return { fg: lab.fg ?? base.fg, bg: lab.bg ?? base.bg }
+  const bg = lab.bg ?? base.bg
+  return { fg: lab.fg ?? base.fg, bg, fill: withAlpha(bg, labelBgAlpha(lab)) }
+}
+
+/** Box opacity in [0, 1]; absent means fully opaque. */
+export function labelBgAlpha(lab: { bgAlpha?: number }) {
+  const a = lab.bgAlpha
+  return typeof a === 'number' && Number.isFinite(a) ? Math.min(1, Math.max(0, a)) : 1
+}
+
+function withAlpha(hex: string, a: number) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex)
+  if (a >= 1 || !m)
+    return hex
+  const n = Number.parseInt(m[1], 16)
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
 }
 
 export interface PaneLabel {
@@ -56,6 +71,8 @@ export interface PaneLabel {
   fg?: string
   /** Custom box color; absent falls back to the theme's. */
   bg?: string
+  /** Box opacity in [0, 1]; absent means opaque. */
+  bgAlpha?: number
   /** Leading icon id from `LABEL_ICONS`; absent means text only. */
   icon?: string
   /** Board-normalized center in [0, 1] of the canvas (legacy Leaf.label: pane-normalized). */
