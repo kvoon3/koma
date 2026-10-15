@@ -1,11 +1,12 @@
 import type { PickMods } from './Library'
 import { Drawer } from '@base-ui/react/drawer'
-import { LayoutGrid, X } from 'lucide'
+import { LayoutGrid, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { useT } from '../lib/i18n'
+import { placeLibraryAsStickers } from '../lib/paneCommands'
 import { leafList } from '../lib/panes'
 import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
@@ -78,6 +79,29 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
       assign(focusId, id)
   }, [photos, focusId, assign, clearSel])
 
+  const onUseAsPhoto = useCallback((id: string) => {
+    clearSel()
+    if (focusId)
+      assign(focusId, id)
+  }, [focusId, assign, clearSel])
+
+  const placeAsStickers = useCallback((ids: string[]) => {
+    if (!focusId) {
+      say(t('Focus a pane that has a photo'))
+      return
+    }
+    if (!placeLibraryAsStickers(focusId, ids)) {
+      say(t('Focus a pane that has a photo'))
+      return
+    }
+    say(t('Sticker added'))
+    clearSel()
+  }, [focusId, t, clearSel])
+
+  const onUseAsSticker = useCallback((id: string) => {
+    placeAsStickers([id])
+  }, [placeAsStickers])
+
   const addSelectedToEmpty = () => {
     if (!emptyCount) {
       say(t('No empty panes in this workspace'))
@@ -111,7 +135,7 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
   }, [open, selectedIds.length, clearSel])
 
   const hint = photos.length
-    ? t('Click a thumbnail to place it in the focused pane, or drag photos straight onto a pane')
+    ? t('Click a thumbnail to place it in the focused pane; right-click to use it as a sticker')
     : t('No photos yet. Click "+ Photo / + Folder" or drop files into the window.')
 
   return (
@@ -157,12 +181,20 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
                   selectedIds={selected}
                   layout="row"
                   onPick={onPick}
+                  onUseAsPhoto={onUseAsPhoto}
+                  onUseAsSticker={onUseAsSticker}
                 />
-                {selectedIds.length >= 2 && (
+                {selectedIds.length >= 1 && (
                   <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-none border border-line-strong bg-panel px-1.5 py-1 shadow-pop">
-                    <Button variant="on" onClick={addSelectedToEmpty}>
-                      <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} />
-                      {t('Add {n} to empty panes', { n: placeableCount })}
+                    {selectedIds.length >= 2 && (
+                      <Button variant="on" onClick={addSelectedToEmpty}>
+                        <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} />
+                        {t('Add {n} to empty panes', { n: placeableCount })}
+                      </Button>
+                    )}
+                    <Button variant={selectedIds.length === 1 ? 'on' : undefined} onClick={() => placeAsStickers(selectedIds)}>
+                      <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} />
+                      {t('Use as sticker')}
                     </Button>
                     <Button onClick={clearSel}>
                       {t('Clear')}

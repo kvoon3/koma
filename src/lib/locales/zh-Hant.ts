@@ -173,13 +173,14 @@ export const zhHant: Record<string, string> = {
   // Library / LibraryDrawer
   'Live Photo': '即時照片',
   'Library is empty. Click "+ Photo" or drop photos straight into the window.': '素材庫是空的。點選「+ 照片」或直接把照片拖進視窗。',
-  'Click a thumbnail to place it in the focused pane, or drag photos straight onto a pane': '點選縮圖即可放進焦點窗格，也可以把照片直接拖到窗格上',
+  'Click a thumbnail to place it in the focused pane; right-click to use it as a sticker': '點選縮圖即可放進焦點窗格；按右鍵可用作貼圖',
   'No photos yet. Click "+ Photo / + Folder" or drop files into the window.': '還沒有照片。點選「+ 照片 / + 資料夾」或把檔案拖進視窗。',
   'Fill empty panes': '填滿空窗格',
   'Clear': '清空',
   'Hide library · Shortcut: L': '隱藏素材庫 · 快速鍵：L',
   'Add {n} to empty panes': '把 {n} 張加入空窗格',
   'No empty panes in this workspace': '這個工作區沒有空窗格',
+  'Focus a pane that has a photo': '請先聚焦一個已有照片的窗格',
 
   // Footer
   '{filled} / 9 spaces': '{filled} / 9 個位置',
@@ -245,7 +246,7 @@ export const zhHant: Record<string, string> = {
   'Drop a photo onto a pane': '把照片拖到窗格上',
   'An empty pane takes it straight in; a pane with a photo asks “Use as photo” or “Use as sticker” (multi-select allowed)': '空白窗格會直接接收；已有照片的窗格會詢問「用作照片」或「用作貼圖」（可複選）',
   '⌘/Ctrl / shift-click or press-and-hold a library thumbnail': '⌘/Ctrl / Shift 點選或長按素材庫縮圖',
-  'Select several photos at once: cmd/ctrl-click toggles one, shift-click selects a range from the last one clicked, and a press-and-hold (touch) toggles too; with two or more selected a bar floats over the strip to add them all to the empty panes, and Esc clears the selection': '一次選取多張照片：⌘/Ctrl 點選切換單張，Shift 點選從上一次點選處選取一段範圍，長按（觸控）同樣可以切換；選取兩張以上時，縮圖列上方會浮現一條操作列，可以一次新增到所有空窗格，按 Esc 清除選取',
+  'Select several photos at once: cmd/ctrl-click toggles one, shift-click selects a range from the last one clicked, and a press-and-hold (touch) toggles too; a selected thumbnail shows a bar with “Use as sticker” (and “Add to empty panes” when two or more are selected), right-click a thumbnail for the same sticker action, and Esc clears the selection': '一次選取多張照片：⌘/Ctrl 點選切換單張，Shift 點選從上一次點選處選取一段範圍，長按（觸控）同樣可以切換；選取縮圖後會浮現操作列，可「用作貼圖」（選取兩張以上時還可加入空窗格），對縮圖按右鍵也可當作貼圖，按 Esc 清除選取',
   'Press and hold inside a pane': '在窗格內長按',
   'Play the Live Photo video (a dropped IMG_1234.HEIC + IMG_1234.MOV pair is auto-paired); release to stop, or tap the LIVE badge to toggle (it turns red and blinks while playing); export also records a video when a pane holds one': '播放即時照片的影片（拖入的 IMG_1234.HEIC + IMG_1234.MOV 會自動配對）；放開停止，或點選 LIVE 標記切換（播放時會變紅並閃爍）；任一窗格持有即時照片時，匯出會一併錄製影片',
   '"Sticker" in the tools panel': '工具面板裡的「貼圖」',
