@@ -1,88 +1,14 @@
 import type { RefObject } from 'react'
 import type { Photo } from '../lib/imageStore'
-import type { Sticker } from '../lib/panes'
-import { RefreshCw, RotateCcw, X } from 'lucide'
+import type { PaneLabel, Sticker } from '../lib/panes'
+import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
 import { useT } from '../lib/i18n'
-import { boardStickerRect, rotateOffset, rotationCss, rotationOf, snapRotation } from '../lib/panes'
+import { boardStickerRect, rotateOffset, rotationCss, rotationOf } from '../lib/panes'
 import { useStore } from '../store'
-
-function RotationHandle({ rot, shown, onChange }: {
-  rot: number
-  shown: boolean
-  onChange: (rot: number) => void
-}) {
-  const t = useT()
-  const gestureRef = useRef<{ cx: number, cy: number, a0: number, r0: number } | null>(null)
-
-  const onDown = (e: React.PointerEvent) => {
-    if (e.button !== 0)
-      return
-    e.stopPropagation()
-    const box = (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect()
-    if (!box)
-      return
-    const el = e.currentTarget as HTMLElement
-    el.setPointerCapture(e.pointerId)
-    const cx = box.left + box.width / 2
-    const cy = box.top + box.height / 2
-    gestureRef.current = {
-      cx,
-      cy,
-      a0: Math.atan2(e.clientY - cy, e.clientX - cx),
-      r0: rot,
-    }
-  }
-  const onMove = (e: React.PointerEvent) => {
-    const g = gestureRef.current
-    if (!g)
-      return
-    e.stopPropagation()
-    const a = Math.atan2(e.clientY - g.cy, e.clientX - g.cx)
-    onChange(snapRotation(g.r0 + (a - g.a0), e.shiftKey))
-  }
-  const endGesture = () => {
-    gestureRef.current = null
-  }
-
-  return (
-    <span
-      className={`absolute -bottom-2 -left-2 grid h-[15px] w-[15px] cursor-crosshair place-items-center rounded-none border-2 border-float-bg-2 bg-accent text-on-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${shown ? ' opacity-100' : ''}`}
-      title={t('Drag to rotate · hold Shift to snap to 15°')}
-      onPointerDown={onDown}
-      onPointerMove={onMove}
-      onPointerUp={endGesture}
-      onPointerCancel={endGesture}
-    >
-      <MorphIcon icon={RefreshCw} size={10} strokeWidth={2.5} />
-    </span>
-  )
-}
-
-function ResetRotationButton({ shown, onReset }: {
-  shown: boolean
-  onReset: () => void
-}) {
-  const t = useT()
-  return (
-    <button
-      className={`absolute left-1/2 top-[calc(100%+8px)] z-[3] grid h-[22px] w-[22px] -translate-x-1/2 cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt ${
-        shown ? 'opacity-100' : 'pointer-events-none opacity-0'
-      }`}
-      title={t('Reset rotation')}
-      aria-label={t('Reset rotation')}
-      onPointerDown={e => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation()
-        onReset()
-      }}
-    >
-      <MorphIcon icon={RotateCcw} size={13} strokeWidth={2} />
-    </button>
-  )
-}
+import { BoardLabel, ResetRotationButton, RotationHandle } from './BoardLabel'
 
 function BoardStickerView({
   st,
@@ -230,17 +156,20 @@ function BoardStickerView({
 }
 
 /**
- * Collage-level insert layer: stickers float over the whole board and are not
- * clipped by pane overflow. Labels stay pane-owned for now but can follow the
- * same layer in a later pass.
+ * Collage-level insert layer: stickers (image inserts) and text labels float
+ * over the whole board, unclipped by pane overflow, in canvas-normalized coords.
  */
 export function BoardInserts({
   stickers,
+  labels,
+  unit,
   photoById,
   board,
   stageRef,
 }: {
   stickers: Sticker[]
+  labels: PaneLabel[]
+  unit: number
   photoById: Map<string, Photo>
   board: { w: number, h: number }
   stageRef: RefObject<HTMLElement | null>
@@ -252,25 +181,15 @@ export function BoardInserts({
     return { x: clientX - box.left, y: clientY - box.top }
   }
 
-  if (!stickers.length)
-    return null
-
   return (
     <>
       {stickers.map((st) => {
         const photo = photoById.get(st.photoId)
         if (!photo)
           return null
-        return (
-          <BoardStickerView
-            key={st.id}
-            st={st}
-            photo={photo}
-            board={board}
-            toCanvas={toCanvas}
-          />
-        )
+        return <BoardStickerView key={st.id} st={st} photo={photo} board={board} toCanvas={toCanvas} />
       })}
+      {labels.map(lab => <BoardLabel key={lab.id} lab={lab} unit={unit} boardRef={stageRef} />)}
     </>
   )
 }

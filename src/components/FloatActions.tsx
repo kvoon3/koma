@@ -46,6 +46,7 @@ export function FloatActions() {
     const dirty = (w: Workspace) => {
       const r = w.root
       return r.type !== 'leaf' || r.photoId != null || r.label != null
+        || (w.stickers?.length ?? 0) > 0 || (w.labels?.length ?? 0) > 0
         || w.canvasRatio != null || w.canvasFill !== 1
     }
     return (grid ? s.workspaces : s.workspaces.filter(w => w.id === s.activeId)).some(dirty)

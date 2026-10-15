@@ -1,6 +1,6 @@
 import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
-import type { Divider, Leaf, Rect, SeamSides } from '../lib/panes'
+import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -14,6 +14,9 @@ import { BoardInserts } from './BoardInserts'
 import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
+
+const NO_STICKERS: Sticker[] = []
+const NO_LABELS: PaneLabel[] = []
 
 const HIT_MIN = 15
 const MIN_CANVAS = 120
@@ -97,7 +100,8 @@ export function Stage() {
   const setToolsOpen = useStore(s => s.setToolsOpen)
   // The sticker maker dialog is store-driven: the pane menu opens it too.
   const stickerMakerFor = useStore(s => s.stickerMakerFor)
-  const boardStickers = useStore(s => activeWs(s).stickers ?? [])
+  const boardStickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
+  const boardLabels = useStore(s => activeWs(s).labels ?? NO_LABELS)
   const openStickerMaker = useStore(s => s.openStickerMaker)
 
   const transparent = isTransparentBg(bg)
@@ -310,6 +314,8 @@ export function Stage() {
 
             <BoardInserts
               stickers={boardStickers}
+              labels={boardLabels}
+              unit={view.unit}
               photoById={photoById}
               board={{ w: view.W, h: view.H }}
               stageRef={stageRef}
