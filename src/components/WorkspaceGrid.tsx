@@ -1,6 +1,6 @@
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
-import type { Leaf, Node, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -115,34 +115,18 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
             </div>
           )
         : null}
-      {leaf.label && leaf.label.text.trim() && (
-        <span
-          className="absolute whitespace-pre leading-[normal]"
-          style={{
-            left: `${leaf.label.x * 100}%`,
-            top: `${leaf.label.y * 100}%`,
-            transform: `translate(-50%, -50%) ${rotationCss(leaf.label)}`,
-            fontSize: leaf.label.size * unit,
-            fontFamily: fontById(leaf.label.font).cssStack,
-            background: labelColors(leaf.label.theme).bg,
-            color: labelColors(leaf.label.theme).fg,
-            padding: '0.22em 0.38em',
-          }}
-        >
-          {leaf.label.text}
-        </span>
-      )}
     </div>
   )
 }
 
 /** Read-only live preview of a workspace's full collage in a square cell. */
-function CellPreview({ root, canvasRatio, box, photoById, stickers = [] }: {
+function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels = [] }: {
   root: Node
   canvasRatio: number | null
   box: { w: number, h: number }
   photoById: Map<string, Photo>
   stickers?: Sticker[]
+  labels?: PaneLabel[]
 }) {
   const bg = useStore(s => s.bg)
   const edgeFade = useStore(s => s.edgeFade)
@@ -205,6 +189,24 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [] }: {
             photoById={photoById}
           />
         ))}
+        {labels.filter(lab => lab.text.trim()).map(lab => (
+          <span
+            key={lab.id}
+            className="absolute whitespace-pre leading-[normal]"
+            style={{
+              left: `${lab.x * 100}%`,
+              top: `${lab.y * 100}%`,
+              transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
+              fontSize: lab.size * unit,
+              fontFamily: fontById(lab.font).cssStack,
+              background: labelColors(lab.theme).bg,
+              color: labelColors(lab.theme).fg,
+              padding: '0.22em 0.38em',
+            }}
+          >
+            {lab.text}
+          </span>
+        ))}
       </div>
     </div>
   )
@@ -212,7 +214,7 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [] }: {
 
 /** The cell's visible body, shared by the in-grid cell and the drag overlay. */
 function CellBody({ ws, box, photoById, transparent, dimmed }: {
-  ws: { root: Node, canvasRatio: number | null, stickers?: Sticker[] }
+  ws: { root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }
   box: { w: number, h: number }
   photoById: Map<string, Photo>
   transparent: boolean
@@ -225,7 +227,7 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
       {filled
         ? (
             <div className={`absolute inset-0 ${transparent ? ' stage-clear' : ''}`}>
-              <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} stickers={ws.stickers ?? []} />
+              <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} stickers={ws.stickers ?? []} labels={ws.labels ?? []} />
             </div>
           )
         : (

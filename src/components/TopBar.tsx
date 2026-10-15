@@ -13,7 +13,7 @@ import { leafList } from '../lib/panes'
 import { clearSession } from '../lib/sessionStore'
 import { say } from '../lib/toast'
 import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
-import { activeWs, migrateWorkspaceStickers, useStore } from '../store'
+import { activeWs, migrateWorkspaceInserts, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SettingsPanel } from './SettingsPanel'
@@ -346,7 +346,7 @@ export function TopBar({
     void clearSession()
     useStore.setState({
       photos,
-      workspaces: doc.workspaces.map(w => migrateWorkspaceStickers({ ...w, stickers: w.stickers ?? [] }, photos)),
+      workspaces: doc.workspaces.map(w => migrateWorkspaceInserts(w, photos)),
       activeId: doc.workspaces.some(w => w.id === doc.activeId) ? doc.activeId : doc.workspaces[0].id,
       gap: doc.settings.gap,
       radius: doc.settings.radius,

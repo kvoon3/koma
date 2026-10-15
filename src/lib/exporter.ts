@@ -1,5 +1,5 @@
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
-import type { Leaf, Node, Rect, SeamSides, Sticker } from './panes'
+import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
 import { isTransparentBg } from '../store'
 import { mapSeq } from './async'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
@@ -20,6 +20,8 @@ export interface ExportOptions {
   longSide: number
   /** Board-level stickers (canvas-normalized). */
   stickers?: Sticker[]
+  /** Board-level text labels (canvas-normalized). */
+  labels?: PaneLabel[]
 }
 
 export interface ExportSize {
@@ -71,7 +73,7 @@ interface Prepared {
   fade: number
   seam: Map<string, SeamSides>
   cells: { leaf: Leaf, rect: Rect, photo: Photo }[]
-  labelCells: { leaf: Leaf, rect: Rect }[]
+  labels: PaneLabel[]
 }
 
 function prepare(opts: ExportOptions, W: number, H: number): Prepared {
@@ -82,10 +84,7 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
   // behind everything; width 0 turns the whole treatment off.
   const fade = opts.edgeFade * u
   const cells: Prepared['cells'] = []
-  const labelCells: Prepared['labelCells'] = []
   for (const { node, rect } of l.leaves) {
-    if (node.label)
-      labelCells.push({ leaf: node, rect })
     if (!node.photoId)
       continue
     const photo = opts.photos.get(node.photoId)
@@ -102,7 +101,7 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
     fade,
     seam: fade > 0 ? seamSides(l.leaves, gap) : new Map(),
     cells,
-    labelCells,
+    labels: (opts.labels ?? []).filter(l => l.text.trim()),
   }
 }
 
@@ -274,9 +273,9 @@ function drawBoardStickers(
 
 /** Load the fonts any label needs; warn when some fell back to system. */
 async function ensureLabelFonts(prep: Prepared) {
-  if (!prep.labelCells.length)
+  if (!prep.labels.length)
     return
-  const ids = [...new Set(prep.labelCells.map(({ leaf }) => leaf.label!.font))]
+  const ids = [...new Set(prep.labels.map(l => l.font))]
   const failed = await ensureFonts(ids)
   if (failed.length) {
     const names = failed.map(id => fontById(id).label).join(', ')
@@ -284,16 +283,14 @@ async function ensureLabelFonts(prep: Prepared) {
   }
 }
 
-/** Labels draw on top of photos, clipped to their pane (but not to the photo). */
-function drawLabelCells(ctx: CanvasRenderingContext2D, prep: Prepared) {
-  for (const { leaf, rect } of prep.labelCells)
-    drawLabelCell(ctx, prep, leaf, rect)
+/** Board labels draw on top of everything, unclipped, in canvas-normalized coords. */
+function drawLabels(ctx: CanvasRenderingContext2D, prep: Prepared) {
+  const board: Rect = { x: 0, y: 0, w: prep.W, h: prep.H }
+  for (const lab of prep.labels)
+    drawLabel(ctx, prep, lab, board)
 }
 
-function drawLabelCell(ctx: CanvasRenderingContext2D, prep: Prepared, leaf: Leaf, rect: Rect) {
-  const lab = leaf.label
-  if (!lab || !lab.text.trim())
-    return
+function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel, board: Rect) {
   const meta = fontById(lab.font)
   const fontPx = lab.size * prep.u
   const m = measureLabel(meta, fontPx, lab.text)
@@ -301,10 +298,9 @@ function drawLabelCell(ctx: CanvasRenderingContext2D, prep: Prepared, leaf: Leaf
   // box height = measured line box, baseline offset follows the half-leading model.
   const lineH = normalLineHeightRatio(meta, lab.text) * fontPx || (m.fontAscent + m.fontDescent)
   const halfLead = Math.max(0, (lineH - (m.fontAscent + m.fontDescent)) / 2)
-  const r = labelRect(rect, lab, m.w, lineH, fontPx)
+  const r = labelRect(board, lab, m.w, lineH, fontPx)
   const colors = labelColors(lab.theme)
   ctx.save()
-  // Labels are not clipped to the pane so they can sit across the board.
   ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
   ctx.rotate(rotationOf(lab))
   ctx.fillStyle = colors.bg
@@ -344,7 +340,7 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     drawPhotoCells(ctx, prep, opts, src)
     drawBoardStickers(ctx, prep, stickers, opts.photos, src)
     await ensureLabelFonts(prep)
-    drawLabelCells(ctx, prep)
+    drawLabels(ctx, prep)
   }
   finally {
     sources.release()
@@ -459,6 +455,7 @@ export async function renderCollageVideo(
         for (const { cell, v } of vids)
           drawLiveCell(ctx, prep, cell, v, opts, src)
         drawBoardStickers(ctx, prep, opts.stickers ?? [], opts.photos, src)
+        drawLabels(ctx, prep)
       }
 
       const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
@@ -505,7 +502,7 @@ function stickerPhotos(_vids: LiveVid[], opts: ExportOptions): Photo[] {
   return [...new Set(wanted)]
 }
 
-/** One live cell's video frame clipped into its pane, with stickers and label back on top. */
+/** One live cell's video frame clipped into its pane; board inserts are redrawn by the frame loop. */
 function drawLiveCell(
   ctx: CanvasRenderingContext2D,
   prep: Prepared,
@@ -525,7 +522,6 @@ function drawLiveCell(
   else
     ctx.drawImage(v, p.x, p.y, p.w, p.h)
   ctx.restore()
-  drawLabelCell(ctx, prep, leaf, rect)
 }
 
 // --- 3×3 grid snapshot ------------------------------------------------------
@@ -539,7 +535,7 @@ export const GRID_CELL_MAX = 220
 
 export interface GridSnapshotOptions {
   /** The nine workspaces in grid order; anything past 9 is ignored. */
-  workspaces: { root: Node, canvasRatio: number | null, stickers?: Sticker[] }[]
+  workspaces: { root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
   /** Long edge of the finished board, in px: each cell gets about a third. */
   longSide: number
   /** Space between the nine overview cells, in px (the store's grid gap). */
@@ -591,6 +587,7 @@ export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTM
       photos: opts.photos,
       longSide: Math.round(cell * Math.max(ratio, 1 / ratio)),
       stickers: ws.stickers ?? [],
+      labels: ws.labels ?? [],
     })
     ctx.drawImage(
       c,

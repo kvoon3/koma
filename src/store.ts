@@ -38,6 +38,8 @@ export interface Workspace {
   canvasFill: number
   /** Board-level stickers (insert images); coords are canvas-normalized. */
   stickers: Sticker[]
+  /** Board-level text labels; coords are canvas-normalized. */
+  labels: PaneLabel[]
 }
 
 /** The pane contents the menu's copy / paste pair carries: everything a leaf holds. */
@@ -74,7 +76,7 @@ export interface State {
    * mode; the sequence number lets a pane consume requests render-time, and
    * repeated requests for the same pane still fire.
    */
-  labelEditReq: { paneId: string, seq: number } | null
+  labelEditReq: { labelId: string, seq: number } | null
   /**
    * Whether the tools panel (Stage's overlay) is pulled open. It starts open,
    * and only its handle changes it: moving the focus never touches it, so a
@@ -108,7 +110,7 @@ export const isTransparentBg = (bg: string) => bg === 'transparent'
 
 function newWorkspace(): Workspace {
   const root = newLeaf()
-  return { id: uid('w'), root, focusId: root.id, canvasRatio: null, canvasFill: 1, stickers: [] }
+  return { id: uid('w'), root, focusId: root.id, canvasRatio: null, canvasFill: 1, stickers: [], labels: [] }
 }
 
 function initialWorkspaces(): Workspace[] {
@@ -264,7 +266,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   /** Restore a session saved by `lib/sessionStore` (refresh-safe autosave). */
   hydrate: (session) => {
     const workspaces = (session.meta.workspaces ?? []).map(w =>
-      migrateWorkspaceStickers({ ...w, stickers: w.stickers ?? [] }, session.photos),
+      migrateWorkspaceInserts(w, session.photos),
     )
     set({
       ...session.meta,
@@ -323,7 +325,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       cx: src.cx,
       cy: src.cy,
       stickers: [],
-      label: src.label ? { ...src.label } : null,
+      label: null,
     })
     runPaneMorph([], () =>
       set({ workspaces: mapActive(s, w => ({ ...w, root, focusId: created.id })) }))
@@ -343,7 +345,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           label: null,
         }),
       })),
-      labelSel: s.labelSel === paneId ? null : s.labelSel,
     })),
 
   copyPane: paneId =>
@@ -358,7 +359,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           cx: leaf.cx,
           cy: leaf.cy,
           stickers: [],
-          label: leaf.label ? { ...leaf.label } : null,
+          label: null,
         },
       }
     }),
@@ -377,7 +378,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
             cx: clip.cx,
             cy: clip.cy,
             stickers: [],
-            label: clip.label ? { ...clip.label } : null,
+            label: null,
           }),
           focusId: paneId,
         })),
@@ -439,7 +440,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           ...w,
           root: next,
           focusId,
-          labelSel: s.labelSel === paneId ? null : s.labelSel,
         })),
       }))
   },
@@ -470,7 +470,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         cx: lb.cx,
         cy: lb.cy,
         stickers: [],
-        label: lb.label,
+        label: null,
       })
       root = updateLeafIn(root, b, {
         photoId: la.photoId,
@@ -478,14 +478,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         cx: la.cx,
         cy: la.cy,
         stickers: [],
-        label: la.label,
+        label: null,
       })
-      // The label selection names the pane, so it rides along with the box it
-      // picked; a sticker needs no help, its selection names the sticker.
-      const labelSel = s.labelSel === a
-        ? (la.label ? b : null)
-        : s.labelSel === b ? (lb.label ? a : null) : s.labelSel
-      return { workspaces: mapActive(s, w => ({ ...w, root })), labelSel }
+      return { workspaces: mapActive(s, w => ({ ...w, root })) }
     }),
 
   assign: (paneId, photoId) =>
@@ -560,9 +555,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       set({ workspaces: mapActive(s, w => ({ ...w, focusId: next.id })) })
   },
 
-  selectLabel: paneId => set({ labelSel: paneId, stickerSel: null }),
+  selectLabel: labelId => set({ labelSel: labelId, stickerSel: null }),
   selectSticker: sel => set({ stickerSel: sel, labelSel: null }),
-  requestLabelEdit: paneId => set({ labelEditReq: { paneId, seq: ++labelEditSeq } }),
+  requestLabelEdit: labelId => set({ labelEditReq: { labelId, seq: ++labelEditSeq } }),
   setToolsOpen: open => set({ toolsOpen: open }),
 
   autoFill: () =>
@@ -669,43 +664,37 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       stickerSel: s.stickerSel?.stickerId === stickerId ? null : s.stickerSel,
     })),
 
-  ensureLabel: paneId =>
-    set((s) => {
-      const ws = activeWs(s)
-      const pane = findLeaf(ws.root, paneId)
-      if (!pane)
-        return {}
-      if (pane.label)
-        return { labelSel: paneId }
-      return {
-        workspaces: mapActive(s, w => ({
-          ...w,
-          root: updateLeafIn(w.root, paneId, { label: newLabel() }),
-        })),
-        labelSel: paneId,
-      }
-    }),
-
-  setLabel: (paneId, patch) =>
-    set((s) => {
-      const ws = activeWs(s)
-      const pane = findLeaf(ws.root, paneId)
-      if (!pane?.label)
-        return {}
-      const label: PaneLabel = { ...pane.label, ...patch }
-      if (patch.size !== undefined)
-        label.size = Math.min(160, Math.max(12, patch.size))
-      if (patch.rot !== undefined)
-        label.rot = wrapAngle(patch.rot)
-      return {
-        workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { label }) })),
-      }
-    }),
-
-  removeLabel: paneId =>
+  addLabel: (x = 0.5, y = 0.5) => {
+    const label = newLabel(x, y)
     set(s => ({
-      workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { label: null }) })),
-      labelSel: s.labelSel === paneId ? null : s.labelSel,
+      workspaces: mapActive(s, w => ({ ...w, labels: [...(w.labels ?? []), label] })),
+      labelSel: label.id,
+      stickerSel: null,
+    }))
+    return label.id
+  },
+
+  setLabel: (labelId, patch) =>
+    set(s => ({
+      workspaces: mapActive(s, w => ({
+        ...w,
+        labels: (w.labels ?? []).map((l) => {
+          if (l.id !== labelId)
+            return l
+          const label: PaneLabel = { ...l, ...patch, id: l.id }
+          if (patch.size !== undefined)
+            label.size = Math.min(160, Math.max(12, patch.size))
+          if (patch.rot !== undefined)
+            label.rot = wrapAngle(patch.rot)
+          return label
+        }),
+      })),
+    })),
+
+  removeLabel: labelId =>
+    set(s => ({
+      workspaces: mapActive(s, w => ({ ...w, labels: (w.labels ?? []).filter(l => l.id !== labelId) })),
+      labelSel: s.labelSel === labelId ? null : s.labelSel,
     })),
 }), {
   // Visual settings survive reloads; the rest of the state (workspaces,
@@ -792,28 +781,46 @@ function liftLeafStickers(
   })
 }
 
-/** Lift legacy per-leaf stickers onto the workspace board and clear leaf arrays. */
-export function migrateWorkspaceStickers(
+/** A legacy pane-normalized label re-expressed in board coords (size is already board-unit). */
+function liftLeafLabel(
+  lab: PaneLabel,
+  rect: { x: number, y: number, w: number, h: number },
+  board: { w: number, h: number },
+): PaneLabel {
+  return {
+    ...lab,
+    id: lab.id ?? uid('l'),
+    x: (rect.x + lab.x * rect.w) / board.w,
+    y: (rect.y + lab.y * rect.h) / board.h,
+  }
+}
+
+/** Lift legacy per-leaf stickers and labels onto the workspace board and clear the leaves. */
+export function migrateWorkspaceInserts(
   ws: Workspace,
   photos: Photo[],
   availW = 1000,
   availH = 1000,
 ): Workspace {
   const stickers = ws.stickers ?? []
-  if (!leafList(ws.root).some(l => l.stickers.length > 0))
-    return stickers === ws.stickers ? ws : { ...ws, stickers }
+  const labels = ws.labels ?? []
+  if (!leafList(ws.root).some(l => l.stickers.length > 0 || l.label))
+    return stickers === ws.stickers && labels === ws.labels ? ws : { ...ws, stickers, labels }
   const photoById = new Map(photos.map(p => [p.id, p]))
   const derived = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, availW, availH, 0, 0, 0)
   const board = { w: derived.W, h: derived.H }
   const lifted: Sticker[] = [...stickers]
+  const liftedLabels: PaneLabel[] = [...labels]
   let root = ws.root
   for (const { node, rect } of derived.leaves) {
-    if (!node.stickers.length)
+    if (!node.stickers.length && !node.label)
       continue
     lifted.push(...liftLeafStickers(node, rect, board, photoById))
-    root = updateLeafIn(root, node.id, { stickers: [] })
+    if (node.label)
+      liftedLabels.push(liftLeafLabel(node.label, rect, board))
+    root = updateLeafIn(root, node.id, { stickers: [], label: null })
   }
-  return { ...ws, root, stickers: lifted }
+  return { ...ws, root, stickers: lifted, labels: liftedLabels }
 }
 
 interface Actions {
@@ -840,9 +847,9 @@ interface Actions {
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
   focus: (paneId: string) => void
   focusNeighbor: (dir: FocusDir) => void
-  selectLabel: (paneId: string | null) => void
+  selectLabel: (labelId: string | null) => void
   selectSticker: (sel: { stickerId: string } | null) => void
-  requestLabelEdit: (paneId: string) => void
+  requestLabelEdit: (labelId: string) => void
   setToolsOpen: (open: boolean) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
@@ -855,7 +862,8 @@ interface Actions {
   scaleSticker: (stickerId: string, s: number) => void
   rotateSticker: (stickerId: string, rot: number) => void
   removeSticker: (stickerId: string) => void
-  ensureLabel: (paneId: string) => void
-  setLabel: (paneId: string, patch: Partial<PaneLabel>) => void
-  removeLabel: (paneId: string) => void
+  /** Add a board label at a canvas-normalized point; returns its id. */
+  addLabel: (x?: number, y?: number) => string
+  setLabel: (labelId: string, patch: Partial<PaneLabel>) => void
+  removeLabel: (labelId: string) => void
 }
