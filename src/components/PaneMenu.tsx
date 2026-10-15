@@ -82,10 +82,11 @@ function DecorateSubmenu({ leaf }: { leaf: Leaf }) {
   const openStickerMaker = useStore(s => s.openStickerMaker)
 
   // Removing the stickers one by one re-renders once (one handler, batched).
+  const boardStickers = useStore(s => s.workspaces.find(w => w.id === s.activeId)?.stickers ?? [])
   const clearStickers = () => {
     const s = useStore.getState()
-    for (const st of leaf.stickers)
-      s.removeSticker(leaf.id, st.id)
+    for (const st of boardStickers)
+      s.removeSticker(st.id)
   }
 
   return (
@@ -96,9 +97,9 @@ function DecorateSubmenu({ leaf }: { leaf: Leaf }) {
       <MenuItem icon={WandSparkles} onClick={() => openStickerMaker(leaf.id)}>
         {t('Make sticker…')}
       </MenuItem>
-      {leaf.stickers.length > 0 && (
+      {boardStickers.length > 0 && (
         <MenuItem icon={Eraser} onClick={clearStickers}>
-          {t('Clear stickers ({n})', { n: leaf.stickers.length })}
+          {t('Clear stickers ({n})', { n: boardStickers.length })}
         </MenuItem>
       )}
       <MenuSeparator />
@@ -222,7 +223,7 @@ function LayoutGroup({ leaf, rect, onSplit }: {
   const t = useT()
   const duplicatePane = useStore(s => s.duplicatePane)
   const resetPane = useStore(s => s.resetPane)
-  const hasContent = !!leaf.photoId || !!leaf.label || leaf.stickers.length > 0
+  const hasContent = !!leaf.photoId || !!leaf.label
   return (
     <MenuGroup>
       <MenuItem icon={SquareSplitVertical} hint="S" onClick={() => onSplit(leaf.id, 'column')}>

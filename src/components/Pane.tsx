@@ -1,7 +1,7 @@
 import type { ContextMenu } from '@base-ui/react/context-menu'
 import type { FontMeta } from '../lib/fonts'
 import type { Photo, Preview } from '../lib/imageStore'
-import type { Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { Leaf, PaneLabel, Rect, SeamSides } from '../lib/panes'
 import { Select } from '@base-ui/react/select'
 import { useNavigate } from '@tanstack/react-router'
 import { Check, ChevronDown, Contrast, ImagePlus, RefreshCw, RotateCcw, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
@@ -12,7 +12,7 @@ import { usePreview } from '../hooks'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { pickPhotoForPane } from '../lib/paneCommands'
-import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, rotateOffset, rotationCss, rotationOf, seamFadeWidth, seamMaskStyle, snapRotation, stickerRect } from '../lib/panes'
+import { clampLeaf, labelColors, nextLabelTheme, photoNorm, placement, rotationCss, rotationOf, seamFadeWidth, seamMaskStyle, snapRotation } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -154,164 +154,6 @@ function ResetRotationButton({ shown, flip, onReset }: {
     >
       <MorphIcon icon={RotateCcw} size={13} strokeWidth={2} />
     </button>
-  )
-}
-
-function StickerView({
-  paneId,
-  st,
-  photo,
-  place,
-  paneRect,
-  toCanvas,
-  onFocus,
-}: {
-  paneId: string
-  st: Sticker
-  photo: Photo
-  place: { x: number, y: number, w: number, h: number }
-  paneRect: Rect
-  toCanvas: (clientX: number, clientY: number) => { x: number, y: number }
-  onFocus: (id: string) => void
-}) {
-  const preview = usePreview(photo)
-  const removeSticker = useStore(s => s.removeSticker)
-  const selectSticker = useStore(s => s.selectSticker)
-  const rotateSticker = useStore(s => s.rotateSticker)
-  const t = useT()
-  const selected = useStore(s => s.stickerSel?.stickerId === st.id)
-  // hover intent: keep the handles alive while the pointer crosses the gap
-  // to them, the same treatment labels get.
-  const [hot, setHot] = useState(false)
-  const leaveRef = useRef<number | null>(null)
-  useEffect(() => () => {
-    if (leaveRef.current != null)
-      window.clearTimeout(leaveRef.current)
-  }, [])
-  const gestureRef = useRef<{
-    mode: 'move' | 'resize'
-    ocX: number
-    ocY: number
-    d0: number
-    s0: number
-  } | null>(null)
-
-  if (!photo.trueW || !photo.trueH || !preview)
-    return null
-  const aspect = photo.trueW / photo.trueH
-  const r = stickerRect(place, st, photo.trueW, photo.trueH, aspect)
-  const rot = rotationOf(st)
-
-  const onMoveDown = (e: React.PointerEvent) => {
-    e.stopPropagation()
-    if (e.button !== 0)
-      return
-    onFocus(paneId)
-    selectSticker({ paneId, stickerId: st.id })
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    gestureRef.current = { mode: 'move', ocX: 0, ocY: 0, d0: 0, s0: st.s }
-  }
-  const onMoveMove = (e: React.PointerEvent) => {
-    const g = gestureRef.current
-    if (!g || g.mode !== 'move')
-      return
-    e.stopPropagation()
-    const p = toCanvas(e.clientX, e.clientY)
-    const n = photoNorm(place, p.x, p.y)
-    useStore.getState().moveSticker(paneId, st.id, n.x, n.y)
-  }
-
-  const onResizeDown = (e: React.PointerEvent) => {
-    if (e.button !== 0)
-      return
-    e.stopPropagation()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    const corner = toCanvas(e.clientX, e.clientY)
-    // The fixed opposite corner is the box's top-left in local space, carried
-    // around the center by the rotation (a rotation-invariant diagonal length).
-    const o = rotateOffset(-r.w / 2, -r.h / 2, rot)
-    const ocX = r.x + r.w / 2 + o.x
-    const ocY = r.y + r.h / 2 + o.y
-    gestureRef.current = {
-      mode: 'resize',
-      ocX,
-      ocY,
-      d0: Math.max(4, Math.hypot(corner.x - ocX, corner.y - ocY)),
-      s0: st.s,
-    }
-  }
-  const onResizeMove = (e: React.PointerEvent) => {
-    const g = gestureRef.current
-    if (!g || g.mode !== 'resize')
-      return
-    e.stopPropagation()
-    const p = toCanvas(e.clientX, e.clientY)
-    const dist = Math.hypot(p.x - g.ocX, p.y - g.ocY)
-    const n = photoNorm(place, (g.ocX + p.x) / 2, (g.ocY + p.y) / 2)
-    const s = useStore.getState()
-    s.moveSticker(paneId, st.id, n.x, n.y)
-    s.scaleSticker(paneId, st.id, g.s0 * (dist / g.d0))
-  }
-
-  const endGesture = () => {
-    gestureRef.current = null
-  }
-
-  return (
-    <div
-      className="group/sticker absolute z-2 cursor-grab touch-none active:cursor-grabbing"
-      style={{ left: r.x - paneRect.x, top: r.y - paneRect.y, width: r.w, height: r.h, transform: rotationCss(st) }}
-      title={photo.name}
-      onPointerDown={onMoveDown}
-      onPointerMove={onMoveMove}
-      onPointerUp={endGesture}
-      onPointerCancel={endGesture}
-      onPointerEnter={() => {
-        if (leaveRef.current != null) {
-          window.clearTimeout(leaveRef.current)
-          leaveRef.current = null
-        }
-        setHot(true)
-      }}
-      onPointerLeave={() => {
-        if (leaveRef.current != null)
-          window.clearTimeout(leaveRef.current)
-        leaveRef.current = window.setTimeout(() => {
-          leaveRef.current = null
-          setHot(false)
-        }, 220)
-      }}
-    >
-      <img src={preview.url} alt="" draggable={false} className="block h-full w-full max-w-none pointer-events-none" />
-      <span
-        className={`group-hover/sticker:opacity-100 absolute -right-2 -bottom-2 h-[15px] w-[15px] cursor-nwse-resize rounded-none border-2 border-float-bg-2 bg-accent opacity-0 shadow-[0_1px_4px_rgba(0,0,0,0.4)] transition-opacity duration-(--dur-fast) ${hot || selected ? ' opacity-100' : ''}`}
-        title={t('Drag to resize')}
-        onPointerDown={onResizeDown}
-        onPointerMove={onResizeMove}
-        onPointerUp={endGesture}
-        onPointerCancel={endGesture}
-      />
-      <RotationHandle
-        rot={rot}
-        shown={hot || selected}
-        onChange={value => rotateSticker(paneId, st.id, value)}
-      />
-      <ResetRotationButton
-        shown={rot !== 0 && (hot || selected)}
-        onReset={() => rotateSticker(paneId, st.id, 0)}
-      />
-      <button
-        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
-        title={t('Remove sticker')}
-        onPointerDown={e => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation()
-          removeSticker(paneId, st.id)
-        }}
-      >
-        <MorphIcon icon={X} size={12} strokeWidth={2} />
-      </button>
-    </div>
   )
 }
 
@@ -1203,61 +1045,17 @@ function PaneLivePhoto({
   )
 }
 
-/* The pane's stickers, skipping any whose source photo is gone. */
-function PaneStickers({
-  place,
-  stickers,
-  paneId,
-  photoById,
-  rect,
-  toCanvas,
-  onFocus,
-}: {
-  place: { x: number, y: number, w: number, h: number } | null
-  stickers: Sticker[]
-  paneId: string
-  photoById: Map<string, Photo>
-  rect: Rect
-  toCanvas: (clientX: number, clientY: number) => { x: number, y: number }
-  onFocus: (id: string) => void
-}) {
-  if (!place)
-    return null
-  return (
-    <>
-      {stickers.map((st) => {
-        const sp = st.photoId ? photoById.get(st.photoId) : undefined
-        return sp
-          ? (
-              <StickerView
-                key={st.id}
-                paneId={paneId}
-                st={st}
-                photo={sp}
-                place={place}
-                paneRect={rect}
-                toCanvas={toCanvas}
-                onFocus={onFocus}
-              />
-            )
-          : null
-      })}
-    </>
-  )
-}
-
 /* The drop-choice overlay: a full-pane dismiss button under the panel, so the
    backdrop is a real control (keyboard reachable) and the panel's own clicks
    stay inside it. */
 function DropChoiceOverlay({
   paneId,
   photos,
-  at,
   onClose,
 }: {
   paneId: string
   photos: Photo[]
-  at: { x: number, y: number }
+  at?: { x: number, y: number }
   onClose: () => void
 }) {
   const t = useT()
@@ -1291,8 +1089,8 @@ function DropChoiceOverlay({
           className={dropBtnCls}
           onClick={() => {
             const s = useStore.getState()
-            for (const ph of photos)
-              s.addSticker(paneId, ph.id, at.x, at.y)
+            for (const [i, ph] of photos.entries())
+              s.addSticker(ph.id, Math.min(0.8, 0.5 + i * 0.06), Math.min(0.8, 0.5 + i * 0.06))
             onClose()
           }}
         >
@@ -1507,7 +1305,7 @@ interface SwapDropCtx {
 
 /** The pane shell's class: focus and emptiness are the only things that vary. */
 function paneShellClass(focused: boolean, hasPhoto: boolean): string {
-  return `group/pane absolute cursor-grab touch-none select-none overflow-hidden [contain:paint] ${
+  return `group/pane absolute cursor-grab touch-none select-none ${
     focused ? ' z-1 cursor-grab' : ''
   }${hasPhoto ? '' : ' bg-pane-bg bg-pane-empty'}`
 }
@@ -2113,7 +1911,7 @@ function PaneImpl({
   seam,
   unit,
   photo,
-  photoById,
+  photoById: _photoById,
   focused,
   canClose,
   onFocus,
@@ -2234,16 +2032,6 @@ function PaneImpl({
           onToggle={toggleLivePin}
         />
       )}
-
-      <PaneStickers
-        place={place}
-        stickers={leaf.stickers}
-        paneId={leaf.id}
-        photoById={photoById}
-        rect={rect}
-        toCanvas={toCanvas}
-        onFocus={onFocus}
-      />
 
       {leaf.label && (
         <LabelView

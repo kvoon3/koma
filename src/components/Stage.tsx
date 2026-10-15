@@ -10,6 +10,7 @@ import { useT } from '../lib/i18n'
 import { addLabelToPane, pickPhotoForPane, pickStickersForPane } from '../lib/paneCommands'
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
+import { BoardInserts } from './BoardInserts'
 import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
@@ -96,6 +97,7 @@ export function Stage() {
   const setToolsOpen = useStore(s => s.setToolsOpen)
   // The sticker maker dialog is store-driven: the pane menu opens it too.
   const stickerMakerFor = useStore(s => s.stickerMakerFor)
+  const boardStickers = useStore(s => activeWs(s).stickers ?? [])
   const openStickerMaker = useStore(s => s.openStickerMaker)
 
   const transparent = isTransparentBg(bg)
@@ -304,6 +306,13 @@ export function Stage() {
               onUpdate={updateLeaf}
               onSplit={split}
               onClose={closePane}
+            />
+
+            <BoardInserts
+              stickers={boardStickers}
+              photoById={photoById}
+              board={{ w: view.W, h: view.H }}
+              stageRef={stageRef}
             />
 
             <DividerChrome
