@@ -44,7 +44,7 @@ export function AppSlider({ value, min = 0, max, step, label, onChange, classNam
 }) {
   return (
     <Slider.Root
-      className={className}
+      className={dense ? 'box-border h-full w-full' : className}
       min={min}
       max={max}
       step={step}
