@@ -545,7 +545,7 @@ function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
       <Select.Portal>
         <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
           <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-            <Select.List className="relative grid max-h-[var(--available-height)] grid-cols-4 gap-0.5 overflow-y-auto p-1">
+            <Select.List className="relative grid max-h-[min(var(--available-height),176px)] grid-cols-4 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
               {LABEL_ICON_ITEMS.map(item => (
                 <Select.Item
                   key={item.value}
@@ -774,7 +774,7 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
         label={t('Label icon')}
         trigger={icon ? <LabelIconGlyph node={icon} size="18" /> : <MorphIcon icon={Smile} size={18} strokeWidth={1.75} />}
       >
-        <div className="grid max-h-[min(40dvh,260px)] grid-cols-6 gap-0.5 overflow-y-auto p-1">
+        <div className="grid h-[120px] max-h-[min(40dvh,260px)] grid-cols-6 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
           {LABEL_ICON_ITEMS.map(item => (
             <button
               key={item.value}
