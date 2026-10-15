@@ -45,6 +45,7 @@ function exportOptions(): ExportOptions {
     photos: photoMap(s.photos),
     longSide: s.longSide,
     stickers: ws.stickers ?? [],
+    labels: ws.labels ?? [],
   }
 }
 
@@ -80,6 +81,7 @@ async function renderGridItems(): Promise<RenderedItem[]> {
       photos: photoMap(s.photos),
       longSide: s.longSide,
       stickers: ws.stickers ?? [],
+      labels: ws.labels ?? [],
     }
     // Position among the filled workspaces at export time, 1-based.
     const pos = s.workspaces.indexOf(ws) + 1

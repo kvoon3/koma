@@ -41,9 +41,12 @@ export function labelColors(theme?: LabelTheme) {
 }
 
 export interface PaneLabel {
+  /** Stable id: labels are a board-level list, many per workspace. */
+  id: string
   text: string
   font: string
   theme: LabelTheme
+  /** Board-normalized center in [0, 1] of the canvas (legacy Leaf.label: pane-normalized). */
   x: number
   y: number
   size: number
@@ -63,6 +66,7 @@ export interface Leaf {
    * space). Kept so session / `.koma.json` files migrate without data loss.
    */
   stickers: Sticker[]
+  /** Legacy per-pane label; new labels live on `Workspace.labels`. */
   label: PaneLabel | null
 }
 
@@ -104,8 +108,8 @@ export function newLeaf(): Leaf {
 
 export const DEFAULT_LABEL_SIZE = 42
 
-export function newLabel(): PaneLabel {
-  return { text: 'Label', font: '', theme: DEFAULT_LABEL_THEME, x: 0.5, y: 0.5, size: DEFAULT_LABEL_SIZE, rot: 0 }
+export function newLabel(x = 0.5, y = 0.5): PaneLabel {
+  return { id: uid('l'), text: 'Label', font: '', theme: DEFAULT_LABEL_THEME, x, y, size: DEFAULT_LABEL_SIZE, rot: 0 }
 }
 
 /**

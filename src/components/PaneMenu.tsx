@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import type { Photo } from '../lib/imageStore'
-import type { Leaf, Rect } from '../lib/panes'
+import type { Leaf, Rect, Sticker } from '../lib/panes'
 import type { PaneClip } from '../store'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { ArrowLeftRight, ClipboardPaste, Copy, CopyPlus, Download, Eraser, Focus, Frame, Image as ImageIcon, ImagePlus, Maximize, Move, Play, Ratio, RotateCcw, Shuffle, Square, SquareSplitHorizontal, SquareSplitVertical, SquareX, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
@@ -11,6 +11,8 @@ import { addLabelToPane, pickStickersForPane } from '../lib/paneCommands'
 import { leafList } from '../lib/panes'
 import { activeWs, MIN_ZOOM, useStore } from '../store'
 import { MenuGroup, MenuItem, menuPopupCls, MenuSeparator, MenuSubmenu, useMenuEscapeClose } from './ui/menu'
+
+const NO_STICKERS: Sticker[] = []
 
 /**
  * The pane's right-click menu. Move leads it, since picking the photo up is
@@ -78,11 +80,10 @@ function PhotoSubmenu({ leaf, rect, photo, iw, ih, live, onToggleLive }: {
 /** Stickers and the text label: everything pinned on top of the photo. */
 function DecorateSubmenu({ leaf }: { leaf: Leaf }) {
   const t = useT()
-  const removeLabel = useStore(s => s.removeLabel)
   const openStickerMaker = useStore(s => s.openStickerMaker)
 
   // Removing the stickers one by one re-renders once (one handler, batched).
-  const boardStickers = useStore(s => s.workspaces.find(w => w.id === s.activeId)?.stickers ?? [])
+  const boardStickers = useStore(s => s.workspaces.find(w => w.id === s.activeId)?.stickers ?? NO_STICKERS)
   const clearStickers = () => {
     const s = useStore.getState()
     for (const st of boardStickers)
@@ -104,13 +105,8 @@ function DecorateSubmenu({ leaf }: { leaf: Leaf }) {
       )}
       <MenuSeparator />
       <MenuItem icon={Type} onClick={() => addLabelToPane(leaf.id)}>
-        {leaf.label ? t('Edit text label') : t('Add text label')}
+        {t('Add text label')}
       </MenuItem>
-      {!!leaf.label && (
-        <MenuItem icon={X} onClick={() => removeLabel(leaf.id)}>
-          {t('Remove text label')}
-        </MenuItem>
-      )}
     </MenuSubmenu>
   )
 }
