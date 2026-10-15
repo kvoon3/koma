@@ -559,6 +559,92 @@ function applyHolographicFrost(
   context.restore()
 }
 
+function applyGlitterMaterial(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  amount: number,
+  scale: number,
+  seed: number,
+  lightX: number,
+  lightY: number,
+  intensity: number,
+) {
+  const lightAngle = Math.atan2(lightY, lightX)
+  const lightStrength = Math.min(1.4, Math.max(0.45, 0.5 + intensity * 0.625))
+  // Upstream gallery thumbs use /520; this bake is the final sticker PNG (no
+  // live WebGL finish), so density must read on letters and photos alike.
+  const count = Math.min(14000, Math.round(((width * height) / 160) * scale * scale))
+  const randomValues = getGlitterRandomValues(seed, count)
+  const base = context.getImageData(0, 0, width, height)
+  const alphaMask = new Uint8ClampedArray(width * height)
+  for (let i = 0, p = 0; i < base.data.length; i += 4, p += 1)
+    alphaMask[p] = base.data[i + 3]
+
+  const placeOnDieCut = (randomOffset: number) => {
+    let x = randomValues[randomOffset] * width
+    let y = randomValues[randomOffset + 1] * height
+    // Text silhouettes waste most uniform samples on transparent padding.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const px = Math.min(width - 1, Math.max(0, x | 0))
+      const py = Math.min(height - 1, Math.max(0, y | 0))
+      if (alphaMask[py * width + px] >= 128)
+        return { x, y }
+      x = randomValues[(randomOffset + attempt + 1) % randomValues.length] * width
+      y = randomValues[(randomOffset + attempt + 2) % randomValues.length] * height
+    }
+    return { x, y }
+  }
+
+  const spectralRgb = (hue: number, mixWhite: number) => {
+    const r = 0.55 + 0.45 * Math.cos(Math.PI * 2 * hue)
+    const g = 0.55 + 0.45 * Math.cos(Math.PI * 2 * (hue + 1 / 3))
+    const b = 0.55 + 0.45 * Math.cos(Math.PI * 2 * (hue + 2 / 3))
+    return `rgb(${Math.round((mixWhite + r * (1 - mixWhite)) * 255)},${Math.round((mixWhite + g * (1 - mixWhite)) * 255)},${Math.round((mixWhite + b * (1 - mixWhite)) * 255)})`
+  }
+
+  // Spectral + dark facets (source-atop): readable on white outline and mid tones.
+  for (let index = 0; index < count; index += 1) {
+    const randomOffset = index * GLITTER_RANDOM_VALUES_PER_FLAKE
+    const roll = randomValues[randomOffset + 2]
+    if (roll < 0.42)
+      continue
+    const { x, y } = placeOnDieCut(randomOffset)
+    const opacity = 0.45 + randomValues[randomOffset + 3] * 0.55
+    const orientation = ((x * 0.013 + y * 0.017 + seed * 7) % 1) * Math.PI * 2
+    const twinkle = 0.22 + Math.max(0, Math.cos(orientation - lightAngle)) ** 8 * 0.78
+    context.fillStyle = roll < 0.72
+      ? spectralRgb((roll - 0.42) / 0.3, 0.28)
+      : '#2a2118'
+    context.globalAlpha = Math.min(1, 0.7 * amount * opacity * twinkle * lightStrength)
+    const size = (1.25 + randomValues[randomOffset + 4] * 2.9) / Math.sqrt(scale)
+    context.fillRect(x, y, size, size)
+  }
+
+  // Bright sparkles: additive like upstream WebGL so they pop on dark fills.
+  context.save()
+  context.globalCompositeOperation = 'lighter'
+  for (let index = 0; index < count; index += 1) {
+    const randomOffset = index * GLITTER_RANDOM_VALUES_PER_FLAKE
+    const roll = randomValues[randomOffset + 2]
+    if (roll >= 0.42)
+      continue
+    const { x, y } = placeOnDieCut(randomOffset)
+    const opacity = 0.5 + randomValues[randomOffset + 3] * 0.5
+    const orientation = ((x * 0.013 + y * 0.017 + seed * 7) % 1) * Math.PI * 2
+    const twinkle = 0.18 + Math.max(0, Math.cos(orientation - lightAngle)) ** 10 * 0.82
+    context.fillStyle = spectralRgb(roll / 0.42, 0.55)
+    context.globalAlpha = Math.min(1, 0.95 * amount * opacity * twinkle * lightStrength)
+    const size = (1.4 + randomValues[randomOffset + 4] * 3.1) / Math.sqrt(scale)
+    context.fillRect(x, y, size, size)
+  }
+  context.restore()
+  const baked = context.getImageData(0, 0, width, height)
+  for (let i = 0, p = 0; i < baked.data.length; i += 4, p += 1)
+    baked.data[i + 3] = alphaMask[p]
+  context.putImageData(baked, 0, 0)
+}
+
 function applyMaterialPreview(
   context: CanvasRenderingContext2D,
   width: number,
@@ -609,25 +695,17 @@ function applyMaterialPreview(
   }
 
   if (resolved.type === 'glitter') {
-    const lightAngle = Math.atan2(lightY, lightX)
-    const lightStrength = Math.min(1.4, Math.max(0.45, 0.5 + intensity * 0.625))
-    const count = Math.min(8000, Math.round(((width * height) / 520) * scale * scale))
-    const randomValues = getGlitterRandomValues(resolved.seed, count)
-    for (let index = 0; index < count; index += 1) {
-      const randomOffset = index * GLITTER_RANDOM_VALUES_PER_FLAKE
-      const x = randomValues[randomOffset] * width
-      const y = randomValues[randomOffset + 1] * height
-      const bright = randomValues[randomOffset + 2] > 0.5
-      const opacity = randomValues[randomOffset + 3]
-      const orientation = ((x * 0.013 + y * 0.017 + resolved.seed * 7) % 1) * Math.PI * 2
-      const twinkle
-        = 0.18
-          + Math.max(0, Math.cos(orientation - lightAngle)) ** 10 * 0.82
-      context.globalAlpha = 0.38 * amount * opacity * twinkle * lightStrength
-      context.fillStyle = bright ? '#ffffff' : '#34281f'
-      const size = (0.7 + randomValues[randomOffset + 4] * 1.8) / Math.sqrt(scale)
-      context.fillRect(x, y, size, size)
-    }
+    applyGlitterMaterial(
+      context,
+      width,
+      height,
+      amount,
+      scale,
+      resolved.seed,
+      lightX,
+      lightY,
+      intensity,
+    )
   }
   context.restore()
 }
