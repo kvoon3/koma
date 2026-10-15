@@ -2,9 +2,11 @@ import type { IconNode } from 'lucide'
 import type { FontMeta } from '../lib/fonts'
 import type { PaneLabel } from '../lib/panes'
 import { Select } from '@base-ui/react/select'
-import { Ban, Check, ChevronDown, Contrast, RefreshCw, RotateCcw, Shapes, X } from 'lucide'
+import { Ban, Check, ChevronDown, Contrast, RefreshCw, RotateCcw, Smile, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { AppSlider, ColorField, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField } from '@/components/ui/field'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
@@ -448,70 +450,134 @@ function LabelToolbar({
   )
 }
 
-/** The label's style controls, shared by the floating toolbar (desktop) and the mobile tools dock. */
-export function LabelControls({ labelId, lab, setLabel, selectLabel }: {
+const sectionCls = 'flex min-w-0 flex-col gap-[7px]'
+const headingCls = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
+const panelBodyCls = 'grid min-w-0 content-start gap-y-3.5 px-3.5 pt-3 pb-3'
+
+interface LabelControlProps {
   labelId: string
   lab: PaneLabel
   setLabel: (id: string, patch: Partial<PaneLabel>) => void
   selectLabel: (id: string | null) => void
-}) {
+}
+
+function LabelFontSelect({ labelId, lab, setLabel, selectLabel, triggerClassName }: LabelControlProps & { triggerClassName: string }) {
   const t = useT()
   return (
-    <>
-      <Select.Root
-        items={LABEL_FONT_ITEMS}
-        value={lab.font}
-        onValueChange={value => setLabel(labelId, { font: String(value) })}
-        onOpenChange={(open) => {
+    <Select.Root
+      items={LABEL_FONT_ITEMS}
+      value={lab.font}
+      onValueChange={value => setLabel(labelId, { font: String(value) })}
+      onOpenChange={(open) => {
         // Keep the toolbar pinned while the font popup is open, also when
         // the list was opened from the keyboard instead of a click.
-          if (open)
-            selectLabel(labelId)
-        }}
-      >
-        <Select.Trigger className="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover" title={t('Label font')} aria-label={t('Label font')}>
-          <Select.Value />
-          <Select.Icon className="flex flex-none text-dim">
-            <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
-          </Select.Icon>
-        </Select.Trigger>
-        <Select.Portal>
-          <Select.Positioner
-            className="z-[260] select-none outline-0"
-            sideOffset={4}
-            align="start"
-            alignItemWithTrigger={false}
-          >
-            <Select.Popup className="box-border min-w-[var(--anchor-width)] rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-              <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
-                {FONT_CATS.map((cat) => {
-                  const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
-                  if (!items.length)
-                    return null
-                  return (
-                    <Select.Group key={cat.id}>
-                      <Select.GroupLabel className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{t(cat.label)}</Select.GroupLabel>
-                      {items.map(item => (
-                        <Select.Item
-                          key={item.value || 'system'}
-                          value={item.value}
-                          className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-[13px] outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent"
-                          style={{ fontFamily: fontById(item.value).cssStack }}
-                        >
-                          <Select.ItemIndicator className="flex w-3.5 text-current">
-                            <MorphIcon icon={Check} size={12} strokeWidth={2} />
-                          </Select.ItemIndicator>
-                          <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
-                        </Select.Item>
-                      ))}
-                    </Select.Group>
-                  )
-                })}
-              </Select.List>
-            </Select.Popup>
-          </Select.Positioner>
-        </Select.Portal>
-      </Select.Root>
+        if (open)
+          selectLabel(labelId)
+      }}
+    >
+      <Select.Trigger className={triggerClassName} title={t('Label font')} aria-label={t('Label font')}>
+        <Select.Value />
+        <Select.Icon className="flex flex-none text-dim">
+          <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Positioner
+          className="z-[260] select-none outline-0"
+          sideOffset={4}
+          align="start"
+          alignItemWithTrigger={false}
+        >
+          <Select.Popup className="box-border min-w-[var(--anchor-width)] rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+            <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
+              {FONT_CATS.map((cat) => {
+                const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
+                if (!items.length)
+                  return null
+                return (
+                  <Select.Group key={cat.id}>
+                    <Select.GroupLabel className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{t(cat.label)}</Select.GroupLabel>
+                    {items.map(item => (
+                      <Select.Item
+                        key={item.value || 'system'}
+                        value={item.value}
+                        className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-[13px] outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent"
+                        style={{ fontFamily: fontById(item.value).cssStack }}
+                      >
+                        <Select.ItemIndicator className="flex w-3.5 text-current">
+                          <MorphIcon icon={Check} size={12} strokeWidth={2} />
+                        </Select.ItemIndicator>
+                        <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
+                      </Select.Item>
+                    ))}
+                  </Select.Group>
+                )
+              })}
+            </Select.List>
+          </Select.Popup>
+        </Select.Positioner>
+      </Select.Portal>
+    </Select.Root>
+  )
+}
+
+function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName, glyphSize = '13' }: LabelControlProps & { triggerClassName: string, glyphSize?: string }) {
+  const t = useT()
+  const icon = labelIconNode(lab.icon)
+  return (
+    <Select.Root
+      items={LABEL_ICON_ITEMS}
+      value={lab.icon ?? ICON_NONE}
+      onValueChange={value => setLabel(labelId, { icon: value === ICON_NONE ? undefined : String(value) })}
+      onOpenChange={(open) => {
+        if (open)
+          selectLabel(labelId)
+      }}
+    >
+      <Select.Trigger className={triggerClassName} title={t('Label icon')} aria-label={t('Label icon')} data-label-icon-trigger="">
+        {icon
+          ? <LabelIconGlyph node={icon} size={glyphSize} />
+          : <MorphIcon icon={Smile} size={Number(glyphSize) || 13} strokeWidth={1.75} />}
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
+          <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+            <Select.List className="relative grid max-h-[var(--available-height)] grid-cols-4 gap-0.5 overflow-y-auto px-1">
+              {LABEL_ICON_ITEMS.map(item => (
+                <Select.Item
+                  key={item.value}
+                  value={item.value}
+                  title={t(item.label)}
+                  aria-label={t(item.label)}
+                  className="grid h-8 w-8 cursor-default select-none place-items-center outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent data-selected:outline-1 data-selected:outline-accent"
+                >
+                  {item.value === ICON_NONE
+                    ? <MorphIcon icon={Ban} size={15} strokeWidth={1.75} />
+                    : <LabelIconGlyph node={labelIconNode(item.value)!} size="16" />}
+                </Select.Item>
+              ))}
+            </Select.List>
+          </Select.Popup>
+        </Select.Positioner>
+      </Select.Portal>
+    </Select.Root>
+  )
+}
+
+/** Compact icon-row controls for the desktop floating label toolbar. */
+export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelControlProps) {
+  const t = useT()
+  const opacityPct = Math.round(labelBgAlpha(lab) * 100)
+  const paint = labelPaint(lab)
+  return (
+    <>
+      <LabelFontSelect
+        labelId={labelId}
+        lab={lab}
+        setLabel={setLabel}
+        selectLabel={selectLabel}
+        triggerClassName="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover"
+      />
       <button
         className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
         title={lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')}
@@ -528,7 +594,7 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: {
       <input
         type="color"
         className={colorInputCls}
-        value={labelPaint(lab).fg}
+        value={paint.fg}
         title={t('Text color')}
         aria-label={t('Text color')}
         onPointerDown={e => e.stopPropagation()}
@@ -537,61 +603,106 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: {
       <input
         type="color"
         className={colorInputCls}
-        value={labelPaint(lab).bg}
+        value={paint.bg}
         title={t('Background color')}
         aria-label={t('Background color')}
         onPointerDown={e => e.stopPropagation()}
         onChange={e => setLabel(labelId, { bg: e.target.value })}
       />
-      <input
-        type="range"
-        min={0}
-        max={100}
-        step={5}
-        className="h-[22px] w-[56px] cursor-pointer accent-accent"
-        value={Math.round(labelBgAlpha(lab) * 100)}
-        title={`${t('Background opacity')} ${Math.round(labelBgAlpha(lab) * 100)}%`}
-        aria-label={t('Background opacity')}
-        onPointerDown={e => e.stopPropagation()}
-        onChange={e => setLabel(labelId, { bgAlpha: Number(e.target.value) / 100 })}
+      <div className="box-border h-[22px] w-[72px] self-center" onPointerDown={e => e.stopPropagation()}>
+        <AppSlider
+          dense
+          min={0}
+          max={100}
+          step={5}
+          value={opacityPct}
+          label={t('Background opacity')}
+          onChange={v => setLabel(labelId, { bgAlpha: v / 100 })}
+        />
+      </div>
+      <LabelIconSelect
+        labelId={labelId}
+        lab={lab}
+        setLabel={setLabel}
+        selectLabel={selectLabel}
+        triggerClassName="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
       />
-      <Select.Root
-        items={LABEL_ICON_ITEMS}
-        value={lab.icon ?? ICON_NONE}
-        onValueChange={value => setLabel(labelId, { icon: value === ICON_NONE ? undefined : String(value) })}
-        onOpenChange={(open) => {
-          if (open)
-            selectLabel(labelId)
-        }}
-      >
-        <Select.Trigger className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover" title={t('Label icon')} aria-label={t('Label icon')}>
-          {labelIconNode(lab.icon)
-            ? <LabelIconGlyph node={labelIconNode(lab.icon)!} size="13" />
-            : <MorphIcon icon={Shapes} size={13} strokeWidth={1.75} />}
-        </Select.Trigger>
-        <Select.Portal>
-          <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
-            <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-              <Select.List className="relative grid max-h-[var(--available-height)] grid-cols-4 gap-0.5 overflow-y-auto px-1">
-                {LABEL_ICON_ITEMS.map(item => (
-                  <Select.Item
-                    key={item.value}
-                    value={item.value}
-                    title={t(item.label)}
-                    aria-label={t(item.label)}
-                    className="grid h-8 w-8 cursor-default select-none place-items-center outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent data-selected:outline-1 data-selected:outline-accent"
-                  >
-                    {item.value === ICON_NONE
-                      ? <MorphIcon icon={Ban} size={15} strokeWidth={1.75} />
-                      : <LabelIconGlyph node={labelIconNode(item.value)!} size="16" />}
-                  </Select.Item>
-                ))}
-              </Select.List>
-            </Select.Popup>
-          </Select.Positioner>
-        </Select.Portal>
-      </Select.Root>
     </>
+  )
+}
+
+/**
+ * Mobile (< lg) label editor: a Settings-style panel in the bottom dock, with
+ * labelled rows instead of the cramped icon toolbar.
+ */
+export function LabelPanel({ labelId, lab, setLabel, selectLabel, onDelete }: LabelControlProps & { onDelete: () => void }) {
+  const t = useT()
+  const opacityPct = Math.round(labelBgAlpha(lab) * 100)
+  const paint = labelPaint(lab)
+  const themeLabel = lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')
+  return (
+    <div className={panelBodyCls} data-label-panel="">
+      <section className={sectionCls}>
+        <h3 className={headingCls}>{t('Style')}</h3>
+        <div className={fieldRowCls}>
+          <span className={fieldLabelCls}>{t('Font')}</span>
+          <LabelFontSelect
+            labelId={labelId}
+            lab={lab}
+            setLabel={setLabel}
+            selectLabel={selectLabel}
+            triggerClassName={`${fieldControlCls} box-border inline-flex h-[26px] w-full cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-line-strong bg-panel-2 px-2 text-xs whitespace-nowrap text-txt hover:bg-chip-hover focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1`}
+          />
+        </div>
+        <div className={fieldRowCls}>
+          <span className={fieldLabelCls}>{t('Theme')}</span>
+          <button
+            type="button"
+            className={`${fieldControlCls} box-border inline-flex h-[26px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-none border border-line-strong bg-panel-2 px-2 text-xs text-txt hover:bg-chip-hover`}
+            title={themeLabel}
+            aria-label={themeLabel}
+            onClick={() => setLabel(labelId, { theme: nextLabelTheme(lab.theme), fg: undefined, bg: undefined })}
+          >
+            <MorphIcon icon={Contrast} size={14} strokeWidth={1.75} />
+            <span className="truncate">{lab.theme === 'dark' ? t('White on black') : t('Black on white')}</span>
+          </button>
+        </div>
+        <ColorField label={t('Text color')} value={paint.fg} onChange={fg => setLabel(labelId, { fg })} />
+        <ColorField label={t('Background color')} value={paint.bg} onChange={bg => setLabel(labelId, { bg })} />
+        <RangeField
+          label={t('Background opacity')}
+          text={`${opacityPct}%`}
+          min={0}
+          max={100}
+          step={5}
+          value={opacityPct}
+          onChange={v => setLabel(labelId, { bgAlpha: v / 100 })}
+        />
+        <div className={fieldRowCls}>
+          <span className={fieldLabelCls}>{t('Label icon')}</span>
+          <LabelIconSelect
+            labelId={labelId}
+            lab={lab}
+            setLabel={setLabel}
+            selectLabel={selectLabel}
+            glyphSize="16"
+            triggerClassName={`${fieldControlCls} box-border inline-flex h-[26px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-none border border-line-strong bg-panel-2 px-2 text-txt hover:bg-chip-hover`}
+          />
+        </div>
+      </section>
+      <section className={sectionCls}>
+        <div className="flex w-full justify-center">
+          <Button
+            variant="flat"
+            aria-label={t('Delete')}
+            title={t('Remove label')}
+            onClick={onDelete}
+          >
+            {t('Delete')}
+          </Button>
+        </div>
+      </section>
+    </div>
   )
 }
 

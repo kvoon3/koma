@@ -2,7 +2,7 @@ import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
-import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
+import { ChevronDown, ChevronUp, GripVertical, ImagePlus, MoveDiagonal2, Scaling, Sticker as StickerIcon, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview, useScrollFade } from '../hooks'
@@ -11,7 +11,7 @@ import { addLabelToPane, pickPhotoForPane, pickStickersForPane } from '../lib/pa
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { BoardInserts } from './BoardInserts'
-import { LabelControls } from './BoardLabel'
+import { LabelPanel } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
@@ -27,13 +27,17 @@ const MIN_CANVAS = 120
    behind the footer with the handle showing. The panel only exists while a
    focused pane holds a photo. */
 const toolsPanelCls = 'relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-(--dur-morph) ease-(--ease-drawer)'
+/** Settings-width panel when the dock shows label controls on mobile. */
+const toolsPanelLabelCls = 'relative mb-2 w-[min(360px,calc(100vw-16px))] max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-(--dur-morph) ease-(--ease-drawer)'
 const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-(--dur-surface) active:scale-[0.97] hover:text-txt'
 /* Fixed-width tools in a max-content row: the panel hugs them, and the row
    scrolls sideways once they outgrow the screen. It stays inside a block, not a
    flex item (it would shrink and clip the leading tool), and `touch-pan-x`
    overrides the stage's `touch-none`; `.scroll-fade` softens the scrolled ends. */
 const toolsScrollCls = 'scroll-fade overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
+const toolsPanelScrollCls = 'max-h-[min(52dvh,420px)] overflow-x-hidden overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const toolsRowCls = 'flex w-max items-stretch'
+const toolsPanelBodyCls = 'min-w-0'
 const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
@@ -354,6 +358,7 @@ export function Stage() {
       <ToolsDock
         hidden={toolsHidden}
         open={toolsOpen}
+        layout={dockLabel ? 'panel' : 'row'}
         contextKey={dockLabel ? 'label' : 'pane'}
         scrollRef={toolsScrollRef}
         handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
@@ -361,12 +366,13 @@ export function Stage() {
       >
         {dockLabel
           ? (
-              <>
-                <div className="flex items-center gap-1.5 px-3 [&>*]:h-9 [&>*]:min-w-9">
-                  <LabelControls labelId={dockLabel.id} lab={dockLabel} setLabel={setLabel} selectLabel={selectLabel} />
-                </div>
-                <ToolButton icon={Trash2} label={t('Delete')} hint={t('Remove label')} onClick={() => removeLabel(dockLabel.id)} />
-              </>
+              <LabelPanel
+                labelId={dockLabel.id}
+                lab={dockLabel}
+                setLabel={setLabel}
+                selectLabel={selectLabel}
+                onDelete={() => removeLabel(dockLabel.id)}
+              />
             )
           : tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
       </ToolsDock>
@@ -610,15 +616,17 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
  * lives on the wrapper, not the panel, so it never shares a transition with
  * the panel's own open/collapse slide (transform, --dur-morph).
  */
-function ToolsDock({ hidden, open, contextKey, children, scrollRef, handleLabel, onToggle }: {
+function ToolsDock({ hidden, open, layout = 'row', contextKey, children, scrollRef, handleLabel, onToggle }: {
   hidden: boolean
   open: boolean
+  layout?: 'row' | 'panel'
   contextKey: string
   children: React.ReactNode
   scrollRef: (el: HTMLDivElement | null) => void
   handleLabel: string
   onToggle: () => void
 }) {
+  const panel = layout === 'panel'
   return (
     <div
       className={`tools-dock pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
@@ -626,7 +634,7 @@ function ToolsDock({ hidden, open, contextKey, children, scrollRef, handleLabel,
       }`}
       inert={hidden}
     >
-      <div className={`${toolsPanelCls} ${
+      <div className={`${panel ? toolsPanelLabelCls : toolsPanelCls} ${
         // Mutually exclusive classes (see the pinned-toolbar note): a hidden
         // panel must not sit over the canvas catching pointer events.
         hidden ? 'pointer-events-none' : 'pointer-events-auto'
@@ -645,9 +653,10 @@ function ToolsDock({ hidden, open, contextKey, children, scrollRef, handleLabel,
         </button>
         {/* inert while collapsed: the tools are off-screen behind the
           footer. Open or not the row scrolls sideways instead of
-          squashing the fixed-width tools when they outgrow the screen. */}
-        <div ref={scrollRef} className={toolsScrollCls} inert={!open}>
-          <div key={contextKey} className={`${toolsRowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}>
+          squashing the fixed-width tools when they outgrow the screen.
+          Label mode scrolls vertically inside a Settings-width panel. */}
+        <div ref={scrollRef} className={panel ? toolsPanelScrollCls : toolsScrollCls} inert={!open}>
+          <div key={contextKey} className={`${panel ? toolsPanelBodyCls : toolsRowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}>
             {children}
           </div>
         </div>
