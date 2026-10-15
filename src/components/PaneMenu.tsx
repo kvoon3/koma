@@ -7,9 +7,9 @@ import { ArrowLeftRight, ClipboardPaste, Copy, CopyPlus, Download, Eraser, Focus
 import { useRef, useState } from 'react'
 import { downloadBlob } from '../lib/exporter'
 import { useT } from '../lib/i18n'
-import { addLabelToPane, pickStickersForPane } from '../lib/paneCommands'
+import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickStickersForPane, resetPaneView } from '../lib/paneCommands'
 import { leafList } from '../lib/panes'
-import { activeWs, MIN_ZOOM, useStore } from '../store'
+import { activeWs, useStore } from '../store'
 import { MenuGroup, MenuItem, menuPopupCls, MenuSeparator, MenuSubmenu, useMenuEscapeClose } from './ui/menu'
 
 const NO_STICKERS: Sticker[] = []
@@ -34,27 +34,10 @@ function PhotoSubmenu({ leaf, rect, photo, iw, ih, live, onToggleLive }: {
   onToggleLive: () => void
 }) {
   const t = useT()
-  const updateLeaf = useStore(s => s.updateLeaf)
 
-  // Double-click's action, spelled out: zoom 1 is cover, centered.
-  const resetView = () => updateLeaf(leaf.id, { zoom: 1, cx: 0.5, cy: 0.5 })
-
-  // Cover is zoom 1 by construction; contain is its ratio of the two cover
-  // scales, floored at the shared zoom floor so extreme ratios stay legible.
-  const fitPhoto = () => {
-    if (!iw || !ih)
-      return
-    const cover = Math.max(rect.w / iw, rect.h / ih)
-    const contain = Math.min(rect.w / iw, rect.h / ih)
-    updateLeaf(leaf.id, { zoom: Math.max(MIN_ZOOM, contain / cover), cx: 0.5, cy: 0.5 })
-  }
-
-  const matchCanvas = () => {
-    if (!photo.trueW || !photo.trueH)
-      return
-    const s = useStore.getState()
-    s.setCanvasSize(photo.trueW / photo.trueH, activeWs(s).canvasFill)
-  }
+  const resetView = () => resetPaneView(leaf.id)
+  const fitPhoto = () => fitPanePhoto(leaf.id, iw, ih, rect)
+  const matchCanvas = () => matchCanvasToPhoto(photo.trueW, photo.trueH)
 
   return (
     <MenuSubmenu icon={ImageIcon} label={t('Photo')}>
@@ -217,7 +200,6 @@ function LayoutGroup({ leaf, rect, onSplit }: {
   onSplit: (id: string, dir: 'row' | 'column') => void
 }) {
   const t = useT()
-  const duplicatePane = useStore(s => s.duplicatePane)
   const resetPane = useStore(s => s.resetPane)
   const hasContent = !!leaf.photoId || !!leaf.label
   return (
@@ -230,10 +212,7 @@ function LayoutGroup({ leaf, rect, onSplit }: {
       </MenuItem>
       {/* Duplicating toward the longer side keeps both halves usable
           instead of slivering the copy off the short edge. */}
-      <MenuItem
-        icon={CopyPlus}
-        onClick={() => duplicatePane(leaf.id, rect.w >= rect.h ? 'row' : 'column')}
-      >
+      <MenuItem icon={CopyPlus} onClick={() => duplicatePaneAuto(leaf.id, rect)}>
         {t('Duplicate pane')}
       </MenuItem>
       {hasContent && (
