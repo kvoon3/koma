@@ -64,6 +64,7 @@ const WORKER_IDLE_TIMEOUT = 60_000
 // cannot resolve root-relative URLs on its own: hand it an absolute base URL for
 // the model files instead (this also keeps sub-path deployments working).
 const MODEL_BASE_URL = new URL('models/', document.baseURI).href
+const VENDOR_BASE_URL = new URL('vendor/', document.baseURI).href
 
 let worker: Worker | null = null
 let idleTimer: number | null = null
@@ -178,7 +179,7 @@ export async function removeBackground(
     pending.set(id, { resolve, reject, onProgress })
     try {
       target.postMessage(
-        { type: 'remove', id, image, mimeType: blob.type || 'image/png', modelBaseUrl: MODEL_BASE_URL },
+        { type: 'remove', id, image, mimeType: blob.type || 'image/png', modelBaseUrl: MODEL_BASE_URL, vendorBaseUrl: VENDOR_BASE_URL },
         [image],
       )
     }
