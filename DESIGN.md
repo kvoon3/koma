@@ -320,7 +320,13 @@ to semantic tokens (`bg-panel`, `text-dim`, `border-line`, `bg-accent`, …) so
 chrome colors. The theme toggle swaps `.dark` inside a view transition
 (`fadeTheme` in `src/theme.ts` + the `[data-theme-fade]` rules in `index.css`),
 so light ⇄ dark crossfades in 250ms instead of cutting; the OS-driven change
-stays instant. Shared UI primitives live in `src/components/ui/`; `field.tsx`
+stays instant. A committed pane swap runs inside a view transition the same way
+(`runSwapTransition` in `src/components/Pane.tsx`): it names the photo's
+clipping wrapper on both panes so the two crops glide across. The named element
+has to be the clip (`[data-photo-clip]`, pane-sized, `overflow: hidden`), never
+the `img` — the API snapshots an element at its own box, so naming the img
+snapshots the whole image and the morph spills past the pane over its
+neighbours. Shared UI primitives live in `src/components/ui/`; `field.tsx`
 holds the one labelled-control row (label / control / value), the range slider,
 the select and the color input, so the settings drawer and the sticker maker
 cannot drift apart.
