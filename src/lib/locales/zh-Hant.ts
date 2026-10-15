@@ -61,6 +61,7 @@ export const zhHant: Record<string, string> = {
   // Pane
   'Drag to resize': '拖曳調整大小',
   'Remove sticker': '移除貼圖',
+  'Delete': '刪除',
   'Remove label': '移除文字',
   'Drag to rotate · hold Shift to snap to 15°': '拖曳旋轉 · 按住 Shift 以 15° 吸附',
   'Reset rotation': '重設角度',
