@@ -1,12 +1,12 @@
 import type { IconNode } from 'lucide'
 import type { FontMeta } from '../lib/fonts'
 import type { PaneLabel } from '../lib/panes'
+import { Popover } from '@base-ui/react/popover'
 import { Select } from '@base-ui/react/select'
-import { Ban, Check, ChevronDown, Contrast, RefreshCw, RotateCcw, Smile, X } from 'lucide'
+import { Ban, Baseline, Blend, Check, ChevronDown, Contrast, PaintBucket, RefreshCw, RotateCcw, Smile, Trash2, Type as TypeIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { AppSlider, ColorField, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField } from '@/components/ui/field'
+import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/components/ui/field'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
@@ -450,10 +450,6 @@ function LabelToolbar({
   )
 }
 
-const sectionCls = 'flex min-w-0 flex-col gap-[7px]'
-const headingCls = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
-const panelBodyCls = 'grid min-w-0 content-start gap-y-3.5 px-3.5 pt-3 pb-3'
-
 interface LabelControlProps {
   labelId: string
   lab: PaneLabel
@@ -631,77 +627,177 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelCont
   )
 }
 
-/**
- * Mobile (< lg) label editor: a Settings-style panel in the bottom dock, with
- * labelled rows instead of the cramped icon toolbar.
- */
-export function LabelPanel({ labelId, lab, setLabel, selectLabel, onDelete }: LabelControlProps & { onDelete: () => void }) {
+const DOCK_SWATCHES = ['#ffffff', '#000000', '#e5484d', '#f5a524', '#f7e463', '#30a46c', '#0090ff', '#8e4ec6']
+
+const dockBtnCls = 'grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt data-popup-open:bg-chip-on data-popup-open:text-chip-on-txt'
+const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border border-line-strong bg-panel p-2 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+const swatchCls = 'box-border h-7 w-7 cursor-pointer rounded-none border border-line-strong p-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] aria-pressed:outline-2 aria-pressed:outline-accent aria-pressed:outline-offset-1'
+
+type DockTool = 'font' | 'fg' | 'bg' | 'alpha' | 'icon'
+
+/** One dock icon that opens its control in a small popover just above it. */
+function DockPopover({ id, openTool, setOpenTool, label, trigger, children }: {
+  id: DockTool
+  openTool: DockTool | null
+  setOpenTool: (tool: DockTool | null) => void
+  label: string
+  trigger: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <Popover.Root
+      open={openTool === id}
+      onOpenChange={open => setOpenTool(open ? id : (openTool === id ? null : openTool))}
+    >
+      <Popover.Trigger className={dockBtnCls} title={label} aria-label={label}>
+        {trigger}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[260] select-none outline-0">
+          <Popover.Popup className={dockPopupCls} data-label-popover={id}>
+            {children}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
+/** A tool icon with a small bar showing its current color underneath. */
+function ColorGlyph({ icon, color }: { icon: IconNode, color: string }) {
+  return (
+    <span className="flex flex-col items-center gap-[3px]">
+      <MorphIcon icon={icon} size={16} strokeWidth={1.75} />
+      <span className="h-[4px] w-[18px] border border-line-strong" style={{ background: color }} />
+    </span>
+  )
+}
+
+function SwatchGrid({ value, label, onChange }: { value: string, label: string, onChange: (hex: string) => void }) {
   const t = useT()
+  const cur = value.toLowerCase()
+  return (
+    <div className="grid grid-cols-5 gap-1.5">
+      {DOCK_SWATCHES.map(hex => (
+        <button
+          key={hex}
+          type="button"
+          className={swatchCls}
+          style={{ background: hex }}
+          aria-label={hex}
+          aria-pressed={cur === hex}
+          onClick={() => onChange(hex)}
+        />
+      ))}
+      <input
+        type="color"
+        className={`${fieldColorInputCls} !h-7 w-7 border-line-strong`}
+        value={value}
+        title={`${label} · ${t('Custom color')}`}
+        aria-label={`${label} · ${t('Custom color')}`}
+        onChange={e => onChange(e.target.value)}
+      />
+    </div>
+  )
+}
+
+/**
+ * Mobile (< lg) label tools: a compact row of icons in the bottom dock. Each
+ * opens one small popover anchored above its icon, so the label being edited
+ * stays in view; only one is open at a time.
+ */
+export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void }) {
+  const t = useT()
+  const [openTool, setOpenTool] = useState<DockTool | null>(null)
   const opacityPct = Math.round(labelBgAlpha(lab) * 100)
   const paint = labelPaint(lab)
+  const icon = labelIconNode(lab.icon)
   const themeLabel = lab.theme === 'dark' ? t('Switch to black text on white') : t('Switch to white text on black')
+  const pop = { openTool, setOpenTool }
   return (
-    <div className={panelBodyCls} data-label-panel="">
-      <section className={sectionCls}>
-        <h3 className={headingCls}>{t('Style')}</h3>
-        <div className={fieldRowCls}>
-          <span className={fieldLabelCls}>{t('Font')}</span>
-          <LabelFontSelect
-            labelId={labelId}
-            lab={lab}
-            setLabel={setLabel}
-            selectLabel={selectLabel}
-            triggerClassName={`${fieldControlCls} box-border inline-flex h-[26px] w-full cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-line-strong bg-panel-2 px-2 text-xs whitespace-nowrap text-txt hover:bg-chip-hover focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1`}
+    <div className="flex items-center gap-0.5 px-1.5 py-1" data-label-dock="">
+      <DockPopover id="font" {...pop} label={t('Label font')} trigger={<MorphIcon icon={TypeIcon} size={18} strokeWidth={1.75} />}>
+        <div className="-mx-2 -my-2 max-h-[min(30dvh,240px)] w-[200px] overflow-y-auto py-1">
+          {FONT_CATS.map((cat) => {
+            const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
+            if (!items.length)
+              return null
+            return (
+              <div key={cat.id}>
+                <div className="px-2.5 pt-[5px] pb-0.5 text-[10px] font-semibold tracking-[0.08em] uppercase text-faint">{t(cat.label)}</div>
+                {items.map(item => (
+                  <button
+                    key={item.value || 'system'}
+                    type="button"
+                    className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-[6px] text-left text-[13px] text-txt hover:bg-chip-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
+                    style={{ fontFamily: fontById(item.value).cssStack }}
+                    aria-pressed={lab.font === item.value}
+                    onClick={() => setLabel(labelId, { font: item.value })}
+                  >
+                    {t(item.label)}
+                  </button>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      </DockPopover>
+      <DockPopover id="fg" {...pop} label={t('Text color')} trigger={<ColorGlyph icon={Baseline} color={paint.fg} />}>
+        <SwatchGrid value={paint.fg} label={t('Text color')} onChange={fg => setLabel(labelId, { fg })} />
+      </DockPopover>
+      <DockPopover id="bg" {...pop} label={t('Background color')} trigger={<ColorGlyph icon={PaintBucket} color={paint.bg} />}>
+        <SwatchGrid value={paint.bg} label={t('Background color')} onChange={bg => setLabel(labelId, { bg })} />
+      </DockPopover>
+      <DockPopover id="alpha" {...pop} label={t('Background opacity')} trigger={<MorphIcon icon={Blend} size={18} strokeWidth={1.75} />}>
+        <div className="w-[min(260px,calc(100vw-40px))]">
+          <RangeField
+            label={t('Background opacity')}
+            text={`${opacityPct}%`}
+            min={0}
+            max={100}
+            step={5}
+            value={opacityPct}
+            onChange={v => setLabel(labelId, { bgAlpha: v / 100 })}
           />
         </div>
-        <div className={fieldRowCls}>
-          <span className={fieldLabelCls}>{t('Theme')}</span>
-          <button
-            type="button"
-            className={`${fieldControlCls} box-border inline-flex h-[26px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-none border border-line-strong bg-panel-2 px-2 text-xs text-txt hover:bg-chip-hover`}
-            title={themeLabel}
-            aria-label={themeLabel}
-            onClick={() => setLabel(labelId, { theme: nextLabelTheme(lab.theme), fg: undefined, bg: undefined })}
-          >
-            <MorphIcon icon={Contrast} size={14} strokeWidth={1.75} />
-            <span className="truncate">{lab.theme === 'dark' ? t('White on black') : t('Black on white')}</span>
-          </button>
+      </DockPopover>
+      <DockPopover
+        id="icon"
+        {...pop}
+        label={t('Label icon')}
+        trigger={icon ? <LabelIconGlyph node={icon} size="18" /> : <MorphIcon icon={Smile} size={18} strokeWidth={1.75} />}
+      >
+        <div className="grid max-h-[min(40dvh,260px)] grid-cols-6 gap-0.5 overflow-y-auto">
+          {LABEL_ICON_ITEMS.map(item => (
+            <button
+              key={item.value}
+              type="button"
+              title={t(item.label)}
+              aria-label={t(item.label)}
+              aria-pressed={(lab.icon ?? ICON_NONE) === item.value}
+              className="grid h-9 w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-txt hover:bg-chip-hover aria-pressed:outline-1 aria-pressed:outline-accent"
+              onClick={() => setLabel(labelId, { icon: item.value === ICON_NONE ? undefined : item.value })}
+            >
+              {item.value === ICON_NONE
+                ? <MorphIcon icon={Ban} size={16} strokeWidth={1.75} />
+                : <LabelIconGlyph node={labelIconNode(item.value)!} size="18" />}
+            </button>
+          ))}
         </div>
-        <ColorField label={t('Text color')} value={paint.fg} onChange={fg => setLabel(labelId, { fg })} />
-        <ColorField label={t('Background color')} value={paint.bg} onChange={bg => setLabel(labelId, { bg })} />
-        <RangeField
-          label={t('Background opacity')}
-          text={`${opacityPct}%`}
-          min={0}
-          max={100}
-          step={5}
-          value={opacityPct}
-          onChange={v => setLabel(labelId, { bgAlpha: v / 100 })}
-        />
-        <div className={fieldRowCls}>
-          <span className={fieldLabelCls}>{t('Label icon')}</span>
-          <LabelIconSelect
-            labelId={labelId}
-            lab={lab}
-            setLabel={setLabel}
-            selectLabel={selectLabel}
-            glyphSize="16"
-            triggerClassName={`${fieldControlCls} box-border inline-flex h-[26px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-none border border-line-strong bg-panel-2 px-2 text-txt hover:bg-chip-hover`}
-          />
-        </div>
-      </section>
-      <section className={sectionCls}>
-        <div className="flex w-full justify-center">
-          <Button
-            variant="flat"
-            aria-label={t('Delete')}
-            title={t('Remove label')}
-            onClick={onDelete}
-          >
-            {t('Delete')}
-          </Button>
-        </div>
-      </section>
+      </DockPopover>
+      <button
+        type="button"
+        className={dockBtnCls}
+        title={themeLabel}
+        aria-label={themeLabel}
+        onClick={() => setLabel(labelId, { theme: nextLabelTheme(lab.theme), fg: undefined, bg: undefined })}
+      >
+        <MorphIcon icon={Contrast} size={18} strokeWidth={1.75} />
+      </button>
+      <span className="mx-0.5 h-6 w-px bg-line" />
+      <button type="button" className={`${dockBtnCls} hover:!text-danger`} title={t('Remove label')} aria-label={t('Delete')} onClick={onDelete}>
+        <MorphIcon icon={Trash2} size={18} strokeWidth={1.75} />
+      </button>
     </div>
   )
 }
