@@ -68,6 +68,7 @@ const MAX_TEXTURE_EDGE = 2048
 const MIN_TEXTURE_EDGE = 320
 const TEXTURE_PADDING = 144
 const VISIBLE_ALPHA_THRESHOLD = 0.1 * 255
+const CROP_MARGIN = 2
 
 const DEFAULT_MATERIAL: ResolvedMaterial = {
   type: 'original',
@@ -355,6 +356,57 @@ function addOutline(source: HTMLCanvasElement, outline: { width: number, color: 
   return canvas
 }
 
+/** The inclusive alpha bounds of a pixel buffer, or null when nothing shows. */
+function visibleBounds(pixels: Uint8ClampedArray, width: number, height: number) {
+  let minX = width
+  let minY = height
+  let maxX = -1
+  let maxY = -1
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width * 4
+    for (let x = 0; x < width; x += 1) {
+      if (pixels[row + x * 4 + 3] === 0)
+        continue
+      minX = Math.min(minX, x)
+      maxX = Math.max(maxX, x)
+      minY = Math.min(minY, y)
+      maxY = Math.max(maxY, y)
+    }
+  }
+  return maxX < minX ? null : { minX, minY, maxX, maxY }
+}
+
+/**
+ * Crop the outlined artwork to its visible pixels: the canvas is a padded frame,
+ * and a cutout's frame is mostly transparent, so the box a pane places, selects
+ * and exports must be the subject's bounds, not the photo's. The hair of margin
+ * keeps scaled-down draws off the edge.
+ */
+function cropToVisible(canvas: HTMLCanvasElement) {
+  const { width, height } = canvas
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context)
+    throw new Error('Canvas 2D is unavailable.')
+  const bounds = visibleBounds(context.getImageData(0, 0, width, height).data, width, height)
+  // Nothing visible (a fully transparent source): the frame is all there is.
+  if (!bounds)
+    return canvas
+  const left = Math.max(0, bounds.minX - CROP_MARGIN)
+  const top = Math.max(0, bounds.minY - CROP_MARGIN)
+  const cropWidth = Math.min(width, bounds.maxX + CROP_MARGIN + 1) - left
+  const cropHeight = Math.min(height, bounds.maxY + CROP_MARGIN + 1) - top
+  if (cropWidth === width && cropHeight === height)
+    return canvas
+  const cropped = document.createElement('canvas')
+  cropped.width = cropWidth
+  cropped.height = cropHeight
+  const target = cropped.getContext('2d')
+  if (!target)
+    throw new Error('Canvas 2D is unavailable.')
+  target.drawImage(canvas, left, top, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
+  return cropped
+}
+
 async function prepareArtwork(
   source: StickerSource,
   outline: { width: number, color: string },
@@ -362,7 +414,7 @@ async function prepareArtwork(
   const rendered = source.type === 'image'
     ? await renderImageSource(source)
     : { canvas: await renderTextSource(source), hasTransparency: true }
-  const canvas = addOutline(rendered.canvas, outline)
+  const canvas = cropToVisible(addOutline(rendered.canvas, outline))
   return {
     canvas,
     width: canvas.width,
