@@ -155,11 +155,13 @@ export function SelectField({ label, value, items, onChange }: {
   )
 }
 
-const segmentCls = 'box-border min-h-[26px] min-w-0 cursor-pointer truncate rounded-none border-0 border-l border-line-strong bg-panel-2 px-2 text-xs text-dim transition-colors duration-(--dur-fast) first:border-l-0 hover:bg-chip-hover hover:text-txt data-checked:bg-chip-on data-checked:font-semibold data-checked:text-chip-on-txt data-checked:shadow-[inset_0_-2px_0_var(--accent)] data-checked:hover:bg-chip-on data-checked:hover:text-chip-on-txt focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-accent'
+const segmentTrackCls = 'relative grid min-h-9 rounded-[10px] bg-panel-2 p-0.5 shadow-[inset_0_0_0_1px_var(--line)]'
+const segmentPillCls = 'pointer-events-none absolute inset-y-0.5 left-0.5 rounded-lg bg-panel shadow-[0_1px_3px_rgba(0,0,0,0.12),0_0_0_0.5px_var(--line-strong)] transition-transform duration-(--dur-surface) ease-(--ease-out) motion-reduce:transition-none'
+const segmentCls = 'relative z-[1] min-w-0 cursor-pointer truncate rounded-lg border-0 bg-transparent px-2 text-[13px] font-medium text-dim transition-colors duration-(--dur-fast) hover:text-txt data-checked:text-txt focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent'
 
 /**
- * A labelled single-choice segmented control: equal-width options in one
- * bordered strip, the checked one in the dock's selected-chip colors.
+ * A labelled single-choice segmented control: equal-width options on a muted
+ * rounded track, the checked one under a raised pill that slides between them.
  */
 export function SegmentedField<V extends string>({ label, value, items, onChange }: {
   label: string
@@ -167,16 +169,23 @@ export function SegmentedField<V extends string>({ label, value, items, onChange
   items: readonly { value: V, label: string }[]
   onChange: (value: V) => void
 }) {
+  const n = items.length
+  const at = Math.max(0, items.findIndex(item => item.value === value))
   return (
     <div className={fieldRowCls}>
       <span className={fieldLabelCls}>{label}</span>
       <RadioGroup
-        className={`${fieldControlCls} col-span-2 grid border border-line-strong sm:col-span-2`}
-        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+        className={`${fieldControlCls} col-span-2 sm:col-span-2 ${segmentTrackCls}`}
+        style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
         aria-label={label}
         value={value}
         onValueChange={v => onChange(v as V)}
       >
+        <span
+          aria-hidden
+          className={segmentPillCls}
+          style={{ width: `calc((100% - 4px) / ${n})`, transform: `translateX(${at * 100}%)` }}
+        />
         {items.map(item => (
           <Radio.Root key={item.value} value={item.value} className={segmentCls}>{item.label}</Radio.Root>
         ))}
