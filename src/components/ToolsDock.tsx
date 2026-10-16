@@ -1,35 +1,29 @@
 import type { ReactNode } from 'react'
 import type { ToolsDockMode } from '../store'
 import { Drawer } from '@base-ui/react/drawer'
-import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide'
+import { ChevronDown, ChevronUp } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '../lib/i18n'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
+import { Footer } from './Footer'
 
 export const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 export const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
-/**
- * Handle chrome height = collapsed snap. Keep in sync with `handleCls` h-[].
- * Footer clearance lives on the viewport (not popup margin) so every snap
- * rests above the status strip the same way.
- */
+/** Handle chrome height = collapsed snap. Keep in sync with `handleCls` h-[]. */
 const HANDLE_H = 28
 const MAX_EXP_VH = 0.4
 const FALLBACK_ROW = 72
-/** Matches Footer: statusH + safe-area. Reserved on the drawer viewport. */
-const FOOTER_PAD = 'calc(var(--statusH) + env(safe-area-inset-bottom, 0px))'
 
 const ORDER: ToolsDockMode[] = ['collapsed', 'row', 'expanded']
 
-const handleCls = 'relative z-1 flex h-[28px] w-full shrink-0 cursor-grab touch-none select-none flex-col items-center justify-center gap-0.5 border-0 bg-transparent p-0 text-float-icon transition-[color,scale] duration-(--dur-surface) active:cursor-grabbing active:scale-[0.97] hover:text-txt'
-const handlePillCls = 'h-1 w-8 rounded-full bg-float-icon/45'
+const handleCls = 'relative z-1 flex h-[28px] w-full shrink-0 cursor-grab touch-none select-none items-center justify-center border-0 bg-transparent p-0 text-float-icon transition-[color,scale] duration-(--dur-surface) active:cursor-grabbing active:scale-[0.97] hover:text-txt'
 const scrollRowCls = 'overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const scrollExpCls = 'overflow-x-hidden overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const rowCls = 'flex w-max items-stretch'
-const wrapCls = 'flex w-full max-w-[min(920px,calc(100vw-24px))] flex-wrap items-stretch justify-center'
+const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
 function nextMode(mode: ToolsDockMode): ToolsDockMode {
   return ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length]!
@@ -63,11 +57,9 @@ function modeFromSnap(snap: number | string, snaps: number[]): ToolsDockMode {
 }
 
 /**
- * Persistent bottom tools sheet via Base UI Drawer snap points
- * (collapsed peek / single-row / multi-row). Always mounted+open so the
- * stage stays usable (`modal={false}`); collapsed is the lowest snap, not
- * an unmount. Footer stays visible: viewport pads by footer height so every
- * snap rests above the status strip. Swipe follows the finger; tap cycles.
+ * Full-width Base UI Drawer tools sheet: handle + tools snap above an
+ * always-on Footer strip (byline lives in the sheet, not under it).
+ * Collapsed / row / expanded via snap points; chevron morphs up↔down.
  */
 export function ToolsDock({ hidden, contextKey, children }: {
   hidden: boolean
@@ -90,6 +82,7 @@ export function ToolsDock({ hidden, contextKey, children }: {
     [rowH, expH],
   )
   const snapPoint = snapPoints[ORDER.indexOf(mode)] ?? snapPoints[1]!
+  const toolsMaxH = snapPoints[2]!
 
   const measure = useCallback(() => {
     const el = innerRef.current
@@ -99,14 +92,13 @@ export function ToolsDock({ hidden, contextKey, children }: {
     const prevWrap = el.style.flexWrap
     const prevW = el.style.width
     const prevMax = el.style.maxWidth
-    // Measure even when collapsed (tools are invisible but still laid out).
     const prevVis = el.style.visibility
     el.style.visibility = 'hidden'
     el.style.flexWrap = 'nowrap'
     el.style.width = 'max-content'
     el.style.maxWidth = 'none'
     const row = Math.ceil(el.getBoundingClientRect().height) || FALLBACK_ROW
-    const panelW = el.parentElement?.clientWidth || Math.min(920, window.innerWidth - 24)
+    const panelW = el.parentElement?.clientWidth || window.innerWidth
     el.style.flexWrap = 'wrap'
     el.style.width = '100%'
     el.style.maxWidth = `${panelW}px`
@@ -129,13 +121,8 @@ export function ToolsDock({ hidden, contextKey, children }: {
     return () => window.removeEventListener('resize', onResize)
   }, [measure])
 
-  const handleIcon = mode === 'collapsed'
-    ? ChevronUp
-    : mode === 'expanded'
-      ? ChevronDown
-      : ChevronsUpDown
-
-  const popupH = snapPoints[2]!
+  // Expanded: point down (can collapse). Otherwise point up (can open more).
+  const handleIcon = mode === 'expanded' ? ChevronDown : ChevronUp
 
   return (
     <Drawer.Root
@@ -147,7 +134,6 @@ export function ToolsDock({ hidden, contextKey, children }: {
       snapPoint={snapPoint}
       defaultSnapPoint={snapPoints[1]}
       onOpenChange={(next, details) => {
-        // Persistent chrome: never unmount/close; collapse instead.
         if (!next) {
           details.cancel()
           setMode('collapsed')
@@ -163,66 +149,64 @@ export function ToolsDock({ hidden, contextKey, children }: {
       }}
     >
       <Drawer.Portal keepMounted>
-        {/*
-          Footer clearance on the viewport (padding), not popup margin: snap
-          translate then always rests above the status strip in every state.
-          pointer-events-none so the stage stays interactive through empty space.
-        */}
         <Drawer.Viewport
-          style={{ paddingBottom: FOOTER_PAD }}
-          className={`tools-dock fixed inset-0 z-30 flex items-end justify-center pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
+          className={`tools-dock fixed inset-0 z-30 flex items-end pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
             hidden ? 'opacity-0' : 'opacity-100'
           }`}
           inert={hidden || undefined}
         >
-          <Drawer.Popup
-            initialFocus={false}
-            finalFocus={false}
-            data-dock-mode={mode}
-            style={{ height: popupH }}
-            className="group/dock pointer-events-auto relative box-border flex w-fit max-w-[min(920px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]"
-          >
-            <button
-              type="button"
-              className={handleCls}
-              title={modeLabel(mode, t)}
-              aria-label={modeLabel(mode, t)}
-              aria-expanded={mode !== 'collapsed'}
-              aria-valuetext={mode}
-              onClick={() => setMode(nextMode(mode))}
-            >
-              <span className={handlePillCls} aria-hidden />
-              <MorphIcon icon={handleIcon} size={12} strokeWidth={1.75} />
-            </button>
-            <Drawer.Content className="flex min-h-0 flex-1 flex-col outline-0">
-              <Drawer.Title className="sr-only">{t('Tools')}</Drawer.Title>
-              {/*
-                Collapsed at rest: hide tools so icons/labels cannot leak under
-                the handle peek. While swiping, show again so the gesture reveals
-                the row. Row: ignore-x so horizontal pans stay on the strip.
-              */}
-              <div
-                ref={scrollRef}
-                style={wrap ? scrollFadeStyle : scrollFadeStyleX}
-                data-dock-fade=""
-                data-base-ui-swipe-ignore={wrap ? undefined : 'x'}
-                className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${
-                  mode === 'collapsed'
-                    ? 'invisible pointer-events-none group-data-swiping/dock:visible group-data-swiping/dock:pointer-events-auto'
-                    : ''
-                }`}
-                inert={mode === 'collapsed' || undefined}
+          {/*
+            Full-width sheet: tools snap inside a max-height clip above a pinned
+            Footer (byline is part of the dock). Clip is pointer-events-none so
+            the transparent collapsed gap does not block the stage.
+          */}
+          <div className="flex w-full flex-col text-txt">
+            <div className="relative w-full overflow-hidden pointer-events-none" style={{ height: toolsMaxH }}>
+              <Drawer.Popup
+                initialFocus={false}
+                finalFocus={false}
+                data-dock-mode={mode}
+                style={{ height: toolsMaxH }}
+                className="group/dock pointer-events-auto relative box-border flex w-full flex-col overflow-hidden rounded-none border-t border-line bg-drawer-bg shadow-pop outline-0 translate-y-[calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full"
               >
-                <div
-                  key={contextKey}
-                  ref={innerRef}
-                  className={`${wrap ? wrapCls : rowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}
+                <button
+                  type="button"
+                  className={handleCls}
+                  title={modeLabel(mode, t)}
+                  aria-label={modeLabel(mode, t)}
+                  aria-expanded={mode !== 'collapsed'}
+                  aria-valuetext={mode}
+                  onClick={() => setMode(nextMode(mode))}
                 >
-                  {children}
-                </div>
-              </div>
-            </Drawer.Content>
-          </Drawer.Popup>
+                  <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
+                </button>
+                <Drawer.Content className="flex min-h-0 flex-1 flex-col outline-0">
+                  <Drawer.Title className="sr-only">{t('Tools')}</Drawer.Title>
+                  <div
+                    ref={scrollRef}
+                    style={wrap ? scrollFadeStyle : scrollFadeStyleX}
+                    data-dock-fade=""
+                    data-base-ui-swipe-ignore={wrap ? undefined : 'x'}
+                    className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${
+                      mode === 'collapsed'
+                        ? 'invisible pointer-events-none group-data-swiping/dock:visible group-data-swiping/dock:pointer-events-auto'
+                        : ''
+                    }`}
+                    inert={mode === 'collapsed' || undefined}
+                  >
+                    <div
+                      key={contextKey}
+                      ref={innerRef}
+                      className={`${wrap ? wrapCls : rowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}
+                    >
+                      {children}
+                    </div>
+                  </div>
+                </Drawer.Content>
+              </Drawer.Popup>
+            </div>
+            <Footer className="pointer-events-auto" />
+          </div>
         </Drawer.Viewport>
       </Drawer.Portal>
     </Drawer.Root>

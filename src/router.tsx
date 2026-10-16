@@ -11,7 +11,6 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
 import { ExportDialog } from './components/ExportDialog'
 import { FloatActions } from './components/FloatActions'
-import { Footer } from './components/Footer'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
 import { Stage } from './components/Stage'
@@ -533,8 +532,7 @@ function RootLayout() {
           </AppCommandsContext>
         </main>
 
-        <Footer />
-
+        {/* Footer rides inside ToolsDock (full-width sheet). */}
         <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} onRequestClear={() => setClearAsk(true)} />
 
         <HelpOverlay open={helpOpen} onClose={closeHelp} />
