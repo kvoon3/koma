@@ -120,9 +120,9 @@ export const PANE_BORDER = false
 
 export const DOCK_BG: DockBg = 'solid'
 export const DOCK_OPACITY = 60
-export const TOOLS_DOCK_MODE: ToolsDockMode = 'collapsed'
+export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
 
-export const SETTINGS_VERSION = 5
+export const SETTINGS_VERSION = 6
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
 const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
@@ -133,8 +133,12 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
   if (version < 1)
     p.blendCrossfade = BLEND_CROSSFADE
   // v2: dock background + opacity + handle icon, and the dock mode is now
-  // persisted (new and migrated visits start collapsed). Sanitize either way.
+  // persisted (see v6 for the default). Sanitize either way.
   if (version < 2)
+    p.toolsDockMode = TOOLS_DOCK_MODE
+  // v6: the default dock mode became 'row'. A saved pre-v6 'collapsed' was
+  // the old default and can't be told from a choice, so reset it once.
+  if (version < 6)
     p.toolsDockMode = TOOLS_DOCK_MODE
   // v5: default became solid. Pre-v5 'frosted' was the old default and can't
   // be told from an explicit pick (preview-only), so reset it.
