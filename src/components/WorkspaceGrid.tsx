@@ -313,8 +313,6 @@ export function WorkspaceGrid() {
   const bg = useStore(s => s.bg)
   const gridGap = useStore(s => s.gridGap)
   const moveWorkspace = useStore(s => s.moveWorkspace)
-  const toolsOpen = useStore(s => s.toolsOpen)
-  const setToolsOpen = useStore(s => s.setToolsOpen)
   const navigate = useNavigate()
   const t = useT()
   const { snapshotGrid, busy } = useAppCommands()
@@ -494,14 +492,8 @@ export function WorkspaceGrid() {
         </DragOverlay>
       </DndContext>
 
-      {/* Grid-route-only tools: Grid gap. Expand still available for consistency. */}
-      <ToolsDock
-        hidden={false}
-        open={toolsOpen}
-        contextKey="grid"
-        handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-        onToggle={() => setToolsOpen(!toolsOpen)}
-      >
+      {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage. */}
+      <ToolsDock hidden={false} contextKey="grid">
         <GridDockTool />
       </ToolsDock>
     </div>

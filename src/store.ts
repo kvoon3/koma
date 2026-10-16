@@ -52,7 +52,10 @@ export interface PaneClip {
   label: PaneLabel | null
 }
 
-export interface State {
+/** Bottom tools sheet snap: hidden / one scrolling row / wrapped multi-row. */
+export type ToolsDockMode = 'collapsed' | 'row' | 'expanded'
+
+interface State {
   photos: Photo[]
   workspaces: Workspace[]
   activeId: string
@@ -83,16 +86,10 @@ export interface State {
    */
   labelEditReq: { labelId: string, seq: number } | null
   /**
-   * Whether the tools panel (Stage's overlay) is pulled open. It starts open,
-   * and only its handle changes it: moving the focus never touches it, so a
-   * manual collapse sticks.
+   * Bottom tools sheet snap state. Session-only; starts on single-row. Drag
+   * the handle or tap it to move between collapsed / row / expanded.
    */
-  toolsOpen: boolean
-  /**
-   * Compact (single scrolling row) vs expanded (tools wrap to multiple rows).
-   * Session-only; default compact.
-   */
-  toolsExpanded: boolean
+  toolsDockMode: ToolsDockMode
   /**
    * Copied pane contents for the menu's paste item, session-only so a reload
    * forgets it. Pasting clones the stickers under fresh ids.
@@ -168,8 +165,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
-  toolsOpen: true,
-  toolsExpanded: false,
+  toolsDockMode: 'row',
   paneClip: null,
   stickerMakerFor: null,
 
@@ -571,8 +567,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   selectLabel: labelId => set({ labelSel: labelId, stickerSel: null }),
   selectSticker: sel => set({ stickerSel: sel, labelSel: null }),
   requestLabelEdit: labelId => set({ labelEditReq: { labelId, seq: ++labelEditSeq } }),
-  setToolsOpen: open => set({ toolsOpen: open }),
-  setToolsExpanded: expanded => set({ toolsExpanded: expanded }),
+  setToolsDockMode: mode => set({ toolsDockMode: mode }),
 
   autoFill: () =>
     set((s) => {
@@ -866,8 +861,7 @@ interface Actions {
   selectLabel: (labelId: string | null) => void
   selectSticker: (sel: { stickerId: string } | null) => void
   requestLabelEdit: (labelId: string) => void
-  setToolsOpen: (open: boolean) => void
-  setToolsExpanded: (expanded: boolean) => void
+  setToolsDockMode: (mode: ToolsDockMode) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
   resetSettings: () => void

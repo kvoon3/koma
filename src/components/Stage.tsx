@@ -140,8 +140,6 @@ export function Stage() {
   const closePane = useStore(s => s.closePane)
   const resizeSplit = useStore(s => s.resizeSplit)
   const setCanvasSize = useStore(s => s.setCanvasSize)
-  const toolsOpen = useStore(s => s.toolsOpen)
-  const setToolsOpen = useStore(s => s.setToolsOpen)
   // The sticker maker dialog is store-driven: the pane menu opens it too.
   const stickerMakerFor = useStore(s => s.stickerMakerFor)
   const boardStickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
@@ -368,15 +366,12 @@ export function Stage() {
         </div>
       </CanvasMenu>
 
-      {/* Tools dock: Border (canvas appearance panel) is always here; pane/label
-          tools join when a photo pane or compact label selection is active.
-          Overlay only; the handle opens/collapses it. Expand wraps to multi-row. */}
+      {/* Tools dock: Border (appearance panel) always here; pane/label tools join
+          when relevant. Bottom sheet: collapsed / single-row / multi-row via
+          handle drag or tap. */}
       <ToolsDock
         hidden={toolsHidden}
-        open={toolsOpen}
         contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}
-        handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-        onToggle={() => setToolsOpen(!toolsOpen)}
       >
         <AppearanceDockTools />
         {dockLabel
