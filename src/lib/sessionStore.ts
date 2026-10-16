@@ -1,5 +1,6 @@
 import type { Workspace } from '../store'
 import type { BgImage } from './collageBg'
+import type { CutoutMap } from './cutout'
 
 export interface SessionPhotoRecord {
   id: string
@@ -16,7 +17,9 @@ export interface SessionMeta {
   gap: number
   radius: number
   bg: string
-  /** Absent in sessions saved before the collage background (see migrateSettings v2). */
+  /** Cutout → original photo ids; absent in sessions saved before one-tap cutout. */
+  cutouts?: CutoutMap
+  /** Absent in sessions saved before the collage background (see migrateSettings v8). */
   bgGradient?: string | null
   bgImage?: BgImage | null
   longSide: number

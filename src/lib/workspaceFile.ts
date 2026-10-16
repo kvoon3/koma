@@ -1,5 +1,6 @@
 import type { Workspace } from '../store'
 import type { BgImage } from './collageBg'
+import type { CutoutMap } from './cutout'
 import type { Photo } from './imageStore'
 import { mapSeq } from './async'
 import { downloadBlob } from './exporter'
@@ -10,6 +11,8 @@ export interface WorkspaceDocV1 {
   savedAt: string
   workspaces: Workspace[]
   activeId: string
+  /** Cutout → original photo ids; absent in files saved before one-tap cutout. */
+  cutouts?: CutoutMap
   settings: {
     gap: number
     radius: number
@@ -43,6 +46,7 @@ export interface WorkspaceFileState {
   format: 'image/jpeg' | 'image/png'
   quality: number
   photos: Photo[]
+  cutouts: CutoutMap
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -91,6 +95,7 @@ export async function buildDoc(s: WorkspaceFileState): Promise<WorkspaceDocV1> {
     savedAt: new Date().toISOString(),
     workspaces: s.workspaces,
     activeId: s.activeId,
+    cutouts: s.cutouts,
     settings: {
       gap: s.gap,
       radius: s.radius,

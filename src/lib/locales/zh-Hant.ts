@@ -307,6 +307,15 @@ export const zhHant: Record<string, string> = {
   'Loading AI model…': '正在載入 AI 模型…',
   'Processing…': '處理中…',
   'Cutting out…': '去背中…',
+  'Cut out': '去背',
+  'Remove the photo background': '一鍵去背，移除照片背景',
+  'Restore the original photo': '恢復原圖',
+  'Loading the cutout model…': '正在載入去背模型…',
+  'Could not read this photo': '無法讀取這張照片',
+  'Could not add the cutout to the library': '無法將去背圖加入素材庫',
+  'Background removed': '已移除背景',
+  'Tap Original in the tools to undo.': '點選工具列中的「原圖」即可復原。',
+  'Cutout added to the library': '去背圖已加入素材庫',
   'Background removal failed': '背景移除失敗',
 
   // Library / LibraryDrawer

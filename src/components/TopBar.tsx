@@ -358,6 +358,7 @@ export function TopBar({
       gap: doc.settings.gap,
       radius: doc.settings.radius,
       bg: doc.settings.bg,
+      cutouts: doc.cutouts ?? {},
       bgGradient: doc.settings.bgGradient ?? null,
       // A saved photo id only applies if that photo came along in the file.
       bgImage: doc.settings.bgImage && photos.some(p => p.id === doc.settings.bgImage!.photoId) ? doc.settings.bgImage : null,
