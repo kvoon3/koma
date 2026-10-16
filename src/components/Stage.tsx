@@ -1,4 +1,5 @@
 import type { IconInput } from 'morphicons/react'
+import type { CSSProperties } from 'react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
@@ -408,8 +409,9 @@ export function Stage() {
 }
 
 /**
- * One photo of the shared blurred backdrop field: painted unclipped and
- *  blurred so the panes' feathered edges melt into one continuous field.
+ * One seam photo of the shared backdrop: an opaque copy clipped to the leaf
+ * under an unclipped blur. The clip keeps empty neighbors blank; the opaque
+ * stamp stops blur's soft edge from punching gap fill through the fade.
  */
 function BackdropLeaf({ leaf, rect, photo, radius }: {
   leaf: Leaf
@@ -421,21 +423,38 @@ function BackdropLeaf({ leaf, rect, photo, radius }: {
   if (!preview)
     return null
   const place = placement(rect, leaf, preview.w, preview.h)
+  const imgStyle: CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    transformOrigin: '0 0',
+    transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
+  }
   return (
-    <img
-      src={preview.url}
-      alt=""
-      draggable={false}
-      className="pointer-events-none absolute block max-w-none"
-      style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        transformOrigin: '0 0',
-        transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
-        filter: `blur(${radius}px)`,
-      }}
-    />
+    <>
+      <div
+        className="pointer-events-none absolute overflow-hidden"
+        style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+      >
+        <img
+          src={preview.url}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute block max-w-none"
+          style={{
+            ...imgStyle,
+            transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
+          }}
+        />
+      </div>
+      <img
+        src={preview.url}
+        alt=""
+        draggable={false}
+        className="pointer-events-none absolute block max-w-none"
+        style={{ ...imgStyle, filter: `blur(${radius}px)` }}
+      />
+    </>
   )
 }
 

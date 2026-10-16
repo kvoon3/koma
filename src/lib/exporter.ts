@@ -196,20 +196,20 @@ async function resolveSources(wanted: Photo[], sources: FullSourceBatch): Promis
 }
 
 /**
- * The shared blurred backdrop field (backdrop mode): every photo painted
- *  unclipped and blurred behind the panes, so their feathered edges melt
- *  into one continuous field. Mirrors the preview's SeamBackdrop layer.
+ * Shared backdrop under feathered pane edges. Each seam photo is stamped
+ * opaque and clipped to its leaf first, then blurred unclipped on top.
+ * Blur alone softens into transparent and would punch the gap fill (often
+ * black) through the fade; the opaque underlay keeps the join from dipping
+ * to near-black. Mirrors SeamBackdrop in the Stage preview.
  */
 function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, src: Map<Photo, FullSource | null>) {
-  if (typeof ctx.filter !== 'string' || prep.fade <= 0)
+  if (prep.fade <= 0)
     return
   const R = Math.max(prep.u * 40, prep.fade)
+  const canBlur = typeof ctx.filter === 'string'
   ctx.save()
   ctx.globalAlpha = Math.max(0, Math.min(1, opts.edgeFadeStrength / 100))
   for (const { leaf, rect, photo } of prep.cells) {
-    // Only panes that face another photo-bearing pane contribute to the
-    // blurred backdrop; otherwise the backdrop would bleed into (and fill)
-    // empty neighboring panes.
     const seam = prep.seam.get(leaf.id)
     if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
       continue
@@ -218,9 +218,26 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
       continue
     const p = placement(rect, leaf, photo.trueW, photo.trueH)
     ctx.save()
-    ctx.filter = `blur(${R}px)`
+    ctx.beginPath()
+    ctx.rect(rect.x, rect.y, rect.w, rect.h)
+    ctx.clip()
     ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
     ctx.restore()
+  }
+  if (canBlur) {
+    for (const { leaf, rect, photo } of prep.cells) {
+      const seam = prep.seam.get(leaf.id)
+      if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
+        continue
+      const full = src.get(photo)
+      if (!full)
+        continue
+      const p = placement(rect, leaf, photo.trueW, photo.trueH)
+      ctx.save()
+      ctx.filter = `blur(${R}px)`
+      ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
+      ctx.restore()
+    }
   }
   ctx.restore()
 }
