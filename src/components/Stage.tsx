@@ -4,12 +4,11 @@ import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, Images, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
+import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
-import { useAppCommands } from '../lib/appCommands'
 import { GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
@@ -647,7 +646,7 @@ const NO_PHOTOS = new Map<string, Photo>()
 const isFilled = (w: { root: Node }) => leafList(w.root).some(l => l.photoId)
 
 /**
- * Grid whole-board tools (Shuffle, Cell ratio, Export cells, Clear), next to
+ * Grid whole-board tools (Shuffle, Cell ratio, Clear), next to
  * Grid gap. `requires: 'grid'` disables them on the stage; `when` gates on
  * what the board holds.
  */
@@ -656,7 +655,6 @@ function GridBoardTools({ route }: { route: DockRoute }) {
   const filled = useStore(s => s.workspaces.filter(isFilled).length)
   const ratio = useStore(s => s.gridCellRatio)
   const patch = useStore(s => s.patch)
-  const { exportGridCells, busy } = useAppCommands()
   const [askClear, setAskClear] = useState(false)
   const ctx = { pane: null, route }
   const onGrid = (run: () => void, ok = true) => (ok ? bindAction({ requires: 'grid', run }, ctx) : null)
@@ -669,7 +667,6 @@ function GridBoardTools({ route }: { route: DockRoute }) {
       hint: t('Cell aspect ratio'),
       options: GRID_CELL_RATIOS.map(r => ({ key: r, icon: r === ratio ? Check : Ratio, label: r, onClick: onGrid(() => patch({ gridCellRatio: r })) })),
     },
-    { key: 'export-cells', icon: Images, label: t('Export cells'), hint: t('Each cell as its own image, in posting order'), onClick: onGrid(() => void exportGridCells(), filled > 0 && !busy) },
     { key: 'clear', icon: Eraser, label: t('Clear'), hint: t('Remove all photos from the cells'), onClick: onGrid(() => setAskClear(true), filled > 0) },
   ]
   return (

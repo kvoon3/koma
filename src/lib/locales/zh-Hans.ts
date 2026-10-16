@@ -465,7 +465,7 @@ export const zhHans: Record<string, string> = {
   'Cell aspect ratio': '格子比例',
   'Clear all cells?': '清空所有格子？',
   'Each cell as its own image, in posting order': '每个格子单独导出为图片，按发布顺序命名',
-  'Export cells': '导出格子',
+  'Snapshot': '截图',
   'Randomly reorder the cells with photos': '随机打乱有照片的格子',
   'Remove all photos from the cells': '移除格子中的所有照片',
   'Share all ({n})': '全部分享（{n}）',

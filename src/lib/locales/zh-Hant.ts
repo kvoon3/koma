@@ -450,7 +450,7 @@ export const zhHant: Record<string, string> = {
   'Cell aspect ratio': '格子比例',
   'Clear all cells?': '清空所有格子？',
   'Each cell as its own image, in posting order': '每個格子單獨匯出為圖片，按發佈順序命名',
-  'Export cells': '匯出格子',
+  'Snapshot': '快照',
   'Randomly reorder the cells with photos': '隨機打亂有照片的格子',
   'Remove all photos from the cells': '移除格子中的所有照片',
   'Share all ({n})': '全部分享（{n}）',

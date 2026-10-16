@@ -1,11 +1,12 @@
 import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import { Menu } from '@base-ui/react/menu'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, MouseSensor, pointerWithin, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Camera, LayoutDashboard, LoaderCircle, Plus } from 'lucide'
+import { Camera, Image, Images, LayoutDashboard, LoaderCircle, Plus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -23,6 +24,7 @@ import { LabelIconGlyph } from './BoardLabel'
 import { DeleteZone } from './DeleteZone'
 import { DockToolset, SeamBackdrop } from './Stage'
 import { ToolsDock } from './ToolsDock'
+import { menuItemCls, menuPopupCls } from './ui/menu'
 import { Tip } from './ui/tip'
 
 // Virtual canvas short side for preview layout math. Any value works; the
@@ -318,9 +320,13 @@ export function WorkspaceGrid() {
   const moveWorkspace = useStore(s => s.moveWorkspace)
   const navigate = useNavigate()
   const t = useT()
-  const { snapshotGrid, busy } = useAppCommands()
+  const { snapshotGrid, exportGridCells, busy } = useAppCommands()
   /** Local to the camera chip: the app-wide `busy` also spins during an export. */
   const [snapBusy, setSnapBusy] = useState(false)
+  const snap = (run: () => Promise<void>) => {
+    setSnapBusy(true)
+    void run().finally(() => setSnapBusy(false))
+  }
 
   // Enter a workspace: set activeId before navigating so the stage renders the
   // right workspace inside the same view-transition commit (the route wrapper
@@ -446,27 +452,39 @@ export function WorkspaceGrid() {
               it takes layout space, so the centered board never grows past
               the stage or clips the chip. */}
           <div className="flex flex-col items-center gap-3">
-            <Tip
-              label={t('Snapshot all workspaces as one image')}
-              trigger={(
-                <button
-                  className={snapBtnCls}
-                  aria-label={t('Snapshot all workspaces as one image')}
-                  disabled={!anyFilled || busy || snapBusy}
-                  onClick={() => {
-                    setSnapBusy(true)
-                    void snapshotGrid().finally(() => setSnapBusy(false))
-                  }}
-                >
-                  <MorphIcon
-                    icon={snapBusy ? LoaderCircle : Camera}
-                    size={15}
-                    strokeWidth={1.75}
-                    className={snapBusy ? 'animate-spin [animation-duration:900ms]' : undefined}
-                  />
-                </button>
-              )}
-            />
+            <Menu.Root>
+              <Tip
+                label={t('Snapshot')}
+                trigger={(
+                  <Menu.Trigger
+                    className={snapBtnCls}
+                    aria-label={t('Snapshot')}
+                    disabled={!anyFilled || busy || snapBusy}
+                  >
+                    <MorphIcon
+                      icon={snapBusy ? LoaderCircle : Camera}
+                      size={15}
+                      strokeWidth={1.75}
+                      className={snapBusy ? 'animate-spin [animation-duration:900ms]' : undefined}
+                    />
+                  </Menu.Trigger>
+                )}
+              />
+              <Menu.Portal>
+                <Menu.Positioner sideOffset={6} align="center" className="z-[260] select-none outline-0">
+                  <Menu.Popup className={menuPopupCls}>
+                    <Menu.Item className={menuItemCls} onClick={() => snap(snapshotGrid)}>
+                      <MorphIcon icon={Image} size={13} strokeWidth={1.75} className="text-dim" />
+                      {t('Snapshot all workspaces as one image')}
+                    </Menu.Item>
+                    <Menu.Item className={menuItemCls} onClick={() => snap(exportGridCells)}>
+                      <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="text-dim" />
+                      {t('Each cell as its own image, in posting order')}
+                    </Menu.Item>
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
             <div
               className="grid grid-cols-3"
               style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}

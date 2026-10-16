@@ -127,7 +127,7 @@ async function renderGridSnapshotItem(): Promise<RenderedItem> {
 }
 
 /**
- * Grid "Export cells": every filled cell as its own image, cropped to the cell
+ * Grid snapshot "Each cell": every filled cell as its own image, cropped to the cell
  * aspect and named in posting order (grid_01_of_09 …), for a 9-grid post.
  */
 async function renderGridCellItems(): Promise<RenderedItem[]> {
