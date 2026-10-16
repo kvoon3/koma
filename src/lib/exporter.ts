@@ -1,12 +1,12 @@
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
-import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
+import type { CornerRadii, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
 import { isTransparentBg } from '../store'
 import { mapSeq } from './async'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, labelIconNode, loadLabelIcon } from './labelIcons'
-import { boardStickerRect, labelPaint, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
+import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, labelRect, layoutTree, leafCornerRadii, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -17,6 +17,8 @@ export interface ExportOptions {
   bg: string
   edgeFade: number
   edgeFadeStrength: number
+  /** Opt-in overlap crossfade; default backdrop feather when false/omitted. */
+  blendCrossfade?: boolean
   photos: Map<string, Photo>
   longSide: number
   /** Board-level stickers (canvas-normalized). */
@@ -43,25 +45,39 @@ export function outputSizeFor(longSide: number, ratio: number) {
   } as ExportOptions)
 }
 
+function clampCorner(r: number, w: number, h: number) {
+  return Math.max(0, Math.min(r, w / 2, h / 2))
+}
+
 function roundRect(
   c: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  r: number,
+  radii: number | CornerRadii,
 ) {
-  const rr = Math.max(0, Math.min(r, w / 2, h / 2))
+  const src: CornerRadii = typeof radii === 'number'
+    ? [radii, radii, radii, radii]
+    : radii
+  const tl = clampCorner(src[0], w, h)
+  const tr = clampCorner(src[1], w, h)
+  const br = clampCorner(src[2], w, h)
+  const bl = clampCorner(src[3], w, h)
   c.beginPath()
   if (typeof c.roundRect === 'function') {
-    c.roundRect(x, y, w, h, rr)
+    c.roundRect(x, y, w, h, [tl, tr, br, bl])
     return
   }
-  c.moveTo(x + rr, y)
-  c.arcTo(x + w, y, x + w, y + h, rr)
-  c.arcTo(x + w, y + h, x, y + h, rr)
-  c.arcTo(x, y + h, x, y, rr)
-  c.arcTo(x, y, x + w, y, rr)
+  c.moveTo(x + tl, y)
+  c.lineTo(x + w - tr, y)
+  c.arcTo(x + w, y, x + w, y + tr, tr)
+  c.lineTo(x + w, y + h - br)
+  c.arcTo(x + w, y + h, x + w - br, y + h, br)
+  c.lineTo(x + bl, y + h)
+  c.arcTo(x, y + h, x, y + h - bl, bl)
+  c.lineTo(x, y + tl)
+  c.arcTo(x, y, x + tl, y, tl)
   c.closePath()
 }
 
@@ -71,9 +87,13 @@ interface Prepared {
   u: number
   gap: number
   radius: number
+  /** Effective fade width; crossfade mode also scales by strength and gap. */
   fade: number
+  /** True when opt-in overlap + lighter crossfade is active. */
+  crossfade: boolean
   seam: Map<string, SeamSides>
-  cells: { leaf: Leaf, rect: Rect, photo: Photo }[]
+  /** `rect` is the draw box (expanded when crossfade); `layout` is the layout cell. */
+  cells: { leaf: Leaf, rect: Rect, layout: Rect, photo: Photo }[]
   labels: PaneLabel[]
 }
 
@@ -81,9 +101,13 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
   const u = Math.min(W, H) / 1000
   const gap = opts.gap * u
   const l = layoutTree(opts.root, W, H, gap)
-  // Backdrop blend: pane edges feather into the shared blurred field drawn
-  // behind everything; width 0 turns the whole treatment off.
-  const fade = opts.edgeFade * u
+  const crossfade = !!opts.blendCrossfade
+  // Crossfade: neighbors overlap by fade (gap>0 skips). Backdrop: raw EDGE_FADE width.
+  const fade = crossfade
+    ? blendFadePx(opts.edgeFade * u, opts.edgeFadeStrength, gap)
+    : opts.edgeFade * u
+  // Always resolve seams: gap=0 corner squaring needs them even without fade.
+  const seam = seamSides(l.leaves, gap)
   const cells: Prepared['cells'] = []
   for (const { node, rect } of l.leaves) {
     if (!node.photoId)
@@ -91,7 +115,13 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
     const photo = opts.photos.get(node.photoId)
     if (!photo?.trueW)
       continue
-    cells.push({ leaf: node, rect, photo })
+    const sides = seam.get(node.id)
+    cells.push({
+      leaf: node,
+      layout: rect,
+      rect: crossfade ? expandRectForBlend(rect, sides, fade) : rect,
+      photo,
+    })
   }
   return {
     W,
@@ -100,7 +130,8 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
     gap,
     radius: opts.radius * u,
     fade,
-    seam: fade > 0 ? seamSides(l.leaves, gap) : new Map(),
+    crossfade,
+    seam,
     cells,
     labels: (opts.labels ?? []).filter(l => l.text.trim()),
   }
@@ -206,7 +237,7 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
   const R = Math.max(prep.u * 40, prep.fade)
   ctx.save()
   ctx.globalAlpha = Math.max(0, Math.min(1, opts.edgeFadeStrength / 100))
-  for (const { leaf, rect, photo } of prep.cells) {
+  for (const { leaf, layout, photo } of prep.cells) {
     // Only panes that face another photo-bearing pane contribute to the
     // blurred backdrop; otherwise the backdrop would bleed into (and fill)
     // empty neighboring panes.
@@ -216,7 +247,7 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
     const full = src.get(photo)
     if (!full)
       continue
-    const p = placement(rect, leaf, photo.trueW, photo.trueH)
+    const p = placement(layout, leaf, photo.trueW, photo.trueH)
     ctx.save()
     ctx.filter = `blur(${R}px)`
     ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
@@ -230,21 +261,26 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
  * Board stickers are drawn later, unclipped.
  */
 function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: ExportOptions, src: Map<Photo, FullSource | null>) {
-  for (const { leaf, rect, photo } of prep.cells) {
+  // Crossfade: complementary alphas add (source-over would darken under the fade).
+  if (prep.crossfade && prep.fade > 0)
+    ctx.globalCompositeOperation = 'lighter'
+  for (const { leaf, rect, layout, photo } of prep.cells) {
     const full = src.get(photo)
     if (!full)
       continue
-    const p = placement(rect, leaf, photo.trueW, photo.trueH)
-    ctx.save()
-    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
-    ctx.clip()
+    const p = placement(layout, leaf, photo.trueW, photo.trueH)
     const seam = prep.seam.get(leaf.id)
+    ctx.save()
+    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, leafCornerRadii(prep.radius, seam, prep.gap))
+    ctx.clip()
     if (seam && (seam.left || seam.right || seam.top || seam.bottom))
       drawFadedPhoto(ctx, full.src, p, rect, seam, prep.fade)
     else
       ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
     ctx.restore()
   }
+  if (prep.crossfade && prep.fade > 0)
+    ctx.globalCompositeOperation = 'source-over'
 }
 
 /** Draw board-level stickers over the whole collage (not clipped to panes). */
@@ -357,8 +393,9 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     // the draws share one 2D context, so their order is the output.
     const stickers = opts.stickers ?? []
     const src = await resolveSources(paintPhotos(prep, opts.photos, stickers), sources)
-    // The blurred field goes under the panes; their feathered edges melt into it.
-    drawBackdrop(ctx, prep, opts, src)
+    // Backdrop feather (default) or overlap crossfade (opt-in).
+    if (!prep.crossfade)
+      drawBackdrop(ctx, prep, opts, src)
     drawPhotoCells(ctx, prep, opts, src)
     drawBoardStickers(ctx, prep, stickers, opts.photos, src)
     await ensureLabelFonts(prep)
@@ -534,12 +571,12 @@ function drawLiveCell(
   _opts: ExportOptions,
   _src: Map<Photo, FullSource | null>,
 ) {
-  const { leaf, rect } = cell
-  const p = placement(rect, leaf, v.videoWidth, v.videoHeight)
-  ctx.save()
-  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
-  ctx.clip()
+  const { leaf, rect, layout } = cell
+  const p = placement(layout, leaf, v.videoWidth, v.videoHeight)
   const seam = prep.seam.get(leaf.id)
+  ctx.save()
+  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, leafCornerRadii(prep.radius, seam, prep.gap))
+  ctx.clip()
   if (seam && (seam.left || seam.right || seam.top || seam.bottom))
     drawFadedPhoto(ctx, v, p, rect, seam, prep.fade)
   else
@@ -567,6 +604,8 @@ export interface GridSnapshotOptions {
   bg: string
   edgeFade: number
   edgeFadeStrength: number
+  /** Opt-in overlap crossfade; default backdrop feather when false/omitted. */
+  blendCrossfade?: boolean
   photos: Map<string, Photo>
 }
 
@@ -610,6 +649,7 @@ export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTM
       bg: opts.bg,
       edgeFade: opts.edgeFade,
       edgeFadeStrength: opts.edgeFadeStrength,
+      blendCrossfade: opts.blendCrossfade,
       photos: opts.photos,
       longSide: Math.round(cell * Math.max(ratio, 1 / ratio)),
       stickers: ws.stickers ?? [],
@@ -640,12 +680,12 @@ export function buildCropReport(opts: ExportOptions): string {
   lines.push('# Save as crop.sh and run it in the photos directory to batch-crop the same framing')
   lines.push('')
 
-  prep.cells.forEach(({ leaf, rect, photo }, i) => {
-    const p = placement(rect, leaf, photo.trueW, photo.trueH)
-    let sx = Math.round((rect.x - p.x) / p.scale)
-    let sy = Math.round((rect.y - p.y) / p.scale)
-    let sw = Math.round(rect.w / p.scale)
-    let sh = Math.round(rect.h / p.scale)
+  prep.cells.forEach(({ leaf, layout, photo }, i) => {
+    const p = placement(layout, leaf, photo.trueW, photo.trueH)
+    let sx = Math.round((layout.x - p.x) / p.scale)
+    let sy = Math.round((layout.y - p.y) / p.scale)
+    let sw = Math.round(layout.w / p.scale)
+    let sh = Math.round(layout.h / p.scale)
     sx = Math.max(0, Math.min(photo.trueW - 1, sx))
     sy = Math.max(0, Math.min(photo.trueH - 1, sy))
     sw = Math.max(1, Math.min(photo.trueW - sx, sw))

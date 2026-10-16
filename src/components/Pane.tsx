@@ -10,7 +10,7 @@ import { usePreview } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { pickPhotoForPane } from '../lib/paneCommands'
-import { clampLeaf, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
+import { clampLeaf, cornerRadiiCss, leafCornerRadii, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -49,6 +49,7 @@ function PanePhotoContent({
   photoId,
   mask,
   radius,
+  crossfade,
   onPick,
   carried,
 }: {
@@ -57,7 +58,8 @@ function PanePhotoContent({
   rect: Rect
   photoId: string | null
   mask?: React.CSSProperties
-  radius: number
+  radius: number | string
+  crossfade?: boolean
   onPick: () => void
   /** The photo is being carried as the swap/Move ghost: dim the original. */
   carried: boolean
@@ -72,7 +74,11 @@ function PanePhotoContent({
         <div
           data-photo-clip=""
           className={`absolute inset-0 overflow-hidden transition-opacity duration-(--dur-surface) ${carried ? ' opacity-25' : ''}`}
-          style={{ ...mask, borderRadius: radius }}
+          style={{
+            ...mask,
+            borderRadius: radius,
+            mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
+          }}
         >
           <img
             src={preview.url}
@@ -379,7 +385,7 @@ function PaneOutline({
   focused: boolean
   dropping: boolean
   bordered: boolean
-  radius: number
+  radius: number | string
 }) {
   return (
     <div
@@ -396,8 +402,14 @@ function PaneOutline({
 
 interface Props {
   leaf: Leaf
+  /** Visual box (expanded into seams when crossfade is on). */
   rect: Rect
+  /** Pre-overlap layout cell for photo placement; defaults to `rect`. */
+  layoutRect?: Rect
+  /** When true, seam masks use plus-lighter compositing. */
+  crossfade?: boolean
   radius: number
+  gap: number
   bordered: boolean
   fade: number
   seam?: SeamSides
@@ -419,6 +431,7 @@ function PaneLivePhoto({
   place,
   rect,
   mask,
+  crossfade,
   live,
   videoRef,
   onToggle,
@@ -427,6 +440,7 @@ function PaneLivePhoto({
   place: { x: number, y: number, w: number, h: number }
   rect: Rect
   mask?: React.CSSProperties
+  crossfade?: boolean
   live: boolean
   videoRef: React.RefObject<HTMLVideoElement | null>
   onToggle: () => void
@@ -449,7 +463,13 @@ function PaneLivePhoto({
     return null
   return (
     <>
-      <div className="absolute inset-0" style={mask}>
+      <div
+        className="absolute inset-0"
+        style={{
+          ...mask,
+          mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
+        }}
+      >
         {/* The peek plays muted: the export's own recording is silent too (a
             canvas capture carries no audio), and a silent layer is allowed to
             start without waiting on the browser's audio permission. */}
@@ -1354,7 +1374,10 @@ function usePaneDrop({
 function PaneImpl({
   leaf,
   rect,
+  layoutRect,
+  crossfade,
   radius,
+  gap,
   bordered,
   fade,
   seam,
@@ -1382,7 +1405,8 @@ function PaneImpl({
 
   const iw = preview?.w ?? 0
   const ih = preview?.h ?? 0
-  const cell: Rect = rect
+  // Placement stays on the layout cell so enabling crossfade does not reframe the photo.
+  const cell: Rect = layoutRect ?? rect
   const place = iw && ih ? placement(cell, leaf, iw, ih) : null
 
   const toCanvas = useCallback(
@@ -1430,6 +1454,7 @@ function PaneImpl({
   // Feather the photo's seam edges (and the Live Photo video that replaces
   // it visually); stickers/labels stay sharp above it.
   const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
+  const radiusCss = cornerRadiiCss(leafCornerRadii(radius, seam, gap))
 
   // The carried photo rides the pointer at roughly its pane size (capped).
   const ghostW = Math.min(rect.w, 180)
@@ -1445,7 +1470,7 @@ function PaneImpl({
       data-swap-armed={swapArmed ? '' : undefined}
       data-swap-source={swapAt ? '' : undefined}
       className={paneShellClass(focused, !!leaf.photoId)}
-      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radius }}
+      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radiusCss }}
       onPointerDown={onPointerDown}
       onPointerDownCapture={onPointerDownCapture}
       onPointerMove={onPointerMove}
@@ -1463,7 +1488,8 @@ function PaneImpl({
         rect={rect}
         photoId={leaf.photoId}
         mask={photoMask}
-        radius={radius}
+        crossfade={crossfade}
+        radius={radiusCss}
         onPick={pickForPane}
         carried={!!swapAt}
       />
@@ -1474,6 +1500,7 @@ function PaneImpl({
           place={place}
           rect={rect}
           mask={photoMask}
+          crossfade={crossfade}
           live={live}
           videoRef={liveVideoRef}
           onToggle={toggleLivePin}
@@ -1512,7 +1539,7 @@ function PaneImpl({
       {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
       {/* Drawn last so the pane border stays above its photo/stickers. */}
-      <PaneOutline focused={focused} dropping={dropping} bordered={bordered} radius={radius} />
+      <PaneOutline focused={focused} dropping={dropping} bordered={bordered} radius={radiusCss} />
     </div>
   )
 

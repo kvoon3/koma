@@ -4,7 +4,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, ImagePlus, Languages, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { setLang, useLang, useT } from '../lib/i18n'
@@ -21,7 +21,7 @@ import { Button } from './ui/button'
 import { buttonBase, buttonVariants } from './ui/buttonStyles'
 import { Tip } from './ui/tip'
 
-const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:px-3 max-sm:text-xs hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent data-popup-open:bg-chip-hover data-popup-open:text-txt'
+const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:gap-0 max-sm:px-2.5 hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent data-popup-open:bg-chip-hover data-popup-open:text-txt'
 
 const itemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt outline-0 data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt data-disabled:cursor-default data-disabled:opacity-35'
 
@@ -42,13 +42,19 @@ interface MenuWiring {
   onTriggerEnter: (e: MouseEvent<HTMLButtonElement>) => void
 }
 
-function CatMenu({ label, hop, open, onOpenChange, onTriggerEnter, children }: { label: string, hop: number } & MenuWiring & { children: ReactNode }) {
+function CatMenu({ label, icon, hop, open, onOpenChange, onTriggerEnter, children }: { label: string, icon: typeof CircleHelp, hop: number } & MenuWiring & { children: ReactNode }) {
   return (
     <Menu.Root open={open} onOpenChange={onOpenChange}>
-      <Menu.Trigger className={triggerCls} onMouseEnter={onTriggerEnter}>
-        {label}
-        <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} />
-      </Menu.Trigger>
+      <Tip
+        label={label}
+        trigger={(
+          <Menu.Trigger className={triggerCls} aria-label={label} onMouseEnter={onTriggerEnter}>
+            <MorphIcon icon={icon} size={15} strokeWidth={1.75} className="hidden max-sm:inline-flex" />
+            <span className="max-sm:hidden">{label}</span>
+            <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} className="max-sm:hidden" />
+          </Menu.Trigger>
+        )}
+      />
       <Menu.Portal>
         <Menu.Positioner sideOffset={4} align="start" className="z-[260] select-none outline-0">
           <Menu.Popup className={popupCls} style={{ '--menu-hop': `${hop}px` } as CSSProperties}>{children}</Menu.Popup>
@@ -133,7 +139,7 @@ function TopBarActions({
 }) {
   const t = useT()
   return (
-    <div className="flex items-center gap-[5px]">
+    <div className="flex items-center gap-[5px] max-sm:gap-0.5">
       {/* The dropdown hangs off this button, so the panel and its trigger are one component. */}
       <SettingsPanel
         open={settingsOpen}
@@ -372,10 +378,10 @@ export function TopBar({
       <Wordmark />
       {/* The menubar is what makes a click-opened menu hand over to the next
           trigger on hover: the panel follows the open trigger. */}
-      <Menubar className="flex items-stretch">
+      <Menubar className="flex items-stretch max-sm:gap-0">
         {/* Whole-board save/open lives outside the Photo menu: it is available
             in both views and covers the grid + library, not just photos. */}
-        <CatMenu label={t('Workspace')} hop={hop} {...menuAt('workspace')}>
+        <CatMenu label={t('Workspace')} icon={LayoutDashboard} hop={hop} {...menuAt('workspace')}>
           <Menu.Item className={itemCls} onClick={() => void doSaveFile()} disabled={saving || !anyFilled}>
             <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
             {t('Save workspace file…')}
@@ -390,7 +396,7 @@ export function TopBar({
           ? (
             // Grid view is pure navigation: Help only (crop report is an
             // editing aid, library tools are hidden).
-              <CatMenu label={t('Help')} hop={hop} {...menuAt('help')}>
+              <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
                 <Menu.Item className={itemCls} onClick={onToggleHelp}>
                   <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
                   {t('Keyboard shortcuts')}
@@ -399,7 +405,7 @@ export function TopBar({
               </CatMenu>
             )
           : (
-              <CatMenu label={t('Photo')} hop={hop} {...menuAt('photo')}>
+              <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
                 <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
                   <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
                   {t('Add photos…')}
@@ -429,7 +435,7 @@ export function TopBar({
             )}
 
         {!grid && (
-          <CatMenu label={t('Help')} hop={hop} {...menuAt('help')}>
+          <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
             <Menu.Item className={itemCls} onClick={onToggleHelp}>
               <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
               {t('Keyboard shortcuts')}

@@ -361,6 +361,24 @@ export interface TreeLayout {
   dividers: Divider[]
 }
 
+/**
+ * Split `avail` into an integer-friendly first-pane size. Remainder goes to
+ * the second pane so `a + b === avail` exactly. Rounding kills the .5 /
+ * repeating-fraction seams that show board BG (#000) as a hairline on iOS
+ * when gap is 0 (Stage overflow+transform and canvas clip AA both leak it).
+ * Local 1px floor only; avoids importing MIN_PANE_PX from the store.
+ */
+function snappedSplit(avail: number, ratio: number): number {
+  if (avail <= 0)
+    return 0
+  let a = Math.round(avail * ratio)
+  if (avail >= 2)
+    a = Math.min(avail - 1, Math.max(1, a))
+  else
+    a = Math.min(avail, Math.max(0, a))
+  return a
+}
+
 function walk(node: Node, rect: Rect, gap: number, out: TreeLayout) {
   if (node.type === 'leaf') {
     out.leaves.push({ node, rect })
@@ -370,13 +388,13 @@ function walk(node: Node, rect: Rect, gap: number, out: TreeLayout) {
 
   if (node.dir === 'row') {
     const avail = Math.max(0, rect.w - gap)
-    const aw = avail * node.ratio
+    const aw = snappedSplit(avail, node.ratio)
     walk(node.a, { x: rect.x, y: rect.y, w: aw, h: rect.h }, gap, out)
     walk(node.b, { x: rect.x + aw + gap, y: rect.y, w: avail - aw, h: rect.h }, gap, out)
   }
   else {
     const avail = Math.max(0, rect.h - gap)
-    const ah = avail * node.ratio
+    const ah = snappedSplit(avail, node.ratio)
     walk(node.a, { x: rect.x, y: rect.y, w: rect.w, h: ah }, gap, out)
     walk(node.b, { x: rect.x, y: rect.y + ah + gap, w: rect.w, h: avail - ah }, gap, out)
   }
@@ -447,6 +465,68 @@ export function seamSides(
 /** Feather width for a pane, clamped so opposed fades never eat the whole cell. */
 export function seamFadeWidth(fade: number, rect: Rect) {
   return Math.max(0, Math.min(fade, rect.w / 2, rect.h / 2))
+}
+
+/**
+ * Fade px used for crossfade overlap. Strength scales intensity; gap>0
+ * disables overlap so intentional gutters keep solid gap fill.
+ */
+export function blendFadePx(fade: number, strength: number, gap: number) {
+  if (gap > 0 || fade <= 0 || strength <= 0)
+    return 0
+  return fade * Math.min(1, Math.max(0, strength / 100))
+}
+
+/**
+ * Grow a layout rect into each photo-photo seam by half the fade so neighbors
+ * overlap; opposing masks then crossfade sharp photos in that band.
+ */
+export function expandRectForBlend(rect: Rect, seam: SeamSides | undefined, fadePx: number): Rect {
+  if (!seam || fadePx <= 0)
+    return rect
+  const g = seamFadeWidth(fadePx, rect) / 2
+  let { x, y, w, h } = rect
+  if (seam.left) {
+    x -= g
+    w += g
+  }
+  if (seam.right)
+    w += g
+  if (seam.top) {
+    y -= g
+    h += g
+  }
+  if (seam.bottom)
+    h += g
+  return { x, y, w, h }
+}
+
+/** Per-corner radii in CSS / canvas order: top-left, top-right, bottom-right, bottom-left. */
+export type CornerRadii = [number, number, number, number]
+
+/**
+ * When gap is 0, square the corners that sit on a photo-photo seam so adjacent
+ * leaves meet flush. Outer corners keep `radius`. With gap > 0 the full radius
+ * stays so intentional gutters keep their rounded look.
+ */
+export function leafCornerRadii(
+  radius: number,
+  seam: SeamSides | undefined,
+  gap: number,
+): CornerRadii {
+  const r = Math.max(0, radius)
+  if (gap > 0 || r === 0 || !seam)
+    return [r, r, r, r]
+  return [
+    seam.left || seam.top ? 0 : r,
+    seam.right || seam.top ? 0 : r,
+    seam.right || seam.bottom ? 0 : r,
+    seam.left || seam.bottom ? 0 : r,
+  ]
+}
+
+export function cornerRadiiCss(radii: CornerRadii): string {
+  return `${radii[0]}px ${radii[1]}px ${radii[2]}px ${radii[3]}px`
 }
 
 /** CSS mask feathering a pane's seam edges; undefined when nothing fades. */

@@ -7,13 +7,11 @@ import { useT } from '../lib/i18n'
 import { activeWs, useStore } from '../store'
 
 /**
- * The bottom-most strip: the canvas ratio and the export resolution of the
- * collage (driven by the long-edge setting and the canvas ratio), then the
- * byline (made with Vite and love by Kevin Kwong) and the GitHub link last.
- * The grid overview draws no stats, and on a phone the stats are what gives
- * way, so the byline stays whole at every width.
+ * Status strip: canvas ratio / export size (editor only), then the byline
+ * (Vite + love + Kevin Kwong) and GitHub. Lives in the Tools drawer sheet so
+ * it rides with the dock instead of sitting under it.
  */
-export function Footer() {
+export function Footer({ className }: { className?: string } = {}) {
   const grid = useRouterState({ select: s => s.location.pathname === '/' })
   const t = useT()
   const longSide = useStore(s => s.longSide)
@@ -26,7 +24,9 @@ export function Footer() {
   const [beforeHeart, afterHeart] = afterVite.split('{heart}')
 
   return (
-    <footer className="relative z-40 flex h-[calc(var(--statusH)+env(safe-area-inset-bottom))] flex-none items-center justify-center gap-3 whitespace-nowrap border-t border-line bg-statusbar px-1.5 pb-[env(safe-area-inset-bottom)] text-[11.5px] tabular-nums text-dim pointer-coarse:text-xs max-sm:text-xs">
+    <footer
+      className={`flex h-[calc(var(--statusH)+env(safe-area-inset-bottom))] flex-none items-center justify-center gap-3 whitespace-nowrap border-t border-line bg-statusbar px-1.5 pb-[env(safe-area-inset-bottom)] text-[11.5px] tabular-nums text-dim pointer-coarse:text-xs max-sm:text-xs ${className ?? ''}`}
+    >
       {!grid && (
         <span className="hidden items-center gap-3 sm:flex">
           <span>

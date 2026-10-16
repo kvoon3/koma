@@ -14,13 +14,15 @@ import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
-import { boardStickerRect, labelPaint, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
+import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { gridStep, MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
+import { GridDockTool } from './AppearanceTools'
 import { LabelIconGlyph } from './BoardLabel'
 import { DeleteZone } from './DeleteZone'
 import { SeamBackdrop } from './Stage'
+import { ToolsDock } from './ToolsDock'
 import { Tip } from './ui/tip'
 
 // Virtual canvas short side for preview layout math. Any value works; the
@@ -65,8 +67,17 @@ function PreviewSticker({ st, board, k, photoById }: {
   )
 }
 
+/** Photo placement + draw box for a preview leaf (crossfade expands the cell). */
+function previewLeafPlace(leaf: Leaf, layout: Rect, cell: Rect, iw: number, ih: number, crossfade: boolean) {
+  if (!iw || !ih)
+    return null
+  return crossfade
+    ? placement(layout, leaf, iw, ih)
+    : placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
+}
+
 /** One leaf of a workspace preview: the photo, panned/zoomed like the editor. */
-function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
+function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: {
   leaf: Leaf
   rect: Rect
   /** Virtual→cell scale factor. */
@@ -76,33 +87,39 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
   /** Blend feather width in cell px (0 turns the fade off). */
   fade: number
   seam?: SeamSides
+  crossfade: boolean
   photoById: Map<string, Photo>
 }) {
   const photo = leaf.photoId ? photoById.get(leaf.photoId) : undefined
   const preview = usePreview(photo ?? null)
   const radius = useStore(s => s.radius)
-  const iw = preview?.w ?? 0
-  const ih = preview?.h ?? 0
-  const cell: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
+  const layout: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
+  const cell = crossfade && leaf.photoId ? expandRectForBlend(layout, seam, fade) : layout
   const style: React.CSSProperties = {
     left: cell.x,
     top: cell.y,
     width: cell.w,
     height: cell.h,
-    borderRadius: radius * unit,
+    borderRadius: cornerRadiiCss(leafCornerRadii(radius * unit, seam, 0)),
   }
-  const place = iw && ih
-    ? placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
-    : null
-  // Blend: the same seam feather the editor's panes use, scaled to the cell.
-  const mask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
-  // No pane background: like the editor, the blurred field shows through the
-  // feathered seam edges (an opaque leaf would hide the blend).
+  const place = previewLeafPlace(leaf, layout, cell, preview?.w ?? 0, preview?.h ?? 0, crossfade)
+  const mask = leaf.photoId ? seamMaskStyle(seam, seamFadeWidth(fade, crossfade ? layout : cell)) : undefined
+  const imgTx = place
+    ? (crossfade
+        ? `translate(${place.x - cell.x}px, ${place.y - cell.y}px) scale(${place.scale})`
+        : `translate(${place.x}px, ${place.y}px) scale(${place.scale})`)
+    : ''
   return (
     <div className={`absolute overflow-hidden ${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`} style={style}>
       {preview && place
         ? (
-            <div className="absolute inset-0" style={mask}>
+            <div
+              className="absolute inset-0"
+              style={{
+                ...mask,
+                mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
+              }}
+            >
               <img
                 src={preview.url}
                 alt=""
@@ -113,7 +130,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
                   left: 0,
                   top: 0,
                   transformOrigin: '0 0',
-                  transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
+                  transform: imgTx,
                 }}
               />
             </div>
@@ -135,6 +152,7 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
   const bg = useStore(s => s.bg)
   const edgeFade = useStore(s => s.edgeFade)
   const fadeStrength = useStore(s => s.edgeFadeStrength)
+  const blendCrossfade = useStore(s => s.blendCrossfade)
   const VW = PV
   const VH = Math.round(PV / (canvasRatio ?? 1.5))
   const view = useMemo(() => layoutTree(root, VW, VH, 0), [root, VW, VH])
@@ -146,9 +164,9 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
   const ph = VH * k
   // Font/radius unit follows the canvas short edge, like the editor.
   const unit = (Math.min(VW, VH) / 1000) * k
-  // Backdrop blend, scaled down from the editor: pane edges feather into a
-  // shared blurred field behind them; width 0 turns the whole treatment off.
-  const fade = edgeFade * unit
+  const fade = blendCrossfade
+    ? blendFadePx(edgeFade * unit, fadeStrength, 0)
+    : edgeFade * unit
   const seams = useMemo(() => seamSides(view.leaves, 0), [view])
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -161,7 +179,7 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
           background: isTransparentBg(bg) ? undefined : bg,
         }}
       >
-        {fade > 0 && (
+        {fade > 0 && !blendCrossfade && (
           <SeamBackdrop
             leaves={view.leaves.map(({ node, rect }) => ({
               node,
@@ -181,6 +199,7 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
             unit={unit}
             fade={fade}
             seam={seams.get(node.id)}
+            crossfade={blendCrossfade}
             photoById={photoById}
           />
         ))}
@@ -490,6 +509,11 @@ export function WorkspaceGrid() {
             : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage. */}
+      <ToolsDock hidden={false} contextKey="grid">
+        <GridDockTool />
+      </ToolsDock>
     </div>
   )
 }

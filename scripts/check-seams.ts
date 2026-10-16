@@ -3,7 +3,7 @@
  * scripts/check-seams.ts`. Exit code 0 = all assertions held.
  */
 import type { Leaf, Node, Rect, Split } from '../src/lib/panes'
-import { layoutTree, seamFadeWidth, seamSides } from '../src/lib/panes'
+import { blendFadePx, expandRectForBlend, layoutTree, leafCornerRadii, seamFadeWidth, seamSides } from '../src/lib/panes'
 
 let seq = 0
 function leaf(photo: string | null): Leaf {
@@ -93,4 +93,132 @@ function flag(s: { left: boolean, right: boolean, top: boolean, bottom: boolean 
     throw new Error('clamp must floor at 0')
 }
 
-console.log('check-seams: OK')
+// 6b. Blend helpers: strength scales fade; gap>0 disables; expand grows into seams.
+{
+  if (blendFadePx(60, 100, 0) !== 60)
+    throw new Error('blendFadePx full strength')
+  if (blendFadePx(60, 50, 0) !== 30)
+    throw new Error('blendFadePx half strength')
+  if (blendFadePx(60, 100, 10) !== 0)
+    throw new Error('blendFadePx gap disables')
+  const rect = { x: 0, y: 0, w: 400, h: 400 }
+  const seam = { left: false, right: true, top: false, bottom: false }
+  const ex = expandRectForBlend(rect, seam, 48)
+  if (ex.w !== 424 || ex.x !== 0)
+    throw new Error(`expand right: got ${JSON.stringify(ex)}`)
+  const seamL = { left: true, right: false, top: false, bottom: false }
+  const exL = expandRectForBlend({ x: 400, y: 0, w: 400, h: 400 }, seamL, 48)
+  if (exL.x !== 376 || exL.w !== 424)
+    throw new Error(`expand left: got ${JSON.stringify(exL)}`)
+}
+
+// 7. Gap 0 + radius: square corners on photo-photo seams only.
+{
+  const root = split('row', leaf('a'), leaf('b'))
+  const { leaves, seams } = seamsOf(root, 0)
+  const a = seams.get(leaves.find(l => l.node.photoId === 'a')!.node.id)!
+  const b = seams.get(leaves.find(l => l.node.photoId === 'b')!.node.id)!
+  const ra = leafCornerRadii(40, a, 0)
+  const rb = leafCornerRadii(40, b, 0)
+  if (ra.join(',') !== '40,0,0,40')
+    throw new Error(`gap0 a corners: expected 40,0,0,40 got ${ra.join(',')}`)
+  if (rb.join(',') !== '0,40,40,0')
+    throw new Error(`gap0 b corners: expected 0,40,40,0 got ${rb.join(',')}`)
+}
+
+// 8. Gap > 0 keeps uniform radius (intentional gutters).
+{
+  const root = split('row', leaf('a'), leaf('b'))
+  const { leaves, seams } = seamsOf(root, 30)
+  const a = seams.get(leaves.find(l => l.node.photoId === 'a')!.node.id)!
+  const ra = leafCornerRadii(40, a, 30)
+  if (ra.join(',') !== '40,40,40,40')
+    throw new Error(`gap>0 corners: expected uniform 40 got ${ra.join(',')}`)
+}
+
+// 9. 2x2 gap 0: center-facing corners square, outer corners keep radius.
+{
+  const root = split('column', split('row', leaf('a'), leaf('b')), split('row', leaf('c'), leaf('d')))
+  const { leaves, seams } = seamsOf(root, 0)
+  const id = (p: string) => leaves.find(l => l.node.photoId === p)!.node.id
+  const expect: Record<string, string> = {
+    a: '40,0,0,0',
+    b: '0,40,0,0',
+    c: '0,0,0,40',
+    d: '0,0,40,0',
+  }
+  for (const [p, want] of Object.entries(expect)) {
+    const got = leafCornerRadii(40, seams.get(id(p))!, 0).join(',')
+    if (got !== want)
+      throw new Error(`2x2 ${p}: expected ${want} got ${got}`)
+  }
+}
+
+// 10. Integer-snap: odd W + ratio 0.5 → flush abut with integer edges (gap=0).
+{
+  const root = split('row', leaf('a'), leaf('b'))
+  const W = 1001
+  const { leaves } = layoutTree(root, W, 800, 0)
+  const a = leaves.find(l => l.node.photoId === 'a')!.rect
+  const b = leaves.find(l => l.node.photoId === 'b')!.rect
+  if (a.x + a.w !== b.x)
+    throw new Error(`odd-W abut: a.x+a.w=${a.x + a.w} b.x=${b.x}`)
+  if (!Number.isInteger(a.x) || !Number.isInteger(a.w) || !Number.isInteger(b.x) || !Number.isInteger(b.w))
+    throw new Error(`odd-W integers: a=${JSON.stringify(a)} b=${JSON.stringify(b)}`)
+  if (a.w + b.w !== W)
+    throw new Error(`odd-W sum: ${a.w}+${b.w} !== ${W}`)
+}
+
+// 11. ratio 1/3 on W=1000 → integer edges, exact cover.
+{
+  const root = split('row', leaf('a'), leaf('b'), 1 / 3)
+  const W = 1000
+  const { leaves } = layoutTree(root, W, 800, 0)
+  const a = leaves.find(l => l.node.photoId === 'a')!.rect
+  const b = leaves.find(l => l.node.photoId === 'b')!.rect
+  if (a.x + a.w !== b.x)
+    throw new Error(`1/3 abut: a.x+a.w=${a.x + a.w} b.x=${b.x}`)
+  if (!Number.isInteger(a.w) || !Number.isInteger(b.w))
+    throw new Error(`1/3 integers: aw=${a.w} bw=${b.w}`)
+  if (a.w + b.w !== W)
+    throw new Error(`1/3 sum: ${a.w}+${b.w} !== ${W}`)
+  // Math.round(1000/3) = 333
+  if (a.w !== 333)
+    throw new Error(`1/3 aw: expected 333 got ${a.w}`)
+}
+
+// 12. gap>0 still sums: a.w + gap + b.w === outer content width.
+{
+  const root = split('row', leaf('a'), leaf('b'))
+  const W = 1000
+  const gap = 20
+  const { leaves } = layoutTree(root, W, 800, gap)
+  const a = leaves.find(l => l.node.photoId === 'a')!.rect
+  const b = leaves.find(l => l.node.photoId === 'b')!.rect
+  const content = W - gap * 2
+  if (a.w + gap + b.w !== content)
+    throw new Error(`gap sum: ${a.w}+${gap}+${b.w} !== ${content}`)
+  if (a.x + a.w + gap !== b.x)
+    throw new Error(`gap abut spacing: ${a.x + a.w}+${gap} !== ${b.x}`)
+  if (!Number.isInteger(a.w) || !Number.isInteger(b.w))
+    throw new Error(`gap integers: aw=${a.w} bw=${b.w}`)
+}
+
+// 13. Column split + nested 2x2 stay integer-flush at gap=0.
+{
+  const root = split('column', split('row', leaf('a'), leaf('b')), split('row', leaf('c'), leaf('d')))
+  const W = 801
+  const H = 601
+  const { leaves } = layoutTree(root, W, H, 0)
+  for (const { rect } of leaves) {
+    if (!Number.isInteger(rect.x) || !Number.isInteger(rect.y) || !Number.isInteger(rect.w) || !Number.isInteger(rect.h))
+      throw new Error(`2x2 odd integer rect: ${JSON.stringify(rect)}`)
+  }
+  const by = (p: string) => leaves.find(l => l.node.photoId === p)!.rect
+  if (by('a').x + by('a').w !== by('b').x)
+    throw new Error('2x2 top row abut')
+  if (by('a').y + by('a').h !== by('c').y)
+    throw new Error('2x2 left col abut')
+}
+
+console.log('check-seams: OK (incl. pixel-snap)')

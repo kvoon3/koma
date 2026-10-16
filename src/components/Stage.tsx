@@ -1,23 +1,26 @@
 import type { IconInput } from 'morphicons/react'
+import type { Action } from '../lib/actionGuard'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { ChevronDown, ChevronUp, Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
+import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
+import { bindAction, paneContext } from '../lib/actionGuard'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
-import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
-import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
+import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
+import { AppearanceDockTools } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
 import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
+import { toolsBtnCls, ToolsDock, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls, menuItemCls, menuSurfaceCls } from './ui/menu'
 
 const NO_STICKERS: Sticker[] = []
@@ -26,49 +29,37 @@ const NO_LABELS: PaneLabel[] = []
 const HIT_MIN = 15
 const MIN_CANVAS = 120
 
-/* The focused pane's tools: an overlay above the footer, so it never takes
-   layout space. Only the handle on its top edge moves it; collapsed it rests
-   behind the footer with the handle showing. The panel only exists while a
-   focused pane holds a photo. */
-const toolsPanelCls = 'relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-(--dur-morph) ease-(--ease-drawer)'
-const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-(--dur-surface) active:scale-[0.97] hover:text-txt'
-/* Fixed-width tools in a max-content row: the panel hugs them, and the row
-   scrolls sideways once they outgrow the screen. It stays inside a block, not a
-   flex item (it would shrink and clip the leading tool), and `touch-pan-x`
-   overrides the stage's `touch-none`; the scrollFadeStyleX mask softens the scrolled ends. */
-const toolsScrollCls = 'overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
-const toolsRowCls = 'flex w-max items-stretch'
-const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
-const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
-
 interface ToolDef {
   key: string
   icon: IconInput
   label: string
   hint: string
-  onClick?: () => void
+  /** Bound by `bindAction`: null when the precondition fails → disabled. */
+  onClick?: (() => void) | null
   /** Options: the icon opens a small popover above itself instead of acting. */
   options?: ToolOption[]
-  danger?: boolean
 }
 
 interface ToolOption {
   key: string
   icon: IconInput
   label: string
-  disabled?: boolean
-  onClick: () => void
+  /** Bound by `bindAction`: null when the precondition fails → disabled. */
+  onClick: (() => void) | null
 }
 
+const toolDisabledCls = 'disabled:cursor-default disabled:opacity-35 disabled:active:scale-100 disabled:hover:bg-transparent'
 const toolPopupCls = `${menuSurfaceCls} ${dockPopupMotionCls} min-w-[170px]`
 
 /** A dock tool with options: a Base UI Popover anchored above the icon. */
 function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> & { options: ToolOption[] }) {
   const [open, setOpen] = useState(false)
+  const allDisabled = options.every(o => !o.onClick)
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open && !allDisabled} onOpenChange={setOpen}>
       <Popover.Trigger
-        className={`${toolsBtnCls} ${dockBtnStateCls}`}
+        disabled={allDisabled}
+        className={`${toolsBtnCls} ${dockBtnStateCls} ${toolDisabledCls}`}
         title={hint}
         aria-label={label}
         data-dock-tool={label}
@@ -83,10 +74,10 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
               <button
                 key={o.key}
                 className={`${menuItemCls} hover:bg-chip-hover disabled:cursor-default disabled:opacity-35`}
-                disabled={o.disabled}
+                disabled={!o.onClick}
                 onClick={() => {
                   setOpen(false)
-                  o.onClick()
+                  o.onClick?.()
                 }}
               >
                 <MorphIcon icon={o.icon} size={15} strokeWidth={1.75} />
@@ -100,16 +91,17 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
   )
 }
 
-function ToolButton({ icon, label, hint, onClick, options, danger }: Omit<ToolDef, 'key'>) {
+function ToolButton({ icon, label, hint, onClick, options }: Omit<ToolDef, 'key'>) {
   if (options)
     return <ToolPopoverButton icon={icon} label={label} hint={hint} options={options} />
   return (
     <button
-      className={`${toolsBtnCls} ${dockBtnStateCls}${danger ? ' text-danger hover:text-danger' : ''}`}
+      className={`${toolsBtnCls} ${dockBtnStateCls} ${toolDisabledCls}`}
       title={hint}
       aria-label={label}
       data-dock-tool={label}
-      onClick={onClick}
+      disabled={!onClick}
+      onClick={onClick ?? undefined}
     >
       <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
       <span className={toolsLabelCls}>{label}</span>
@@ -119,7 +111,6 @@ function ToolButton({ icon, label, hint, onClick, options, danger }: Omit<ToolDe
 
 export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const toolsScrollRef = useScrollFade<HTMLDivElement>('x')
   const stageRef = useRef<HTMLDivElement | null>(null)
   /**
    * The divider being dragged, by id: its grip stays lit even once the pointer
@@ -145,6 +136,7 @@ export function Stage() {
   const radiusValue = useStore(s => s.radius)
   const fadeValue = useStore(s => s.edgeFade)
   const fadeStrength = useStore(s => s.edgeFadeStrength)
+  const blendCrossfade = useStore(s => s.blendCrossfade)
   const paneBorder = useStore(s => s.paneBorder)
   const bg = useStore(s => s.bg)
   const photos = useStore(s => s.photos)
@@ -155,8 +147,6 @@ export function Stage() {
   const closePane = useStore(s => s.closePane)
   const resizeSplit = useStore(s => s.resizeSplit)
   const setCanvasSize = useStore(s => s.setCanvasSize)
-  const toolsOpen = useStore(s => s.toolsOpen)
-  const setToolsOpen = useStore(s => s.setToolsOpen)
   // The sticker maker dialog is store-driven: the pane menu opens it too.
   const stickerMakerFor = useStore(s => s.stickerMakerFor)
   const boardStickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
@@ -315,7 +305,8 @@ export function Stage() {
   // its controls while a label is selected.
   const compact = useMediaQuery('(max-width: 1023.98px)')
   const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
-  const toolsHidden = paneToolsHidden && !dockLabel
+  // Canvas appearance tools always live in the dock; pane/label tools join when relevant.
+  const toolsHidden = false
 
   return (
     <div
@@ -338,7 +329,9 @@ export function Stage() {
             className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
             style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
           >
-            <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
+            {!blendCrossfade && (
+              <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
+            )}
 
             <PaneLayers
               view={view}
@@ -346,7 +339,8 @@ export function Stage() {
               photoById={photoById}
               focusId={focusId}
               paneBorder={paneBorder}
-              paneFade={paneFade}
+              paneFade={blendCrossfade ? blendFadePx(paneFade, fadeStrength, view.gap) : paneFade}
+              crossfade={blendCrossfade}
               onFocus={focus}
               onUpdate={updateLeaf}
               onSplit={split}
@@ -380,18 +374,13 @@ export function Stage() {
         </div>
       </CanvasMenu>
 
-      {/* The focused pane's tools, laid over the canvas so the panel never
-          takes layout space, opened by the handle alone. Every tool acts on
-          the focused pane, so the panel exists only while it holds a photo;
-          its arrival and departure are a fade like the pane's other chrome. */}
+      {/* Tools dock: full-width Base UI Drawer (collapsed / row / expanded) with
+          Footer in the sheet. Border + pane/label tools when relevant. */}
       <ToolsDock
         hidden={toolsHidden}
-        open={toolsOpen}
-        contextKey={dockLabel ? 'label' : 'pane'}
-        scrollRef={toolsScrollRef}
-        handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
-        onToggle={() => setToolsOpen(!toolsOpen)}
+        contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}
       >
+        <AppearanceDockTools />
         {dockLabel
           ? (
               <LabelDockTools
@@ -491,13 +480,14 @@ function SeamLayer({ view, photoById, paneFade, fadeStrength }: {
 }
 
 /** The photo panes themselves: one `Pane` per leaf of the layout. */
-function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onFocus, onUpdate, onSplit, onClose }: {
+function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, crossfade, onFocus, onUpdate, onSplit, onClose }: {
   view: Derived
   seams: Map<string, SeamSides>
   photoById: Map<string, Photo>
   focusId: string | null
   paneBorder: boolean
   paneFade: number
+  crossfade: boolean
   onFocus: React.ComponentProps<typeof Pane>['onFocus']
   onUpdate: React.ComponentProps<typeof Pane>['onUpdate']
   onSplit: React.ComponentProps<typeof Pane>['onSplit']
@@ -505,26 +495,34 @@ function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onF
 }) {
   return (
     <>
-      {view.leaves.map(({ node, rect }) => (
-        <Pane
-          key={node.id}
-          leaf={node}
-          rect={rect}
-          radius={view.radius}
-          bordered={paneBorder}
-          fade={paneFade}
-          seam={seams.get(node.id)}
-          unit={view.unit}
-          photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
-          photoById={photoById}
-          focused={focusId === node.id}
-          canClose={view.leaves.length > 1}
-          onFocus={onFocus}
-          onUpdate={onUpdate}
-          onSplit={onSplit}
-          onClose={onClose}
-        />
-      ))}
+      {view.leaves.map(({ node, rect }) => {
+        const seam = seams.get(node.id)
+        const draw = crossfade && node.photoId ? expandRectForBlend(rect, seam, paneFade) : rect
+        const fade = crossfade && !node.photoId ? 0 : paneFade
+        return (
+          <Pane
+            key={node.id}
+            leaf={node}
+            layoutRect={crossfade ? rect : undefined}
+            rect={draw}
+            radius={view.radius}
+            gap={view.gap}
+            bordered={paneBorder}
+            fade={fade}
+            seam={seam}
+            unit={view.unit}
+            crossfade={crossfade}
+            photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
+            photoById={photoById}
+            focused={focusId === node.id}
+            canClose={view.leaves.length > 1}
+            onFocus={onFocus}
+            onUpdate={onUpdate}
+            onSplit={onSplit}
+            onClose={onClose}
+          />
+        )
+      })}
     </>
   )
 }
@@ -644,60 +642,49 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
   const mobile = useMediaQuery('(max-width: 1023.98px)')
   const removePhoto = useStore(s => s.removePhoto)
   const resetPane = useStore(s => s.resetPane)
-  const closePane = useStore(s => s.closePane)
   const openStickerMaker = useStore(s => s.openStickerMaker)
-  // Same pick flows as the tools row, aimed at the focused pane. The flows
-  // themselves live in lib/paneCommands so the pane menu can share them.
-  const pickForFocused = () => {
-    if (focusId)
-      pickPhotoForPane(focusId)
-  }
-  const pickStickerForFocused = () => {
-    if (focusId)
-      pickStickersForPane(focusId)
-  }
-  const addLabelToFocused = () => {
-    if (focusId)
-      addLabelToPane(focusId)
-  }
 
-  const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
+  const focusHit = focusId ? view.leaves.find(l => l.node.id === focusId) : undefined
+  const focusLeaf = focusHit?.node ?? null
   const hasPhoto = !!(focusLeaf?.photoId)
   // Desktop: the dock shows only for a focused pane holding a photo. Below lg
   // it is also where a phone splits and edits panes, so any focus shows it.
   const toolsHidden = mobile ? !focusLeaf : !hasPhoto
-  const focusPhoto = focusLeaf?.photoId ? photoById.get(focusLeaf.photoId) : undefined
-  const focusRect = focusId ? view.leaves.find(l => l.node.id === focusId)?.rect : undefined
-  const onFocused = (fn: (id: string) => void) => () => {
-    if (focusId)
-      fn(focusId)
-  }
+  const focusRect = focusHit?.rect
+  // One context for every pane tool: a stale or empty focus yields no pane,
+  // so `bindAction` disables every pane-scoped tool in the same place.
+  const ctx = paneContext<Photo>(focusId, (id) => {
+    const leaf = view.leaves.find(l => l.node.id === id)?.node
+    return leaf ? { photo: (leaf.photoId && photoById.get(leaf.photoId)) || null } : null
+  })
+  const bind = (a: Action<Photo>) => bindAction(a, ctx)
+  const onPane = (run: (paneId: string) => void): Action<Photo> => ({ requires: 'pane', run: p => run(p.paneId) })
+
   const splitTool: ToolDef = {
     key: 'split',
     icon: Columns2,
     label: t('Split'),
     hint: t('Split this pane'),
     options: [
-      { key: 'column', icon: SquareSplitVertical, label: t('Split top/bottom'), onClick: onFocused(id => splitPane(id, 'column')) },
-      { key: 'row', icon: SquareSplitHorizontal, label: t('Split left/right'), onClick: onFocused(id => splitPane(id, 'row')) },
+      { key: 'column', icon: SquareSplitVertical, label: t('Split top/bottom'), onClick: bind(onPane(id => splitPane(id, 'column'))) },
+      { key: 'row', icon: SquareSplitHorizontal, label: t('Split left/right'), onClick: bind(onPane(id => splitPane(id, 'row'))) },
     ],
   }
-  const canClosePane = view.leaves.length > 1
-  const closeTool: ToolDef = { key: 'close', icon: X, label: t('Close'), hint: t('Close pane'), danger: true, onClick: onFocused(closePane) }
+  const pickTool = (label: string, hint: string): ToolDef => ({ key: 'photo', icon: ImagePlus, label, hint, onClick: bind(onPane(pickPhotoForPane)) })
+  const textTool: ToolDef = { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: bind(onPane(addLabelToPane)) }
   // One row, so the order here is the order on screen.
   const tools: ToolDef[] = !hasPhoto
     ? [
-        { key: 'photo', icon: ImagePlus, label: t('Photo'), hint: t('Choose a photo'), onClick: pickForFocused },
+        pickTool(t('Photo'), t('Choose a photo')),
         splitTool,
-        { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
-        ...(canClosePane ? [closeTool] : []),
+        textTool,
       ]
     : [
-        { key: 'photo', icon: ImagePlus, label: t('Replace'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
+        pickTool(t('Replace'), t('Pick a photo to replace this pane\'s photo')),
         ...(mobile ? [splitTool] : []),
-        { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
-        { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && openStickerMaker(focusId) },
-        { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
+        { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: bind(onPane(pickStickersForPane)) },
+        { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind(onPane(openStickerMaker)) },
+        textTool,
         ...(mobile
           ? [
             {
@@ -706,73 +693,17 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
               label: t('Fit'),
               hint: t('Photo'),
               options: [
-                { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: onFocused(resetPaneView) },
-                { key: 'fit', icon: Frame, label: t('Fit whole photo'), disabled: !focusPhoto, onClick: onFocused(id => focusPhoto && fitPanePhoto(id, focusPhoto.trueW, focusPhoto.trueH, focusRect)) },
-                { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), disabled: !focusPhoto?.trueW, onClick: () => focusPhoto && matchCanvasToPhoto(focusPhoto.trueW, focusPhoto.trueH) },
+                { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: bind(onPane(resetPaneView)) },
+                { key: 'fit', icon: Frame, label: t('Fit whole photo'), onClick: bind({ requires: 'photo', run: p => fitPanePhoto(p.paneId, p.photo.trueW, p.photo.trueH, focusRect) }) },
+                { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), onClick: bind({ requires: 'photo', when: p => !!p.photo.trueW, run: p => matchCanvasToPhoto(p.photo.trueW, p.photo.trueH) }) },
               ],
             },
-            { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: onFocused(id => duplicatePaneAuto(id, focusRect)) },
-            { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: onFocused(removePhoto) },
-            { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: onFocused(resetPane) },
-            ...(canClosePane ? [closeTool] : []),
+            { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: bind(onPane(id => duplicatePaneAuto(id, focusRect))) },
+            { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: bind({ requires: 'photo', run: p => removePhoto(p.paneId) }) },
+            { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: bind(onPane(resetPane)) },
           ] satisfies ToolDef[]
           : []),
       ]
 
   return { tools, toolsHidden }
-}
-
-/**
- * The focused pane's tool dock, laid over the canvas so it never takes
- * layout space; only the handle on its top edge opens it. The wrapper is
- * always mounted: with no eligible focus it fades out over --dur-fast (the
- * same fade as the pane's × chrome, which arrives with it) and goes inert,
- * so a hidden dock neither catches canvas clicks nor answers Tab. The fade
- * lives on the wrapper, not the panel, so it never shares a transition with
- * the panel's own open/collapse slide (transform, --dur-morph).
- */
-function ToolsDock({ hidden, open, contextKey, children, scrollRef, handleLabel, onToggle }: {
-  hidden: boolean
-  open: boolean
-  contextKey: string
-  children: React.ReactNode
-  scrollRef: (el: HTMLDivElement | null) => void
-  handleLabel: string
-  onToggle: () => void
-}) {
-  return (
-    <div
-      className={`tools-dock pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
-        hidden ? 'opacity-0' : 'opacity-100'
-      }`}
-      inert={hidden}
-    >
-      <div className={`${toolsPanelCls} ${
-        // Mutually exclusive classes (see the pinned-toolbar note): a hidden
-        // panel must not sit over the canvas catching pointer events.
-        hidden ? 'pointer-events-none' : 'pointer-events-auto'
-      } ${
-        open ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
-      }`}
-      >
-        <button
-          className={toolsHandleCls}
-          title={handleLabel}
-          aria-expanded={open}
-          aria-label={handleLabel}
-          onClick={onToggle}
-        >
-          <MorphIcon icon={open ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
-        </button>
-        {/* inert while collapsed: the tools are off-screen behind the
-          footer. Open or not the row scrolls sideways instead of
-          squashing the fixed-width tools when they outgrow the screen. */}
-        <div ref={scrollRef} style={scrollFadeStyleX} data-dock-fade="" className={toolsScrollCls} inert={!open}>
-          <div key={contextKey} className={`${toolsRowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}>
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
 }

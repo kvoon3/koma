@@ -99,6 +99,12 @@
   --dur-fast: 120ms;
   --dur-surface: 160ms;
   --dur-dialog: 180ms;
+  /* Shared stacking scale for app-level layers. Modals (every Dialog /
+     AlertDialog backdrop + popup) sit above the tools dock, the floating
+     page actions and the library drawer; menus/popovers/tooltips (z-90+)
+     stay above modals so popups opened inside a dialog still show. */
+  --z-dock: 30;
+  --z-modal: 50;
   --dur-morph: 260ms;
   --dur-drawer: 450ms;
 }
@@ -251,6 +257,10 @@ html.dark {
 
   @media (pointer: coarse) {
     :root { --statusH: 44px; }
+  }
+
+  @media (pointer: coarse) and (max-width: 639px) {
+    :root { --statusH: 40px; }
   }
 }
 
