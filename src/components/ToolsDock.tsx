@@ -10,8 +10,9 @@ import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../l
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { Footer } from './Footer'
+import { dockBtnSurfaceCls } from './ui/menu'
 
-export const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
+export const toolsBtnCls = `${dockBtnSurfaceCls} flex w-[80px] shrink-0 flex-col items-center justify-center gap-1.5 whitespace-nowrap px-2 py-3`
 export const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
 /** Handle chrome height = collapsed snap. Keep in sync with `handleCls` h-[]. */
