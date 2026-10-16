@@ -12,16 +12,17 @@ import {
   findLeaf,
   layoutTree,
   leafList,
-
   neighborLeaf,
+
   newLabel,
   newLeaf,
-
   placement,
+
   removeLeaf,
   setSplitRatioIn,
   splitLeaf,
   stickerToBoard,
+  swapLeafContents,
 
   uid,
   updateLeafIn,
@@ -508,27 +509,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   swapPhotos: (a, b) =>
     set((s) => {
       const ws = activeWs(s)
-      const la = findLeaf(ws.root, a)
-      const lb = findLeaf(ws.root, b)
-      if (!la || !lb)
-        return s
-      let root = updateLeafIn(ws.root, a, {
-        photoId: lb.photoId,
-        zoom: lb.zoom,
-        cx: lb.cx,
-        cy: lb.cy,
-        stickers: [],
-        label: null,
-      })
-      root = updateLeafIn(root, b, {
-        photoId: la.photoId,
-        zoom: la.zoom,
-        cx: la.cx,
-        cy: la.cy,
-        stickers: [],
-        label: null,
-      })
-      return { workspaces: mapActive(s, w => ({ ...w, root })) }
+      const root = swapLeafContents(ws.root, a, b)
+      return root === ws.root ? {} : { workspaces: mapActive(s, w => ({ ...w, root })) }
     }),
 
   assign: (paneId, photoId) =>

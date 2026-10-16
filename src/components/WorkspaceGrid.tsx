@@ -400,13 +400,17 @@ export function WorkspaceGrid() {
   }
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const cell = Math.max(60, Math.floor(
+  const fit = Math.max(60, Math.floor(
     Math.min(
       (wrapSize.w - 48 - gridGap * 2) / 3,
       (wrapSize.h - 48 - SNAP_ROW_H - gridGap * 2) / 3,
       GRID_CELL_MAX,
     ),
   ))
+  // Centering an odd leftover put every cell on a half pixel, where 1px
+  // edges snap unevenly (the + cell's dashed right edge vanished). One px
+  // less flips the board's parity, so the cells land on whole pixels.
+  const cell = fit > 60 && (wrapSize.w - (fit * 3 + gridGap * 2)) % 2 !== 0 ? fit - 1 : fit
   const box = { w: cell, h: cell }
 
   return (
@@ -501,12 +505,17 @@ function AddCell({ cell }: { cell: number }) {
   return (
     <button
       data-add-cell=""
-      className="relative grid cursor-pointer select-none place-items-center border border-dashed border-line-strong bg-transparent text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-txt"
+      className="relative grid cursor-pointer select-none place-items-center border-0 bg-transparent p-0 text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-txt"
       style={{ width: cell, height: cell }}
       aria-label={t('Add a workspace')}
       title={t('Add a workspace')}
       onClick={() => useStore.getState().addWorkspace()}
     >
+      {/* The dashed frame is drawn, not a CSS border: an SVG rect inset by
+          half its stroke keeps all four edges inside the box at any offset. */}
+      <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full overflow-visible text-line-strong">
+        <rect x="0.5" y="0.5" width={cell - 1} height={cell - 1} fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" shapeRendering="crispEdges" />
+      </svg>
       <MorphIcon icon={Plus} size={26} strokeWidth={1.75} />
     </button>
   )

@@ -10,7 +10,7 @@ import { usePreview } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { pickPhotoForPane } from '../lib/paneCommands'
-import { clampLeaf, photoNorm, placement, seamFadeWidth, seamMaskStyle } from '../lib/panes'
+import { clampLeaf, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -25,6 +25,8 @@ const dropBtnCls = 'flex w-full cursor-pointer items-center justify-center gap-2
 // no hold (a still mouse press must stay a pan), so it enters the same carried
 // state from the context menu's Move item instead.
 const SWAP_HOLD_MS = 500
+/** When the last long-press hold or carry ended (see PanePhotoContent's picker). */
+let lastCarryEndAt = 0
 // Pointer movement that separates a hold from a drag: it cancels a pending
 // arm (so a quick drag stays a pan) and starts the carry once the hold armed it.
 const SWAP_SLOP = 5
@@ -105,7 +107,8 @@ function PanePhotoContent({
             aria-label={t('Choose a photo')}
             onClick={(e) => {
               e.stopPropagation()
-              onPick()
+              if (Date.now() - lastCarryEndAt > 400)
+                onPick()
             }}
           >
             <span className="pointer-events-none flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
@@ -544,25 +547,30 @@ function SwapGhost({
   height: number
   radius: number
 }) {
-  if (!at || !preview)
+  if (!at)
     return null
   return createPortal(
     <div
       className="pointer-events-none fixed left-0 top-0 z-[80]"
       style={{ transform: `translate3d(${at.x}px, ${at.y}px, 0)` }}
     >
-      <img
-        src={preview.url}
-        alt=""
-        draggable={false}
-        className="pointer-events-none block swap-ghost max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
-        style={{
-          width,
-          height,
-          borderRadius: radius,
-          transform: 'translate(-50%, -55%)',
-        }}
-      />
+      {preview
+        ? (
+            <img
+              src={preview.url}
+              alt=""
+              draggable={false}
+              className="pointer-events-none block swap-ghost max-w-none opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+              style={{ width, height, borderRadius: radius, transform: 'translate(-50%, -55%)' }}
+            />
+          )
+        : (
+            // An empty pane carries as its own blank tile.
+            <div
+              className="pointer-events-none block swap-ghost bg-pane-bg bg-pane-empty opacity-95 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+              style={{ width, height, borderRadius: radius, transform: 'translate(-50%, -55%)' }}
+            />
+          )}
     </div>,
     document.body,
   )
@@ -847,12 +855,35 @@ function panPane(rt: PaneGestureRuntime, e: React.PointerEvent, g: Gesture) {
     rt.clearHold()
     rt.clearSwapHold()
   }
+  // Nothing placed to pan (an empty pane, or a photo still decoding).
+  if (!rt.iw || !rt.ih)
+    return
   const dx = p.x - g.lastX
   const dy = p.y - g.lastY
   g.lastX = p.x
   g.lastY = p.y
   const pl = placement(rt.cell, rt.leaf, rt.iw, rt.ih)
   rt.commit({ ...rt.leaf, cx: rt.leaf.cx - dx / pl.w, cy: rt.leaf.cy - dy / pl.h })
+}
+
+/** Start the touch hold that arms the carry (see SWAP_HOLD_MS). */
+function armSwapHold(rt: PaneGestureRuntime) {
+  // The ring wipes in while the hold runs (see [data-swap-hold] in
+  // index.css); clearSwapHold retracts it on every cancel path.
+  if (rt.elRef.current)
+    rt.elRef.current.dataset.swapHold = '1'
+  rt.swapHoldRef.current = window.setTimeout(() => {
+    rt.swapHoldRef.current = null
+    // The hold completed: the ring has nothing left to show and the armed
+    // lift takes over. This path bypasses clearSwapHold.
+    delete rt.elRef.current?.dataset.swapHold
+    rt.swapArmedRef.current = true
+    // The arm is otherwise invisible: tick the motor and lift the pane so
+    // the user learns the hold registered (vibrate is a no-op where
+    // unsupported, iOS Safari included).
+    rt.setSwapArmed(true)
+    navigator.vibrate?.(10)
+  }, SWAP_HOLD_MS)
 }
 
 function beginPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
@@ -865,14 +896,21 @@ function beginPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     return
   rt.onFocus(rt.paneId)
   useStore.getState().selectLabel(null)
-  if (!rt.leaf.photoId)
+  const plan = pressPlan(!!rt.leaf.photoId, e.pointerType)
+  // A mouse on an empty pane has nothing to pan or arm: leave it to the click.
+  if (!plan.pan && !plan.armHold)
+    return
+  // An empty pane has nothing to pinch: a second finger is ignored.
+  if (!plan.pan && rt.pointersRef.current.size >= 1)
     return
   const el = rt.elRef.current
-  el?.setPointerCapture(e.pointerId)
-  // The gesture rewrites the placed photo's transform on every move frame;
-  // the compositor hint rides its lifetime (see [data-gesture] in index.css).
-  if (el)
-    el.dataset.gesture = '1'
+  if (plan.capture) {
+    el?.setPointerCapture(e.pointerId)
+    // The gesture rewrites the placed photo's transform on every move frame;
+    // the compositor hint rides its lifetime (see [data-gesture] in index.css).
+    if (el)
+      el.dataset.gesture = '1'
+  }
   rt.pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
   const p = rt.local(e.clientX, e.clientY)
   if (rt.pointersRef.current.size >= 2) {
@@ -892,24 +930,8 @@ function beginPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
   else {
     rt.gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...rt.leaf } }
     rt.downAtRef.current = { x: e.clientX, y: e.clientY }
-    if (e.pointerType !== 'mouse') {
-      // The ring wipes in while the hold runs (see [data-swap-hold] in
-      // index.css); clearSwapHold retracts it on every cancel path.
-      if (rt.elRef.current)
-        rt.elRef.current.dataset.swapHold = '1'
-      rt.swapHoldRef.current = window.setTimeout(() => {
-        rt.swapHoldRef.current = null
-        // The hold completed: the ring has nothing left to show and the armed
-        // lift takes over. This path bypasses clearSwapHold.
-        delete rt.elRef.current?.dataset.swapHold
-        rt.swapArmedRef.current = true
-        // The arm is otherwise invisible: tick the motor and lift the pane so
-        // the user learns the hold registered (vibrate is a no-op where
-        // unsupported, iOS Safari included).
-        rt.setSwapArmed(true)
-        navigator.vibrate?.(10)
-      }, SWAP_HOLD_MS)
-    }
+    if (plan.armHold)
+      armSwapHold(rt)
     if (rt.hasLiveVideo) {
       rt.holdTimerRef.current = window.setTimeout(() => {
         rt.holdTimerRef.current = null
@@ -924,7 +946,7 @@ function movePointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     return
   rt.pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
   const g = rt.gestureRef.current
-  if (!g || !rt.iw || !rt.ih)
+  if (!g)
     return
 
   if (g.mode === 'pan' && rt.pointersRef.current.size === 1) {
@@ -936,7 +958,7 @@ function movePointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     swapOverAtEl(rt, e.clientX, e.clientY)
     return
   }
-  if (g.mode === 'pinch' && rt.pointersRef.current.size >= 2) {
+  if (g.mode === 'pinch' && rt.pointersRef.current.size >= 2 && rt.iw && rt.ih) {
     const [a, b] = [...rt.pointersRef.current.values()]
     const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))
     const mid = rt.local((a.x + b.x) / 2, (a.y + b.y) / 2)
@@ -956,6 +978,10 @@ function endPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
   const g = rt.gestureRef.current
   rt.pointersRef.current.delete(e.pointerId)
   if (rt.pointersRef.current.size === 0) {
+    // A hold that armed or carried is not a tap: the empty pane's picker
+    // button must not open on the click that follows the release.
+    if (rt.swapArmedRef.current || g?.mode === 'swap')
+      lastCarryEndAt = Date.now()
     rt.gestureRef.current = null
     rt.clearHold()
     rt.clearSwapHold()

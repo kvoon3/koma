@@ -152,10 +152,8 @@ function swapTargetFor(focused: boolean, focusId: string, leafId: string): strin
  * Move leads the menu: it is the one row that acts on the pane as a whole, so
  * it sits above the photo header instead of inside the Arrange submenu.
  */
-function MoveRow({ leaf, onStartMove }: { leaf: Leaf, onStartMove: (x: number, y: number) => void }) {
+function MoveRow({ onStartMove }: { onStartMove: (x: number, y: number) => void }) {
   const t = useT()
-  if (!leaf.photoId)
-    return null
   return (
     <>
       <MenuGroup>
@@ -378,7 +376,7 @@ export function PaneMenu({
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-90">
           <ContextMenu.Popup className={menuPopupCls}>
-            <MoveRow leaf={leaf} onStartMove={onStartMove} />
+            <MoveRow onStartMove={onStartMove} />
 
             <PhotoHeaderGroup
               leaf={leaf}
