@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import type { Action } from './actionGuard'
 import { describe, expect, mock, test } from 'bun:test'
-import { bindAction, paneContext } from './actionGuard'
+import { bindAction, canRun, paneContext } from './actionGuard'
 
 interface Ph { w: number }
 const none = { pane: null }
@@ -48,5 +48,32 @@ describe('paneContext', () => {
   })
   test('live focus → target', () => {
     expect(paneContext('a', lookup).pane).toEqual({ paneId: 'a', photo: null })
+  })
+})
+
+describe('route preconditions', () => {
+  const run = () => {}
+  test('stage/grid actions bind only on their route; default route is stage', () => {
+    expect(bindAction<Ph>({ requires: 'stage', run }, none)).not.toBeNull()
+    expect(bindAction<Ph>({ requires: 'stage', run }, { pane: null, route: 'grid' })).toBeNull()
+    expect(bindAction<Ph>({ requires: 'grid', run }, none)).toBeNull()
+    expect(bindAction<Ph>({ requires: 'grid', run }, { pane: null, route: 'grid' })).not.toBeNull()
+  })
+  test('selection (pane/photo) actions are disabled on the grid even with a stale pane', () => {
+    const grid = { ...full, route: 'grid' as const }
+    expect(bindAction<Ph>({ requires: 'pane', run }, grid)).toBeNull()
+    expect(bindAction<Ph>({ requires: 'photo', run }, grid)).toBeNull()
+    expect(bindAction<Ph>({ requires: 'photo', run }, { ...full, route: 'stage' })).not.toBeNull()
+  })
+  test('none binds everywhere', () => {
+    expect(bindAction<Ph>({ requires: 'none', run }, { pane: null, route: 'grid' })).not.toBeNull()
+  })
+  test('canRun mirrors bindAction', () => {
+    expect(canRun('grid', { pane: null, route: 'grid' })).toBe(true)
+    expect(canRun('grid', none)).toBe(false)
+    expect(canRun('pane', empty)).toBe(true)
+    expect(canRun('photo', empty)).toBe(false)
+    expect(canRun('photo', full)).toBe(true)
+    expect(canRun('pane', { ...full, route: 'grid' })).toBe(false)
   })
 })
