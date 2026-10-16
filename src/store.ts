@@ -1,9 +1,12 @@
+import type { BgImage } from './lib/collageBg'
 import type { CutoutMap } from './lib/cutout'
+import type { GridCellRatio } from './lib/gridTools'
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { SessionMeta } from './lib/sessionStore'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { clearTreePhotos, GRID_CELL_RATIO, isGridCellRatio, shuffleFilled } from './lib/gridTools'
 import { looksHeic, probeHeic, warmHeicDecoder } from './lib/heic'
 import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
@@ -58,6 +61,7 @@ export interface PaneClip {
 
 /** Bottom tools sheet snap: hidden / one scrolling row / wrapped multi-row. */
 export type ToolsDockMode = 'collapsed' | 'row' | 'expanded'
+export type DockBg = 'solid' | 'frosted' | 'liquid'
 
 interface State {
   photos: Photo[]
@@ -69,6 +73,10 @@ interface State {
   gridGap: number
   radius: number
   bg: string
+  /** Whole-collage background gradient end color over `bg` (see lib/collageBg). */
+  bgGradient: string | null
+  /** Whole-collage background photo over `bg` (see lib/collageBg). */
+  bgImage: BgImage | null
   edgeFade: number
   edgeFadeStrength: number
   /**
@@ -89,8 +97,13 @@ interface State {
    * repeated requests for the same pane still fire.
    */
   labelEditReq: { labelId: string, seq: number } | null
+  dockBg: DockBg
+  /** Aspect of the 3×3 grid's cells (display, snapshot and per-cell export). */
+  gridCellRatio: GridCellRatio
+  /** Dock background opacity, 0–100 (%). */
+  dockOpacity: number
   /**
-   * Bottom tools sheet snap state. Session-only; starts on single-row. Drag
+   * Bottom tools sheet snap state. Persisted; starts collapsed. Drag
    * the handle or tap it to move between collapsed / row / expanded.
    */
   toolsDockMode: ToolsDockMode
@@ -119,13 +132,50 @@ export const EDGE_FADE_STRENGTH = 100
 export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
 
-export const SETTINGS_VERSION = 1
+export const DOCK_BG: DockBg = 'solid'
+export const DOCK_OPACITY = 60
+export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
+
+export const SETTINGS_VERSION = 8
+
+const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
+const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
 
 /** Persisted-settings migration (zustand `persist`); pure for unit tests. */
 export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
   const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
   if (version < 1)
     p.blendCrossfade = BLEND_CROSSFADE
+  // v2: dock background + opacity + handle icon, and the dock mode is now
+  // persisted (see v6 for the default). Sanitize either way.
+  if (version < 2)
+    p.toolsDockMode = TOOLS_DOCK_MODE
+  // v6: the default dock mode became 'row'. A saved pre-v6 'collapsed' was
+  // the old default and can't be told from a choice, so reset it once.
+  if (version < 6)
+    p.toolsDockMode = TOOLS_DOCK_MODE
+  // v5: default became solid. Pre-v5 'frosted' was the old default and can't
+  // be told from an explicit pick (preview-only), so reset it.
+  if (version < 5 && p.dockBg === 'frosted')
+    p.dockBg = DOCK_BG
+  // v7: grid cell aspect ratio (1:1 default).
+  if (!isGridCellRatio(p.gridCellRatio))
+    p.gridCellRatio = GRID_CELL_RATIO
+  // v4: the 'transparent' dock style is gone; it (and any unknown value)
+  // falls back to the default below.
+  if (!DOCK_BGS.includes(p.dockBg as DockBg))
+    p.dockBg = DOCK_BG
+  const op = Number(p.dockOpacity)
+  p.dockOpacity = Number.isFinite(op) && p.dockOpacity != null ? Math.min(100, Math.max(0, op)) : DOCK_OPACITY
+  // v3: the temporary handle-icon toggle is gone (ruler is fixed).
+  delete p.dockHandleIcon
+  if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
+    p.toolsDockMode = TOOLS_DOCK_MODE
+  // v8: whole-collage background layers over the gap fill; off for old saves.
+  if (version < 8) {
+    p.bgGradient ??= null
+    p.bgImage ??= null
+  }
   return p
 }
 export const MIN_PANE_PX = 56
@@ -180,6 +230,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   gridGap: GRID_GAP,
   radius: RADIUS,
   bg: BG,
+  bgGradient: null,
+  bgImage: null,
   edgeFade: EDGE_FADE,
   edgeFadeStrength: EDGE_FADE_STRENGTH,
   blendCrossfade: BLEND_CROSSFADE,
@@ -190,7 +242,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
-  toolsDockMode: 'row',
+  toolsDockMode: TOOLS_DOCK_MODE,
+  dockBg: DOCK_BG,
+  gridCellRatio: GRID_CELL_RATIO,
+  dockOpacity: DOCK_OPACITY,
   paneClip: null,
   stickerMakerFor: null,
 
@@ -275,6 +330,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       paneClip: null,
       stickerMakerFor: null,
       cutouts: {},
+      // The background photo is gone with the library.
+      bgImage: null,
     }))
   },
 
@@ -314,6 +371,17 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * Reset every workspace to a fresh blank canvas, keeping their ids and
    * grid slots (photos fall back to the library; the board itself stays).
    */
+  /** Grid Shuffle: randomly reorder the workspaces that hold photos; empty slots stay. */
+  shuffleWorkspaces: (rng?: () => number) =>
+    set(s => ({ workspaces: shuffleFilled(s.workspaces, w => leafList(w.root).some(l => l.photoId), rng) })),
+
+  /** Grid Clear: drop every photo (panes and board stickers) from all workspaces; layouts stay. */
+  clearGridPhotos: () =>
+    set(s => ({
+      workspaces: s.workspaces.map(w => ({ ...w, root: clearTreePhotos(w.root), stickers: [] })),
+      ...clearedSelection,
+    })),
+
   resetAllWorkspaces: () =>
     set(s => ({
       workspaces: s.workspaces.map(w => ({ ...newWorkspace(), id: w.id })),
@@ -647,10 +715,14 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       gridGap: GRID_GAP,
       radius: RADIUS,
       bg: BG,
+      bgGradient: null,
+      bgImage: null,
       edgeFade: EDGE_FADE,
       edgeFadeStrength: EDGE_FADE_STRENGTH,
       blendCrossfade: BLEND_CROSSFADE,
       paneBorder: PANE_BORDER,
+      dockBg: DOCK_BG,
+      dockOpacity: DOCK_OPACITY,
     }),
 
   setCanvasSize: (ratio, fill) =>
@@ -765,16 +837,23 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // `blendCrossfade: false` (the old default) even if never touched, so it
   // cannot be told apart from an explicit choice: reset it to the new default.
   version: SETTINGS_VERSION,
+  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default. v6: dock mode reset to row. v7: gridCellRatio.
   migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
     gridGap: state.gridGap,
     radius: state.radius,
     bg: state.bg,
+    bgGradient: state.bgGradient,
+    bgImage: state.bgImage,
     edgeFade: state.edgeFade,
     edgeFadeStrength: state.edgeFadeStrength,
     blendCrossfade: state.blendCrossfade,
     paneBorder: state.paneBorder,
+    dockBg: state.dockBg,
+    gridCellRatio: state.gridCellRatio,
+    dockOpacity: state.dockOpacity,
+    toolsDockMode: state.toolsDockMode,
   }),
 }))
 
@@ -904,6 +983,8 @@ interface Actions {
   /** Returns the new workspace's id, or null when the board is full. */
   addWorkspace: () => string | null
   removeWorkspace: (id: string) => void
+  shuffleWorkspaces: (rng?: () => number) => void
+  clearGridPhotos: () => void
   resetAllWorkspaces: () => void
   hydrate: (session: { meta: SessionMeta, photos: Photo[] }) => void
   split: (paneId: string, dir: 'row' | 'column') => void

@@ -1,24 +1,27 @@
 import type { IconInput } from 'morphicons/react'
-import type { Action } from '../lib/actionGuard'
+import type { Action, DockRoute } from '../lib/actionGuard'
 import type { Photo } from '../lib/imageStore'
-import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, Scissors, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
+import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
-import { bindAction, paneContext } from '../lib/actionGuard'
+import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { cutoutAction, restoreOriginalAction } from '../lib/cutout'
+import { GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { cutOutPane, restorePaneOriginal } from '../lib/paneCutout'
-import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
+import { blendFadePx, dividerLine, expandRectForBlend, leafList, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
-import { AppearanceDockTools } from './AppearanceTools'
+import { AppearanceDockTools, GridDockTool } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
+import { CollageBgLayer } from './CollageBgLayer'
+import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
@@ -331,6 +334,7 @@ export function Stage() {
             className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
             style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
           >
+            <CollageBgLayer W={view.W} H={view.H} photoById={photoById} />
             {!blendCrossfade && (
               <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
             )}
@@ -385,6 +389,8 @@ export function Stage() {
         contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}
       >
         <AppearanceDockTools />
+        <GridDockTool disabled />
+        <GridBoardTools route="stage" />
         {dockLabel
           ? (
               <LabelDockTools
@@ -641,28 +647,93 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
  * the pane context menu's touch-friendly rows (desktop keeps those in the
  * hover chip and right-click menu); every command comes from lib/paneCommands.
  */
-function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Photo>) {
+const NO_PHOTOS = new Map<string, Photo>()
+
+const isFilled = (w: { root: Node }) => leafList(w.root).some(l => l.photoId)
+
+/**
+ * Grid whole-board tools (Shuffle, Cell ratio, Clear), next to
+ * Grid gap. `requires: 'grid'` disables them on the stage; `when` gates on
+ * what the board holds.
+ */
+function GridBoardTools({ route }: { route: DockRoute }) {
   const t = useT()
-  const mobile = useMediaQuery('(max-width: 1023.98px)')
+  const filled = useStore(s => s.workspaces.filter(isFilled).length)
+  const ratio = useStore(s => s.gridCellRatio)
+  const patch = useStore(s => s.patch)
+  const [askClear, setAskClear] = useState(false)
+  const ctx = { pane: null, route }
+  const onGrid = (run: () => void, ok = true) => (ok ? bindAction({ requires: 'grid', run }, ctx) : null)
+  const tools: ToolDef[] = [
+    { key: 'shuffle', icon: Shuffle, label: t('Shuffle'), hint: t('Randomly reorder the cells with photos'), onClick: onGrid(() => useStore.getState().shuffleWorkspaces(), filled >= 2) },
+    {
+      key: 'cell-ratio',
+      icon: RectangleHorizontal,
+      label: ratio,
+      hint: t('Cell aspect ratio'),
+      options: GRID_CELL_RATIOS.map(r => ({ key: r, icon: r === ratio ? Check : Ratio, label: r, onClick: onGrid(() => patch({ gridCellRatio: r })) })),
+    },
+    { key: 'clear', icon: Eraser, label: t('Clear'), hint: t('Remove all photos from the cells'), onClick: onGrid(() => setAskClear(true), filled > 0) },
+  ]
+  return (
+    <>
+      {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+      <ConfirmDialog
+        open={askClear}
+        title={t('Clear all cells?')}
+        description={t('This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.')}
+        confirmLabel={t('Clear')}
+        danger
+        onClose={() => setAskClear(false)}
+        onConfirm={() => {
+          useStore.getState().clearGridPhotos()
+          setAskClear(false)
+        }}
+      />
+    </>
+  )
+}
+
+/**
+ * The full dock tool set on every route, in one fixed order so buttons never
+ * jump between stage and grid: Border, Grid gap, then the pane tools. Off
+ * the stage (or without a selection/photo) tools render disabled.
+ */
+export function DockToolset({ route }: { route: DockRoute }) {
+  const { tools } = usePaneTools('', null, NO_PHOTOS, route)
+  return (
+    <>
+      <AppearanceDockTools />
+      <GridDockTool disabled={!canRun('grid', { pane: null, route })} />
+      <GridBoardTools route={route} />
+      {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+    </>
+  )
+}
+
+function usePaneTools(focusId: string, view: Derived | null, photoById: Map<string, Photo>, route: DockRoute = 'stage') {
+  const t = useT()
   const removePhoto = useStore(s => s.removePhoto)
   const resetPane = useStore(s => s.resetPane)
   const openStickerMaker = useStore(s => s.openStickerMaker)
   const cutouts = useStore(s => s.cutouts)
   const cutoutBusy = useStore(s => !!s.cutoutJob)
 
-  const focusHit = focusId ? view.leaves.find(l => l.node.id === focusId) : undefined
+  const focusHit = focusId && view ? view.leaves.find(l => l.node.id === focusId) : undefined
   const focusLeaf = focusHit?.node ?? null
   const hasPhoto = !!(focusLeaf?.photoId)
-  // Desktop: the dock shows only for a focused pane holding a photo. Below lg
-  // it is also where a phone splits and edits panes, so any focus shows it.
-  const toolsHidden = mobile ? !focusLeaf : !hasPhoto
+  // Context key only (the dock always shows the full set): no photo = canvas.
+  const toolsHidden = !hasPhoto
   const focusRect = focusHit?.rect
   // One context for every pane tool: a stale or empty focus yields no pane,
   // so `bindAction` disables every pane-scoped tool in the same place.
-  const ctx = paneContext<Photo>(focusId, (id) => {
-    const leaf = view.leaves.find(l => l.node.id === id)?.node
-    return leaf ? { photo: (leaf.photoId && photoById.get(leaf.photoId)) || null } : null
-  })
+  const ctx = {
+    ...paneContext<Photo>(focusId, (id) => {
+      const leaf = view?.leaves.find(l => l.node.id === id)?.node
+      return leaf ? { photo: (leaf.photoId && photoById.get(leaf.photoId)) || null } : null
+    }),
+    route,
+  }
   const bind = (a: Action<Photo>) => bindAction(a, ctx)
   const onPane = (run: (paneId: string) => void): Action<Photo> => ({ requires: 'pane', run: p => run(p.paneId) })
 
@@ -676,46 +747,36 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
       { key: 'row', icon: SquareSplitHorizontal, label: t('Split left/right'), onClick: bind(onPane(id => splitPane(id, 'row'))) },
     ],
   }
-  const pickTool = (label: string, hint: string): ToolDef => ({ key: 'photo', icon: ImagePlus, label, hint, onClick: bind(onPane(pickPhotoForPane)) })
   // One-tap cutout, or the way back to the original once the pane shows one.
   const restoreAction = restoreOriginalAction<Photo>({ cutouts, has: id => photoById.has(id) }, restorePaneOriginal)
   const cutoutTool: ToolDef = bind(restoreAction)
     ? { key: 'original', icon: Undo2, label: t('Original'), hint: t('Restore the original photo'), onClick: bind(restoreAction) }
     : { key: 'cutout', icon: Scissors, label: t('Cut out'), hint: t('Remove the photo background'), onClick: bind(cutoutAction<Photo>({ cutouts, busy: cutoutBusy }, (id, ph) => void cutOutPane(id, ph))) }
   const textTool: ToolDef = { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: bind(onPane(addLabelToPane)) }
-  // One row, so the order here is the order on screen.
-  const tools: ToolDef[] = !hasPhoto
-    ? [
-        pickTool(t('Photo'), t('Choose a photo')),
-        splitTool,
-        textTool,
-      ]
-    : [
-        pickTool(t('Replace'), t('Pick a photo to replace this pane\'s photo')),
-        ...(mobile ? [splitTool] : []),
-        { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: bind(onPane(pickStickersForPane)) },
-        cutoutTool,
-        { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind(onPane(openStickerMaker)) },
-        textTool,
-        ...(mobile
-          ? [
-            {
-              key: 'view',
-              icon: ImageIcon,
-              label: t('Fit'),
-              hint: t('Photo'),
-              options: [
-                { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: bind(onPane(resetPaneView)) },
-                { key: 'fit', icon: Frame, label: t('Fit whole photo'), onClick: bind({ requires: 'photo', run: p => fitPanePhoto(p.paneId, p.photo.trueW, p.photo.trueH, focusRect) }) },
-                { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), onClick: bind({ requires: 'photo', when: p => !!p.photo.trueW, run: p => matchCanvasToPhoto(p.photo.trueW, p.photo.trueH) }) },
-              ],
-            },
-            { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: bind(onPane(id => duplicatePaneAuto(id, focusRect))) },
-            { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: bind({ requires: 'photo', run: p => removePhoto(p.paneId) }) },
-            { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: bind(onPane(resetPane)) },
-          ] satisfies ToolDef[]
-          : []),
-      ]
+  // Full set, fixed order on every route and breakpoint: what does not apply
+  // is disabled by `bindAction`, never hidden, so nothing shifts.
+  const tools: ToolDef[] = [
+    { key: 'photo', icon: ImagePlus, label: hasPhoto ? t('Replace') : t('Photo'), hint: hasPhoto ? t('Pick a photo to replace this pane\'s photo') : t('Choose a photo'), onClick: bind(onPane(pickPhotoForPane)) },
+    splitTool,
+    { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: bind({ requires: 'photo', run: p => pickStickersForPane(p.paneId) }) },
+    cutoutTool,
+    { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind({ requires: 'photo', run: p => openStickerMaker(p.paneId) }) },
+    textTool,
+    {
+      key: 'view',
+      icon: ImageIcon,
+      label: t('Fit'),
+      hint: t('Photo'),
+      options: [
+        { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: bind({ requires: 'photo', run: p => resetPaneView(p.paneId) }) },
+        { key: 'fit', icon: Frame, label: t('Fit whole photo'), onClick: bind({ requires: 'photo', run: p => fitPanePhoto(p.paneId, p.photo.trueW, p.photo.trueH, focusRect) }) },
+        { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), onClick: bind({ requires: 'photo', when: p => !!p.photo.trueW, run: p => matchCanvasToPhoto(p.photo.trueW, p.photo.trueH) }) },
+      ],
+    },
+    { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: bind(onPane(id => duplicatePaneAuto(id, focusRect))) },
+    { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: bind({ requires: 'photo', run: p => removePhoto(p.paneId) }) },
+    { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: bind(onPane(resetPane)) },
+  ]
 
   return { tools, toolsHidden }
 }

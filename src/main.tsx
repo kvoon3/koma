@@ -20,6 +20,8 @@ function saveNow() {
       radius: s.radius,
       bg: s.bg,
       cutouts: s.cutouts,
+      bgGradient: s.bgGradient,
+      bgImage: s.bgImage,
       longSide: s.longSide,
       format: s.format,
       quality: s.quality,

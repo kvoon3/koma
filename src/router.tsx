@@ -23,8 +23,9 @@ import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { bindAction, paneContext } from './lib/actionGuard'
 import { AppCommandsContext } from './lib/appCommands'
 import { mapSeq } from './lib/async'
-import { buildCropReport, computeExportSize, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
+import { buildCropReport, computeExportSize, hasLiveCells, renderCollage, renderCollageVideo, renderGridCells, renderGridSnapshot } from './lib/exporter'
 import { armRun, releaseRun } from './lib/exportRun'
+import { cellRatioValue, gridCellFileName } from './lib/gridTools'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
@@ -42,6 +43,8 @@ function exportOptions(): ExportOptions {
     gap: s.gap,
     radius: s.radius,
     bg: s.bg,
+    bgGradient: s.bgGradient,
+    bgImage: s.bgImage,
     edgeFade: s.edgeFade,
     edgeFadeStrength: s.edgeFadeStrength,
     blendCrossfade: s.blendCrossfade,
@@ -79,6 +82,8 @@ async function renderGridItems(): Promise<RenderedItem[]> {
       gap: s.gap,
       radius: s.radius,
       bg: s.bg,
+      bgGradient: s.bgGradient,
+      bgImage: s.bgImage,
       edgeFade: s.edgeFade,
       edgeFadeStrength: s.edgeFadeStrength,
       blendCrossfade: s.blendCrossfade,
@@ -105,8 +110,8 @@ async function renderGridItems(): Promise<RenderedItem[]> {
   })).flat()
 }
 
-/** The whole 3×3 board as one image, named like the other exports. */
-async function renderGridSnapshotItem(): Promise<RenderedItem> {
+/** The whole 3×3 board as one image (grid_all), leading the per-cell run. */
+async function renderGridSnapshotItem(stamp: string): Promise<RenderedItem> {
   const s = useStore.getState()
   const canvas = await renderGridSnapshot({
     workspaces: s.workspaces,
@@ -118,10 +123,42 @@ async function renderGridSnapshotItem(): Promise<RenderedItem> {
     edgeFadeStrength: s.edgeFadeStrength,
     blendCrossfade: s.blendCrossfade,
     photos: photoMap(s.photos),
+    cellRatio: cellRatioValue(s.gridCellRatio),
   })
-  const item = await itemFromCanvas(canvas, `grid_${canvas.width}x${canvas.height}_${exportStamp()}`)
+  const item = await itemFromCanvas(canvas, `grid_all_${stamp}`)
   canvas.width = canvas.height = 0
   return item
+}
+
+/**
+ * The grid snapshot run: every filled cell as its own image, cropped to the
+ * cell aspect and named in posting order (grid_01_of_09 …) for a 9-grid post,
+ * with the whole board as one image (grid_all) first.
+ */
+async function renderGridCellItems(): Promise<RenderedItem[]> {
+  const s = useStore.getState()
+  const stamp = exportStamp()
+  const items: RenderedItem[] = []
+  await renderGridCells({
+    workspaces: s.workspaces,
+    longSide: s.longSide,
+    gridGap: s.gridGap,
+    radius: s.radius,
+    bg: s.bg,
+    edgeFade: s.edgeFade,
+    edgeFadeStrength: s.edgeFadeStrength,
+    blendCrossfade: s.blendCrossfade,
+    photos: photoMap(s.photos),
+    cellRatio: cellRatioValue(s.gridCellRatio),
+  }, async (canvas, i, total) => {
+    say(t('Rendering {n} / {total}...', { n: i + 1, total }))
+    const { blob, ext } = await canvasBlob(canvas)
+    items.push({ kind: 'image', blob, name: gridCellFileName(i, total, ext, stamp), w: canvas.width, h: canvas.height })
+    canvas.width = canvas.height = 0
+  })
+  if (items.length)
+    items.unshift(await renderGridSnapshotItem(stamp))
+  return items
 }
 
 /** The active workspace: the still, plus the paired video when a Live Photo pane is in frame. */
@@ -396,11 +433,13 @@ function RootLayout() {
     void doExport()
   })
 
-  const doSnapshotGrid = useCallback(async () => {
+  const doExportGridCells = useCallback(async () => {
     setBusy(true)
-    say(t('Rendering the grid snapshot...'))
+    say(t('Rendering at original resolution...'))
     try {
-      showRun([await renderGridSnapshotItem()])
+      const items = await renderGridCellItems()
+      if (items.length)
+        showRun(items)
     }
     catch (e) {
       say(t('Export failed: {msg}', { msg: (e as Error).message }))
@@ -415,14 +454,14 @@ function RootLayout() {
   // The chrome commands a menu deep in the tree may invoke (see CanvasMenu).
   const commands = useMemo<AppCommands>(() => ({
     exportNow: doExport,
-    snapshotGrid: doSnapshotGrid,
+    exportGridCells: doExportGridCells,
     showCrops: doCrops,
     setLibraryOpen: setLibOpen,
     setSettingsOpen,
     setHelpOpen,
     busy,
     grid,
-  }), [doExport, doSnapshotGrid, doCrops, setLibOpen, setSettingsOpen, busy, grid])
+  }), [doExport, doExportGridCells, doCrops, setLibOpen, setSettingsOpen, busy, grid])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

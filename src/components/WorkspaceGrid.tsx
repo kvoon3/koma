@@ -12,16 +12,16 @@ import { useElementSize, usePreview } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
+import { cellRatioValue, gridCellBox } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
 import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { gridStep, MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
-import { GridDockTool } from './AppearanceTools'
 import { LabelIconGlyph } from './BoardLabel'
 import { DeleteZone } from './DeleteZone'
-import { SeamBackdrop } from './Stage'
+import { DockToolset, SeamBackdrop } from './Stage'
 import { ToolsDock } from './ToolsDock'
 import { Tip } from './ui/tip'
 
@@ -318,7 +318,7 @@ export function WorkspaceGrid() {
   const moveWorkspace = useStore(s => s.moveWorkspace)
   const navigate = useNavigate()
   const t = useT()
-  const { snapshotGrid, busy } = useAppCommands()
+  const { exportGridCells, busy } = useAppCommands()
   /** Local to the camera chip: the app-wide `busy` also spins during an export. */
   const [snapBusy, setSnapBusy] = useState(false)
 
@@ -419,18 +419,13 @@ export function WorkspaceGrid() {
   }
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const fit = Math.max(60, Math.floor(
-    Math.min(
-      (wrapSize.w - 48 - gridGap * 2) / 3,
-      (wrapSize.h - 48 - SNAP_ROW_H - gridGap * 2) / 3,
-      GRID_CELL_MAX,
-    ),
-  ))
+  const gridCellRatio = useStore(s => s.gridCellRatio)
+  const fitBox = gridCellBox({ w: wrapSize.w - 48, h: wrapSize.h - 48 - SNAP_ROW_H }, gridGap, cellRatioValue(gridCellRatio), GRID_CELL_MAX)
   // Centering an odd leftover put every cell on a half pixel, where 1px
   // edges snap unevenly (the + cell's dashed right edge vanished). One px
   // less flips the board's parity, so the cells land on whole pixels.
-  const cell = fit > 60 && (wrapSize.w - (fit * 3 + gridGap * 2)) % 2 !== 0 ? fit - 1 : fit
-  const box = { w: cell, h: cell }
+  const cell = fitBox.w > 60 && (wrapSize.w - (fitBox.w * 3 + gridGap * 2)) % 2 !== 0 ? fitBox.w - 1 : fitBox.w
+  const box = { w: cell, h: cell === fitBox.w ? fitBox.h : Math.max(1, Math.round(cell / cellRatioValue(gridCellRatio))) }
 
   return (
     <div ref={wrapRef} className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden">
@@ -452,15 +447,15 @@ export function WorkspaceGrid() {
               the stage or clips the chip. */}
           <div className="flex flex-col items-center gap-3">
             <Tip
-              label={t('Snapshot all workspaces as one image')}
+              label={t('Snapshot: each cell plus the whole grid')}
               trigger={(
                 <button
                   className={snapBtnCls}
-                  aria-label={t('Snapshot all workspaces as one image')}
+                  aria-label={t('Snapshot: each cell plus the whole grid')}
                   disabled={!anyFilled || busy || snapBusy}
                   onClick={() => {
                     setSnapBusy(true)
-                    void snapshotGrid().finally(() => setSnapBusy(false))
+                    void exportGridCells().finally(() => setSnapBusy(false))
                   }}
                 >
                   <MorphIcon
@@ -491,7 +486,7 @@ export function WorkspaceGrid() {
                   }}
                 />
               ))}
-              {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} />}
+              {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
             </div>
           </div>
         </SortableContext>
@@ -501,7 +496,7 @@ export function WorkspaceGrid() {
             ? (
                 <div
                   className="relative cursor-grabbing overflow-hidden bg-panel-2 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
-                  style={{ width: cell, height: cell }}
+                  style={{ width: cell, height: box.h }}
                 >
                   <CellBody ws={draggedWs} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
                 </div>
@@ -512,7 +507,7 @@ export function WorkspaceGrid() {
 
       {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage. */}
       <ToolsDock hidden={false} contextKey="grid">
-        <GridDockTool />
+        <DockToolset route="grid" />
       </ToolsDock>
     </div>
   )
@@ -524,13 +519,13 @@ function GridDeleteZone({ active, label }: { active: boolean, label: string }) {
 }
 
 /** The + cell after the last workspace: adds a blank one. Not sortable. */
-function AddCell({ cell }: { cell: number }) {
+function AddCell({ cell, cellH }: { cell: number, cellH: number }) {
   const t = useT()
   return (
     <button
       data-add-cell=""
       className="relative grid cursor-pointer select-none place-items-center border-0 bg-transparent p-0 text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-txt"
-      style={{ width: cell, height: cell }}
+      style={{ width: cell, height: cellH }}
       aria-label={t('Add a workspace')}
       title={t('Add a workspace')}
       onClick={() => useStore.getState().addWorkspace()}
@@ -538,7 +533,7 @@ function AddCell({ cell }: { cell: number }) {
       {/* The dashed frame is drawn, not a CSS border: an SVG rect inset by
           half its stroke keeps all four edges inside the box at any offset. */}
       <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full overflow-visible text-line-strong">
-        <rect x="0.5" y="0.5" width={cell - 1} height={cell - 1} fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" shapeRendering="crispEdges" />
+        <rect x="0.5" y="0.5" width={cell - 1} height={cellH - 1} fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" shapeRendering="crispEdges" />
       </svg>
       <MorphIcon icon={Plus} size={26} strokeWidth={1.75} />
     </button>
@@ -567,7 +562,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
       }`}
       style={{
         width: cell,
-        height: cell,
+        height: box.h,
         transform: CSS.Transform.toString(transform),
         transition,
         viewTransitionName: `ws-${ws.id}`,
