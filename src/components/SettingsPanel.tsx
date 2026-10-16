@@ -90,7 +90,6 @@ export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: bo
                   { value: 'solid', label: t('Solid') },
                   { value: 'frosted', label: t('Frosted glass') },
                   { value: 'liquid', label: t('Liquid glass') },
-                  { value: 'transparent', label: t('Transparent') },
                 ]}
                 onChange={v => patch({ dockBg: v as typeof dockBg })}
               />

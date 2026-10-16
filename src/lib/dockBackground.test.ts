@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { dockBgStyle, LIQUID_FILTER_ID } from './dockBackground'
+import { COLLAPSED_DOCK_STYLE, dockBgStyle, LIQUID_FILTER_ID } from './dockBackground'
 
 describe('dockBgStyle', () => {
   test('solid: tint scales with opacity, no blur', () => {
@@ -24,11 +24,16 @@ describe('dockBgStyle', () => {
     expect(s.WebkitBackdropFilter).toBeUndefined()
     expect(s.backgroundColor).toContain('25%')
   })
-  test('transparent: no sheet background; opacity drives the chips', () => {
-    const s = dockBgStyle('transparent', 30) as Record<string, unknown>
-    expect(s.backgroundColor).toBe('transparent')
-    expect(s.boxShadow).toBe('none')
-    expect(s['--dock-chip']).toContain('30%')
+  test('collapsed override clears every chrome property the styles set', () => {
+    for (const bg of ['solid', 'frosted', 'liquid'] as const) {
+      for (const svg of [false, true]) {
+        const merged = { ...dockBgStyle(bg, 80, svg), ...COLLAPSED_DOCK_STYLE }
+        expect(merged.backgroundColor).toBe('transparent')
+        expect(merged.backdropFilter).toBe('none')
+        expect(merged.boxShadow).toBe('none')
+        expect(merged.WebkitBackdropFilter ?? 'none').toBe('none')
+      }
+    }
   })
   test('opacity is clamped and rounded', () => {
     expect(dockBgStyle('solid', 150).backgroundColor).toContain(' 100%')

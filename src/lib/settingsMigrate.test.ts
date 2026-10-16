@@ -18,8 +18,8 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 3', () => {
-    expect(SETTINGS_VERSION).toBe(3)
+  test('version is 4', () => {
+    expect(SETTINGS_VERSION).toBe(4)
   })
   test('v1 → v2 adds dock defaults and starts collapsed', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toEqual({
@@ -43,5 +43,14 @@ describe('migrateSettings v2 (dock)', () => {
   })
   test('null persisted state', () => {
     expect(migrateSettings(null, 0).toolsDockMode).toBe('collapsed')
+  })
+})
+
+describe('migrateSettings v4', () => {
+  test('saved transparent dock style → default', () => {
+    expect(migrateSettings({ dockBg: 'transparent', dockOpacity: 40 }, 3)).toMatchObject({ dockBg: DOCK_BG, dockOpacity: 40 })
+  })
+  test('v3 liquid is kept', () => {
+    expect(migrateSettings({ dockBg: 'liquid' }, 3).dockBg).toBe('liquid')
   })
 })

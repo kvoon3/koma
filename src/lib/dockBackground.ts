@@ -45,8 +45,18 @@ export function dockBgStyle(bg: DockBg, opacity: number, svgBackdrop = false): C
       const f = 'blur(12px) saturate(160%)'
       return { backgroundColor: tint(o), backdropFilter: f, WebkitBackdropFilter: f, boxShadow: GLASS_SHADOW }
     }
-    case 'transparent':
-      // No sheet; opacity drives the per-button chips (see index.css).
-      return { 'backgroundColor': 'transparent', 'borderTopColor': 'transparent', 'boxShadow': 'none', '--dock-chip': tint(o) } as CSSProperties
   }
+}
+
+/**
+ * Collapsed dock: full width but chrome-less, so only the handle icon shows.
+ * Overrides whatever `dockBgStyle` returned; the transition fades it back in.
+ */
+export const COLLAPSED_DOCK_STYLE: CSSProperties = {
+  backgroundColor: 'transparent',
+  backgroundImage: 'none',
+  borderTopColor: 'transparent',
+  boxShadow: 'none',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
 }

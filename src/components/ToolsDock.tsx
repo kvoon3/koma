@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Ruler } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { dockBgStyle, LIQUID_FILTER_ID, supportsSvgBackdrop } from '../lib/dockBackground'
+import { COLLAPSED_DOCK_STYLE, dockBgStyle, LIQUID_FILTER_ID, supportsSvgBackdrop } from '../lib/dockBackground'
 import { useT } from '../lib/i18n'
 import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
@@ -16,8 +16,6 @@ import { Footer } from './Footer'
 export const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 export const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
-/** Collapsed dock = handle-only pill this wide, centered. */
-const COLLAPSED_W = 56
 /** Handle chrome height = collapsed snap. Keep in sync with `handleCls` h-[]. */
 const HANDLE_H = 28
 const MAX_EXP_VH = 0.4
@@ -261,12 +259,12 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
                 data-dock-mode={mode}
                 data-dock-bg={dockBg}
                 data-instant={instant || undefined}
-                style={{ ...bgStyle, 'height': toolsMaxH, 'width': mode === 'collapsed' ? COLLAPSED_W : '100%', '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
-                className="group/dock pointer-events-auto relative mx-auto box-border flex flex-col overflow-hidden rounded-none border-t border-line shadow-pop outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-[transform,width] duration-(--dur-drawer) data-swiping:w-full! ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full"
+                style={{ ...bgStyle, ...(mode === 'collapsed' ? COLLAPSED_DOCK_STYLE : null), 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
+                className={`group/dock relative box-border flex w-full flex-col ${mode === 'collapsed' ? 'pointer-events-none data-swiping:pointer-events-auto' : 'pointer-events-auto'} overflow-hidden rounded-none border-t border-line shadow-pop outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-[transform,background-color,border-color,box-shadow,backdrop-filter] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full`}
               >
                 <button
                   type="button"
-                  className={handleCls}
+                  className={`${handleCls} ${mode === 'collapsed' ? 'pointer-events-auto mx-auto w-11! rounded-full' : ''}`}
                   title={handleLabel}
                   aria-label={handleLabel}
                   aria-expanded={mode !== 'collapsed'}
@@ -299,7 +297,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
               </Drawer.Popup>
             </div>
             <Footer className="pointer-events-auto" />
-            {dockBg === 'liquid' && svgBackdrop && <LiquidGlassFilter width={mode === 'collapsed' ? COLLAPSED_W : undefined} height={toolsMaxH} />}
+            {dockBg === 'liquid' && svgBackdrop && mode !== 'collapsed' && <LiquidGlassFilter height={toolsMaxH} />}
           </div>
         </Drawer.Viewport>
       </Drawer.Portal>
@@ -312,11 +310,10 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
  * displacement map sized to the sheet (viewport width × tools height), in
  * user space so it lines up with the popup's own box.
  */
-function LiquidGlassFilter({ width: fixedW, height }: { width?: number, height: number }) {
-  const [vw, setVw] = useState(() => window.innerWidth)
-  const width = fixedW ?? vw
+function LiquidGlassFilter({ height }: { height: number }) {
+  const [width, setWidth] = useState(() => window.innerWidth)
   useEffect(() => {
-    const onResize = () => setVw(window.innerWidth)
+    const onResize = () => setWidth(window.innerWidth)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
