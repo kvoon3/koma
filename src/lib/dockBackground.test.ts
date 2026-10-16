@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { COLLAPSED_DOCK_STYLE, DOCK_GLASS_CLS, dockSurface } from './dockBackground'
+import { DOCK_GLASS_CLS, dockDragFade, dockSurface } from './dockBackground'
 
 const v = (s: object, k: string) => (s as Record<string, unknown>)[k]
 
@@ -17,13 +17,30 @@ describe('dockSurface', () => {
     expect(v(dockSurface('solid', -5, 'row').style, '--glass-opacity')).toBe('0%')
     expect(v(dockSurface('solid', Number.NaN, 'row').style, '--glass-opacity')).toBe('0%')
   })
-  test('open modes carry no chrome overrides', () => {
-    expect(dockSurface('frosted', 60, 'row').style.backdropFilter).toBeUndefined()
+  test('--dock-fade: 0 collapsed, 1 open', () => {
+    expect(v(dockSurface('frosted', 60, 'collapsed').style, '--dock-fade')).toBe(0)
+    expect(v(dockSurface('frosted', 60, 'row').style, '--dock-fade')).toBe(1)
+    expect(v(dockSurface('liquid', 60, 'expanded').style, '--dock-fade')).toBe(1)
   })
-  test('collapsed clears every chrome property for all styles', () => {
-    for (const bg of ['solid', 'frosted', 'liquid'] as const) {
-      const s = dockSurface(bg, 80, 'collapsed').style
-      expect(s).toMatchObject(COLLAPSED_DOCK_STYLE)
-    }
+})
+
+describe('dockDragFade', () => {
+  // handle 28, row 72 → collapsed snap 28, row snap 100
+  test('collapsed at rest is 0, row at rest is 1', () => {
+    expect(dockDragFade(28, 0, 72, 28)).toBe(0)
+    expect(dockDragFade(100, 0, 72, 28)).toBe(1)
+  })
+  test('ramps linearly while dragging up from collapsed', () => {
+    expect(dockDragFade(28, -36, 72, 28)).toBe(0.5)
+    expect(dockDragFade(28, -18, 72, 28)).toBe(0.25)
+  })
+  test('dragging down from row fades out; clamped both ends', () => {
+    expect(dockDragFade(100, 54, 72, 28)).toBe(0.25)
+    expect(dockDragFade(100, 200, 72, 28)).toBe(0)
+    expect(dockDragFade(160, 0, 72, 28)).toBe(1)
+  })
+  test('degenerate inputs', () => {
+    expect(dockDragFade(28, Number.NaN, 72, 28)).toBe(0)
+    expect(dockDragFade(28, 0, 0, 28)).toBe(1)
   })
 })

@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Ruler } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { dockSurface } from '../lib/dockBackground'
+import { dockDragFade, dockSurface } from '../lib/dockBackground'
 import { useT } from '../lib/i18n'
 import { liquidGlassRef } from '../lib/liquidGlass'
 import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
@@ -210,6 +210,36 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
 
   // Icon + label describe the next tap (row with no room to expand → hide).
   const surface = dockSurface(dockBg, dockOpacity, mode)
+
+  // Drag-driven background: Base UI writes --drawer-swipe-movement-y on the
+  // popup every frame; mirror it into --dock-drag-fade without re-rendering.
+  const geomRef = useRef({ snapPoint, rowH })
+  useLayoutEffect(() => {
+    geomRef.current = { snapPoint, rowH }
+  }, [snapPoint, rowH])
+  const liquidOn = dockBg === 'liquid' && mode !== 'collapsed'
+  const popupRef = useCallback((el: HTMLDivElement | null) => {
+    if (!el)
+      return
+    let last = ''
+    const sync = () => {
+      const { snapPoint: sp, rowH: rh } = geomRef.current
+      const my = Number.parseFloat(el.style.getPropertyValue('--drawer-swipe-movement-y'))
+      const f = String(dockDragFade(sp, my || 0, rh, HANDLE_H))
+      if (f !== last) {
+        last = f
+        el.style.setProperty('--dock-drag-fade', f)
+      }
+    }
+    const mo = new MutationObserver(sync)
+    mo.observe(el, { attributes: true, attributeFilter: ['style', 'data-swiping'] })
+    sync()
+    const glass = liquidOn ? liquidGlassRef(el) : undefined
+    return () => {
+      mo.disconnect()
+      glass?.()
+    }
+  }, [liquidOn])
   const intent = dockHandleIntent(mode, cap)
   const handleIcon = intent === 'show' ? Ruler : INTENT_ICON[intent]
   const handleLabel = t(INTENT_LABEL[intent])
@@ -258,9 +288,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
                 data-dock-mode={mode}
                 data-dock-bg={dockBg}
                 data-instant={instant || undefined}
-                ref={dockBg === 'liquid' && mode !== 'collapsed' ? liquidGlassRef : undefined}
+                ref={popupRef}
                 style={{ ...surface.style, 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
-                className={`group/dock relative box-border flex w-full flex-col ${surface.className} ${mode === 'collapsed' ? 'pointer-events-none data-swiping:pointer-events-auto' : 'pointer-events-auto'} overflow-hidden rounded-none border-0 border-t border-solid outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-[transform,background-color,border-color,box-shadow,backdrop-filter] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full`}
+                className={`dock-surface group/dock relative box-border flex w-full flex-col ${surface.className} ${mode === 'collapsed' ? 'pointer-events-none data-swiping:pointer-events-auto' : 'pointer-events-auto'} overflow-hidden rounded-none border-0 border-t border-solid outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-[transform,background-color,border-color,box-shadow,backdrop-filter,--glass-fade] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full`}
               >
                 <button
                   type="button"

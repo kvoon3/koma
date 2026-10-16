@@ -31,7 +31,7 @@ const hintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums
 
 // `data-instant` fires on menubar hand-offs: the incoming panel slides over from
 // the trigger it left (no fade re-run), the outgoing one is gone at once.
-const popupCls = 'min-w-[190px] rounded-none border glass-liquid p-1 text-txt outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_var(--dur-surface)_var(--ease-out)]'
+const popupCls = 'min-w-[190px] rounded-none glass-liquid glass-pop p-1 text-txt outline-0 origin-[var(--transform-origin)] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_var(--dur-surface)_var(--ease-out)]'
 
 /** The top bar's dropdowns: they trade the open panel with each other on hover. */
 type HeaderMenuId = 'workspace' | 'photo' | 'help' | 'lang'

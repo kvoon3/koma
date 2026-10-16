@@ -19,7 +19,7 @@ const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-str
  * Settings keeps text/font mirror only. Canvas appearance knobs live in the
  * Tools dock Border panel; Grid gap is on the 3x3 grid route only.
  */
-const popup = 'flex max-h-[min(70dvh,520px)] w-[min(320px,calc(100vw-20px))] max-sm:w-[calc(100vw-12px)] flex-col overflow-hidden rounded-none border glass-liquid text-txt outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+const popup = 'flex max-h-[min(70dvh,520px)] w-[min(320px,calc(100vw-20px))] max-sm:w-[calc(100vw-12px)] flex-col overflow-hidden rounded-none glass-liquid glass-pop text-txt outline-0 origin-[var(--transform-origin)] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 
 export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: boolean, onOpenChange: (open: boolean) => void, onTriggerEnter?: () => void }) {
   const t = useT()

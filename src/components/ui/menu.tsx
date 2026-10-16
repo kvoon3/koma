@@ -26,10 +26,10 @@ export const menuGroupLabelCls = 'px-2.5 pt-1 pb-0.5 text-[10px] font-semibold t
 /** The menu's own header row: not a section label, so no uppercase tracking. */
 const menuTitleCls = 'block max-w-[240px] truncate px-2.5 pt-1 pb-0.5 text-[11px] text-faint'
 
-export const menuPopupCls = 'min-w-[190px] rounded-none border glass-liquid p-1 outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+export const menuPopupCls = 'min-w-[190px] rounded-none glass-liquid glass-pop p-1 outline-0 origin-[var(--transform-origin)] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 
 /** Menu chrome without the motion, for surfaces that bring their own. */
-export const menuSurfaceCls = 'min-w-[190px] rounded-none border glass-liquid p-1 outline-0'
+export const menuSurfaceCls = 'min-w-[190px] rounded-none glass-liquid glass-pop p-1 outline-0'
 
 /**
  * Enter/exit for popovers opened from the mobile tools dock (pane and label
@@ -38,7 +38,7 @@ export const menuSurfaceCls = 'min-w-[190px] rounded-none border glass-liquid p-
  * data-ending-style. The popups sit above the dock (side="top"), so they rise
  * out of the trigger. Under prefers-reduced-motion only the fade remains.
  */
-export const dockPopupMotionCls = 'origin-[var(--transform-origin)] transition-[opacity,scale,translate] duration-150 ease-(--ease-out) data-starting-style:opacity-0 data-starting-style:scale-[0.96] data-starting-style:translate-y-1 data-ending-style:opacity-0 data-ending-style:scale-[0.96] data-ending-style:translate-y-1 motion-reduce:data-starting-style:scale-100 motion-reduce:data-starting-style:translate-y-0 motion-reduce:data-ending-style:scale-100 motion-reduce:data-ending-style:translate-y-0'
+export const dockPopupMotionCls = 'origin-[var(--transform-origin)] transition-[opacity,scale,translate,--glass-fade] duration-150 ease-(--ease-out) data-starting-style:opacity-0 data-starting-style:scale-[0.96] data-starting-style:translate-y-1 data-ending-style:opacity-0 data-ending-style:scale-[0.96] data-ending-style:translate-y-1 motion-reduce:data-starting-style:scale-100 motion-reduce:data-starting-style:translate-y-0 motion-reduce:data-ending-style:scale-100 motion-reduce:data-ending-style:translate-y-0'
 
 /**
  * Dock icon buttons: pressed (chip fill plus an accent bar along the bottom) while their popover is open, and an
