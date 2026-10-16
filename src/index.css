@@ -546,3 +546,30 @@ html[data-theme-fade]::view-transition-new(root) {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Dock legibility over photos (Settings → Dock background). Any see-through
+ * style keeps the handle and tools readable on light and dark photos with a
+ * soft halo in the theme's own panel color; transparent drops the sheet
+ * entirely, so the handle and each tool get their own translucent chip.
+ */
+.tools-dock [data-dock-bg]:not([data-dock-bg='solid']) :is(button, [role='button']) {
+  text-shadow: 0 0 3px var(--drawerBg), 0 0 1px var(--drawerBg);
+}
+.tools-dock [data-dock-bg]:not([data-dock-bg='solid']) :is(button, [role='button']) svg {
+  filter: drop-shadow(0 0 1.5px var(--drawerBg));
+}
+.tools-dock [data-dock-bg='transparent'] [data-dock-context] {
+  gap: 4px;
+  padding: 0 4px 4px;
+}
+.tools-dock [data-dock-bg='transparent'] [data-dock-context] > *,
+.tools-dock [data-dock-bg='transparent'] > button:first-child > svg {
+  background-color: var(--dock-chip, color-mix(in srgb, var(--drawerBg) 72%, transparent));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.tools-dock [data-dock-bg='transparent'] > button:first-child > svg {
+  box-sizing: content-box;
+  padding: 2px 10px;
+}

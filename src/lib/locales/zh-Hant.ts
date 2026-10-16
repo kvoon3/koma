@@ -442,4 +442,12 @@ export const zhHant: Record<string, string> = {
   'Drop here to delete': '拖到這裡刪除',
   'Add a workspace': '新增工作區',
   'Snapshot all workspaces as one image': '把所有工作區拍成一張圖',
+  'Dock background': '工具列背景',
+  'Solid': '純色半透明',
+  'Frosted glass': '毛玻璃',
+  'Liquid glass': '液態玻璃',
+  'Dock opacity': '工具列不透明度',
+  'Dock icon': '工具列圖示',
+  'Wrench': '扳手',
+  'Sliders': '滑桿',
 }

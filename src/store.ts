@@ -57,6 +57,9 @@ export interface PaneClip {
 
 /** Bottom tools sheet snap: hidden / one scrolling row / wrapped multi-row. */
 export type ToolsDockMode = 'collapsed' | 'row' | 'expanded'
+export type DockBg = 'solid' | 'frosted' | 'liquid' | 'transparent'
+/** Temporary: collapsed handle icon under evaluation (dev toggle in Settings). */
+export type DockHandleIcon = 'wrench' | 'sliders'
 
 interface State {
   photos: Photo[]
@@ -88,8 +91,12 @@ interface State {
    * repeated requests for the same pane still fire.
    */
   labelEditReq: { labelId: string, seq: number } | null
+  dockBg: DockBg
+  /** Dock background opacity, 0–100 (%). */
+  dockOpacity: number
+  dockHandleIcon: DockHandleIcon
   /**
-   * Bottom tools sheet snap state. Session-only; starts on single-row. Drag
+   * Bottom tools sheet snap state. Persisted; starts collapsed. Drag
    * the handle or tap it to move between collapsed / row / expanded.
    */
   toolsDockMode: ToolsDockMode
@@ -114,13 +121,33 @@ export const EDGE_FADE_STRENGTH = 100
 export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
 
-export const SETTINGS_VERSION = 1
+export const DOCK_BG: DockBg = 'frosted'
+export const DOCK_OPACITY = 60
+export const DOCK_HANDLE_ICON: DockHandleIcon = 'wrench'
+export const TOOLS_DOCK_MODE: ToolsDockMode = 'collapsed'
+
+export const SETTINGS_VERSION = 2
+
+const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid', 'transparent']
+const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
 
 /** Persisted-settings migration (zustand `persist`); pure for unit tests. */
 export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
   const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
   if (version < 1)
     p.blendCrossfade = BLEND_CROSSFADE
+  // v2: dock background + opacity + handle icon, and the dock mode is now
+  // persisted (new and migrated visits start collapsed). Sanitize either way.
+  if (version < 2)
+    p.toolsDockMode = TOOLS_DOCK_MODE
+  if (!DOCK_BGS.includes(p.dockBg as DockBg))
+    p.dockBg = DOCK_BG
+  const op = Number(p.dockOpacity)
+  p.dockOpacity = Number.isFinite(op) && p.dockOpacity != null ? Math.min(100, Math.max(0, op)) : DOCK_OPACITY
+  if (p.dockHandleIcon !== 'wrench' && p.dockHandleIcon !== 'sliders')
+    p.dockHandleIcon = DOCK_HANDLE_ICON
+  if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
+    p.toolsDockMode = TOOLS_DOCK_MODE
   return p
 }
 export const MIN_PANE_PX = 56
@@ -183,7 +210,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
-  toolsDockMode: 'row',
+  toolsDockMode: TOOLS_DOCK_MODE,
+  dockBg: DOCK_BG,
+  dockOpacity: DOCK_OPACITY,
+  dockHandleIcon: DOCK_HANDLE_ICON,
   paneClip: null,
   stickerMakerFor: null,
 
@@ -640,6 +670,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       edgeFadeStrength: EDGE_FADE_STRENGTH,
       blendCrossfade: BLEND_CROSSFADE,
       paneBorder: PANE_BORDER,
+      dockBg: DOCK_BG,
+      dockOpacity: DOCK_OPACITY,
+      dockHandleIcon: DOCK_HANDLE_ICON,
     }),
 
   setCanvasSize: (ratio, fill) =>
@@ -754,6 +787,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // `blendCrossfade: false` (the old default) even if never touched, so it
   // cannot be told apart from an explicit choice: reset it to the new default.
   version: SETTINGS_VERSION,
+  // v2: dock background/opacity/handle icon + persisted dock mode.
   migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
@@ -764,6 +798,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     edgeFadeStrength: state.edgeFadeStrength,
     blendCrossfade: state.blendCrossfade,
     paneBorder: state.paneBorder,
+    dockBg: state.dockBg,
+    dockOpacity: state.dockOpacity,
+    dockHandleIcon: state.dockHandleIcon,
+    toolsDockMode: state.toolsDockMode,
   }),
 }))
 
