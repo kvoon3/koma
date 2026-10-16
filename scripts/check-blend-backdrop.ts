@@ -1,12 +1,13 @@
+/**
+ * Prove blend + black gap fill: no near-black dip at the join, and a soft
+ * crossfade band still exists (intermediate colors, not a hard step).
+ * Mirrors export drawBackdrop (opaque leaf composite, then one blur) over
+ * BG=#000. Run: bun scripts/check-blend-backdrop.ts
+ */
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-/**
- * Prove blend + black gap fill no longer punches a near-black dip at the join.
- * Mirrors exporter drawBackdrop (opaque leaf-clipped underlay, then blur) and
- * drawFadedPhoto over BG=#000. Run: bun scripts/check-blend-backdrop.ts
- */
 import process from 'node:process'
 
 const dir = mkdtempSync(join(tmpdir(), 'blend-check-'))
@@ -40,8 +41,33 @@ function fadePhoto(ctx, src, rect, side, fade) {
   s.fillRect(0, 0, cw, ch)
   ctx.drawImage(sc, rect.x, rect.y)
 }
-function paint(opts) {
-  var W = 800, H = 400, fade = opts.fade
+function analyze(ctx, W, H, fade) {
+  var row = ctx.getImageData(0, H / 2, W, 1).data
+  var c0 = W / 2, min = 255, mixed = 0, hardSteps = 0
+  var prev = null
+  for (var x = c0 - fade; x <= c0 + fade; x++) {
+    var i = x * 4
+    var R = row[i], G = row[i + 1], B = row[i + 2]
+    var lum = (R + G + B) / 3
+    if (lum < min) min = lum
+    // purple-ish mix of left-red (220,60,60) and right-blue (50,100,220)
+    if (R > 70 && R < 190 && B > 70 && B < 190 && lum > 50) mixed++
+    if (prev) {
+      var d = Math.abs(R - prev.R) + Math.abs(G - prev.G) + Math.abs(B - prev.B)
+      if (d > 80) hardSteps++
+    }
+    prev = { R: R, G: G, B: B }
+  }
+  var ci = c0 * 4
+  return {
+    min: min,
+    center: { R: row[ci], G: row[ci + 1], B: row[ci + 2], lum: (row[ci] + row[ci + 1] + row[ci + 2]) / 3 },
+    mixedCount: mixed,
+    hardSteps: hardSteps
+  }
+}
+function paint(mode, fade) {
+  var W = 800, H = 400
   var left = { x: 0, y: 0, w: 400, h: 400 }
   var right = { x: 400, y: 0, w: 400, h: 400 }
   var red = solid(400, 400, 220, 60, 60)
@@ -51,11 +77,27 @@ function paint(opts) {
   var ctx = c.getContext('2d')
   ctx.fillStyle = '#000000'
   ctx.fillRect(0, 0, W, H)
-  var R = Math.max(16, fade)
+  var Rblur = Math.max(16, fade)
   if (fade > 0) {
-    ctx.save()
-    ctx.globalAlpha = 1
-    if (opts.underlay) {
+    if (mode === 'compositeBlur') {
+      var off = document.createElement('canvas')
+      off.width = W; off.height = H
+      var o = off.getContext('2d')
+      ;[[red, left], [blue, right]].forEach(function (pair) {
+        var src = pair[0], rect = pair[1]
+        o.save()
+        o.beginPath()
+        o.rect(rect.x, rect.y, rect.w, rect.h)
+        o.clip()
+        o.drawImage(src, rect.x, rect.y, rect.w, rect.h)
+        o.restore()
+      })
+      ctx.save()
+      if (typeof ctx.filter === 'string') ctx.filter = 'blur(' + Rblur + 'px)'
+      ctx.drawImage(off, 0, 0)
+      ctx.restore()
+    }
+    else if (mode === 'opaqueUnderlay') {
       ;[[red, left], [blue, right]].forEach(function (pair) {
         var src = pair[0], rect = pair[1]
         ctx.save()
@@ -65,17 +107,14 @@ function paint(opts) {
         ctx.drawImage(src, rect.x, rect.y, rect.w, rect.h)
         ctx.restore()
       })
-    }
-    if (opts.blur && typeof ctx.filter === 'string') {
       ;[[red, left], [blue, right]].forEach(function (pair) {
         var src = pair[0], rect = pair[1]
         ctx.save()
-        ctx.filter = 'blur(' + R + 'px)'
+        if (typeof ctx.filter === 'string') ctx.filter = 'blur(' + Rblur + 'px)'
         ctx.drawImage(src, rect.x, rect.y, rect.w, rect.h)
         ctx.restore()
       })
     }
-    ctx.restore()
     fadePhoto(ctx, red, left, 'right', fade)
     fadePhoto(ctx, blue, right, 'left', fade)
   }
@@ -83,26 +122,14 @@ function paint(opts) {
     ctx.drawImage(red, left.x, left.y)
     ctx.drawImage(blue, right.x, right.y)
   }
-  var row = ctx.getImageData(0, H / 2, W, 1).data
-  var lum = []
-  for (var x = 0; x < W; x++) {
-    var i = x * 4
-    lum.push((row[i] + row[i + 1] + row[i + 2]) / 3)
-  }
-  var c0 = W / 2, min = 255
-  for (var x = c0 - 60; x <= c0 + 60; x++) {
-    if (lum[x] < min)
-      min = lum[x]
-  }
-  return { min: min, center: lum[c0], left: lum[c0 - 100], right: lum[c0 + 100] }
+  return analyze(ctx, W, H, fade || 1)
 }
 var fade = 48
 var data = {
-  noBackdrop: paint({ fade: fade, underlay: false, blur: false }),
-  blurOnly: paint({ fade: fade, underlay: false, blur: true }),
-  fixed: paint({ fade: fade, underlay: true, blur: true }),
-  underlayOnly: paint({ fade: fade, underlay: true, blur: false }),
-  hard: paint({ fade: 0, underlay: true, blur: true })
+  noBackdrop: paint('none', fade),
+  opaqueUnderlay: paint('opaqueUnderlay', fade),
+  fixed: paint('compositeBlur', fade),
+  hard: paint('compositeBlur', 0)
 }
 document.getElementById('out').textContent = JSON.stringify(data)
 </script>
@@ -131,12 +158,16 @@ if (!pre || pre[1].trim() === 'pending') {
   process.exit(1)
 }
 
-interface Sample { min: number, center: number, left: number, right: number }
+interface Sample {
+  min: number
+  center: { R: number, G: number, B: number, lum: number }
+  mixedCount: number
+  hardSteps: number
+}
 interface Report {
   noBackdrop: Sample
-  blurOnly: Sample
+  opaqueUnderlay: Sample
   fixed: Sample
-  underlayOnly: Sample
   hard: Sample
 }
 
@@ -147,14 +178,18 @@ if (data.noBackdrop.min >= 15)
   throw new Error(`expected noBackdrop near-black, got min=${data.noBackdrop.min}`)
 if (data.fixed.min <= 80)
   throw new Error(`fixed min too dark: ${data.fixed.min}`)
-if (data.fixed.center <= 80)
-  throw new Error(`fixed center too dark: ${data.fixed.center}`)
-if (data.underlayOnly.min <= 80)
-  throw new Error(`underlayOnly min too dark: ${data.underlayOnly.min}`)
-if (data.hard.center <= 80)
-  throw new Error(`fade0 center too dark: ${data.hard.center}`)
-if (data.fixed.min - data.noBackdrop.min <= 60)
-  throw new Error(`fixed did not clear the black dip enough`)
+if (data.fixed.center.lum <= 80)
+  throw new Error(`fixed center too dark: ${data.fixed.center.lum}`)
+if (data.hard.center.lum <= 80)
+  throw new Error(`fade0 center too dark: ${data.hard.center.lum}`)
+// Soft crossfade must still exist: many intermediate pixels, no hard RGB jump.
+if (data.fixed.mixedCount < 30)
+  throw new Error(`fixed lost blend transition: mixedCount=${data.fixed.mixedCount} (want >= 30)`)
+if (data.fixed.hardSteps !== 0)
+  throw new Error(`fixed has hard seam step: hardSteps=${data.fixed.hardSteps}`)
+// Regression guard: composite-then-blur must keep more mix than the rejected opaque-underlay approach.
+if (data.fixed.mixedCount <= data.opaqueUnderlay.mixedCount)
+  throw new Error(`fixed mix (${data.fixed.mixedCount}) should beat opaqueUnderlay (${data.opaqueUnderlay.mixedCount})`)
 
 console.log('check-blend-backdrop: OK')
 rmSync(dir, { recursive: true, force: true })

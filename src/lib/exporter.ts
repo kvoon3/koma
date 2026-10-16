@@ -196,19 +196,22 @@ async function resolveSources(wanted: Photo[], sources: FullSourceBatch): Promis
 }
 
 /**
- * Shared backdrop under feathered pane edges. Each seam photo is stamped
- * opaque and clipped to its leaf first, then blurred unclipped on top.
- * Blur alone softens into transparent and would punch the gap fill (often
- * black) through the fade; the opaque underlay keeps the join from dipping
- * to near-black. Mirrors SeamBackdrop in the Stage preview.
+ * Shared backdrop under feathered pane edges. Seam photos are stamped opaque
+ * and leaf-clipped onto an offscreen canvas, then that whole field is blurred
+ * once onto the board. Blurring each photo alone softens into transparent over
+ * gap fill (near-black join). An opaque per-leaf underlay under per-photo blur
+ * blocks black but flattens the crossfade. Composite-then-blur keeps an opaque
+ * soft mix of both sides. Mirrors SeamBackdrop in the Stage preview.
  */
 function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, src: Map<Photo, FullSource | null>) {
   if (prep.fade <= 0)
     return
   const R = Math.max(prep.u * 40, prep.fade)
-  const canBlur = typeof ctx.filter === 'string'
-  ctx.save()
-  ctx.globalAlpha = Math.max(0, Math.min(1, opts.edgeFadeStrength / 100))
+  const off = document.createElement('canvas')
+  off.width = prep.W
+  off.height = prep.H
+  const octx = off.getContext('2d')!
+  octx.imageSmoothingQuality = 'high'
   for (const { leaf, rect, photo } of prep.cells) {
     const seam = prep.seam.get(leaf.id)
     if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
@@ -217,28 +220,18 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
     if (!full)
       continue
     const p = placement(rect, leaf, photo.trueW, photo.trueH)
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(rect.x, rect.y, rect.w, rect.h)
-    ctx.clip()
-    ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
-    ctx.restore()
+    octx.save()
+    octx.beginPath()
+    octx.rect(rect.x, rect.y, rect.w, rect.h)
+    octx.clip()
+    octx.drawImage(full.src, p.x, p.y, p.w, p.h)
+    octx.restore()
   }
-  if (canBlur) {
-    for (const { leaf, rect, photo } of prep.cells) {
-      const seam = prep.seam.get(leaf.id)
-      if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
-        continue
-      const full = src.get(photo)
-      if (!full)
-        continue
-      const p = placement(rect, leaf, photo.trueW, photo.trueH)
-      ctx.save()
-      ctx.filter = `blur(${R}px)`
-      ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
-      ctx.restore()
-    }
-  }
+  ctx.save()
+  ctx.globalAlpha = Math.max(0, Math.min(1, opts.edgeFadeStrength / 100))
+  if (typeof ctx.filter === 'string')
+    ctx.filter = `blur(${R}px)`
+  ctx.drawImage(off, 0, 0)
   ctx.restore()
 }
 

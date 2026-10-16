@@ -1,5 +1,4 @@
 import type { IconInput } from 'morphicons/react'
-import type { CSSProperties } from 'react'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
@@ -409,59 +408,45 @@ export function Stage() {
 }
 
 /**
- * One seam photo of the shared backdrop: an opaque copy clipped to the leaf
- * under an unclipped blur. The clip keeps empty neighbors blank; the opaque
- * stamp stops blur's soft edge from punching gap fill through the fade.
+ * One seam photo stamped opaque and clipped to its leaf. The parent
+ * SeamBackdrop applies one blur to the composited field so adjacent photos
+ * soft-mix without punching gap fill.
  */
-function BackdropLeaf({ leaf, rect, photo, radius }: {
+function BackdropLeaf({ leaf, rect, photo }: {
   leaf: Leaf
   rect: Rect
   photo: Photo
-  radius: number
 }) {
   const preview = usePreview(photo)
   if (!preview)
     return null
   const place = placement(rect, leaf, preview.w, preview.h)
-  const imgStyle: CSSProperties = {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    transformOrigin: '0 0',
-    transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
-  }
   return (
-    <>
-      <div
-        className="pointer-events-none absolute overflow-hidden"
-        style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
-      >
-        <img
-          src={preview.url}
-          alt=""
-          draggable={false}
-          className="pointer-events-none absolute block max-w-none"
-          style={{
-            ...imgStyle,
-            transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
-          }}
-        />
-      </div>
+    <div
+      className="pointer-events-none absolute overflow-hidden"
+      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+    >
       <img
         src={preview.url}
         alt=""
         draggable={false}
         className="pointer-events-none absolute block max-w-none"
-        style={{ ...imgStyle, filter: `blur(${radius}px)` }}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          transformOrigin: '0 0',
+          transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
+        }}
       />
-    </>
+    </div>
   )
 }
 
 /**
- * The blurred photo field behind all panes; `opacity` is the blend strength.
- * Shared with the 3×3 workspace preview (WorkspaceGrid), which renders it
- * scaled into the cell.
+ * Shared backdrop under feathered pane edges: opaque leaf stamps composited,
+ * then one CSS blur on the whole field (same idea as export drawBackdrop).
+ * Shared with the 3×3 workspace preview (WorkspaceGrid).
  */
 export function SeamBackdrop({ leaves, photoById, radius, opacity, gap = 0 }: {
   leaves: { node: Leaf, rect: Rect }[]
@@ -475,13 +460,16 @@ export function SeamBackdrop({ leaves, photoById, radius, opacity, gap = 0 }: {
   // instead of bleeding a blurred copy of the filled pane.
   const seams = useMemo(() => seamSides(leaves, gap), [leaves, gap])
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity }}>
+    <div
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      style={{ opacity, filter: `blur(${radius}px)` }}
+    >
       {leaves.map(({ node, rect }) => {
         const photo = node.photoId ? photoById.get(node.photoId) : undefined
         const seam = seams.get(node.id)
         if (!photo || !seam || !(seam.left || seam.right || seam.top || seam.bottom))
           return null
-        return <BackdropLeaf key={node.id} leaf={node} rect={rect} photo={photo} radius={radius} />
+        return <BackdropLeaf key={node.id} leaf={node} rect={rect} photo={photo} />
       })}
     </div>
   )
