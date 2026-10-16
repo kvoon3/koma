@@ -504,6 +504,7 @@ function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, cro
             layoutRect={crossfade ? rect : undefined}
             rect={draw}
             radius={view.radius}
+            gap={view.gap}
             bordered={paneBorder}
             fade={fade}
             seam={seam}

@@ -14,7 +14,7 @@ import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
-import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
+import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { GridDockTool } from './AppearanceTools'
@@ -98,7 +98,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
     top: cell.y,
     width: cell.w,
     height: cell.h,
-    borderRadius: radius * unit,
+    borderRadius: cornerRadiiCss(leafCornerRadii(radius * unit, seam, 0)),
   }
   const place = previewLeafPlace(leaf, layout, cell, preview?.w ?? 0, preview?.h ?? 0, crossfade)
   const mask = leaf.photoId ? seamMaskStyle(seam, seamFadeWidth(fade, crossfade ? layout : cell)) : undefined

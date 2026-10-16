@@ -9,7 +9,7 @@ import { createPortal, flushSync } from 'react-dom'
 import { usePreview } from '../hooks'
 import { useT } from '../lib/i18n'
 import { pickPhotoForPane } from '../lib/paneCommands'
-import { clampLeaf, photoNorm, placement, seamFadeWidth, seamMaskStyle } from '../lib/panes'
+import { clampLeaf, cornerRadiiCss, leafCornerRadii, photoNorm, placement, seamFadeWidth, seamMaskStyle } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -55,7 +55,7 @@ function PanePhotoContent({
   rect: Rect
   photoId: string | null
   mask?: React.CSSProperties
-  radius: number
+  radius: number | string
   crossfade?: boolean
   onPick: () => void
   /** The photo is being carried as the swap/Move ghost: dim the original. */
@@ -381,7 +381,7 @@ function PaneOutline({
   focused: boolean
   dropping: boolean
   bordered: boolean
-  radius: number
+  radius: number | string
 }) {
   return (
     <div
@@ -405,6 +405,7 @@ interface Props {
   /** When true, seam masks use plus-lighter compositing. */
   crossfade?: boolean
   radius: number
+  gap: number
   bordered: boolean
   fade: number
   seam?: SeamSides
@@ -1338,6 +1339,7 @@ function PaneImpl({
   layoutRect,
   crossfade,
   radius,
+  gap,
   bordered,
   fade,
   seam,
@@ -1414,6 +1416,7 @@ function PaneImpl({
   // Feather the photo's seam edges (and the Live Photo video that replaces
   // it visually); stickers/labels stay sharp above it.
   const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
+  const radiusCss = cornerRadiiCss(leafCornerRadii(radius, seam, gap))
 
   // The carried photo rides the pointer at roughly its pane size (capped).
   const ghostW = Math.min(rect.w, 180)
@@ -1429,7 +1432,7 @@ function PaneImpl({
       data-swap-armed={swapArmed ? '' : undefined}
       data-swap-source={swapAt ? '' : undefined}
       className={paneShellClass(focused, !!leaf.photoId)}
-      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radius }}
+      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radiusCss }}
       onPointerDown={onPointerDown}
       onPointerDownCapture={onPointerDownCapture}
       onPointerMove={onPointerMove}
@@ -1448,7 +1451,7 @@ function PaneImpl({
         photoId={leaf.photoId}
         mask={photoMask}
         crossfade={crossfade}
-        radius={radius}
+        radius={radiusCss}
         onPick={pickForPane}
         carried={!!swapAt}
       />
@@ -1498,7 +1501,7 @@ function PaneImpl({
       {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
       {/* Drawn last so the pane border stays above its photo/stickers. */}
-      <PaneOutline focused={focused} dropping={dropping} bordered={bordered} radius={radius} />
+      <PaneOutline focused={focused} dropping={dropping} bordered={bordered} radius={radiusCss} />
     </div>
   )
 
