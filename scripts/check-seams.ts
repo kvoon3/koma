@@ -3,7 +3,7 @@
  * scripts/check-seams.ts`. Exit code 0 = all assertions held.
  */
 import type { Leaf, Node, Rect, Split } from '../src/lib/panes'
-import { layoutTree, leafCornerRadii, seamFadeWidth, seamSides } from '../src/lib/panes'
+import { blendFadePx, expandRectForBlend, layoutTree, leafCornerRadii, seamFadeWidth, seamSides } from '../src/lib/panes'
 
 let seq = 0
 function leaf(photo: string | null): Leaf {
@@ -91,6 +91,25 @@ function flag(s: { left: boolean, right: boolean, top: boolean, bottom: boolean 
     throw new Error(`clamp passthrough: expected 10 got ${seamFadeWidth(10, rect)}`)
   if (seamFadeWidth(-1, rect) !== 0)
     throw new Error('clamp must floor at 0')
+}
+
+// 6b. Blend helpers: strength scales fade; gap>0 disables; expand grows into seams.
+{
+  if (blendFadePx(60, 100, 0) !== 60)
+    throw new Error('blendFadePx full strength')
+  if (blendFadePx(60, 50, 0) !== 30)
+    throw new Error('blendFadePx half strength')
+  if (blendFadePx(60, 100, 10) !== 0)
+    throw new Error('blendFadePx gap disables')
+  const rect = { x: 0, y: 0, w: 400, h: 400 }
+  const seam = { left: false, right: true, top: false, bottom: false }
+  const ex = expandRectForBlend(rect, seam, 48)
+  if (ex.w !== 424 || ex.x !== 0)
+    throw new Error(`expand right: got ${JSON.stringify(ex)}`)
+  const seamL = { left: true, right: false, top: false, bottom: false }
+  const exL = expandRectForBlend({ x: 400, y: 0, w: 400, h: 400 }, seamL, 48)
+  if (exL.x !== 376 || exL.w !== 424)
+    throw new Error(`expand left: got ${JSON.stringify(exL)}`)
 }
 
 // 7. Gap 0 + radius: square corners on photo-photo seams only.
