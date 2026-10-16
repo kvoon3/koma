@@ -18,16 +18,16 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 5', () => {
-    expect(SETTINGS_VERSION).toBe(5)
+  test('version is 6', () => {
+    expect(SETTINGS_VERSION).toBe(6)
   })
-  test('v1 → v2 adds dock defaults and starts collapsed', () => {
+  test('v1 → v2 adds dock defaults and starts in row', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toEqual({
       gap: 2,
       blendCrossfade: false,
       dockBg: DOCK_BG,
       dockOpacity: DOCK_OPACITY,
-      toolsDockMode: 'collapsed',
+      toolsDockMode: 'row',
     })
   })
   test('v2 values are kept', () => {
@@ -39,11 +39,11 @@ describe('migrateSettings v2 (dock)', () => {
     expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, toolsDockMode: 'huge' }, 2)).toEqual({
       dockBg: DOCK_BG,
       dockOpacity: 100,
-      toolsDockMode: 'collapsed',
+      toolsDockMode: 'row',
     })
   })
   test('null persisted state', () => {
-    expect(migrateSettings(null, 0).toolsDockMode).toBe('collapsed')
+    expect(migrateSettings(null, 0).toolsDockMode).toBe('row')
   })
 })
 
@@ -63,5 +63,11 @@ describe('migrateSettings v5', () => {
   test('pre-v5 frosted (old default) → solid; liquid kept', () => {
     expect(migrateSettings({ dockBg: 'frosted' }, 4).dockBg).toBe('solid')
     expect(migrateSettings({ dockBg: 'liquid' }, 4).dockBg).toBe('liquid')
+  })
+
+  test('v5 → v6 resets the saved dock mode to row once', () => {
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 5).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'expanded' }, 5).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('collapsed')
   })
 })
