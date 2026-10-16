@@ -1,5 +1,5 @@
 import type { Photo, Preview } from './lib/imageStore'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
 
 export function usePreview(photo: Photo | null): Preview | null {
@@ -77,48 +77,6 @@ export function useElementSize<T extends HTMLElement>() {
   }, [])
 
   return [ref, size] as const
-}
-
-/**
- * End-fade lengths for a scroller that runs sideways: how much content is
- * hidden past each end, written to `--scroll-overflow-start` / `-end` for the
- * `.scroll-fade` mask (index.css). The measurements go straight to the DOM
- * rather than through state on purpose: the tools row sits under the whole
- * canvas, and re-rendering that per scroll frame would be absurd. Handed back
- * as a callback ref because the row mounts only once a pane holds a photo.
- */
-export function useScrollFade<T extends HTMLElement>() {
-  return useCallback((el: T | null) => {
-    if (!el)
-      return
-    let frame = 0
-    const measure = () => {
-      frame = 0
-      const hidden = Math.max(0, el.scrollWidth - el.clientWidth)
-      const past = Math.min(Math.max(el.scrollLeft, 0), hidden)
-      el.style.setProperty('--scroll-overflow-start', `${past}px`)
-      el.style.setProperty('--scroll-overflow-end', `${hidden - past}px`)
-    }
-    // One measurement per frame, however many scroll events a finger fires.
-    const onScroll = () => {
-      if (!frame)
-        frame = requestAnimationFrame(measure)
-    }
-    measure()
-    el.addEventListener('scroll', onScroll, { passive: true })
-    // Box and row each change size on their own, and either one can be the one
-    // that makes the row overflow.
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    const row = el.firstElementChild
-    if (row)
-      ro.observe(row)
-    return () => {
-      cancelAnimationFrame(frame)
-      el.removeEventListener('scroll', onScroll)
-      ro.disconnect()
-    }
-  }, [])
 }
 
 export function useInView<T extends HTMLElement>(rootMargin = '200px') {

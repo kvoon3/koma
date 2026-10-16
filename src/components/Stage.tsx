@@ -6,10 +6,11 @@ import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, ChevronUp, Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, useMediaQuery, usePreview, useScrollFade } from '../hooks'
+import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
+import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
@@ -33,8 +34,8 @@ const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x
 /* Fixed-width tools in a max-content row: the panel hugs them, and the row
    scrolls sideways once they outgrow the screen. It stays inside a block, not a
    flex item (it would shrink and clip the leading tool), and `touch-pan-x`
-   overrides the stage's `touch-none`; `.scroll-fade` softens the scrolled ends. */
-const toolsScrollCls = 'scroll-fade overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
+   overrides the stage's `touch-none`; the scrollFadeStyleX mask softens the scrolled ends. */
+const toolsScrollCls = 'overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const toolsRowCls = 'flex w-max items-stretch'
 const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
@@ -117,7 +118,7 @@ function ToolButton({ icon, label, hint, onClick, options, danger }: Omit<ToolDe
 
 export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const toolsScrollRef = useScrollFade<HTMLDivElement>()
+  const toolsScrollRef = useScrollFade<HTMLDivElement>('x')
   const stageRef = useRef<HTMLDivElement | null>(null)
   /**
    * The divider being dragged, by id: its grip stays lit even once the pointer
@@ -764,7 +765,7 @@ function ToolsDock({ hidden, open, contextKey, children, scrollRef, handleLabel,
         {/* inert while collapsed: the tools are off-screen behind the
           footer. Open or not the row scrolls sideways instead of
           squashing the fixed-width tools when they outgrow the screen. */}
-        <div ref={scrollRef} className={toolsScrollCls} inert={!open}>
+        <div ref={scrollRef} style={scrollFadeStyleX} data-dock-fade="" className={toolsScrollCls} inert={!open}>
           <div key={contextKey} className={`${toolsRowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}>
             {children}
           </div>
