@@ -1,5 +1,5 @@
 import { Dialog } from '@base-ui/react/dialog'
-import { Copy, Download, LoaderCircle, Play, X } from 'lucide'
+import { Copy, Download, LoaderCircle, Play, Share, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { useMediaQuery } from '../hooks'
@@ -89,6 +89,39 @@ function currentItem(list: ExportItem[] | null, at: number): ExportItem | null {
 function saveItem(item: ExportItem, t: Translate): void {
   downloadBlob(item.blob, item.name)
   say(t('Saved'))
+}
+
+function itemFiles(list: ExportItem[]): File[] {
+  return list.map(i => new File([i.blob], i.name, { type: i.blob.type }))
+}
+
+/**
+ * Multi-file share (Web Share Level 2): on iOS/iPadOS Safari this is the one
+ * way to land a whole run in Photos ("Save N Images", in order); a burst of
+ * downloads is throttled there and a zip only reaches Files. Needs a fresh
+ * tap, hence a button here rather than sharing straight after the render.
+ */
+function canShareAll(list: ExportItem[] | null): boolean {
+  if (!list || list.length < 2 || typeof navigator === 'undefined' || !navigator.canShare)
+    return false
+  try {
+    return navigator.canShare({ files: itemFiles(list) })
+  }
+  catch {
+    return false
+  }
+}
+
+async function shareAllItems(list: ExportItem[] | null, t: Translate): Promise<void> {
+  if (!list)
+    return
+  try {
+    await navigator.share({ files: itemFiles(list) })
+  }
+  catch (e) {
+    if ((e as Error).name !== 'AbortError')
+      say(t('Sharing failed, use Download all instead'))
+  }
 }
 
 async function saveAllItems(list: ExportItem[] | null, setBusy: (b: 'copy' | 'all' | null) => void, t: Translate): Promise<void> {
@@ -233,12 +266,13 @@ function LongPressHint({ coarse }: { coarse: boolean }) {
 }
 
 /** Delivery controls: copy the still, download the whole run, or the one shown. */
-function RunFooter({ cur, list, busy, onCopy, onSaveAll, onSave }: {
+function RunFooter({ cur, list, busy, onCopy, onSaveAll, onShareAll, onSave }: {
   cur: ExportItem | null
   list: ExportItem[] | null
   busy: 'copy' | 'all' | null
   onCopy: () => void
   onSaveAll: () => void
+  onShareAll: () => void
   onSave: (item: ExportItem) => void
 }) {
   const t = useT()
@@ -259,6 +293,18 @@ function RunFooter({ cur, list, busy, onCopy, onSaveAll, onSave }: {
             className={busy === 'copy' ? ' animate-spin [animation-duration:900ms]' : ''}
           />
           {t('Copy image')}
+        </button>
+      )}
+      {many && canShareAll(list) && (
+        <button
+          type="button"
+          className={`${dialogButton} border-line bg-transparent text-txt hover:bg-chip-hover`}
+          disabled={busy != null}
+          onClick={onShareAll}
+          data-share-all=""
+        >
+          <MorphIcon icon={Share} size={13} strokeWidth={1.75} />
+          {t('Share all ({n})', { n: list?.length ?? 0 })}
         </button>
       )}
       {many && (
@@ -357,6 +403,7 @@ export function ExportDialog({ items, onClose, onReleased }: { items: ExportItem
             busy={busy}
             onCopy={() => void copyCurrent(cur, setBusy, t)}
             onSaveAll={() => void saveAllItems(list, setBusy, t)}
+            onShareAll={() => void shareAllItems(list, t)}
             onSave={item => saveItem(item, t)}
           />
         </Dialog.Popup>

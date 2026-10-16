@@ -23,8 +23,9 @@ import { WorkspaceGrid } from './components/WorkspaceGrid'
 import { bindAction, paneContext } from './lib/actionGuard'
 import { AppCommandsContext } from './lib/appCommands'
 import { mapSeq } from './lib/async'
-import { buildCropReport, computeExportSize, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
+import { buildCropReport, computeExportSize, hasLiveCells, renderCollage, renderCollageVideo, renderGridCells, renderGridSnapshot } from './lib/exporter'
 import { armRun, releaseRun } from './lib/exportRun'
+import { cellRatioValue, gridCellFileName } from './lib/gridTools'
 import { t } from './lib/i18n'
 import { leafList } from './lib/panes'
 import { say } from './lib/toast'
@@ -118,10 +119,39 @@ async function renderGridSnapshotItem(): Promise<RenderedItem> {
     edgeFadeStrength: s.edgeFadeStrength,
     blendCrossfade: s.blendCrossfade,
     photos: photoMap(s.photos),
+    cellRatio: cellRatioValue(s.gridCellRatio),
   })
   const item = await itemFromCanvas(canvas, `grid_${canvas.width}x${canvas.height}_${exportStamp()}`)
   canvas.width = canvas.height = 0
   return item
+}
+
+/**
+ * Grid "Export cells": every filled cell as its own image, cropped to the cell
+ * aspect and named in posting order (grid_01_of_09 …), for a 9-grid post.
+ */
+async function renderGridCellItems(): Promise<RenderedItem[]> {
+  const s = useStore.getState()
+  const stamp = exportStamp()
+  const items: RenderedItem[] = []
+  await renderGridCells({
+    workspaces: s.workspaces,
+    longSide: s.longSide,
+    gridGap: s.gridGap,
+    radius: s.radius,
+    bg: s.bg,
+    edgeFade: s.edgeFade,
+    edgeFadeStrength: s.edgeFadeStrength,
+    blendCrossfade: s.blendCrossfade,
+    photos: photoMap(s.photos),
+    cellRatio: cellRatioValue(s.gridCellRatio),
+  }, async (canvas, i, total) => {
+    say(t('Rendering {n} / {total}...', { n: i + 1, total }))
+    const { blob, ext } = await canvasBlob(canvas)
+    items.push({ kind: 'image', blob, name: gridCellFileName(i, total, ext, stamp), w: canvas.width, h: canvas.height })
+    canvas.width = canvas.height = 0
+  })
+  return items
 }
 
 /** The active workspace: the still, plus the paired video when a Live Photo pane is in frame. */
@@ -410,19 +440,36 @@ function RootLayout() {
     }
   }, [showRun])
 
+  const doExportGridCells = useCallback(async () => {
+    setBusy(true)
+    say(t('Rendering at original resolution...'))
+    try {
+      const items = await renderGridCellItems()
+      if (items.length)
+        showRun(items)
+    }
+    catch (e) {
+      say(t('Export failed: {msg}', { msg: (e as Error).message }))
+    }
+    finally {
+      setBusy(false)
+    }
+  }, [showRun])
+
   const doCrops = useCallback(() => setReport(buildCropReport(exportOptions())), [])
 
   // The chrome commands a menu deep in the tree may invoke (see CanvasMenu).
   const commands = useMemo<AppCommands>(() => ({
     exportNow: doExport,
     snapshotGrid: doSnapshotGrid,
+    exportGridCells: doExportGridCells,
     showCrops: doCrops,
     setLibraryOpen: setLibOpen,
     setSettingsOpen,
     setHelpOpen,
     busy,
     grid,
-  }), [doExport, doSnapshotGrid, doCrops, setLibOpen, setSettingsOpen, busy, grid])
+  }), [doExport, doSnapshotGrid, doExportGridCells, doCrops, setLibOpen, setSettingsOpen, busy, grid])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

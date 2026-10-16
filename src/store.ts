@@ -1,8 +1,10 @@
+import type { GridCellRatio } from './lib/gridTools'
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { SessionMeta } from './lib/sessionStore'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { clearTreePhotos, GRID_CELL_RATIO, isGridCellRatio, shuffleFilled } from './lib/gridTools'
 import { looksHeic, probeHeic, warmHeicDecoder } from './lib/heic'
 import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
@@ -90,6 +92,8 @@ interface State {
    */
   labelEditReq: { labelId: string, seq: number } | null
   dockBg: DockBg
+  /** Aspect of the 3×3 grid's cells (display, snapshot and per-cell export). */
+  gridCellRatio: GridCellRatio
   /** Dock background opacity, 0–100 (%). */
   dockOpacity: number
   /**
@@ -122,7 +126,7 @@ export const DOCK_BG: DockBg = 'solid'
 export const DOCK_OPACITY = 60
 export const TOOLS_DOCK_MODE: ToolsDockMode = 'collapsed'
 
-export const SETTINGS_VERSION = 5
+export const SETTINGS_VERSION = 6
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
 const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
@@ -140,6 +144,9 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
   // be told from an explicit pick (preview-only), so reset it.
   if (version < 5 && p.dockBg === 'frosted')
     p.dockBg = DOCK_BG
+  // v6: grid cell aspect ratio (1:1 default).
+  if (!isGridCellRatio(p.gridCellRatio))
+    p.gridCellRatio = GRID_CELL_RATIO
   // v4: the 'transparent' dock style is gone; it (and any unknown value)
   // falls back to the default below.
   if (!DOCK_BGS.includes(p.dockBg as DockBg))
@@ -214,6 +221,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelEditReq: null,
   toolsDockMode: TOOLS_DOCK_MODE,
   dockBg: DOCK_BG,
+  gridCellRatio: GRID_CELL_RATIO,
   dockOpacity: DOCK_OPACITY,
   paneClip: null,
   stickerMakerFor: null,
@@ -337,6 +345,17 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * Reset every workspace to a fresh blank canvas, keeping their ids and
    * grid slots (photos fall back to the library; the board itself stays).
    */
+  /** Grid Shuffle: randomly reorder the workspaces that hold photos; empty slots stay. */
+  shuffleWorkspaces: (rng?: () => number) =>
+    set(s => ({ workspaces: shuffleFilled(s.workspaces, w => leafList(w.root).some(l => l.photoId), rng) })),
+
+  /** Grid Clear: drop every photo (panes and board stickers) from all workspaces; layouts stay. */
+  clearGridPhotos: () =>
+    set(s => ({
+      workspaces: s.workspaces.map(w => ({ ...w, root: clearTreePhotos(w.root), stickers: [] })),
+      ...clearedSelection,
+    })),
+
   resetAllWorkspaces: () =>
     set(s => ({
       workspaces: s.workspaces.map(w => ({ ...newWorkspace(), id: w.id })),
@@ -787,7 +806,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // `blendCrossfade: false` (the old default) even if never touched, so it
   // cannot be told apart from an explicit choice: reset it to the new default.
   version: SETTINGS_VERSION,
-  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default.
+  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default. v6: gridCellRatio.
   migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
@@ -799,6 +818,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     blendCrossfade: state.blendCrossfade,
     paneBorder: state.paneBorder,
     dockBg: state.dockBg,
+    gridCellRatio: state.gridCellRatio,
     dockOpacity: state.dockOpacity,
     toolsDockMode: state.toolsDockMode,
   }),
@@ -930,6 +950,8 @@ interface Actions {
   /** Returns the new workspace's id, or null when the board is full. */
   addWorkspace: () => string | null
   removeWorkspace: (id: string) => void
+  shuffleWorkspaces: (rng?: () => number) => void
+  clearGridPhotos: () => void
   resetAllWorkspaces: () => void
   hydrate: (session: { meta: SessionMeta, photos: Photo[] }) => void
   split: (paneId: string, dir: 'row' | 'column') => void
