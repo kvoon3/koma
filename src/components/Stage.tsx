@@ -4,13 +4,15 @@ import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
+import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, Scissors, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, paneContext } from '../lib/actionGuard'
+import { cutoutAction, restoreOriginalAction } from '../lib/cutout'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
+import { cutOutPane, restorePaneOriginal } from '../lib/paneCutout'
 import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { AppearanceDockTools } from './AppearanceTools'
@@ -347,6 +349,8 @@ export function Stage() {
               onClose={closePane}
             />
 
+            <CutoutProgress view={view} />
+
             <BoardInserts
               stickers={boardStickers}
               labels={boardLabels}
@@ -643,6 +647,8 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
   const removePhoto = useStore(s => s.removePhoto)
   const resetPane = useStore(s => s.resetPane)
   const openStickerMaker = useStore(s => s.openStickerMaker)
+  const cutouts = useStore(s => s.cutouts)
+  const cutoutBusy = useStore(s => !!s.cutoutJob)
 
   const focusHit = focusId ? view.leaves.find(l => l.node.id === focusId) : undefined
   const focusLeaf = focusHit?.node ?? null
@@ -671,6 +677,11 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
     ],
   }
   const pickTool = (label: string, hint: string): ToolDef => ({ key: 'photo', icon: ImagePlus, label, hint, onClick: bind(onPane(pickPhotoForPane)) })
+  // One-tap cutout, or the way back to the original once the pane shows one.
+  const restoreAction = restoreOriginalAction<Photo>({ cutouts, has: id => photoById.has(id) }, restorePaneOriginal)
+  const cutoutTool: ToolDef = bind(restoreAction)
+    ? { key: 'original', icon: Undo2, label: t('Original'), hint: t('Restore the original photo'), onClick: bind(restoreAction) }
+    : { key: 'cutout', icon: Scissors, label: t('Cut out'), hint: t('Remove the photo background'), onClick: bind(cutoutAction<Photo>({ cutouts, busy: cutoutBusy }, (id, ph) => void cutOutPane(id, ph))) }
   const textTool: ToolDef = { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: bind(onPane(addLabelToPane)) }
   // One row, so the order here is the order on screen.
   const tools: ToolDef[] = !hasPhoto
@@ -683,6 +694,7 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
         pickTool(t('Replace'), t('Pick a photo to replace this pane\'s photo')),
         ...(mobile ? [splitTool] : []),
         { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: bind(onPane(pickStickersForPane)) },
+        cutoutTool,
         { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind(onPane(openStickerMaker)) },
         textTool,
         ...(mobile
@@ -706,4 +718,31 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
       ]
 
   return { tools, toolsHidden }
+}
+
+/** Progress veil over the pane whose photo is being cut out (see lib/paneCutout). */
+function CutoutProgress({ view }: { view: Derived }) {
+  const job = useStore(s => s.cutoutJob)
+  const t = useT()
+  const rect = job ? view.leaves.find(l => l.node.id === job.paneId)?.rect : undefined
+  if (!job || !rect)
+    return null
+  const pct = job.progress != null ? Math.round(job.progress) : null
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-cutout-progress=""
+      className="pointer-events-none absolute z-20 flex flex-col items-center justify-center gap-2 bg-black/45 text-xs text-white backdrop-blur-[2px]"
+      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+    >
+      <span>{job.phase === 'loading' ? t('Loading the cutout model…') : t('Cutting out…')}</span>
+      <span className="block h-1 w-[min(140px,60%)] overflow-hidden bg-white/25">
+        <span
+          className={`block h-full bg-white ${pct == null || job.phase === 'processing' ? ' w-1/3 animate-pulse' : ''}`}
+          style={pct != null && job.phase === 'loading' ? { width: `${pct}%` } : undefined}
+        />
+      </span>
+    </div>
+  )
 }

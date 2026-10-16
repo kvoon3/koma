@@ -1,3 +1,4 @@
+import type { CutoutMap } from './lib/cutout'
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { SessionMeta } from './lib/sessionStore'
@@ -103,6 +104,10 @@ interface State {
    * Stage's own state because the pane menu opens the dialog too.
    */
   stickerMakerFor: string | null
+  /** Cut-out photo id → the photo it was cut from (see lib/cutout); saved with the session. */
+  cutouts: CutoutMap
+  /** The one running pane cutout, for the pane's progress overlay. Session-only. */
+  cutoutJob: { paneId: string, phase: 'loading' | 'processing', progress?: number } | null
 }
 
 export const GAP = 0
@@ -167,6 +172,8 @@ const clearedSelection = {
 
 export const useStore = create<State & Actions>()(persist((set, get) => ({
   photos: [],
+  cutouts: {},
+  cutoutJob: null,
   workspaces: bootWorkspaces,
   activeId: bootWorkspaces[0].id,
   gap: GAP,
@@ -267,6 +274,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       // The clipboard points at photos that no longer exist.
       paneClip: null,
       stickerMakerFor: null,
+      cutouts: {},
     }))
   },
 
@@ -325,6 +333,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       workspaces,
       activeId,
       photos: session.photos,
+      // Sessions saved before one-tap cutout have no map.
+      cutouts: session.meta.cutouts ?? {},
+      cutoutJob: null,
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,

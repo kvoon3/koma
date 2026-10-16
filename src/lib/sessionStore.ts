@@ -1,4 +1,5 @@
 import type { Workspace } from '../store'
+import type { CutoutMap } from './cutout'
 
 export interface SessionPhotoRecord {
   id: string
@@ -15,6 +16,8 @@ export interface SessionMeta {
   gap: number
   radius: number
   bg: string
+  /** Cutout → original photo ids; absent in sessions saved before one-tap cutout. */
+  cutouts?: CutoutMap
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number

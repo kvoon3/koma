@@ -358,6 +358,7 @@ export function TopBar({
       gap: doc.settings.gap,
       radius: doc.settings.radius,
       bg: doc.settings.bg,
+      cutouts: doc.cutouts ?? {},
       longSide: doc.settings.longSide,
       format: doc.settings.format,
       quality: doc.settings.quality,

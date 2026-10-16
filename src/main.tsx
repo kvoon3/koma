@@ -19,6 +19,7 @@ function saveNow() {
       gap: s.gap,
       radius: s.radius,
       bg: s.bg,
+      cutouts: s.cutouts,
       longSide: s.longSide,
       format: s.format,
       quality: s.quality,
