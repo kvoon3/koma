@@ -6,7 +6,7 @@ import { MorphIcon } from 'morphicons/react'
 import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useT } from '../lib/i18n'
-import { clampDockMode, dockModes, dockTransition } from '../lib/toolsDockMode'
+import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { Footer } from './Footer'
@@ -25,13 +25,8 @@ const scrollExpCls = 'overflow-x-hidden overflow-y-auto overscroll-contain [&::-
 const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
-function modeLabel(mode: ToolsDockMode, t: (k: string) => string): string {
-  if (mode === 'collapsed')
-    return t('Show tools')
-  if (mode === 'row')
-    return t('Expand tools')
-  return t('Hide tools')
-}
+const INTENT_LABEL = { show: 'Show tools', expand: 'Expand tools', hide: 'Hide tools' } as const
+const INTENT_ICON = { show: Minus, expand: ChevronUp, hide: ChevronDown } as const
 
 function modeFromSnap(snap: number | string, snaps: number[], order: readonly ToolsDockMode[]): ToolsDockMode {
   const idx = snaps.findIndex(p => Object.is(p, snap))
@@ -208,7 +203,10 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     }
   }, [measure])
 
-  const handleIcon = mode === 'collapsed' ? Minus : mode === 'expanded' ? ChevronDown : ChevronUp
+  // Icon + label describe the next tap (row with no room to expand → hide).
+  const intent = dockHandleIntent(mode, cap)
+  const handleIcon = INTENT_ICON[intent]
+  const handleLabel = t(INTENT_LABEL[intent])
 
   return (
     <Drawer.Root
@@ -259,8 +257,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
                 <button
                   type="button"
                   className={handleCls}
-                  title={modeLabel(mode, t)}
-                  aria-label={modeLabel(mode, t)}
+                  title={handleLabel}
+                  aria-label={handleLabel}
                   aria-expanded={mode !== 'collapsed'}
                   aria-valuetext={mode}
                   onClick={() => setMode(dockTransition(mode, { type: 'tap' }, cap))}

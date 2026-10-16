@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { clampDockMode, dockModes, dockTransition } from './toolsDockMode'
+import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from './toolsDockMode'
 
 const multi = { fitsOneRow: false }
 const single = { fitsOneRow: true }
@@ -39,5 +39,15 @@ describe('helpers', () => {
     expect(dockModes(multi)).toEqual(['collapsed', 'row', 'expanded'])
     expect(clampDockMode('expanded', single)).toBe('row')
     expect(clampDockMode('collapsed', single)).toBe('collapsed')
+  })
+})
+
+describe('dockHandleIntent', () => {
+  test('follows the next tap', () => {
+    expect(dockHandleIntent('collapsed', multi)).toBe('show')
+    expect(dockHandleIntent('row', multi)).toBe('expand')
+    expect(dockHandleIntent('expanded', multi)).toBe('hide')
+    expect(dockHandleIntent('collapsed', single)).toBe('show')
+    expect(dockHandleIntent('row', single)).toBe('hide')
   })
 })

@@ -36,3 +36,13 @@ export function dockTransition(mode: ToolsDockMode, event: DockEvent, cap: DockC
       return 'collapsed'
   }
 }
+
+export type DockHandleIntent = 'show' | 'expand' | 'hide'
+
+/** What the next tap does, derived from the transition: drives icon + label. */
+export function dockHandleIntent(mode: ToolsDockMode, cap: DockCapacity): DockHandleIntent {
+  const next = dockTransition(mode, { type: 'tap' }, cap)
+  if (next === 'collapsed')
+    return 'hide'
+  return clampDockMode(mode, cap) === 'collapsed' ? 'show' : 'expand'
+}
