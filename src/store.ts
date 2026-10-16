@@ -52,7 +52,10 @@ export interface PaneClip {
   label: PaneLabel | null
 }
 
-export interface State {
+/** Bottom tools sheet snap: hidden / one scrolling row / wrapped multi-row. */
+export type ToolsDockMode = 'collapsed' | 'row' | 'expanded'
+
+interface State {
   photos: Photo[]
   workspaces: Workspace[]
   activeId: string
@@ -64,6 +67,11 @@ export interface State {
   bg: string
   edgeFade: number
   edgeFadeStrength: number
+  /**
+   * Opt-in photo crossfade (overlap + opposing masks + plus-lighter).
+   * Off by default: Safari regresses when this is the default blend path.
+   */
+  blendCrossfade: boolean
   paneBorder: boolean
   longSide: number
   format: 'image/jpeg' | 'image/png'
@@ -78,11 +86,10 @@ export interface State {
    */
   labelEditReq: { labelId: string, seq: number } | null
   /**
-   * Whether the tools panel (Stage's overlay) is pulled open. It starts open,
-   * and only its handle changes it: moving the focus never touches it, so a
-   * manual collapse sticks.
+   * Bottom tools sheet snap state. Session-only; starts on single-row. Drag
+   * the handle or tap it to move between collapsed / row / expanded.
    */
-  toolsOpen: boolean
+  toolsDockMode: ToolsDockMode
   /**
    * Copied pane contents for the menu's paste item, session-only so a reload
    * forgets it. Pasting clones the stickers under fresh ids.
@@ -101,7 +108,18 @@ export const RADIUS = 0
 export const BG = '#000000'
 export const EDGE_FADE = 60
 export const EDGE_FADE_STRENGTH = 100
+export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
+
+export const SETTINGS_VERSION = 1
+
+/** Persisted-settings migration (zustand `persist`); pure for unit tests. */
+export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
+  const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
+  if (version < 1)
+    p.blendCrossfade = BLEND_CROSSFADE
+  return p
+}
 export const MIN_PANE_PX = 56
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
@@ -149,6 +167,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   bg: BG,
   edgeFade: EDGE_FADE,
   edgeFadeStrength: EDGE_FADE_STRENGTH,
+  blendCrossfade: BLEND_CROSSFADE,
   paneBorder: PANE_BORDER,
   longSide: 2048,
   format: 'image/jpeg',
@@ -156,7 +175,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
-  toolsOpen: true,
+  toolsDockMode: 'row',
   paneClip: null,
   stickerMakerFor: null,
 
@@ -558,7 +577,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   selectLabel: labelId => set({ labelSel: labelId, stickerSel: null }),
   selectSticker: sel => set({ stickerSel: sel, labelSel: null }),
   requestLabelEdit: labelId => set({ labelEditReq: { labelId, seq: ++labelEditSeq } }),
-  setToolsOpen: open => set({ toolsOpen: open }),
+  setToolsDockMode: mode => set({ toolsDockMode: mode }),
 
   autoFill: () =>
     set((s) => {
@@ -589,6 +608,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       bg: BG,
       edgeFade: EDGE_FADE,
       edgeFadeStrength: EDGE_FADE_STRENGTH,
+      blendCrossfade: BLEND_CROSSFADE,
       paneBorder: PANE_BORDER,
     }),
 
@@ -700,6 +720,11 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // Visual settings survive reloads; the rest of the state (workspaces,
   // photos) stays session-only.
   name: 'collage:settings',
+  // v1: crossfade became the default blend. v0 always persisted
+  // `blendCrossfade: false` (the old default) even if never touched, so it
+  // cannot be told apart from an explicit choice: reset it to the new default.
+  version: SETTINGS_VERSION,
+  migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
     gridGap: state.gridGap,
@@ -707,6 +732,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     bg: state.bg,
     edgeFade: state.edgeFade,
     edgeFadeStrength: state.edgeFadeStrength,
+    blendCrossfade: state.blendCrossfade,
     paneBorder: state.paneBorder,
   }),
 }))
@@ -850,7 +876,7 @@ interface Actions {
   selectLabel: (labelId: string | null) => void
   selectSticker: (sel: { stickerId: string } | null) => void
   requestLabelEdit: (labelId: string) => void
-  setToolsOpen: (open: boolean) => void
+  setToolsDockMode: (mode: ToolsDockMode) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
   resetSettings: () => void

@@ -13,7 +13,7 @@ const KEYS: [string, string][] = [
   ['Tab', 'Focus the next pane'],
   ['R', 'Reset the photo in the focused pane'],
   ['I', 'Toggle the library drawer'],
-  [',', 'Settings panel (appearance / text)'],
+  [',', 'Settings panel (font mirror)'],
   ['G', 'Toggle the 3×3 workspace grid / back'],
   ['⌘E', 'Export the collage (renders, then opens the preview dialog)'],
   ['C', 'Export crop params (ImageMagick command)'],
@@ -28,7 +28,7 @@ const MOUSE: [string, string][] = [
   ['Snapshot chip above the 3×3 grid', 'Render the whole overview as one image and open it in the export preview: every non-empty cell exactly as the grid draws it (cover-fit, panes flush), the gap between cells scaled with the board, empty cells left blank; a JPEG, or a PNG while the gap fill is transparent'],
   ['Split chip in the top row (between Back and Reset)', 'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. The top-row copy is only there below lg (a large screen has the pane chip to aim at), and below the sm breakpoint it is the only copy left, a touch screen having no hover to fade the other one in'],
   ['Export preview (Export or ⌘E in the editor, the snapshot chip above the grid, Export image in the canvas menu)', 'Every export renders first and then opens here, so nothing downloads unasked. The preview is the finished image at full resolution, on the app\'s transparency checkerboard, with its size, format and file size, and Download image / Copy image beside it. On a phone, press and hold the preview to save it to the photo library or copy it through the system sheet. In the grid view one image is exported per non-empty workspace: they line up in a strip above the preview, each with its own download, plus Download all. When a pane holds a Live Photo, the recorded video follows its still in the strip'],
-  ['Tools panel above the footer', 'Open by default, and only the handle on its top edge moves it: replace the focused pane\'s photo, pin stickers onto it, make a sticker from text or an image, or add a text label; the panel is put away while no pane is focused or the focused pane is empty, because the empty pane itself is the picker'],
+  ['Tools panel (full-width bottom sheet)', 'Base UI Drawer with three snap points (collapsed / single-row / multi-row). The Made-with-Vite byline sits in the sheet. Swipe to follow your finger, or tap the chevron to cycle. On the collage stage Border holds appearance (gap, radius, pane border, crossfade, blend, reset); on the 3×3 grid route only Grid (gap) shows. With a focused photo pane you also get replace / stickers / Make / Text'],
   ['Drag the divider between panes', 'Resize that split; only the two adjacent panes are affected'],
   ['Drag the handle at the bottom-right of the canvas', 'Change the canvas aspect ratio (double-click to follow the first photo again)'],
   ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],
@@ -59,8 +59,8 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
       }}
     >
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 min-h-dvh bg-black/50 backdrop-blur-[3px] transition-opacity duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-ending-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 flex max-h-[80vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-auto border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
+        <Dialog.Backdrop className="fixed z-(--z-modal) inset-0 min-h-dvh bg-black/50 backdrop-blur-[3px] transition-opacity duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-ending-style:opacity-0" />
+        <Dialog.Popup className="fixed z-(--z-modal) left-1/2 top-1/2 flex max-h-[80vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-auto border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
           <header className="sticky top-0 z-1 flex items-center justify-between gap-2.5 border-b border-line bg-panel py-[11px] pl-4 pr-3">
             <Dialog.Title className="m-0 text-[13.5px] font-semibold">{t('How to use')}</Dialog.Title>
             <Dialog.Close className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-line bg-transparent p-0 text-[15px] leading-none text-dim transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:border-danger hover:bg-danger hover:text-on-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1" aria-label={t('Close')}><MorphIcon icon={X} size={15} strokeWidth={1.75} /></Dialog.Close>
