@@ -615,6 +615,61 @@ export interface GridSnapshotOptions {
   /** Opt-in overlap crossfade; default backdrop feather when false/omitted. */
   blendCrossfade?: boolean
   photos: Map<string, Photo>
+  /** Cell width / height (the grid's cell aspect); 1 = square. */
+  cellRatio?: number
+}
+
+type GridWs = GridSnapshotOptions['workspaces'][number]
+
+/** One grid cell as its own canvas: the collage cover-fit and cropped to w×h, like CellPreview. */
+async function renderGridCell(ws: GridWs, w: number, h: number, opts: GridSnapshotOptions): Promise<HTMLCanvasElement> {
+  const ratio = ws.canvasRatio ?? 1.5
+  // Large enough to cover the cell, like CellPreview's cover-fit scale.
+  const k = Math.max(w, h * ratio, 1)
+  const c = await renderCollage({
+    root: ws.root,
+    ratio,
+    // The overview lays its previews out flush (no pane gap).
+    gap: 0,
+    radius: opts.radius,
+    bg: opts.bg,
+    edgeFade: opts.edgeFade,
+    edgeFadeStrength: opts.edgeFadeStrength,
+    blendCrossfade: opts.blendCrossfade,
+    photos: opts.photos,
+    longSide: Math.round(Math.max(k, k / ratio)),
+    stickers: ws.stickers ?? [],
+    labels: ws.labels ?? [],
+  })
+  const out = document.createElement('canvas')
+  out.width = w
+  out.height = h
+  const ctx = out.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+  const s = Math.max(w / c.width, h / c.height)
+  const sw = w / s
+  const sh = h / s
+  ctx.drawImage(c, (c.width - sw) / 2, (c.height - sh) / 2, sw, sh, 0, 0, w, h)
+  c.width = c.height = 0
+  return out
+}
+
+/** Cell px size for a grid export at `longSide` (about a third per cell). */
+export function gridCellPx(longSide: number, cellRatio = 1): { w: number, h: number } {
+  const long = Math.max(240, Math.round(longSide / 3))
+  return cellRatio >= 1 ? { w: long, h: Math.round(long / cellRatio) } : { w: Math.round(long * cellRatio), h: long }
+}
+
+/**
+ * Every filled cell as its own image, in grid (posting) order, cropped to the
+ * grid's cell aspect. Each canvas is handed to `onCell` and may be released there.
+ */
+export async function renderGridCells(opts: GridSnapshotOptions, onCell: (canvas: HTMLCanvasElement, i: number, total: number) => Promise<void>): Promise<void> {
+  const { w, h } = gridCellPx(opts.longSide, opts.cellRatio)
+  const filled = opts.workspaces.slice(0, 9).filter(ws => leafList(ws.root).some(l => l.photoId))
+  await mapSeq(filled, async (ws, i) => {
+    await onCell(await renderGridCell(ws, w, h, opts), i, filled.length)
+  })
 }
 
 /**
@@ -626,14 +681,14 @@ export interface GridSnapshotOptions {
  * blank (the background, or nothing at all while the gap fill is transparent).
  */
 export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTMLCanvasElement> {
-  const cell = Math.max(240, Math.round(opts.longSide / 3))
-  const gap = Math.round(opts.gridGap * cell / GRID_CELL_MAX)
+  const { w, h } = gridCellPx(opts.longSide, opts.cellRatio)
+  const gap = Math.round(opts.gridGap * Math.max(w, h) / GRID_CELL_MAX)
   const list = opts.workspaces.slice(0, 9)
   const cols = Math.max(1, Math.min(3, list.length))
   const rows = Math.max(1, Math.ceil(list.length / 3))
   const canvas = document.createElement('canvas')
-  canvas.width = cell * cols + gap * (cols - 1)
-  canvas.height = cell * rows + gap * (rows - 1)
+  canvas.width = w * cols + gap * (cols - 1)
+  canvas.height = h * rows + gap * (rows - 1)
   const ctx = canvas.getContext('2d')!
   ctx.imageSmoothingQuality = 'high'
   if (!isTransparentBg(opts.bg)) {
@@ -645,35 +700,8 @@ export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTM
   await mapSeq(list, async (ws, i) => {
     if (!leafList(ws.root).some(l => l.photoId))
       return
-    const ratio = ws.canvasRatio ?? 1.5
-    // Large enough to cover the square cell, like CellPreview's cover-fit scale.
-    const c = await renderCollage({
-      root: ws.root,
-      ratio,
-      // The overview lays its previews out flush (no pane gap), and this is a
-      // snapshot of that overview.
-      gap: 0,
-      radius: opts.radius,
-      bg: opts.bg,
-      edgeFade: opts.edgeFade,
-      edgeFadeStrength: opts.edgeFadeStrength,
-      blendCrossfade: opts.blendCrossfade,
-      photos: opts.photos,
-      longSide: Math.round(cell * Math.max(ratio, 1 / ratio)),
-      stickers: ws.stickers ?? [],
-      labels: ws.labels ?? [],
-    })
-    ctx.drawImage(
-      c,
-      (c.width - cell) / 2,
-      (c.height - cell) / 2,
-      cell,
-      cell,
-      (i % 3) * (cell + gap),
-      Math.floor(i / 3) * (cell + gap),
-      cell,
-      cell,
-    )
+    const c = await renderGridCell(ws, w, h, opts)
+    ctx.drawImage(c, (i % 3) * (w + gap), Math.floor(i / 3) * (h + gap))
     c.width = c.height = 0
   })
   return canvas

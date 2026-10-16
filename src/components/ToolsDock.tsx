@@ -1,18 +1,20 @@
-import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from 'react'
-import type { ToolsDockMode } from '../store'
-import { Drawer } from '@base-ui/react/drawer'
-import { ChevronDown, ChevronUp, Minus } from 'lucide'
+import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
+import { ChevronDown, ChevronUp, Ruler } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
+import { animate, useMotionValue, useReducedMotion } from 'motion/react'
 import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { dockDragFade, dockSurface } from '../lib/dockBackground'
+import { dampOffset, pickSnap } from '../lib/dockPhysics'
 import { useT } from '../lib/i18n'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { Footer } from './Footer'
 import { dockBtnSurfaceCls } from './ui/menu'
 
-export const toolsBtnCls = `${dockBtnSurfaceCls} flex w-[80px] shrink-0 flex-col items-center justify-center gap-1.5 whitespace-nowrap px-2 py-3`
+export const toolsBtnCls = `${dockBtnSurfaceCls} disabled:order-1 data-disabled:order-1 flex w-[80px] shrink-0 flex-col items-center justify-center gap-1.5 whitespace-nowrap px-2 py-3`
 export const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
 /** Handle chrome height = collapsed snap. Keep in sync with `handleCls` h-[]. */
@@ -27,26 +29,12 @@ const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
 const INTENT_LABEL = { show: 'Show tools', expand: 'Expand tools', hide: 'Hide tools' } as const
-const INTENT_ICON = { show: Minus, expand: ChevronUp, hide: ChevronDown } as const
+const INTENT_ICON = { expand: ChevronUp, hide: ChevronDown } as const
 
-function modeFromSnap(snap: number | string, snaps: number[], order: readonly ToolsDockMode[]): ToolsDockMode {
-  const idx = snaps.findIndex(p => Object.is(p, snap))
-  if (idx >= 0)
-    return order[idx]!
-  if (typeof snap === 'number') {
-    let best = 0
-    let bestDist = Math.abs(snaps[0]! - snap)
-    for (let i = 1; i < snaps.length; i++) {
-      const d = Math.abs(snaps[i]! - snap)
-      if (d < bestDist) {
-        best = i
-        bestDist = d
-      }
-    }
-    return order[best]!
-  }
-  return 'row'
-}
+/** Settle spring (Vaul-like feel: quick, barely any overshoot). */
+const SPRING = { type: 'spring', stiffness: 420, damping: 42, mass: 1 } as const
+/** px before a press becomes a drag (taps stay clicks). */
+const DRAG_SLOP = 6
 
 interface DockSlot { hidden: boolean, contextKey: string }
 interface DockCtx {
@@ -103,6 +91,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const t = useT()
   const storedMode = useStore(s => s.toolsDockMode)
   const setMode = useStore(s => s.setToolsDockMode)
+  const dockBg = useStore(s => s.dockBg)
+  const dockOpacity = useStore(s => s.dockOpacity)
 
   const innerRef = useRef<HTMLDivElement | null>(null)
   const [rowH, setRowH] = useState(FALLBACK_ROW)
@@ -122,27 +112,11 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const snapPoint = snapPoints[order.indexOf(mode)] ?? snapPoints[1]!
   const toolsMaxH = snapPoints.at(-1)!
 
-  // Content-driven snap geometry changes (route switch, wrap change) must not
-  // animate: the sheet would slide even though the user's mode is unchanged.
-  // Only mode changes animate the transform.
-  const [instant, setInstant] = useState(false)
-  const lastGeomRef = useRef({ toolsMaxH, mode })
+  const reduce = useReducedMotion()
+  const reduceRef = useRef(reduce)
   useLayoutEffect(() => {
-    const prev = lastGeomRef.current
-    lastGeomRef.current = { toolsMaxH, mode }
-    if (prev.toolsMaxH === toolsMaxH || prev.mode !== mode)
-      return
-    setInstant(true)
-    let r2 = 0
-    const r1 = requestAnimationFrame(() => {
-      r2 = requestAnimationFrame(() => setInstant(false))
-    })
-    return () => {
-      cancelAnimationFrame(r1)
-      cancelAnimationFrame(r2)
-    }
-  }, [toolsMaxH, mode])
-
+    reduceRef.current = reduce
+  })
   const measure = useCallback(() => {
     const el = innerRef.current
     if (!el)
@@ -159,7 +133,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     const rect = el.getBoundingClientRect()
     const row = Math.ceil(rect.height) || FALLBACK_ROW
     const rowW = Math.ceil(rect.width)
-    const panelW = el.parentElement?.clientWidth || window.innerWidth
+    // Full sheet width, not the popup's (it shrinks to the handle when collapsed).
+    const panelW = el.closest<HTMLElement>('.tools-dock')?.clientWidth || window.innerWidth
     el.style.flexWrap = 'wrap'
     el.style.width = '100%'
     el.style.maxWidth = `${panelW}px`
@@ -190,12 +165,44 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     const el = innerRef.current
     if (!el)
       return
-    const mo = new MutationObserver(() => measure())
-    mo.observe(el, { childList: true, subtree: true, characterData: true })
-    const ro = new ResizeObserver(() => measure())
+    // FLIP: tools sort available-first via CSS `order` (disabled → order 1),
+    // so a precondition flip moves buttons. Remember each tool's layout box
+    // (offsetLeft/Top ignore in-flight transforms) and glide from the old box
+    // with a Motion spring whenever a tool's disabled state changes.
+    const boxes = new WeakMap<Element, { x: number, y: number }>()
+    const snapshot = () => {
+      for (const c of el.children) {
+        const h = c as HTMLElement
+        boxes.set(c, { x: h.offsetLeft, y: h.offsetTop })
+      }
+    }
+    snapshot()
+    const mo = new MutationObserver((records) => {
+      const reorder = records.some(r => r.type === 'attributes' && r.target.parentElement === el)
+      if (reorder && !reduceRef.current) {
+        for (const c of el.children) {
+          const h = c as HTMLElement
+          const prev = boxes.get(c)
+          const dx = prev ? prev.x - h.offsetLeft : 0
+          const dy = prev ? prev.y - h.offsetTop : 0
+          if (dx || dy)
+            animate(h, { x: [dx, 0], y: [dy, 0] }, SPRING)
+        }
+      }
+      snapshot()
+      measure()
+    })
+    mo.observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'data-disabled'] })
+    const ro = new ResizeObserver(() => {
+      snapshot()
+      measure()
+    })
     if (el.parentElement)
       ro.observe(el.parentElement)
-    const onResize = () => measure()
+    const onResize = () => {
+      snapshot()
+      measure()
+    }
     window.addEventListener('resize', onResize)
     return () => {
       mo.disconnect()
@@ -205,94 +212,198 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   }, [measure])
 
   // Icon + label describe the next tap (row with no room to expand → hide).
+  const surface = dockSurface(dockBg, dockOpacity, mode)
+
+  // Sheet position is one motion value: px below fully open (0 = largest
+  // snap). Drags write it directly (rubber-banded past the end snaps);
+  // releases and mode changes spring it to the snap with the release
+  // velocity. No React re-render per frame.
+  const offsets = snapPoints.map(sp => toolsMaxH - sp)
+  const offset = toolsMaxH - snapPoint
+  const y = useMotionValue(offset)
+  const pendingVelRef = useRef(0)
+  const dragRef = useRef<null | { id: number, x: number, y: number, start: number, active: boolean, inScroll: boolean }>(null)
+  const suppressClickRef = useRef(false)
+  const geomRef = useRef({ toolsMaxH, rowH, offsets, offset })
+  useLayoutEffect(() => {
+    geomRef.current = { toolsMaxH, rowH, offsets, offset }
+  })
+
+  // Settle on mode / geometry change. Content-driven geometry (route switch,
+  // wrap change) jumps: the user's mode didn't change, so nothing slides.
+  const lastGeomRef = useRef({ toolsMaxH, mode })
+  useLayoutEffect(() => {
+    const prev = lastGeomRef.current
+    lastGeomRef.current = { toolsMaxH, mode }
+    if (dragRef.current?.active)
+      return
+    const velocity = pendingVelRef.current
+    pendingVelRef.current = 0
+    if (reduce || (prev.toolsMaxH !== toolsMaxH && prev.mode === mode)) {
+      y.jump(offset)
+      return
+    }
+    const anim = animate(y, offset, { ...SPRING, velocity })
+    return () => anim.stop()
+  }, [offset, toolsMaxH, mode, reduce, y])
+
+  const liquidOn = dockBg === 'liquid' && mode !== 'collapsed'
+  const popupRef = useCallback((el: HTMLDivElement | null) => {
+    if (!el)
+      return
+    // Drag-driven tint: the visible tools height → --dock-drag-fade.
+    let last = ''
+    const sync = (v: number) => {
+      const { toolsMaxH: max, rowH: rh } = geomRef.current
+      const f = String(dockDragFade(max, v, rh, HANDLE_H))
+      if (f !== last) {
+        last = f
+        el.style.setProperty('--dock-drag-fade', f)
+      }
+    }
+    const move = (v: number) => {
+      el.style.transform = `translateY(${v}px)`
+      sync(v)
+    }
+    move(y.get())
+    const off = y.on('change', move)
+    const glass = liquidOn ? liquidGlassRef(el) : undefined
+    return () => {
+      off()
+      glass?.()
+    }
+  }, [liquidOn, y])
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || hidden)
+      return
+    const inScroll = !!(e.target as HTMLElement).closest('[data-dock-fade]')
+    dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, start: y.get(), active: false, inScroll }
+  }
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current
+    if (!d || d.id !== e.pointerId)
+      return
+    const dx = e.clientX - d.x
+    const dy = e.clientY - d.y
+    if (!d.active) {
+      if (Math.abs(dx) < DRAG_SLOP && Math.abs(dy) < DRAG_SLOP)
+        return
+      // Horizontal gestures in the tools row scroll it; an expanded list
+      // that is scrolled keeps its own vertical scroll.
+      const scroller = (e.target as HTMLElement).closest<HTMLElement>('[data-dock-fade]')
+      if (d.inScroll && (Math.abs(dx) > Math.abs(dy) || (wrap && scroller && (scroller.scrollTop > 0 || dy < 0) && scroller.scrollHeight > scroller.clientHeight))) {
+        dragRef.current = null
+        return
+      }
+      d.active = true
+      d.start = y.get()
+      y.stop()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      e.currentTarget.setAttribute('data-swiping', '')
+    }
+    const { offsets: offs } = geomRef.current
+    y.set(dampOffset(d.start + dy, Math.min(...offs), Math.max(...offs)))
+  }
+  const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current
+    if (!d || d.id !== e.pointerId)
+      return
+    dragRef.current = null
+    if (!d.active)
+      return
+    suppressClickRef.current = true
+    e.currentTarget.removeAttribute('data-swiping')
+    if (e.currentTarget.hasPointerCapture(e.pointerId))
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    const { offsets: offs, offset: cur } = geomRef.current
+    const velocity = e.type === 'pointercancel' ? 0 : y.getVelocity()
+    const idx = pickSnap(offs, y.get(), velocity, Math.max(0, order.indexOf(mode)))
+    const next = dockTransition(mode, { type: 'snap', mode: order[idx]! }, cap)
+    if (next === mode) {
+      animate(y, cur, reduce ? { duration: 0 } : { ...SPRING, velocity })
+    }
+    else {
+      pendingVelRef.current = velocity
+      setMode(next)
+    }
+  }
+
   const intent = dockHandleIntent(mode, cap)
-  const handleIcon = INTENT_ICON[intent]
+  const handleIcon = intent === 'show' ? Ruler : INTENT_ICON[intent]
   const handleLabel = t(INTENT_LABEL[intent])
 
   return (
-    <Drawer.Root
-      open
-      modal={false}
-      disablePointerDismissal
-      swipeDirection="down"
-      snapPoints={snapPoints}
-      snapPoint={snapPoint}
-      defaultSnapPoint={snapPoints[1]}
-      onOpenChange={(next, details) => {
-        if (!next) {
-          details.cancel()
-          setMode(dockTransition(mode, { type: 'dismiss' }, cap))
-        }
-      }}
-      onSnapPointChange={(next, details) => {
-        if (next == null) {
-          details.cancel()
-          setMode(dockTransition(mode, { type: 'dismiss' }, cap))
-          return
-        }
-        setMode(dockTransition(mode, { type: 'snap', mode: modeFromSnap(next, snapPoints, order) }, cap))
-      }}
+    <div
+      className={`tools-dock fixed inset-0 z-(--z-dock) flex items-end pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
+        hidden ? 'opacity-0' : 'opacity-100'
+      }`}
+      inert={hidden || undefined}
     >
-      <Drawer.Portal keepMounted>
-        <Drawer.Viewport
-          className={`tools-dock fixed inset-0 z-(--z-dock) flex items-end pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
-            hidden ? 'opacity-0' : 'opacity-100'
-          }`}
-          inert={hidden || undefined}
-        >
-          {/*
-            Full-width sheet: tools snap inside a max-height clip above a pinned
-            Footer (byline is part of the dock). Clip is pointer-events-none so
-            the transparent collapsed gap does not block the stage.
-          */}
-          <div className="flex w-full flex-col text-txt">
-            <div className="relative w-full overflow-hidden pointer-events-none" style={{ height: toolsMaxH }}>
-              <Drawer.Popup
-                initialFocus={false}
-                finalFocus={false}
-                data-dock-mode={mode}
-                data-instant={instant || undefined}
-                style={{ 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
-                className="group/dock pointer-events-auto relative box-border flex w-full flex-col overflow-hidden rounded-none border-t border-line bg-drawer-bg shadow-pop outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full"
+      {/*
+        Full-width sheet: tools snap inside a max-height clip above a pinned
+        Footer (byline is part of the dock). Clip is pointer-events-none so
+        the transparent collapsed gap does not block the stage.
+      */}
+      <div className="flex w-full flex-col text-txt">
+        <div className="relative w-full overflow-hidden pointer-events-none" style={{ height: toolsMaxH }}>
+          <section
+            aria-label={t('Tools')}
+            data-dock-mode={mode}
+            data-dock-bg={dockBg}
+            ref={popupRef}
+            style={{ ...surface.style, height: toolsMaxH, y } as CSSProperties & { y: typeof y }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onClickCapture={(e) => {
+              if (suppressClickRef.current) {
+                suppressClickRef.current = false
+                e.stopPropagation()
+                e.preventDefault()
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && mode !== 'collapsed')
+                setMode(dockTransition(mode, { type: 'dismiss' }, cap))
+            }}
+            className={`dock-surface group/dock relative box-border flex w-full flex-col ${surface.className} ${mode === 'collapsed' ? 'pointer-events-none data-swiping:pointer-events-auto' : 'pointer-events-auto'} overflow-hidden rounded-none border-0 border-t border-solid outline-0 transition-[background-color,border-color,box-shadow,backdrop-filter,--glass-fade] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform`}
+          >
+            <button
+              type="button"
+              className={`${handleCls} ${mode === 'collapsed' ? 'pointer-events-auto mx-auto w-11! rounded-full' : ''}`}
+              title={handleLabel}
+              aria-label={handleLabel}
+              aria-expanded={mode !== 'collapsed'}
+              aria-valuetext={mode}
+              onClick={() => setMode(dockTransition(mode, { type: 'tap' }, cap))}
+            >
+              <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
+            </button>
+            <div className="flex min-h-0 flex-1 flex-col outline-0">
+              <div
+                ref={scrollRef}
+                style={wrap ? scrollFadeStyle : scrollFadeStyleX}
+                data-dock-fade=""
+                className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${
+                  mode === 'collapsed'
+                    ? 'invisible pointer-events-none group-data-swiping/dock:visible group-data-swiping/dock:pointer-events-auto'
+                    : ''
+                }`}
+                inert={mode === 'collapsed' || undefined}
               >
-                <button
-                  type="button"
-                  className={handleCls}
-                  title={handleLabel}
-                  aria-label={handleLabel}
-                  aria-expanded={mode !== 'collapsed'}
-                  aria-valuetext={mode}
-                  onClick={() => setMode(dockTransition(mode, { type: 'tap' }, cap))}
-                >
-                  <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
-                </button>
-                <Drawer.Content className="flex min-h-0 flex-1 flex-col outline-0">
-                  <Drawer.Title className="sr-only">{t('Tools')}</Drawer.Title>
-                  <div
-                    ref={scrollRef}
-                    style={wrap ? scrollFadeStyle : scrollFadeStyleX}
-                    data-dock-fade=""
-                    data-base-ui-swipe-ignore={wrap ? undefined : 'x'}
-                    className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${
-                      mode === 'collapsed'
-                        ? 'invisible pointer-events-none group-data-swiping/dock:visible group-data-swiping/dock:pointer-events-auto'
-                        : ''
-                    }`}
-                    inert={mode === 'collapsed' || undefined}
-                  >
-                    <div
-                      ref={attachInner}
-                      data-dock-context={contextKey}
-                      className={wrap ? wrapCls : rowCls}
-                    />
-                  </div>
-                </Drawer.Content>
-              </Drawer.Popup>
+                <div
+                  ref={attachInner}
+                  data-dock-context={contextKey}
+                  className={wrap ? wrapCls : rowCls}
+                />
+              </div>
             </div>
-            <Footer className="pointer-events-auto" />
-          </div>
-        </Drawer.Viewport>
-      </Drawer.Portal>
-    </Drawer.Root>
+          </section>
+        </div>
+        <Footer className="pointer-events-auto" />
+      </div>
+    </div>
   )
 }

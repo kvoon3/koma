@@ -44,7 +44,7 @@ type BgKind = 'solid' | 'gradient' | 'image'
 /**
  * The one canvas-appearance Tools entry on the collage stage: Border.
  * Opens a panel with gap, fill, radius, pane border, crossfade, blend, reset.
- * Grid gap lives on the grid route only (see GridDockTool).
+ * Grid gap is enabled on the grid route only (see GridDockTool).
  */
 export function AppearanceDockTools() {
   const [open, setOpen] = useState(false)
@@ -128,7 +128,7 @@ export function AppearanceDockTools() {
               <SegmentedField
                 label={t('Background')}
                 value={kind}
-                items={[{ value: 'solid', label: t('Solid') }, { value: 'gradient', label: t('Gradient') }, { value: 'image', label: t('Image') }]}
+                items={[{ value: 'solid', label: t('Solid color') }, { value: 'gradient', label: t('Gradient') }, { value: 'image', label: t('Image') }]}
                 onChange={setKind}
               />
               {kind !== 'image' && (
@@ -264,19 +264,20 @@ export function AppearanceDockTools() {
 }
 
 /**
- * Grid-route-only Tools entry: Grid gap for the 3×3 workspace overview.
- * Not mounted on the collage stage.
+ * Grid gap for the 3×3 workspace overview. Mounted on every route (stable
+ * dock layout) and disabled off the grid via `requires: 'grid'`.
  */
-export function GridDockTool() {
+export function GridDockTool({ disabled = false }: { disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const gridGap = useStore(s => s.gridGap)
   const patch = useStore(s => s.patch)
   const t = useT()
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open && !disabled} onOpenChange={setOpen}>
       <Popover.Trigger
-        className={`${toolsBtnCls} ${dockBtnStateCls}`}
+        disabled={disabled}
+        className={`${toolsBtnCls} ${dockBtnStateCls} disabled:cursor-default disabled:opacity-35 disabled:active:scale-100 disabled:hover:bg-transparent`}
         title={t('Grid')}
         aria-label={t('Grid')}
         data-dock-tool={t('Grid')}

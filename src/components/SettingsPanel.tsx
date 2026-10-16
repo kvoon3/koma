@@ -4,11 +4,12 @@ import { Settings } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { fieldLabelCls, fieldRowCls } from '@/components/ui/field'
+import { fieldLabelCls, fieldRowCls, RangeField, SelectField } from '@/components/ui/field'
 import { Tip } from '@/components/ui/tip'
 import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
+import { DOCK_BG, DOCK_OPACITY, useStore } from '../store'
 
 const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
 const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-(--dur-fast) group-data-checked/switch:translate-x-3.5'
@@ -22,6 +23,9 @@ const popup = 'flex max-h-[min(70dvh,520px)] w-[min(320px,calc(100vw-20px))] max
 export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: boolean, onOpenChange: (open: boolean) => void, onTriggerEnter?: () => void }) {
   const t = useT()
   const [mirror, setMirror] = useState(() => mirrorEnabled())
+  const dockBg = useStore(s => s.dockBg)
+  const dockOpacity = useStore(s => s.dockOpacity)
+  const patch = useStore(s => s.patch)
 
   return (
     <Popover.Root open={open} onOpenChange={onOpenChange}>
@@ -57,13 +61,14 @@ export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: bo
                 onClick={() => {
                   setMirror(true)
                   setMirrorEnabled(true)
+                  patch({ dockBg: DOCK_BG, dockOpacity: DOCK_OPACITY })
                   say(t('Settings reset'))
                 }}
               >
                 {t('Reset')}
               </Button>
             </header>
-            <div className="px-3.5 pt-2 pb-3.5">
+            <div className="flex flex-col gap-2.5 px-3.5 pt-2 pb-3.5">
               <div className={fieldRowCls}>
                 <span className={fieldLabelCls}>{t('Font mirror')}</span>
                 <Switch.Root
@@ -78,6 +83,24 @@ export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: bo
                   <Switch.Thumb className={toggleThumb} />
                 </Switch.Root>
               </div>
+              <SelectField
+                label={t('Dock background')}
+                value={dockBg}
+                items={[
+                  { value: 'solid', label: t('Solid') },
+                  { value: 'frosted', label: t('Frosted glass') },
+                  { value: 'liquid', label: t('Liquid glass') },
+                ]}
+                onChange={v => patch({ dockBg: v as typeof dockBg })}
+              />
+              <RangeField
+                label={t('Dock opacity')}
+                text={`${dockOpacity}%`}
+                value={dockOpacity}
+                max={100}
+                step={1}
+                onChange={v => patch({ dockOpacity: v })}
+              />
             </div>
           </Popover.Popup>
         </Popover.Positioner>
