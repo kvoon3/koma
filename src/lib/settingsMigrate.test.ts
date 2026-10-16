@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { BLEND_CROSSFADE, DOCK_BG, DOCK_HANDLE_ICON, DOCK_OPACITY, migrateSettings, SETTINGS_VERSION } from '../store'
+import { BLEND_CROSSFADE, DOCK_BG, DOCK_OPACITY, migrateSettings, SETTINGS_VERSION } from '../store'
 
 describe('migrateSettings', () => {
   test('crossfade is the default', () => {
@@ -18,8 +18,8 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 2', () => {
-    expect(SETTINGS_VERSION).toBe(2)
+  test('version is 3', () => {
+    expect(SETTINGS_VERSION).toBe(3)
   })
   test('v1 → v2 adds dock defaults and starts collapsed', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toEqual({
@@ -27,19 +27,17 @@ describe('migrateSettings v2 (dock)', () => {
       blendCrossfade: false,
       dockBg: DOCK_BG,
       dockOpacity: DOCK_OPACITY,
-      dockHandleIcon: DOCK_HANDLE_ICON,
       toolsDockMode: 'collapsed',
     })
   })
   test('v2 values are kept', () => {
-    const v = { dockBg: 'liquid', dockOpacity: 30, dockHandleIcon: 'sliders', toolsDockMode: 'row' }
-    expect(migrateSettings(v, 2)).toEqual(v)
+    const v = { dockBg: 'liquid', dockOpacity: 30, toolsDockMode: 'row' }
+    expect(migrateSettings({ ...v, dockHandleIcon: 'sliders' }, 2)).toEqual(v)
   })
   test('invalid values are sanitized', () => {
-    expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, dockHandleIcon: 'x', toolsDockMode: 'huge' }, 2)).toEqual({
+    expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, toolsDockMode: 'huge' }, 2)).toEqual({
       dockBg: DOCK_BG,
       dockOpacity: 100,
-      dockHandleIcon: DOCK_HANDLE_ICON,
       toolsDockMode: 'collapsed',
     })
   })

@@ -462,7 +462,4 @@ export const zhHans: Record<string, string> = {
   'Frosted glass': '毛玻璃',
   'Liquid glass': '液态玻璃',
   'Dock opacity': '工具栏不透明度',
-  'Dock icon': '工具栏图标',
-  'Wrench': '扳手',
-  'Sliders': '滑块',
 }

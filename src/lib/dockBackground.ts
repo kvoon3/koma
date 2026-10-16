@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { DockBg } from '../store'
+import { GLASS_SHADOW, glassBackdrop } from '../vendor/liquid-glass/liquid-glass'
 
 /** SVG filter id used by the liquid style's displacement (Chromium only). */
 export const LIQUID_FILTER_ID = 'koma-dock-liquid'
@@ -34,17 +35,15 @@ export function dockBgStyle(bg: DockBg, opacity: number, svgBackdrop = false): C
       return { backgroundColor: tint(o), backdropFilter: f, WebkitBackdropFilter: f }
     }
     case 'liquid': {
-      const base = 'blur(10px) saturate(180%) brightness(1.05)'
-      const hi = (o / 100) * 0.55 + 0.15
-      return {
-        backgroundColor: tint(Math.round(o * 0.6)),
-        backgroundImage: `linear-gradient(180deg, rgba(255,255,255,${(hi * 0.5).toFixed(3)}) 0%, rgba(255,255,255,0) 45%)`,
-        // WebKit gets the plain blur; only Chromium gets the refraction.
-        WebkitBackdropFilter: base,
-        backdropFilter: svgBackdrop ? `url(#${LIQUID_FILTER_ID}) ${base}` : base,
-        borderTopColor: `rgba(255,255,255,${hi.toFixed(3)})`,
-        boxShadow: `inset 0 1px 0 rgba(255,255,255,${hi.toFixed(3)}), inset 0 -1px 0 rgba(0,0,0,${(hi * 0.25).toFixed(3)}), inset 0 8px 16px -10px rgba(255,255,255,${(hi * 0.6).toFixed(3)}), 0 -8px 24px -12px rgba(0,0,0,0.25)`,
+      // Chromium: vendored shuding/liquid-glass refraction (near-clear glass,
+      // light tint). Elsewhere `url()` would void the whole declaration, so
+      // fall back to blur + tint.
+      if (svgBackdrop) {
+        const f = glassBackdrop(LIQUID_FILTER_ID)
+        return { backgroundColor: tint(Math.round(o * 0.5)), backdropFilter: f, boxShadow: GLASS_SHADOW }
       }
+      const f = 'blur(12px) saturate(160%)'
+      return { backgroundColor: tint(o), backdropFilter: f, WebkitBackdropFilter: f, boxShadow: GLASS_SHADOW }
     }
     case 'transparent':
       // No sheet; opacity drives the per-button chips (see index.css).

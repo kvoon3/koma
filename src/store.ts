@@ -58,8 +58,6 @@ export interface PaneClip {
 /** Bottom tools sheet snap: hidden / one scrolling row / wrapped multi-row. */
 export type ToolsDockMode = 'collapsed' | 'row' | 'expanded'
 export type DockBg = 'solid' | 'frosted' | 'liquid' | 'transparent'
-/** Temporary: collapsed handle icon under evaluation (dev toggle in Settings). */
-export type DockHandleIcon = 'wrench' | 'sliders'
 
 interface State {
   photos: Photo[]
@@ -94,7 +92,6 @@ interface State {
   dockBg: DockBg
   /** Dock background opacity, 0–100 (%). */
   dockOpacity: number
-  dockHandleIcon: DockHandleIcon
   /**
    * Bottom tools sheet snap state. Persisted; starts collapsed. Drag
    * the handle or tap it to move between collapsed / row / expanded.
@@ -123,10 +120,9 @@ export const PANE_BORDER = false
 
 export const DOCK_BG: DockBg = 'frosted'
 export const DOCK_OPACITY = 60
-export const DOCK_HANDLE_ICON: DockHandleIcon = 'wrench'
 export const TOOLS_DOCK_MODE: ToolsDockMode = 'collapsed'
 
-export const SETTINGS_VERSION = 2
+export const SETTINGS_VERSION = 3
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid', 'transparent']
 const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
@@ -144,8 +140,8 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
     p.dockBg = DOCK_BG
   const op = Number(p.dockOpacity)
   p.dockOpacity = Number.isFinite(op) && p.dockOpacity != null ? Math.min(100, Math.max(0, op)) : DOCK_OPACITY
-  if (p.dockHandleIcon !== 'wrench' && p.dockHandleIcon !== 'sliders')
-    p.dockHandleIcon = DOCK_HANDLE_ICON
+  // v3: the temporary handle-icon toggle is gone (ruler is fixed).
+  delete p.dockHandleIcon
   if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
     p.toolsDockMode = TOOLS_DOCK_MODE
   return p
@@ -213,7 +209,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   toolsDockMode: TOOLS_DOCK_MODE,
   dockBg: DOCK_BG,
   dockOpacity: DOCK_OPACITY,
-  dockHandleIcon: DOCK_HANDLE_ICON,
   paneClip: null,
   stickerMakerFor: null,
 
@@ -672,7 +667,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       paneBorder: PANE_BORDER,
       dockBg: DOCK_BG,
       dockOpacity: DOCK_OPACITY,
-      dockHandleIcon: DOCK_HANDLE_ICON,
     }),
 
   setCanvasSize: (ratio, fill) =>
@@ -787,7 +781,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // `blendCrossfade: false` (the old default) even if never touched, so it
   // cannot be told apart from an explicit choice: reset it to the new default.
   version: SETTINGS_VERSION,
-  // v2: dock background/opacity/handle icon + persisted dock mode.
+  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon.
   migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
@@ -800,7 +794,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     paneBorder: state.paneBorder,
     dockBg: state.dockBg,
     dockOpacity: state.dockOpacity,
-    dockHandleIcon: state.dockHandleIcon,
     toolsDockMode: state.toolsDockMode,
   }),
 }))

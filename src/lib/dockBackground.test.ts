@@ -14,12 +14,15 @@ describe('dockBgStyle', () => {
     expect(s.WebkitBackdropFilter).toBe(s.backdropFilter)
     expect(s.backgroundColor).toContain('75%')
   })
-  test('liquid: SVG displacement only when supported; webkit never', () => {
-    expect(dockBgStyle('liquid', 50, false).backdropFilter).not.toContain('url(')
+  test('liquid: vendored SVG refraction only when supported, else blur + tint', () => {
+    const fb = dockBgStyle('liquid', 50, false)
+    expect(fb.backdropFilter).not.toContain('url(')
+    expect(fb.backdropFilter).toContain('blur(')
+    expect(fb.WebkitBackdropFilter).toBe(fb.backdropFilter)
     const s = dockBgStyle('liquid', 50, true)
     expect(s.backdropFilter).toContain(`url(#${LIQUID_FILTER_ID})`)
-    expect(s.WebkitBackdropFilter).not.toContain('url(')
-    expect(s.boxShadow).toContain('inset')
+    expect(s.WebkitBackdropFilter).toBeUndefined()
+    expect(s.backgroundColor).toContain('25%')
   })
   test('transparent: no sheet background; opacity drives the chips', () => {
     const s = dockBgStyle('transparent', 30) as Record<string, unknown>

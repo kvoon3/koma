@@ -447,7 +447,4 @@ export const zhHant: Record<string, string> = {
   'Frosted glass': '毛玻璃',
   'Liquid glass': '液態玻璃',
   'Dock opacity': '工具列不透明度',
-  'Dock icon': '工具列圖示',
-  'Wrench': '扳手',
-  'Sliders': '滑桿',
 }
