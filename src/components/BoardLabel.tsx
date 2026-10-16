@@ -13,6 +13,7 @@ import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '..
 import { labelBgAlpha, labelPaint, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
+import { dockBtnStateCls, dockPopupMotionCls } from './ui/menu'
 
 /** A label icon drawn inline at the label's font size, in its text color. */
 export function LabelIconGlyph({ node, size = `${LABEL_ICON_EM}em` }: { node: IconNode, size?: string }) {
@@ -639,8 +640,9 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelCont
 
 const DOCK_SWATCHES = ['#ffffff', '#000000', '#e5484d', '#f5a524', '#f7e463', '#30a46c', '#0090ff', '#8e4ec6']
 
-const dockBtnCls = 'grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt data-popup-open:bg-chip-on data-popup-open:text-chip-on-txt'
-const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border border-line-strong bg-panel p-2 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+const dockBtnBaseCls = 'grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
+const dockBtnCls = `${dockBtnBaseCls} ${dockBtnStateCls}`
+const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border border-line-strong bg-panel p-2 text-txt shadow-pop outline-0'
 const swatchCls = 'box-border h-7 w-7 cursor-pointer rounded-none border border-line-strong p-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] aria-pressed:outline-2 aria-pressed:outline-accent aria-pressed:outline-offset-1'
 
 type DockTool = 'font' | 'fg' | 'bg' | 'alpha' | 'icon'
@@ -664,7 +666,7 @@ function DockPopover({ id, openTool, setOpenTool, label, trigger, children }: {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[260] select-none outline-0">
-          <Popover.Popup className={dockPopupCls} data-label-popover={id}>
+          <Popover.Popup className={`${dockPopupCls} ${dockPopupMotionCls}`} data-label-popover={id}>
             {children}
           </Popover.Popup>
         </Popover.Positioner>

@@ -17,7 +17,7 @@ import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
-import { menuItemCls, menuPopupCls } from './ui/menu'
+import { dockBtnStateCls, dockPopupMotionCls, menuItemCls, menuSurfaceCls } from './ui/menu'
 
 const NO_STICKERS: Sticker[] = []
 const NO_LABELS: PaneLabel[] = []
@@ -59,7 +59,7 @@ interface ToolOption {
   onClick: () => void
 }
 
-const toolPopupCls = `${menuPopupCls} min-w-[170px]`
+const toolPopupCls = `${menuSurfaceCls} ${dockPopupMotionCls} min-w-[170px]`
 
 /** A dock tool with options: a Base UI Popover anchored above the icon. */
 function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> & { options: ToolOption[] }) {
@@ -67,7 +67,7 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
-        className={`${toolsBtnCls}${open ? ' bg-chip-hover text-txt' : ''}`}
+        className={`${toolsBtnCls} ${dockBtnStateCls}`}
         title={hint}
         aria-label={label}
         data-dock-tool={label}
@@ -104,7 +104,7 @@ function ToolButton({ icon, label, hint, onClick, options, danger }: Omit<ToolDe
     return <ToolPopoverButton icon={icon} label={label} hint={hint} options={options} />
   return (
     <button
-      className={`${toolsBtnCls}${danger ? ' text-danger hover:text-danger' : ''}`}
+      className={`${toolsBtnCls} ${dockBtnStateCls}${danger ? ' text-danger hover:text-danger' : ''}`}
       title={hint}
       aria-label={label}
       data-dock-tool={label}
