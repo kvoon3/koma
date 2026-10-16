@@ -3,9 +3,9 @@ import { Popover } from '@base-ui/react/popover'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { Switch } from '@base-ui/react/switch'
-import { Frame, Grid3x3 } from 'lucide'
+import { Frame, Grid3x3, ImagePlus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField } from '@/components/ui/field'
 import { useThumb } from '../hooks'
 import { useT } from '../lib/i18n'
@@ -25,6 +25,7 @@ const swatch = 'box-border grid h-[26px] w-[30px] cursor-pointer place-items-cen
 const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--panel)]'
 const popup = `${menuSurfaceCls} ${dockPopupMotionCls} w-[min(320px,calc(100vw-24px))] max-h-[min(70dvh,480px)] overflow-y-auto overscroll-contain p-3.5`
 const fields = 'flex min-w-0 flex-col gap-[7px]'
+const segment = 'box-border min-h-[26px] cursor-pointer rounded-none border-0 border-l border-line-strong bg-transparent px-2 text-[11.5px] font-semibold text-dim transition-colors duration-(--dur-fast) first:border-l-0 hover:text-txt data-checked:bg-accent data-checked:text-white focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
 const heading = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
 
 /** One library photo as a background choice. */
@@ -39,6 +40,7 @@ function BgPhotoSwatch({ photo, label }: { photo: Photo, label: string }) {
 }
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
+type BgKind = 'solid' | 'gradient' | 'image'
 
 /**
  * The one canvas-appearance Tools entry on the collage stage: Border.
@@ -60,6 +62,20 @@ export function AppearanceDockTools() {
   const patch = useStore(s => s.patch)
   const resetSettings = useStore(s => s.resetSettings)
   const t = useT()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const storedKind: BgKind = bgImage ? 'image' : bgGradient && !isTransparentBg(bg) ? 'gradient' : 'solid'
+  const [pendingImage, setPendingImage] = useState(false)
+  const kind: BgKind = pendingImage && storedKind === 'solid' ? 'image' : storedKind
+
+  const setKind = (next: BgKind) => {
+    setPendingImage(next === 'image')
+    if (next === 'solid')
+      patch({ bgGradient: null, bgImage: null })
+    else if (next === 'gradient')
+      patch({ bg: isTransparentBg(bg) ? '#000000' : bg, bgGradient: bgGradient ?? gradientEnd(bg), bgImage: null })
+    else
+      patch({ bgGradient: null })
+  }
 
   const mode: BgMode = isTransparentBg(bg)
     ? 'transparent'
@@ -113,34 +129,51 @@ export function AppearanceDockTools() {
               <div className={fieldRowCls}>
                 <span className={fieldLabelCls}>{t('Background')}</span>
                 <RadioGroup
-                  className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
+                  className={`${fieldControlCls} col-span-2 grid grid-cols-3 border border-line-strong sm:col-span-2`}
                   aria-label={t('Background')}
-                  value={mode}
-                  onValueChange={next => setMode(next)}
+                  value={kind}
+                  onValueChange={next => setKind(next as BgKind)}
                 >
-                  <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <input
-                    type="color"
-                    className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
-                    aria-label={t('Custom background color')}
-                    title={t('Pick a custom color')}
-                    value={mode === 'custom' ? bg : CUSTOM_BG}
-                    onChange={e => patch({ bg: e.target.value })}
-                  />
+                  {([['solid', t('Solid')], ['gradient', t('Gradient')], ['image', t('Image')]] as const).map(([v, label]) => (
+                    <Radio.Root key={v} value={v} className={segment}>{label}</Radio.Root>
+                  ))}
                 </RadioGroup>
               </div>
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Gradient')}</span>
-                <div className={`${fieldControlCls} col-start-1 flex items-center gap-1.5`}>
-                  {bgGradient && !isTransparentBg(bg) && (
+              {kind !== 'image' && (
+                <div className={fieldRowCls}>
+                  <span className={fieldLabelCls}>{kind === 'gradient' ? t('Gradient start color') : t('Color')}</span>
+                  <RadioGroup
+                    className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
+                    aria-label={t('Background')}
+                    value={mode}
+                    onValueChange={next => setMode(next)}
+                  >
+                    <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
+                      <Radio.Indicator className={swatchDot} />
+                    </Radio.Root>
+                    <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
+                      <Radio.Indicator className={swatchDot} />
+                    </Radio.Root>
+                    {kind === 'solid' && (
+                      <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
+                        <Radio.Indicator className={swatchDot} />
+                      </Radio.Root>
+                    )}
+                    <input
+                      type="color"
+                      className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
+                      aria-label={t('Custom background color')}
+                      title={t('Pick a custom color')}
+                      value={mode === 'custom' ? bg : CUSTOM_BG}
+                      onChange={e => patch({ bg: e.target.value })}
+                    />
+                  </RadioGroup>
+                </div>
+              )}
+              {kind === 'gradient' && bgGradient && (
+                <div className={fieldRowCls}>
+                  <span className={fieldLabelCls}>{t('Gradient end color')}</span>
+                  <div className={`${fieldControlCls} col-start-1 flex items-center gap-1.5`}>
                     <input
                       type="color"
                       className={`${colorInputCls} w-9 border-line-strong`}
@@ -149,19 +182,10 @@ export function AppearanceDockTools() {
                       value={bgGradient}
                       onChange={e => patch({ bgGradient: e.target.value })}
                     />
-                  )}
+                  </div>
                 </div>
-                <Switch.Root
-                  className={toggle}
-                  aria-label={t('Gradient')}
-                  checked={!!bgGradient && !isTransparentBg(bg)}
-                  disabled={isTransparentBg(bg)}
-                  onCheckedChange={checked => patch({ bgGradient: checked ? gradientEnd(bg) : null })}
-                >
-                  <Switch.Thumb className={toggleThumb} />
-                </Switch.Root>
-              </div>
-              {photos.length > 0 && (
+              )}
+              {kind === 'image' && (
                 <div className={fieldRowCls}>
                   <span className={fieldLabelCls}>{t('Image')}</span>
                   <RadioGroup
@@ -170,14 +194,38 @@ export function AppearanceDockTools() {
                     value={bgImage?.photoId ?? ''}
                     onValueChange={id => patch({ bgImage: id ? { photoId: id as string, blur: bgImage?.blur ?? true } : null })}
                   >
+                    <button
+                      type="button"
+                      aria-label={t('Upload background photo')}
+                      title={t('Upload background photo')}
+                      className={`${swatch} shrink-0 bg-panel-2 text-dim`}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+                    </button>
                     <Radio.Root value="" aria-label={t('No background photo')} title={t('No background photo')} className={`${swatch} shrink-0 swatch-clear`}>
                       <Radio.Indicator className={swatchDot} />
                     </Radio.Root>
                     {photos.map(p => <BgPhotoSwatch key={p.id} photo={p} label={t('Background photo')} />)}
                   </RadioGroup>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (!file)
+                        return
+                      const added = useStore.getState().addPhotos([file], false)[0]
+                      if (added)
+                        patch({ bgImage: { photoId: added.id, blur: bgImage?.blur ?? true } })
+                    }}
+                  />
                 </div>
               )}
-              {bgImage && (
+              {kind === 'image' && bgImage && (
                 <div className={fieldRowCls}>
                   <span className={fieldLabelCls}>{t('Blur photo')}</span>
                   <Switch.Root
