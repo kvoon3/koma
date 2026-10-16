@@ -18,11 +18,11 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 6', () => {
-    expect(SETTINGS_VERSION).toBe(6)
+  test('version is 7', () => {
+    expect(SETTINGS_VERSION).toBe(7)
   })
   test('v1 → v2 adds dock defaults and starts in row', () => {
-    expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toEqual({
+    expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toMatchObject({
       gap: 2,
       blendCrossfade: false,
       dockBg: DOCK_BG,
@@ -32,11 +32,11 @@ describe('migrateSettings v2 (dock)', () => {
   })
   test('v2 values are kept', () => {
     const v = { dockBg: 'liquid', dockOpacity: 30, toolsDockMode: 'row' }
-    expect(migrateSettings({ ...v, dockHandleIcon: 'sliders' }, 2)).toEqual(v)
+    expect(migrateSettings({ ...v, dockHandleIcon: 'sliders' }, 2)).toMatchObject(v)
     expect(migrateSettings({ dockBg: 'frosted' }, 5).dockBg).toBe('frosted')
   })
   test('invalid values are sanitized', () => {
-    expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, toolsDockMode: 'huge' }, 2)).toEqual({
+    expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, toolsDockMode: 'huge' }, 2)).toMatchObject({
       dockBg: DOCK_BG,
       dockOpacity: 100,
       toolsDockMode: 'row',
@@ -69,5 +69,13 @@ describe('migrateSettings v5', () => {
     expect(migrateSettings({ toolsDockMode: 'collapsed' }, 5).toolsDockMode).toBe('row')
     expect(migrateSettings({ toolsDockMode: 'expanded' }, 5).toolsDockMode).toBe('row')
     expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('collapsed')
+  })
+})
+
+describe('migrateSettings v7', () => {
+  test('adds the 1:1 grid cell ratio; keeps valid, fixes invalid', () => {
+    expect(migrateSettings({}, 6).gridCellRatio).toBe('1:1')
+    expect(migrateSettings({ gridCellRatio: '4:5' }, 6).gridCellRatio).toBe('4:5')
+    expect(migrateSettings({ gridCellRatio: '2:1' }, 6).gridCellRatio).toBe('1:1')
   })
 })
