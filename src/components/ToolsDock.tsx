@@ -1,11 +1,13 @@
 import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from 'react'
 import type { ToolsDockMode } from '../store'
 import { Drawer } from '@base-ui/react/drawer'
-import { ChevronDown, ChevronUp, Minus } from 'lucide'
+import { ChevronDown, ChevronUp, Ruler } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { dockDragFade, dockSurface } from '../lib/dockBackground'
 import { useT } from '../lib/i18n'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
@@ -26,7 +28,7 @@ const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
 const INTENT_LABEL = { show: 'Show tools', expand: 'Expand tools', hide: 'Hide tools' } as const
-const INTENT_ICON = { show: Minus, expand: ChevronUp, hide: ChevronDown } as const
+const INTENT_ICON = { expand: ChevronUp, hide: ChevronDown } as const
 
 function modeFromSnap(snap: number | string, snaps: number[], order: readonly ToolsDockMode[]): ToolsDockMode {
   const idx = snaps.findIndex(p => Object.is(p, snap))
@@ -102,6 +104,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const t = useT()
   const storedMode = useStore(s => s.toolsDockMode)
   const setMode = useStore(s => s.setToolsDockMode)
+  const dockBg = useStore(s => s.dockBg)
+  const dockOpacity = useStore(s => s.dockOpacity)
 
   const innerRef = useRef<HTMLDivElement | null>(null)
   const [rowH, setRowH] = useState(FALLBACK_ROW)
@@ -158,7 +162,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     const rect = el.getBoundingClientRect()
     const row = Math.ceil(rect.height) || FALLBACK_ROW
     const rowW = Math.ceil(rect.width)
-    const panelW = el.parentElement?.clientWidth || window.innerWidth
+    // Full sheet width, not the popup's (it shrinks to the handle when collapsed).
+    const panelW = el.closest<HTMLElement>('.tools-dock')?.clientWidth || window.innerWidth
     el.style.flexWrap = 'wrap'
     el.style.width = '100%'
     el.style.maxWidth = `${panelW}px`
@@ -204,8 +209,39 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   }, [measure])
 
   // Icon + label describe the next tap (row with no room to expand → hide).
+  const surface = dockSurface(dockBg, dockOpacity, mode)
+
+  // Drag-driven background: Base UI writes --drawer-swipe-movement-y on the
+  // popup every frame; mirror it into --dock-drag-fade without re-rendering.
+  const geomRef = useRef({ snapPoint, rowH })
+  useLayoutEffect(() => {
+    geomRef.current = { snapPoint, rowH }
+  }, [snapPoint, rowH])
+  const liquidOn = dockBg === 'liquid' && mode !== 'collapsed'
+  const popupRef = useCallback((el: HTMLDivElement | null) => {
+    if (!el)
+      return
+    let last = ''
+    const sync = () => {
+      const { snapPoint: sp, rowH: rh } = geomRef.current
+      const my = Number.parseFloat(el.style.getPropertyValue('--drawer-swipe-movement-y'))
+      const f = String(dockDragFade(sp, my || 0, rh, HANDLE_H))
+      if (f !== last) {
+        last = f
+        el.style.setProperty('--dock-drag-fade', f)
+      }
+    }
+    const mo = new MutationObserver(sync)
+    mo.observe(el, { attributes: true, attributeFilter: ['style', 'data-swiping'] })
+    sync()
+    const glass = liquidOn ? liquidGlassRef(el) : undefined
+    return () => {
+      mo.disconnect()
+      glass?.()
+    }
+  }, [liquidOn])
   const intent = dockHandleIntent(mode, cap)
-  const handleIcon = INTENT_ICON[intent]
+  const handleIcon = intent === 'show' ? Ruler : INTENT_ICON[intent]
   const handleLabel = t(INTENT_LABEL[intent])
 
   return (
@@ -250,13 +286,15 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
                 initialFocus={false}
                 finalFocus={false}
                 data-dock-mode={mode}
+                data-dock-bg={dockBg}
                 data-instant={instant || undefined}
-                style={{ 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
-                className="group/dock pointer-events-auto relative box-border flex w-full flex-col overflow-hidden rounded-none border-t border-line bg-drawer-bg shadow-pop outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full"
+                ref={popupRef}
+                style={{ ...surface.style, 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
+                className={`dock-surface group/dock relative box-border flex w-full flex-col ${surface.className} ${mode === 'collapsed' ? 'pointer-events-none data-swiping:pointer-events-auto' : 'pointer-events-auto'} overflow-hidden rounded-none border-0 border-t border-solid outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-[transform,background-color,border-color,box-shadow,backdrop-filter,--glass-fade] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full`}
               >
                 <button
                   type="button"
-                  className={handleCls}
+                  className={`${handleCls} ${mode === 'collapsed' ? 'pointer-events-auto mx-auto w-11! rounded-full' : ''}`}
                   title={handleLabel}
                   aria-label={handleLabel}
                   aria-expanded={mode !== 'collapsed'}
