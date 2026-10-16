@@ -17,8 +17,10 @@ import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
 import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
+import { GridDockTool } from './AppearanceTools'
 import { LabelIconGlyph } from './BoardLabel'
 import { SeamBackdrop } from './Stage'
+import { ToolsDock } from './ToolsDock'
 import { Tip } from './ui/tip'
 
 // Virtual canvas short side for preview layout math. Any value works; the
@@ -63,6 +65,15 @@ function PreviewSticker({ st, board, k, photoById }: {
   )
 }
 
+/** Photo placement + draw box for a preview leaf (crossfade expands the cell). */
+function previewLeafPlace(leaf: Leaf, layout: Rect, cell: Rect, iw: number, ih: number, crossfade: boolean) {
+  if (!iw || !ih)
+    return null
+  return crossfade
+    ? placement(layout, leaf, iw, ih)
+    : placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
+}
+
 /** One leaf of a workspace preview: the photo, panned/zoomed like the editor. */
 function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: {
   leaf: Leaf
@@ -80,8 +91,6 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
   const photo = leaf.photoId ? photoById.get(leaf.photoId) : undefined
   const preview = usePreview(photo ?? null)
   const radius = useStore(s => s.radius)
-  const iw = preview?.w ?? 0
-  const ih = preview?.h ?? 0
   const layout: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
   const cell = crossfade && leaf.photoId ? expandRectForBlend(layout, seam, fade) : layout
   const style: React.CSSProperties = {
@@ -91,12 +100,13 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
     height: cell.h,
     borderRadius: radius * unit,
   }
-  const place = iw && ih
-    ? (crossfade
-        ? placement(layout, leaf, iw, ih)
-        : placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih))
-    : null
+  const place = previewLeafPlace(leaf, layout, cell, preview?.w ?? 0, preview?.h ?? 0, crossfade)
   const mask = leaf.photoId ? seamMaskStyle(seam, seamFadeWidth(fade, crossfade ? layout : cell)) : undefined
+  const imgTx = place
+    ? (crossfade
+        ? `translate(${place.x - cell.x}px, ${place.y - cell.y}px) scale(${place.scale})`
+        : `translate(${place.x}px, ${place.y}px) scale(${place.scale})`)
+    : ''
   return (
     <div className={`absolute overflow-hidden ${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`} style={style}>
       {preview && place
@@ -118,9 +128,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
                   left: 0,
                   top: 0,
                   transformOrigin: '0 0',
-                  transform: crossfade
-                    ? `translate(${place.x - cell.x}px, ${place.y - cell.y}px) scale(${place.scale})`
-                    : `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
+                  transform: imgTx,
                 }}
               />
             </div>
@@ -305,6 +313,8 @@ export function WorkspaceGrid() {
   const bg = useStore(s => s.bg)
   const gridGap = useStore(s => s.gridGap)
   const moveWorkspace = useStore(s => s.moveWorkspace)
+  const toolsOpen = useStore(s => s.toolsOpen)
+  const setToolsOpen = useStore(s => s.setToolsOpen)
   const navigate = useNavigate()
   const t = useT()
   const { snapshotGrid, busy } = useAppCommands()
@@ -483,6 +493,17 @@ export function WorkspaceGrid() {
             : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Grid-route-only tools: Grid gap. Expand still available for consistency. */}
+      <ToolsDock
+        hidden={false}
+        open={toolsOpen}
+        contextKey="grid"
+        handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
+        onToggle={() => setToolsOpen(!toolsOpen)}
+      >
+        <GridDockTool />
+      </ToolsDock>
     </div>
   )
 }

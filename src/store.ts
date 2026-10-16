@@ -89,6 +89,11 @@ export interface State {
    */
   toolsOpen: boolean
   /**
+   * Compact (single scrolling row) vs expanded (tools wrap to multiple rows).
+   * Session-only; default compact.
+   */
+  toolsExpanded: boolean
+  /**
    * Copied pane contents for the menu's paste item, session-only so a reload
    * forgets it. Pasting clones the stickers under fresh ids.
    */
@@ -164,6 +169,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   stickerSel: null,
   labelEditReq: null,
   toolsOpen: true,
+  toolsExpanded: false,
   paneClip: null,
   stickerMakerFor: null,
 
@@ -566,6 +572,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   selectSticker: sel => set({ stickerSel: sel, labelSel: null }),
   requestLabelEdit: labelId => set({ labelEditReq: { labelId, seq: ++labelEditSeq } }),
   setToolsOpen: open => set({ toolsOpen: open }),
+  setToolsExpanded: expanded => set({ toolsExpanded: expanded }),
 
   autoFill: () =>
     set((s) => {
@@ -860,6 +867,7 @@ interface Actions {
   selectSticker: (sel: { stickerId: string } | null) => void
   requestLabelEdit: (labelId: string) => void
   setToolsOpen: (open: boolean) => void
+  setToolsExpanded: (expanded: boolean) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
   resetSettings: () => void

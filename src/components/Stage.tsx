@@ -3,14 +3,13 @@ import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { ChevronDown, ChevronUp, Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
+import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
-import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { AppearanceDockTools } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
@@ -18,6 +17,7 @@ import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
+import { toolsBtnCls, ToolsDock, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls, menuItemCls, menuSurfaceCls } from './ui/menu'
 
 const NO_STICKERS: Sticker[] = []
@@ -25,21 +25,6 @@ const NO_LABELS: PaneLabel[] = []
 
 const HIT_MIN = 15
 const MIN_CANVAS = 120
-
-/* The focused pane's tools: an overlay above the footer, so it never takes
-   layout space. Only the handle on its top edge moves it; collapsed it rests
-   behind the footer with the handle showing. The panel only exists while a
-   focused pane holds a photo. */
-const toolsPanelCls = 'relative mb-2 w-fit max-w-[min(920px,100vw)] rounded-none border border-line bg-drawer-bg shadow-pop transition-transform duration-(--dur-morph) ease-(--ease-drawer)'
-const toolsHandleCls = 'absolute -top-[20px] left-1/2 grid h-5 w-16 -translate-x-1/2 cursor-pointer place-items-center rounded-t-[6px] border border-b-0 border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[opacity,scale] duration-(--dur-surface) active:scale-[0.97] hover:text-txt'
-/* Fixed-width tools in a max-content row: the panel hugs them, and the row
-   scrolls sideways once they outgrow the screen. It stays inside a block, not a
-   flex item (it would shrink and clip the leading tool), and `touch-pan-x`
-   overrides the stage's `touch-none`; the scrollFadeStyleX mask softens the scrolled ends. */
-const toolsScrollCls = 'overflow-x-auto overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
-const toolsRowCls = 'flex w-max items-stretch'
-const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
-const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
 interface ToolDef {
   key: string
@@ -119,7 +104,6 @@ function ToolButton({ icon, label, hint, onClick, options, danger }: Omit<ToolDe
 
 export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const toolsScrollRef = useScrollFade<HTMLDivElement>('x')
   const stageRef = useRef<HTMLDivElement | null>(null)
   /**
    * The divider being dragged, by id: its grip stays lit even once the pointer
@@ -384,14 +368,13 @@ export function Stage() {
         </div>
       </CanvasMenu>
 
-      {/* Tools dock: canvas appearance tools (Gap/Radius/Border/Blend/Grid/Reset)
-          are always here; pane/label tools join when a photo pane or compact
-          label selection is active. Overlay only; the handle opens/collapses it. */}
+      {/* Tools dock: Border (canvas appearance panel) is always here; pane/label
+          tools join when a photo pane or compact label selection is active.
+          Overlay only; the handle opens/collapses it. Expand wraps to multi-row. */}
       <ToolsDock
         hidden={toolsHidden}
         open={toolsOpen}
         contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}
-        scrollRef={toolsScrollRef}
         handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
         onToggle={() => setToolsOpen(!toolsOpen)}
       >
@@ -732,59 +715,4 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
       ]
 
   return { tools, toolsHidden }
-}
-
-/**
- * The focused pane's tool dock, laid over the canvas so it never takes
- * layout space; only the handle on its top edge opens it. The wrapper is
- * always mounted: with no eligible focus it fades out over --dur-fast (the
- * same fade as the pane's × chrome, which arrives with it) and goes inert,
- * so a hidden dock neither catches canvas clicks nor answers Tab. The fade
- * lives on the wrapper, not the panel, so it never shares a transition with
- * the panel's own open/collapse slide (transform, --dur-morph).
- */
-function ToolsDock({ hidden, open, contextKey, children, scrollRef, handleLabel, onToggle }: {
-  hidden: boolean
-  open: boolean
-  contextKey: string
-  children: React.ReactNode
-  scrollRef: (el: HTMLDivElement | null) => void
-  handleLabel: string
-  onToggle: () => void
-}) {
-  return (
-    <div
-      className={`tools-dock pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
-        hidden ? 'opacity-0' : 'opacity-100'
-      }`}
-      inert={hidden}
-    >
-      <div className={`${toolsPanelCls} ${
-        // Mutually exclusive classes (see the pinned-toolbar note): a hidden
-        // panel must not sit over the canvas catching pointer events.
-        hidden ? 'pointer-events-none' : 'pointer-events-auto'
-      } ${
-        open ? 'translate-y-0' : 'translate-y-[calc(100%+10px)]'
-      }`}
-      >
-        <button
-          className={toolsHandleCls}
-          title={handleLabel}
-          aria-expanded={open}
-          aria-label={handleLabel}
-          onClick={onToggle}
-        >
-          <MorphIcon icon={open ? ChevronDown : ChevronUp} size={14} strokeWidth={1.75} />
-        </button>
-        {/* inert while collapsed: the tools are off-screen behind the
-          footer. Open or not the row scrolls sideways instead of
-          squashing the fixed-width tools when they outgrow the screen. */}
-        <div ref={scrollRef} style={scrollFadeStyleX} data-dock-fade="" className={toolsScrollCls} inert={!open}>
-          <div key={contextKey} className={`${toolsRowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}>
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
 }
