@@ -42,6 +42,7 @@ function exportOptions(): ExportOptions {
     bg: s.bg,
     edgeFade: s.edgeFade,
     edgeFadeStrength: s.edgeFadeStrength,
+    blendCrossfade: s.blendCrossfade,
     photos: photoMap(s.photos),
     longSide: s.longSide,
     stickers: ws.stickers ?? [],
@@ -78,6 +79,7 @@ async function renderGridItems(): Promise<RenderedItem[]> {
       bg: s.bg,
       edgeFade: s.edgeFade,
       edgeFadeStrength: s.edgeFadeStrength,
+      blendCrossfade: s.blendCrossfade,
       photos: photoMap(s.photos),
       longSide: s.longSide,
       stickers: ws.stickers ?? [],
@@ -112,6 +114,7 @@ async function renderGridSnapshotItem(): Promise<RenderedItem> {
     bg: s.bg,
     edgeFade: s.edgeFade,
     edgeFadeStrength: s.edgeFadeStrength,
+    blendCrossfade: s.blendCrossfade,
     photos: photoMap(s.photos),
   })
   const item = await itemFromCanvas(canvas, `grid_${canvas.width}x${canvas.height}_${exportStamp()}`)

@@ -64,6 +64,11 @@ export interface State {
   bg: string
   edgeFade: number
   edgeFadeStrength: number
+  /**
+   * Opt-in photo crossfade (overlap + opposing masks + plus-lighter).
+   * Off by default: Safari regresses when this is the default blend path.
+   */
+  blendCrossfade: boolean
   paneBorder: boolean
   longSide: number
   format: 'image/jpeg' | 'image/png'
@@ -101,6 +106,7 @@ export const RADIUS = 0
 export const BG = '#000000'
 export const EDGE_FADE = 60
 export const EDGE_FADE_STRENGTH = 100
+export const BLEND_CROSSFADE = false
 export const PANE_BORDER = false
 export const MIN_PANE_PX = 56
 export const MIN_ZOOM = 0.3
@@ -149,6 +155,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   bg: BG,
   edgeFade: EDGE_FADE,
   edgeFadeStrength: EDGE_FADE_STRENGTH,
+  blendCrossfade: BLEND_CROSSFADE,
   paneBorder: PANE_BORDER,
   longSide: 2048,
   format: 'image/jpeg',
@@ -589,6 +596,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       bg: BG,
       edgeFade: EDGE_FADE,
       edgeFadeStrength: EDGE_FADE_STRENGTH,
+      blendCrossfade: BLEND_CROSSFADE,
       paneBorder: PANE_BORDER,
     }),
 
@@ -707,6 +715,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     bg: state.bg,
     edgeFade: state.edgeFade,
     edgeFadeStrength: state.edgeFadeStrength,
+    blendCrossfade: state.blendCrossfade,
     paneBorder: state.paneBorder,
   }),
 }))

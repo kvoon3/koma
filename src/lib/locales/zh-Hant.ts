@@ -55,6 +55,7 @@ export const zhHant: Record<string, string> = {
   'Photo radius': '照片圓角',
   'Blend width': '融合寬度',
   'Blend strength': '融合強度',
+  'Photo crossfade': '照片交叉淡化',
   'Pane border': '窗格外框',
   'Font mirror': '字體鏡像',
 
@@ -327,7 +328,7 @@ export const zhHant: Record<string, string> = {
   'Focus the next pane': '將焦點切到下一個窗格',
   'Reset the photo in the focused pane': '重設焦點窗格裡的照片',
   'Toggle the library drawer': '切換素材庫抽屜',
-  'Settings panel (appearance / text)': '設定面板（外觀 / 文字）',
+  'Settings panel (font mirror)': '設定面板（字體鏡像）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作區總覽與編輯之間切換',
   'Export the collage (renders, then opens the preview dialog)': '匯出拼貼（先算圖，再開啟匯出預覽）',
   'Export crop params (ImageMagick command)': '匯出裁切參數（ImageMagick 指令）',

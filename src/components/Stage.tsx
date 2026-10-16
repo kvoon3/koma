@@ -9,9 +9,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
-import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
+import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
+import { AppearanceDockTools } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
@@ -144,6 +145,7 @@ export function Stage() {
   const radiusValue = useStore(s => s.radius)
   const fadeValue = useStore(s => s.edgeFade)
   const fadeStrength = useStore(s => s.edgeFadeStrength)
+  const blendCrossfade = useStore(s => s.blendCrossfade)
   const paneBorder = useStore(s => s.paneBorder)
   const bg = useStore(s => s.bg)
   const photos = useStore(s => s.photos)
@@ -314,7 +316,8 @@ export function Stage() {
   // its controls while a label is selected.
   const compact = useMediaQuery('(max-width: 1023.98px)')
   const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
-  const toolsHidden = paneToolsHidden && !dockLabel
+  // Appearance tools always live in the dock; pane/label tools join when relevant.
+  const toolsHidden = false
 
   return (
     <div
@@ -336,7 +339,9 @@ export function Stage() {
             className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
             style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
           >
-            <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
+            {!blendCrossfade && (
+              <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
+            )}
 
             <PaneLayers
               view={view}
@@ -344,7 +349,8 @@ export function Stage() {
               photoById={photoById}
               focusId={focusId}
               paneBorder={paneBorder}
-              paneFade={paneFade}
+              paneFade={blendCrossfade ? blendFadePx(paneFade, fadeStrength, view.gap) : paneFade}
+              crossfade={blendCrossfade}
               onFocus={focus}
               onUpdate={updateLeaf}
               onSplit={split}
@@ -378,18 +384,18 @@ export function Stage() {
         </div>
       </CanvasMenu>
 
-      {/* The focused pane's tools, laid over the canvas so the panel never
-          takes layout space, opened by the handle alone. Every tool acts on
-          the focused pane, so the panel exists only while it holds a photo;
-          its arrival and departure are a fade like the pane's other chrome. */}
+      {/* Tools dock: Appearance (canvas) is always here; pane/label tools join
+          when a photo pane or compact label selection is active. Overlay only —
+          the handle opens/collapses it. */}
       <ToolsDock
         hidden={toolsHidden}
         open={toolsOpen}
-        contextKey={dockLabel ? 'label' : 'pane'}
+        contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}
         scrollRef={toolsScrollRef}
         handleLabel={t(toolsOpen ? 'Hide tools' : 'Show tools')}
         onToggle={() => setToolsOpen(!toolsOpen)}
       >
+        <AppearanceDockTools />
         {dockLabel
           ? (
               <LabelDockTools
@@ -489,13 +495,14 @@ function SeamLayer({ view, photoById, paneFade, fadeStrength }: {
 }
 
 /** The photo panes themselves: one `Pane` per leaf of the layout. */
-function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onFocus, onUpdate, onSplit, onClose }: {
+function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, crossfade, onFocus, onUpdate, onSplit, onClose }: {
   view: Derived
   seams: Map<string, SeamSides>
   photoById: Map<string, Photo>
   focusId: string | null
   paneBorder: boolean
   paneFade: number
+  crossfade: boolean
   onFocus: React.ComponentProps<typeof Pane>['onFocus']
   onUpdate: React.ComponentProps<typeof Pane>['onUpdate']
   onSplit: React.ComponentProps<typeof Pane>['onSplit']
@@ -503,26 +510,33 @@ function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onF
 }) {
   return (
     <>
-      {view.leaves.map(({ node, rect }) => (
-        <Pane
-          key={node.id}
-          leaf={node}
-          rect={rect}
-          radius={view.radius}
-          bordered={paneBorder}
-          fade={paneFade}
-          seam={seams.get(node.id)}
-          unit={view.unit}
-          photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
-          photoById={photoById}
-          focused={focusId === node.id}
-          canClose={view.leaves.length > 1}
-          onFocus={onFocus}
-          onUpdate={onUpdate}
-          onSplit={onSplit}
-          onClose={onClose}
-        />
-      ))}
+      {view.leaves.map(({ node, rect }) => {
+        const seam = seams.get(node.id)
+        const draw = crossfade && node.photoId ? expandRectForBlend(rect, seam, paneFade) : rect
+        const fade = crossfade && !node.photoId ? 0 : paneFade
+        return (
+          <Pane
+            key={node.id}
+            leaf={node}
+            layoutRect={crossfade ? rect : undefined}
+            rect={draw}
+            radius={view.radius}
+            bordered={paneBorder}
+            fade={fade}
+            seam={seam}
+            unit={view.unit}
+            crossfade={crossfade}
+            photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
+            photoById={photoById}
+            focused={focusId === node.id}
+            canClose={view.leaves.length > 1}
+            onFocus={onFocus}
+            onUpdate={onUpdate}
+            onSplit={onSplit}
+            onClose={onClose}
+          />
+        )
+      })}
     </>
   )
 }
