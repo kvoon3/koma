@@ -1,22 +1,24 @@
 import type { IconInput } from 'morphicons/react'
 import type { Action, DockRoute } from '../lib/actionGuard'
 import type { Photo } from '../lib/imageStore'
-import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
+import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
+import { GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
-import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
+import { blendFadePx, dividerLine, expandRectForBlend, leafList, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { AppearanceDockTools, GridDockTool } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
+import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
@@ -382,6 +384,7 @@ export function Stage() {
       >
         <AppearanceDockTools />
         <GridDockTool disabled />
+        <GridBoardTools route="stage" />
         {dockLabel
           ? (
               <LabelDockTools
@@ -640,6 +643,51 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
  */
 const NO_PHOTOS = new Map<string, Photo>()
 
+const isFilled = (w: { root: Node }) => leafList(w.root).some(l => l.photoId)
+
+/**
+ * Grid whole-board tools (Shuffle, Cell ratio, Clear), next to
+ * Grid gap. `requires: 'grid'` disables them on the stage; `when` gates on
+ * what the board holds.
+ */
+function GridBoardTools({ route }: { route: DockRoute }) {
+  const t = useT()
+  const filled = useStore(s => s.workspaces.filter(isFilled).length)
+  const ratio = useStore(s => s.gridCellRatio)
+  const patch = useStore(s => s.patch)
+  const [askClear, setAskClear] = useState(false)
+  const ctx = { pane: null, route }
+  const onGrid = (run: () => void, ok = true) => (ok ? bindAction({ requires: 'grid', run }, ctx) : null)
+  const tools: ToolDef[] = [
+    { key: 'shuffle', icon: Shuffle, label: t('Shuffle'), hint: t('Randomly reorder the cells with photos'), onClick: onGrid(() => useStore.getState().shuffleWorkspaces(), filled >= 2) },
+    {
+      key: 'cell-ratio',
+      icon: RectangleHorizontal,
+      label: ratio,
+      hint: t('Cell aspect ratio'),
+      options: GRID_CELL_RATIOS.map(r => ({ key: r, icon: r === ratio ? Check : Ratio, label: r, onClick: onGrid(() => patch({ gridCellRatio: r })) })),
+    },
+    { key: 'clear', icon: Eraser, label: t('Clear'), hint: t('Remove all photos from the cells'), onClick: onGrid(() => setAskClear(true), filled > 0) },
+  ]
+  return (
+    <>
+      {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+      <ConfirmDialog
+        open={askClear}
+        title={t('Clear all cells?')}
+        description={t('This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.')}
+        confirmLabel={t('Clear')}
+        danger
+        onClose={() => setAskClear(false)}
+        onConfirm={() => {
+          useStore.getState().clearGridPhotos()
+          setAskClear(false)
+        }}
+      />
+    </>
+  )
+}
+
 /**
  * The full dock tool set on every route, in one fixed order so buttons never
  * jump between stage and grid: Border, Grid gap, then the pane tools. Off
@@ -651,6 +699,7 @@ export function DockToolset({ route }: { route: DockRoute }) {
     <>
       <AppearanceDockTools />
       <GridDockTool disabled={!canRun('grid', { pane: null, route })} />
+      <GridBoardTools route={route} />
       {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
     </>
   )
