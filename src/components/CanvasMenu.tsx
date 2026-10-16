@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import { useAppCommands } from '../lib/appCommands'
 import { pickImageFiles, pickImageFolder } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { leafList } from '../lib/panes'
 import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
@@ -68,7 +69,7 @@ export function CanvasMenu({ children }: { children: ReactElement }) {
         <ContextMenu.Trigger render={children} />
         <ContextMenu.Portal>
           <ContextMenu.Positioner className="z-90">
-            <ContextMenu.Popup className={menuPopupCls}>
+            <ContextMenu.Popup ref={liquidGlassRef} className={menuPopupCls}>
               <MenuGroup>
                 <MenuItem icon={ImagePlus} onClick={() => pickImageFiles(addFiles)}>
                   {t('Add photos…')}

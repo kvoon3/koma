@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, paneContext } from '../lib/actionGuard'
 import { useT } from '../lib/i18n'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
@@ -69,7 +70,7 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
-          <Popover.Popup className={toolPopupCls}>
+          <Popover.Popup ref={liquidGlassRef} className={toolPopupCls}>
             {options.map(o => (
               <button
                 key={o.key}

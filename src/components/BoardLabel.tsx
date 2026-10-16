@@ -10,6 +10,7 @@ import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/co
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { labelBgAlpha, labelPaint, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
@@ -493,7 +494,7 @@ function LabelFontSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
           align="start"
           alignItemWithTrigger={false}
         >
-          <Select.Popup className="box-border min-w-[var(--anchor-width)] rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+          <Select.Popup ref={liquidGlassRef} className="box-border min-w-[var(--anchor-width)] rounded-none border glass-liquid py-1 text-txt outline-0">
             <Select.List className="relative max-h-[var(--available-height)] overflow-y-auto">
               {FONT_CATS.map((cat) => {
                 const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
@@ -547,7 +548,7 @@ function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
-          <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+          <Select.Popup ref={liquidGlassRef} className="box-border rounded-none border glass-liquid py-1 text-txt outline-0">
             <Select.List ref={iconFadeRef} style={scrollFadeStyle} data-icon-fade="" className="relative grid max-h-[min(var(--available-height),176px)] grid-cols-4 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
               {LABEL_ICON_ITEMS.map(item => (
                 <Select.Item
@@ -642,7 +643,7 @@ const DOCK_SWATCHES = ['#ffffff', '#000000', '#e5484d', '#f5a524', '#f7e463', '#
 
 const dockBtnBaseCls = 'grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 const dockBtnCls = `${dockBtnBaseCls} ${dockBtnStateCls}`
-const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border border-line-strong bg-panel p-2 text-txt shadow-pop outline-0'
+const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border glass-liquid p-2 text-txt outline-0'
 const swatchCls = 'box-border h-7 w-7 cursor-pointer rounded-none border border-line-strong p-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] aria-pressed:outline-2 aria-pressed:outline-accent aria-pressed:outline-offset-1'
 
 type DockTool = 'font' | 'fg' | 'bg' | 'alpha' | 'icon'
@@ -666,7 +667,7 @@ function DockPopover({ id, openTool, setOpenTool, label, trigger, children }: {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[260] select-none outline-0">
-          <Popover.Popup className={`${dockPopupCls} ${dockPopupMotionCls}`} data-label-popover={id}>
+          <Popover.Popup ref={liquidGlassRef} className={`${dockPopupCls} ${dockPopupMotionCls}`} data-label-popover={id}>
             {children}
           </Popover.Popup>
         </Popover.Positioner>

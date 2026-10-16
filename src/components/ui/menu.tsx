@@ -4,6 +4,7 @@ import { ContextMenu } from '@base-ui/react/context-menu'
 import { ChevronRight } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef } from 'react'
+import { liquidGlassRef } from '../../lib/liquidGlass'
 
 /**
  * Shared chrome for every menu surface (the pane and canvas context menus, and
@@ -25,10 +26,10 @@ export const menuGroupLabelCls = 'px-2.5 pt-1 pb-0.5 text-[10px] font-semibold t
 /** The menu's own header row: not a section label, so no uppercase tracking. */
 const menuTitleCls = 'block max-w-[240px] truncate px-2.5 pt-1 pb-0.5 text-[11px] text-faint'
 
-export const menuPopupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+export const menuPopupCls = 'min-w-[190px] rounded-none border glass-liquid p-1 outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 
 /** Menu chrome without the motion, for surfaces that bring their own. */
-export const menuSurfaceCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 shadow-pop outline-0'
+export const menuSurfaceCls = 'min-w-[190px] rounded-none border glass-liquid p-1 outline-0'
 
 /**
  * Enter/exit for popovers opened from the mobile tools dock (pane and label
@@ -154,7 +155,7 @@ export function MenuSubmenu({
       </ContextMenu.SubmenuTrigger>
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-90" sideOffset={-2} alignOffset={-6}>
-          <ContextMenu.Popup className={menuPopupCls}>{children}</ContextMenu.Popup>
+          <ContextMenu.Popup ref={liquidGlassRef} className={menuPopupCls}>{children}</ContextMenu.Popup>
         </ContextMenu.Positioner>
       </ContextMenu.Portal>
     </ContextMenu.SubmenuRoot>

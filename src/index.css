@@ -562,3 +562,39 @@ html[data-theme-fade]::view-transition-new(root) {
 .tools-dock [data-dock-mode='collapsed'] > button:first-child svg {
   filter: drop-shadow(0 0 1.5px var(--drawerBg)) drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
 }
+
+/*
+ * Reusable glass surfaces. Knobs (set inline or via a parent):
+ *   --glass-tint     base color (default: the theme's panel)
+ *   --glass-opacity  tint strength, a percentage (defaults per style below)
+ * glass-liquid refracts only where `liquidGlassRef` (lib/liquidGlass.ts)
+ * sets --glass-refract-filter (Chromium); everywhere else it is blur + tint.
+ * Without backdrop-filter support at all, the tint goes near-opaque.
+ */
+@utility glass-solid {
+  background-color: color-mix(in srgb, var(--glass-tint, var(--panel)) var(--glass-opacity, 88%), transparent);
+  border-color: color-mix(in srgb, var(--line-strong) 80%, transparent);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
+}
+@utility glass-frosted {
+  background-color: color-mix(in srgb, var(--glass-tint, var(--panel)) var(--glass-opacity, 62%), transparent);
+  border-color: rgb(255 255 255 / 0.18);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), 0 10px 30px -12px rgb(0 0 0 / 0.35);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+@utility glass-liquid {
+  background-color: color-mix(in srgb, var(--glass-tint, var(--panel)) var(--glass-opacity, 70%), transparent);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0) 40%);
+  border-color: rgb(255 255 255 / 0.32);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.4), inset 0 -10px 25px rgb(0 0 0 / 0.08), 0 4px 8px rgb(0 0 0 / 0.2), 0 14px 34px -14px rgb(0 0 0 / 0.4);
+  /* WebKit never gets url(): it would void the declaration (and the blur). */
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: var(--glass-refract-filter, blur(12px) saturate(160%));
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-frosted,
+  .glass-liquid {
+    background-color: color-mix(in srgb, var(--glass-tint, var(--panel)) 94%, transparent);
+  }
+}

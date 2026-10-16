@@ -118,11 +118,11 @@ export const EDGE_FADE_STRENGTH = 100
 export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
 
-export const DOCK_BG: DockBg = 'frosted'
+export const DOCK_BG: DockBg = 'solid'
 export const DOCK_OPACITY = 60
 export const TOOLS_DOCK_MODE: ToolsDockMode = 'collapsed'
 
-export const SETTINGS_VERSION = 4
+export const SETTINGS_VERSION = 5
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
 const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
@@ -136,6 +136,10 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
   // persisted (new and migrated visits start collapsed). Sanitize either way.
   if (version < 2)
     p.toolsDockMode = TOOLS_DOCK_MODE
+  // v5: default became solid. Pre-v5 'frosted' was the old default and can't
+  // be told from an explicit pick (preview-only), so reset it.
+  if (version < 5 && p.dockBg === 'frosted')
+    p.dockBg = DOCK_BG
   // v4: the 'transparent' dock style is gone; it (and any unknown value)
   // falls back to the default below.
   if (!DOCK_BGS.includes(p.dockBg as DockBg))
@@ -783,7 +787,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // `blendCrossfade: false` (the old default) even if never touched, so it
   // cannot be told apart from an explicit choice: reset it to the new default.
   version: SETTINGS_VERSION,
-  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style.
+  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default.
   migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,

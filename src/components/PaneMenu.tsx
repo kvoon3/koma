@@ -7,6 +7,7 @@ import { ArrowLeftRight, ClipboardPaste, Copy, CopyPlus, Download, Eraser, Focus
 import { useRef, useState } from 'react'
 import { downloadBlob } from '../lib/exporter'
 import { useT } from '../lib/i18n'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickStickersForPane, resetPaneView } from '../lib/paneCommands'
 import { leafList } from '../lib/panes'
 import { activeWs, useStore } from '../store'
@@ -375,7 +376,7 @@ export function PaneMenu({
       <ContextMenu.Trigger render={paneNode} />
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-90">
-          <ContextMenu.Popup className={menuPopupCls}>
+          <ContextMenu.Popup ref={liquidGlassRef} className={menuPopupCls}>
             <MoveRow onStartMove={onStartMove} />
 
             <PhotoHeaderGroup

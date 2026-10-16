@@ -18,8 +18,8 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 4', () => {
-    expect(SETTINGS_VERSION).toBe(4)
+  test('version is 5', () => {
+    expect(SETTINGS_VERSION).toBe(5)
   })
   test('v1 → v2 adds dock defaults and starts collapsed', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toEqual({
@@ -33,6 +33,7 @@ describe('migrateSettings v2 (dock)', () => {
   test('v2 values are kept', () => {
     const v = { dockBg: 'liquid', dockOpacity: 30, toolsDockMode: 'row' }
     expect(migrateSettings({ ...v, dockHandleIcon: 'sliders' }, 2)).toEqual(v)
+    expect(migrateSettings({ dockBg: 'frosted' }, 5).dockBg).toBe('frosted')
   })
   test('invalid values are sanitized', () => {
     expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, toolsDockMode: 'huge' }, 2)).toEqual({
@@ -52,5 +53,15 @@ describe('migrateSettings v4', () => {
   })
   test('v3 liquid is kept', () => {
     expect(migrateSettings({ dockBg: 'liquid' }, 3).dockBg).toBe('liquid')
+  })
+})
+
+describe('migrateSettings v5', () => {
+  test('default is solid', () => {
+    expect(DOCK_BG).toBe('solid')
+  })
+  test('pre-v5 frosted (old default) → solid; liquid kept', () => {
+    expect(migrateSettings({ dockBg: 'frosted' }, 4).dockBg).toBe('solid')
+    expect(migrateSettings({ dockBg: 'liquid' }, 4).dockBg).toBe('liquid')
   })
 })

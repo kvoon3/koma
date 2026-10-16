@@ -10,6 +10,7 @@ import { Tip } from '@/components/ui/tip'
 import { removeBackground } from '../lib/bgRemoval'
 import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { makeSticker } from '../lib/sticker'
 import { say } from '../lib/toast'
 import { dataUrlToFile } from '../lib/workspaceFile'
@@ -467,7 +468,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed z-(--z-modal) inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-ending-style:opacity-0" />
-        <Dialog.Popup className="fixed z-(--z-modal) left-1/2 top-1/2 flex max-h-[min(86dvh,720px)] w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-none border border-line bg-panel text-txt shadow-pop outline-0 transition-[opacity,translate,scale] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
+        <Dialog.Popup ref={liquidGlassRef} className="fixed z-(--z-modal) left-1/2 top-1/2 flex max-h-[min(86dvh,720px)] w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-none border glass-liquid text-txt outline-0 transition-[opacity,translate,scale] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
           <header className="flex items-center justify-between gap-2.5 border-b border-line py-[11px] pl-4 pr-3">
             <Dialog.Title className="m-0 text-[13.5px] font-semibold">{t('Sticker maker')}</Dialog.Title>
             <Dialog.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label={t('Close')}>

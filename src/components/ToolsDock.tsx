@@ -5,12 +5,12 @@ import { ChevronDown, ChevronUp, Ruler } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { COLLAPSED_DOCK_STYLE, dockBgStyle, LIQUID_FILTER_ID, supportsSvgBackdrop } from '../lib/dockBackground'
+import { dockSurface } from '../lib/dockBackground'
 import { useT } from '../lib/i18n'
+import { liquidGlassRef } from '../lib/liquidGlass'
 import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
-import { displacementMapURL } from '../vendor/liquid-glass/liquid-glass'
 import { Footer } from './Footer'
 
 export const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
@@ -29,7 +29,6 @@ const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
 const INTENT_LABEL = { show: 'Show tools', expand: 'Expand tools', hide: 'Hide tools' } as const
 const INTENT_ICON = { expand: ChevronUp, hide: ChevronDown } as const
-const svgBackdrop = supportsSvgBackdrop()
 
 function modeFromSnap(snap: number | string, snaps: number[], order: readonly ToolsDockMode[]): ToolsDockMode {
   const idx = snaps.findIndex(p => Object.is(p, snap))
@@ -107,7 +106,6 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const setMode = useStore(s => s.setToolsDockMode)
   const dockBg = useStore(s => s.dockBg)
   const dockOpacity = useStore(s => s.dockOpacity)
-  const bgStyle = useMemo(() => dockBgStyle(dockBg, dockOpacity, svgBackdrop), [dockBg, dockOpacity])
 
   const innerRef = useRef<HTMLDivElement | null>(null)
   const [rowH, setRowH] = useState(FALLBACK_ROW)
@@ -211,6 +209,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   }, [measure])
 
   // Icon + label describe the next tap (row with no room to expand → hide).
+  const surface = dockSurface(dockBg, dockOpacity, mode)
   const intent = dockHandleIntent(mode, cap)
   const handleIcon = intent === 'show' ? Ruler : INTENT_ICON[intent]
   const handleLabel = t(INTENT_LABEL[intent])
@@ -259,8 +258,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
                 data-dock-mode={mode}
                 data-dock-bg={dockBg}
                 data-instant={instant || undefined}
-                style={{ ...bgStyle, ...(mode === 'collapsed' ? COLLAPSED_DOCK_STYLE : null), 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
-                className={`group/dock relative box-border flex w-full flex-col ${mode === 'collapsed' ? 'pointer-events-none data-swiping:pointer-events-auto' : 'pointer-events-auto'} overflow-hidden rounded-none border-t border-line shadow-pop outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-[transform,background-color,border-color,box-shadow,backdrop-filter] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full`}
+                ref={dockBg === 'liquid' && mode !== 'collapsed' ? liquidGlassRef : undefined}
+                style={{ ...surface.style, 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
+                className={`group/dock relative box-border flex w-full flex-col ${surface.className} ${mode === 'collapsed' ? 'pointer-events-none data-swiping:pointer-events-auto' : 'pointer-events-auto'} overflow-hidden rounded-none border-0 border-t border-solid outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-[transform,background-color,border-color,box-shadow,backdrop-filter] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full`}
               >
                 <button
                   type="button"
@@ -297,35 +297,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
               </Drawer.Popup>
             </div>
             <Footer className="pointer-events-auto" />
-            {dockBg === 'liquid' && svgBackdrop && mode !== 'collapsed' && <LiquidGlassFilter height={toolsMaxH} />}
           </div>
         </Drawer.Viewport>
       </Drawer.Portal>
     </Drawer.Root>
-  )
-}
-
-/**
- * SVG filter for the liquid style (vendored shuding/liquid-glass): a
- * displacement map sized to the sheet (viewport width × tools height), in
- * user space so it lines up with the popup's own box.
- */
-function LiquidGlassFilter({ height }: { height: number }) {
-  const [width, setWidth] = useState(() => window.innerWidth)
-  useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-  const w = Math.max(1, Math.round(width))
-  const h = Math.max(1, Math.round(height))
-  const map = useMemo(() => displacementMapURL(w, h), [w, h])
-  return (
-    <svg aria-hidden width="0" height="0" className="pointer-events-none absolute">
-      <filter id={LIQUID_FILTER_ID} filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB" x="0" y="0" width={w} height={h}>
-        <feImage href={map.href} x="0" y="0" width={w} height={h} result="map" />
-        <feDisplacementMap in="SourceGraphic" in2="map" scale={map.scale} xChannelSelector="R" yChannelSelector="G" />
-      </filter>
-    </svg>
   )
 }

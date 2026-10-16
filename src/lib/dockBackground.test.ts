@@ -1,43 +1,29 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { COLLAPSED_DOCK_STYLE, dockBgStyle, LIQUID_FILTER_ID } from './dockBackground'
+import { COLLAPSED_DOCK_STYLE, DOCK_GLASS_CLS, dockSurface } from './dockBackground'
 
-describe('dockBgStyle', () => {
-  test('solid: tint scales with opacity, no blur', () => {
-    const s = dockBgStyle('solid', 40)
-    expect(s.backgroundColor).toContain('40%')
-    expect(s.backdropFilter).toBeUndefined()
+const v = (s: object, k: string) => (s as Record<string, unknown>)[k]
+
+describe('dockSurface', () => {
+  test('each style maps to its glass utility', () => {
+    expect(dockSurface('solid', 50, 'row').className).toBe('glass-solid')
+    expect(dockSurface('frosted', 50, 'row').className).toBe('glass-frosted')
+    expect(dockSurface('liquid', 50, 'expanded').className).toBe('glass-liquid')
+    expect(Object.keys(DOCK_GLASS_CLS)).toEqual(['solid', 'frosted', 'liquid'])
   })
-  test('frosted: blur + tint', () => {
-    const s = dockBgStyle('frosted', 75)
-    expect(s.backdropFilter).toContain('blur(')
-    expect(s.WebkitBackdropFilter).toBe(s.backdropFilter)
-    expect(s.backgroundColor).toContain('75%')
+  test('opacity drives --glass-opacity, clamped and rounded', () => {
+    expect(v(dockSurface('solid', 42.4, 'row').style, '--glass-opacity')).toBe('42%')
+    expect(v(dockSurface('solid', 150, 'row').style, '--glass-opacity')).toBe('100%')
+    expect(v(dockSurface('solid', -5, 'row').style, '--glass-opacity')).toBe('0%')
+    expect(v(dockSurface('solid', Number.NaN, 'row').style, '--glass-opacity')).toBe('0%')
   })
-  test('liquid: vendored SVG refraction only when supported, else blur + tint', () => {
-    const fb = dockBgStyle('liquid', 50, false)
-    expect(fb.backdropFilter).not.toContain('url(')
-    expect(fb.backdropFilter).toContain('blur(')
-    expect(fb.WebkitBackdropFilter).toBe(fb.backdropFilter)
-    const s = dockBgStyle('liquid', 50, true)
-    expect(s.backdropFilter).toContain(`url(#${LIQUID_FILTER_ID})`)
-    expect(s.WebkitBackdropFilter).toBeUndefined()
-    expect(s.backgroundColor).toContain('25%')
+  test('open modes carry no chrome overrides', () => {
+    expect(dockSurface('frosted', 60, 'row').style.backdropFilter).toBeUndefined()
   })
-  test('collapsed override clears every chrome property the styles set', () => {
+  test('collapsed clears every chrome property for all styles', () => {
     for (const bg of ['solid', 'frosted', 'liquid'] as const) {
-      for (const svg of [false, true]) {
-        const merged = { ...dockBgStyle(bg, 80, svg), ...COLLAPSED_DOCK_STYLE }
-        expect(merged.backgroundColor).toBe('transparent')
-        expect(merged.backdropFilter).toBe('none')
-        expect(merged.boxShadow).toBe('none')
-        expect(merged.WebkitBackdropFilter ?? 'none').toBe('none')
-      }
+      const s = dockSurface(bg, 80, 'collapsed').style
+      expect(s).toMatchObject(COLLAPSED_DOCK_STYLE)
     }
-  })
-  test('opacity is clamped and rounded', () => {
-    expect(dockBgStyle('solid', 150).backgroundColor).toContain(' 100%')
-    expect(dockBgStyle('solid', -5).backgroundColor).toContain(' 0%')
-    expect(dockBgStyle('solid', Number.NaN).backgroundColor).toContain(' 0%')
   })
 })
