@@ -398,7 +398,7 @@ function RootLayout() {
 
   const doSnapshotGrid = useCallback(async () => {
     setBusy(true)
-    say(t('Rendering the 3×3 snapshot...'))
+    say(t('Rendering the grid snapshot...'))
     try {
       showRun([await renderGridSnapshotItem()])
     }
@@ -563,7 +563,7 @@ function RootLayout() {
         <ConfirmDialog
           open={clearAsk}
           title={t('Clear library?')}
-          description={t('This removes all imported photos and resets all 9 workspaces to blank canvases. This cannot be undone.')}
+          description={t('This removes all imported photos and resets all workspaces to blank canvases. This cannot be undone.')}
           confirmLabel={t('Clear all')}
           danger
           onClose={() => setClearAsk(false)}

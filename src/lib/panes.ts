@@ -300,6 +300,46 @@ export function removeLeaf(root: Node, paneId: string): Node | null {
   return { ...root, a, b }
 }
 
+/**
+ * Drag-to-delete on the stage: drop the pane from the split tree so its
+ * sibling takes over the freed space (same collapse as closing a pane). The
+ * last remaining pane can't collapse into nothing, so it is cleared in place
+ * instead: same id (focus stays valid), no photo, stickers or label. An
+ * unknown id returns the root untouched.
+ */
+export function deletePane(root: Node, paneId: string): Node {
+  if (!findLeaf(root, paneId))
+    return root
+  const next = removeLeaf(root, paneId)
+  return next ?? { ...newLeaf(), id: paneId }
+}
+
+/**
+ * A pane carry dropped on another pane swaps what the two hold: photo and its
+ * placement; per-pane stickers and labels are cleared on both (as before).
+ * Either side may be empty, so an empty pane dropped on a photo pane pulls
+ * the photo over and leaves the target empty. Two empty panes, the same pane
+ * or an unknown id leave the root untouched.
+ */
+export function swapLeafContents(root: Node, a: string, b: string): Node {
+  const la = findLeaf(root, a)
+  const lb = findLeaf(root, b)
+  if (!la || !lb || a === b || (!la.photoId && !lb.photoId))
+    return root
+  const take = (l: Leaf): Partial<Leaf> => ({ photoId: l.photoId, zoom: l.zoom, cx: l.cx, cy: l.cy, stickers: [], label: null })
+  return updateLeafIn(updateLeafIn(root, a, take(lb)), b, take(la))
+}
+
+/**
+ * What a primary press on a pane sets up. Every pane can be carried (touch
+ * long-press arms it; the menu's Move covers the mouse), photo or not; only a
+ * photo pane pans/pinches, and only that needs the pointer captured. An empty
+ * pane keeps its press uncaptured so the tap still reaches its picker button.
+ */
+export function pressPlan(hasPhoto: boolean, pointerType: string): { capture: boolean, pan: boolean, armHold: boolean } {
+  return { capture: hasPhoto, pan: hasPhoto, armHold: pointerType !== 'mouse' }
+}
+
 export function updateLeafIn(root: Node, paneId: string, patch: Partial<Leaf>): Node {
   return mapNode(root, paneId, n => (n.type === 'leaf' ? { ...n, ...patch } : n))
 }
