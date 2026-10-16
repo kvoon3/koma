@@ -1,12 +1,14 @@
 import type { IconInput } from 'morphicons/react'
+import type { Action } from '../lib/actionGuard'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
+import { Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
+import { bindAction, paneContext } from '../lib/actionGuard'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { blendFadePx, dividerLine, expandRectForBlend, placement, ratioFromPointer, seamSides } from '../lib/panes'
@@ -31,29 +33,32 @@ interface ToolDef {
   icon: IconInput
   label: string
   hint: string
-  onClick?: () => void
+  /** Bound by `bindAction`: null when the precondition fails → disabled. */
+  onClick?: (() => void) | null
   /** Options: the icon opens a small popover above itself instead of acting. */
   options?: ToolOption[]
-  danger?: boolean
 }
 
 interface ToolOption {
   key: string
   icon: IconInput
   label: string
-  disabled?: boolean
-  onClick: () => void
+  /** Bound by `bindAction`: null when the precondition fails → disabled. */
+  onClick: (() => void) | null
 }
 
+const toolDisabledCls = 'disabled:cursor-default disabled:opacity-35 disabled:active:scale-100 disabled:hover:bg-transparent'
 const toolPopupCls = `${menuSurfaceCls} ${dockPopupMotionCls} min-w-[170px]`
 
 /** A dock tool with options: a Base UI Popover anchored above the icon. */
 function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> & { options: ToolOption[] }) {
   const [open, setOpen] = useState(false)
+  const allDisabled = options.every(o => !o.onClick)
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={open && !allDisabled} onOpenChange={setOpen}>
       <Popover.Trigger
-        className={`${toolsBtnCls} ${dockBtnStateCls}`}
+        disabled={allDisabled}
+        className={`${toolsBtnCls} ${dockBtnStateCls} ${toolDisabledCls}`}
         title={hint}
         aria-label={label}
         data-dock-tool={label}
@@ -68,10 +73,10 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
               <button
                 key={o.key}
                 className={`${menuItemCls} hover:bg-chip-hover disabled:cursor-default disabled:opacity-35`}
-                disabled={o.disabled}
+                disabled={!o.onClick}
                 onClick={() => {
                   setOpen(false)
-                  o.onClick()
+                  o.onClick?.()
                 }}
               >
                 <MorphIcon icon={o.icon} size={15} strokeWidth={1.75} />
@@ -85,16 +90,17 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
   )
 }
 
-function ToolButton({ icon, label, hint, onClick, options, danger }: Omit<ToolDef, 'key'>) {
+function ToolButton({ icon, label, hint, onClick, options }: Omit<ToolDef, 'key'>) {
   if (options)
     return <ToolPopoverButton icon={icon} label={label} hint={hint} options={options} />
   return (
     <button
-      className={`${toolsBtnCls} ${dockBtnStateCls}${danger ? ' text-danger hover:text-danger' : ''}`}
+      className={`${toolsBtnCls} ${dockBtnStateCls} ${toolDisabledCls}`}
       title={hint}
       aria-label={label}
       data-dock-tool={label}
-      onClick={onClick}
+      disabled={!onClick}
+      onClick={onClick ?? undefined}
     >
       <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
       <span className={toolsLabelCls}>{label}</span>
@@ -633,60 +639,49 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
   const mobile = useMediaQuery('(max-width: 1023.98px)')
   const removePhoto = useStore(s => s.removePhoto)
   const resetPane = useStore(s => s.resetPane)
-  const closePane = useStore(s => s.closePane)
   const openStickerMaker = useStore(s => s.openStickerMaker)
-  // Same pick flows as the tools row, aimed at the focused pane. The flows
-  // themselves live in lib/paneCommands so the pane menu can share them.
-  const pickForFocused = () => {
-    if (focusId)
-      pickPhotoForPane(focusId)
-  }
-  const pickStickerForFocused = () => {
-    if (focusId)
-      pickStickersForPane(focusId)
-  }
-  const addLabelToFocused = () => {
-    if (focusId)
-      addLabelToPane(focusId)
-  }
 
-  const focusLeaf = focusId ? view.leaves.find(l => l.node.id === focusId)?.node : null
+  const focusHit = focusId ? view.leaves.find(l => l.node.id === focusId) : undefined
+  const focusLeaf = focusHit?.node ?? null
   const hasPhoto = !!(focusLeaf?.photoId)
   // Desktop: the dock shows only for a focused pane holding a photo. Below lg
   // it is also where a phone splits and edits panes, so any focus shows it.
   const toolsHidden = mobile ? !focusLeaf : !hasPhoto
-  const focusPhoto = focusLeaf?.photoId ? photoById.get(focusLeaf.photoId) : undefined
-  const focusRect = focusId ? view.leaves.find(l => l.node.id === focusId)?.rect : undefined
-  const onFocused = (fn: (id: string) => void) => () => {
-    if (focusId)
-      fn(focusId)
-  }
+  const focusRect = focusHit?.rect
+  // One context for every pane tool: a stale or empty focus yields no pane,
+  // so `bindAction` disables every pane-scoped tool in the same place.
+  const ctx = paneContext<Photo>(focusId, (id) => {
+    const leaf = view.leaves.find(l => l.node.id === id)?.node
+    return leaf ? { photo: (leaf.photoId && photoById.get(leaf.photoId)) || null } : null
+  })
+  const bind = (a: Action<Photo>) => bindAction(a, ctx)
+  const onPane = (run: (paneId: string) => void): Action<Photo> => ({ requires: 'pane', run: p => run(p.paneId) })
+
   const splitTool: ToolDef = {
     key: 'split',
     icon: Columns2,
     label: t('Split'),
     hint: t('Split this pane'),
     options: [
-      { key: 'column', icon: SquareSplitVertical, label: t('Split top/bottom'), onClick: onFocused(id => splitPane(id, 'column')) },
-      { key: 'row', icon: SquareSplitHorizontal, label: t('Split left/right'), onClick: onFocused(id => splitPane(id, 'row')) },
+      { key: 'column', icon: SquareSplitVertical, label: t('Split top/bottom'), onClick: bind(onPane(id => splitPane(id, 'column'))) },
+      { key: 'row', icon: SquareSplitHorizontal, label: t('Split left/right'), onClick: bind(onPane(id => splitPane(id, 'row'))) },
     ],
   }
-  const canClosePane = view.leaves.length > 1
-  const closeTool: ToolDef = { key: 'close', icon: X, label: t('Close'), hint: t('Close pane'), danger: true, onClick: onFocused(closePane) }
+  const pickTool = (label: string, hint: string): ToolDef => ({ key: 'photo', icon: ImagePlus, label, hint, onClick: bind(onPane(pickPhotoForPane)) })
+  const textTool: ToolDef = { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: bind(onPane(addLabelToPane)) }
   // One row, so the order here is the order on screen.
   const tools: ToolDef[] = !hasPhoto
     ? [
-        { key: 'photo', icon: ImagePlus, label: t('Photo'), hint: t('Choose a photo'), onClick: pickForFocused },
+        pickTool(t('Photo'), t('Choose a photo')),
         splitTool,
-        { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
-        ...(canClosePane ? [closeTool] : []),
+        textTool,
       ]
     : [
-        { key: 'photo', icon: ImagePlus, label: t('Replace'), hint: t('Pick a photo to replace this pane\'s photo'), onClick: pickForFocused },
+        pickTool(t('Replace'), t('Pick a photo to replace this pane\'s photo')),
         ...(mobile ? [splitTool] : []),
-        { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: pickStickerForFocused },
-        { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: () => focusId && openStickerMaker(focusId) },
-        { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: addLabelToFocused },
+        { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: bind(onPane(pickStickersForPane)) },
+        { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind(onPane(openStickerMaker)) },
+        textTool,
         ...(mobile
           ? [
             {
@@ -695,15 +690,14 @@ function usePaneTools(focusId: string, view: Derived, photoById: Map<string, Pho
               label: t('Fit'),
               hint: t('Photo'),
               options: [
-                { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: onFocused(resetPaneView) },
-                { key: 'fit', icon: Frame, label: t('Fit whole photo'), disabled: !focusPhoto, onClick: onFocused(id => focusPhoto && fitPanePhoto(id, focusPhoto.trueW, focusPhoto.trueH, focusRect)) },
-                { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), disabled: !focusPhoto?.trueW, onClick: () => focusPhoto && matchCanvasToPhoto(focusPhoto.trueW, focusPhoto.trueH) },
+                { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: bind(onPane(resetPaneView)) },
+                { key: 'fit', icon: Frame, label: t('Fit whole photo'), onClick: bind({ requires: 'photo', run: p => fitPanePhoto(p.paneId, p.photo.trueW, p.photo.trueH, focusRect) }) },
+                { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), onClick: bind({ requires: 'photo', when: p => !!p.photo.trueW, run: p => matchCanvasToPhoto(p.photo.trueW, p.photo.trueH) }) },
               ],
             },
-            { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: onFocused(id => duplicatePaneAuto(id, focusRect)) },
-            { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: onFocused(removePhoto) },
-            { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: onFocused(resetPane) },
-            ...(canClosePane ? [closeTool] : []),
+            { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: bind(onPane(id => duplicatePaneAuto(id, focusRect))) },
+            { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: bind({ requires: 'photo', run: p => removePhoto(p.paneId) }) },
+            { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: bind(onPane(resetPane)) },
           ] satisfies ToolDef[]
           : []),
       ]

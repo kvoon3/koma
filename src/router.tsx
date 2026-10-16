@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- a code-based route module necessarily mixes the exported router instance with its route components. */
 import type { Dispatch, SetStateAction } from 'react'
 import type { ExportItem } from './components/ExportDialog'
+import type { Action } from './lib/actionGuard'
 import type { AppCommands } from './lib/appCommands'
 import type { ExportOptions } from './lib/exporter'
 import type { RenderedItem } from './lib/exportRun'
@@ -19,6 +20,7 @@ import { ToolsDockHost } from './components/ToolsDock'
 import { TopBar } from './components/TopBar'
 import { WeChatGuard } from './components/WeChatGuard'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
+import { bindAction, paneContext } from './lib/actionGuard'
 import { AppCommandsContext } from './lib/appCommands'
 import { mapSeq } from './lib/async'
 import { buildCropReport, computeExportSize, hasLiveCells, renderCollage, renderCollageVideo, renderGridSnapshot } from './lib/exporter'
@@ -201,13 +203,23 @@ function isTypingTarget(e: KeyboardEvent) {
   return t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable
 }
 
-// v/s/x/d/r act on the focused pane, when there is one.
-const paneActions: Record<string, (s: StoreState, paneId: string) => void> = {
-  v: (s, paneId) => s.split(paneId, 'row'),
-  s: (s, paneId) => s.split(paneId, 'column'),
-  x: (s, paneId) => s.closePane(paneId),
-  d: (s, paneId) => s.removePhoto(paneId),
-  r: (s, paneId) => s.updateLeaf(paneId, { zoom: 1, cx: 0.5, cy: 0.5 }),
+// v/s/x/d/r act on the focused pane. Same precondition gate as the dock
+// (`bindAction`): no live focused pane (or no photo, for d) → no-op.
+function paneKeyActions(s: StoreState): Record<'v' | 's' | 'x' | 'd' | 'r', Action> {
+  return {
+    v: { requires: 'pane', run: p => s.split(p.paneId, 'row') },
+    s: { requires: 'pane', run: p => s.split(p.paneId, 'column') },
+    x: { requires: 'pane', run: p => s.closePane(p.paneId) },
+    d: { requires: 'photo', run: p => s.removePhoto(p.paneId) },
+    r: { requires: 'pane', run: p => s.updateLeaf(p.paneId, { zoom: 1, cx: 0.5, cy: 0.5 }) },
+  }
+}
+
+function focusedPaneContext(ws: ActiveWorkspace) {
+  return paneContext(ws.focusId, (id) => {
+    const leaf = leafList(ws.root).find(l => l.id === id)
+    return leaf ? { photo: leaf.photoId ?? null } : null
+  })
 }
 
 function paneDir(key: string): 'left' | 'right' | 'up' | 'down' {
@@ -267,8 +279,7 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
     case 'x':
     case 'd':
     case 'r':
-      if (ws.focusId)
-        paneActions[key](s, ws.focusId)
+      bindAction(paneKeyActions(s)[key], focusedPaneContext(ws))?.()
       break
 
     case 'h':
