@@ -13,7 +13,7 @@ import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScro
 import { useStore } from '../store'
 import { Footer } from './Footer'
 
-export const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
+export const toolsBtnCls = 'disabled:order-1 data-disabled:order-1 flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 export const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
 /** Handle chrome height = collapsed snap. Keep in sync with `handleCls` h-[]. */
@@ -111,6 +111,11 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const snapPoint = snapPoints[order.indexOf(mode)] ?? snapPoints[1]!
   const toolsMaxH = snapPoints.at(-1)!
 
+  const reduce = useReducedMotion()
+  const reduceRef = useRef(reduce)
+  useLayoutEffect(() => {
+    reduceRef.current = reduce
+  })
   const measure = useCallback(() => {
     const el = innerRef.current
     if (!el)
@@ -159,12 +164,44 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     const el = innerRef.current
     if (!el)
       return
-    const mo = new MutationObserver(() => measure())
-    mo.observe(el, { childList: true, subtree: true, characterData: true })
-    const ro = new ResizeObserver(() => measure())
+    // FLIP: tools sort available-first via CSS `order` (disabled → order 1),
+    // so a precondition flip moves buttons. Remember each tool's layout box
+    // (offsetLeft/Top ignore in-flight transforms) and glide from the old box
+    // with a Motion spring whenever a tool's disabled state changes.
+    const boxes = new WeakMap<Element, { x: number, y: number }>()
+    const snapshot = () => {
+      for (const c of el.children) {
+        const h = c as HTMLElement
+        boxes.set(c, { x: h.offsetLeft, y: h.offsetTop })
+      }
+    }
+    snapshot()
+    const mo = new MutationObserver((records) => {
+      const reorder = records.some(r => r.type === 'attributes' && r.target.parentElement === el)
+      if (reorder && !reduceRef.current) {
+        for (const c of el.children) {
+          const h = c as HTMLElement
+          const prev = boxes.get(c)
+          const dx = prev ? prev.x - h.offsetLeft : 0
+          const dy = prev ? prev.y - h.offsetTop : 0
+          if (dx || dy)
+            animate(h, { x: [dx, 0], y: [dy, 0] }, SPRING)
+        }
+      }
+      snapshot()
+      measure()
+    })
+    mo.observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'data-disabled'] })
+    const ro = new ResizeObserver(() => {
+      snapshot()
+      measure()
+    })
     if (el.parentElement)
       ro.observe(el.parentElement)
-    const onResize = () => measure()
+    const onResize = () => {
+      snapshot()
+      measure()
+    }
     window.addEventListener('resize', onResize)
     return () => {
       mo.disconnect()
@@ -183,7 +220,6 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const offsets = snapPoints.map(sp => toolsMaxH - sp)
   const offset = toolsMaxH - snapPoint
   const y = useMotionValue(offset)
-  const reduce = useReducedMotion()
   const pendingVelRef = useRef(0)
   const dragRef = useRef<null | { id: number, x: number, y: number, start: number, active: boolean, inScroll: boolean }>(null)
   const suppressClickRef = useRef(false)
