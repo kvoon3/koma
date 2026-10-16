@@ -547,7 +547,7 @@ function drawLiveCell(
   ctx.restore()
 }
 
-// --- 3×3 grid snapshot ------------------------------------------------------
+// --- Grid snapshot ------------------------------------------------------
 
 /**
  * The overview's largest cell, in px (the WorkspaceGrid cell clamp). The board
@@ -557,11 +557,11 @@ function drawLiveCell(
 export const GRID_CELL_MAX = 220
 
 export interface GridSnapshotOptions {
-  /** The nine workspaces in grid order; anything past 9 is ignored. */
+  /** The workspaces in grid order (1–9); anything past 9 is ignored. */
   workspaces: { root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
   /** Long edge of the finished board, in px: each cell gets about a third. */
   longSide: number
-  /** Space between the nine overview cells, in px (the store's grid gap). */
+  /** Space between the overview cells, in px (the store's grid gap). */
   gridGap: number
   radius: number
   bg: string
@@ -571,7 +571,8 @@ export interface GridSnapshotOptions {
 }
 
 /**
- * The 3×3 overview as one image: the same nine square cells the grid draws,
+ * The grid overview as one image: the same square cells the grid draws (three
+ * to a row, the last row may be short; the + cell is not part of it),
  * cover-fit and laid out with the grid gap on the collage background. A cell
  * renders like its preview, panes flushed and the collage's short edge mapped
  * onto the cell, then the cover overflow is cropped away; empty cells stay
@@ -580,19 +581,21 @@ export interface GridSnapshotOptions {
 export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTMLCanvasElement> {
   const cell = Math.max(240, Math.round(opts.longSide / 3))
   const gap = Math.round(opts.gridGap * cell / GRID_CELL_MAX)
-  const size = cell * 3 + gap * 2
+  const list = opts.workspaces.slice(0, 9)
+  const cols = Math.max(1, Math.min(3, list.length))
+  const rows = Math.max(1, Math.ceil(list.length / 3))
   const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
+  canvas.width = cell * cols + gap * (cols - 1)
+  canvas.height = cell * rows + gap * (rows - 1)
   const ctx = canvas.getContext('2d')!
   ctx.imageSmoothingQuality = 'high'
   if (!isTransparentBg(opts.bg)) {
     ctx.fillStyle = opts.bg
-    ctx.fillRect(0, 0, size, size)
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
   // Up to nine full-resolution collage renders, each drawn into the reused
   // grid canvas in cell order; the first failure aborts the snapshot.
-  await mapSeq(opts.workspaces.slice(0, 9), async (ws, i) => {
+  await mapSeq(list, async (ws, i) => {
     if (!leafList(ws.root).some(l => l.photoId))
       return
     const ratio = ws.canvasRatio ?? 1.5

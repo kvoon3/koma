@@ -34,7 +34,7 @@ export const zhHant: Record<string, string> = {
   'Workspace reset': '工作區已重設',
   'Reset all workspaces': '重設所有工作區',
   'Reset all workspaces?': '重設所有工作區？',
-  'This clears the pane layout and photo placement of all 9 workspaces. Photos stay in the library. This cannot be undone.': '這會清空全部 9 個工作區的窗格佈局與照片擺放。照片會保留在素材庫內，且無法復原。',
+  'This clears the pane layout and photo placement of all workspaces. Photos stay in the library. This cannot be undone.': '這會清空全部工作區的窗格佈局與照片擺放。照片會保留在素材庫內，且無法復原。',
   'Reset all': '全部重設',
   'All workspaces reset': '所有工作區已重設',
 
@@ -316,7 +316,7 @@ export const zhHant: Record<string, string> = {
 
   // HelpOverlay
   'How to use': '使用說明',
-  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一開始只有一個窗格。滑鼠移到任一窗格，它的正上方會淡入一顆「切割」按鈕（視窗寬度小於 lg 時同一組按鈕也會出現在頂列正中央），拖曳分隔線就能調整窗格大小，就像終端機裡的窗格一樣。這個窗格的工具（貼圖 / 換照片 / 文字）位於底部列上方的面板中，預設為展開狀態（面板上緣的把手可以收合）。每張照片都住在窗格裡：在窗格內拖曳、縮放，**超出窗格的部分會自動裁切掉**，因此只要安排窗格、縮放照片，就是全部的裁切與拼接流程。拖曳畫布右下角的手柄可以改變畫布比例，預設會跟著第一張照片。九個工作區藏在 G 鍵後面：按 G 開啟 3×3 總覽，拖曳即可重新排序，點選任一格即可進入編輯。',
+  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Up to nine workspaces live behind the G key: the grid shows them all, drag one to reorder it (long-press on touch) or onto the red strip under the top bar to delete it, + adds one, click one to edit it.': '一開始只有一個窗格。滑鼠移到任一窗格，它的正上方會淡入一顆「切割」按鈕（視窗寬度小於 lg 時同一組按鈕也會出現在頂列正中央），拖曳分隔線就能調整窗格大小，就像終端機裡的窗格一樣。這個窗格的工具（貼圖 / 換照片 / 文字）位於底部列上方的面板中，預設為展開狀態（面板上緣的把手可以收合）。每張照片都住在窗格裡：在窗格內拖曳、縮放，**超出窗格的部分會自動裁切掉**，因此只要安排窗格、縮放照片，就是全部的裁切與拼接流程。拖曳畫布右下角的手柄可以改變畫布比例，預設會跟著第一張照片。最多九個工作區藏在 G 鍵後面：按 G 開啟總覽，拖曳即可重新排序（觸控需長按），拖到頂列下方的紅色條即可刪除，+ 可以新增一個，點選任一格即可進入編輯。',
   'Keyboard': '鍵盤',
   'Mouse / Trackpad': '滑鼠 / 觸控板',
   'Focus the pane left / down / up / right': '將焦點切到左 / 下 / 上 / 右的窗格',
@@ -384,7 +384,7 @@ export const zhHant: Record<string, string> = {
 
   // ClearConfirm
   'Clear library?': '清空素材庫？',
-  'This removes all imported photos and resets all 9 workspaces to blank canvases. This cannot be undone.': '這會移除所有匯入的照片，並將 9 個工作區重設為空白畫布，且無法復原。',
+  'This removes all imported photos and resets all workspaces to blank canvases. This cannot be undone.': '這會移除所有匯入的照片，並將所有工作區重設為空白畫布，且無法復原。',
   'Cancel': '取消',
   'Clear all': '全部清空',
 
@@ -428,7 +428,7 @@ export const zhHant: Record<string, string> = {
 
   // Toasts
   'Rendering {n} / {total}...': '算圖中 {n} / {total}…',
-  'Rendering the 3×3 snapshot...': '正在算九宮格快照…',
+  'Rendering the grid snapshot...': '正在算九宮格快照…',
   'Rendering at original resolution...': '正在以原始解析度算圖…',
   'Export failed: {msg}': '匯出失敗：{msg}',
   'Added {n} photos': '已新增 {n} 張照片',
@@ -436,4 +436,6 @@ export const zhHant: Record<string, string> = {
   'Library cleared': '素材庫已清空',
   'Fonts unavailable, used system fallback: {names}': '字體無法使用，已改用系統字體：{names}',
   'Drop here to delete': '拖到這裡刪除',
+  'Add a workspace': '新增工作區',
+  'Snapshot all workspaces as one image': '把所有工作區拍成一張圖',
 }

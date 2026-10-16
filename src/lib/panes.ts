@@ -314,17 +314,6 @@ export function deletePane(root: Node, paneId: string): Node {
   return next ?? { ...newLeaf(), id: paneId }
 }
 
-/**
- * Drag-to-delete on the 3×3 grid: the board always has nine slots, so the
- * dropped workspace is reset to a fresh blank one in its own slot (same id and
- * position; nothing shifts). An unknown id returns the list untouched.
- */
-export function resetSlot<T extends { id: string }>(list: T[], id: string, fresh: () => T): T[] {
-  if (!list.some(w => w.id === id))
-    return list
-  return list.map(w => (w.id === id ? { ...fresh(), id } : w))
-}
-
 export function updateLeafIn(root: Node, paneId: string, patch: Partial<Leaf>): Node {
   return mapNode(root, paneId, n => (n.type === 'leaf' ? { ...n, ...patch } : n))
 }

@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import type { Node } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { deletePane, findLeaf, leafList, newLeaf, resetSlot } from './panes'
+import { deletePane, findLeaf, leafList, newLeaf } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`) {
   return { ...newLeaf(), id, photoId }
@@ -44,18 +44,5 @@ describe('deletePane', () => {
     const root = split('s', leaf('a'), leaf('b'))
     expect(deletePane(root, 'nope')).toBe(root)
     expect(deletePane(root, 's')).toBe(root)
-  })
-})
-
-describe('resetSlot', () => {
-  const fresh = () => ({ id: 'new', v: 0 })
-  const list = [{ id: 'w1', v: 1 }, { id: 'w2', v: 2 }, { id: 'w3', v: 3 }]
-
-  it('resets the slot in place, keeping its id and position', () => {
-    expect(resetSlot(list, 'w2', fresh)).toEqual([{ id: 'w1', v: 1 }, { id: 'w2', v: 0 }, { id: 'w3', v: 3 }])
-  })
-
-  it('returns the same list for an unknown id', () => {
-    expect(resetSlot(list, 'x', fresh)).toBe(list)
   })
 })

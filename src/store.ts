@@ -19,7 +19,6 @@ import {
 
   placement,
   removeLeaf,
-  resetSlot,
   setSplitRatioIn,
   splitLeaf,
   stickerToBoard,
@@ -30,8 +29,9 @@ import {
 } from './lib/panes'
 import { clearSession } from './lib/sessionStore'
 import { runPaneMorph } from './lib/viewTransition'
+import { activeAfterRemove, addSlot, DEFAULT_WORKSPACES, MAX_WORKSPACES, normalizeSlots, removeSlot, resetSlot } from './lib/workspaces'
 
-/** One of the nine collage workspaces. Array order is the grid order. */
+/** One of the grid's collage workspaces (1–9 of them). Array order is the grid order. */
 export interface Workspace {
   id: string
   root: Node
@@ -115,8 +115,13 @@ function newWorkspace(): Workspace {
   return { id: uid('w'), root, focusId: root.id, canvasRatio: null, canvasFill: 1, stickers: [], labels: [] }
 }
 
+/** Bring a loaded board within the grid's 1–9 cells (see normalizeSlots). */
+export function normalizeWorkspaces(list: Workspace[] | null | undefined): Workspace[] {
+  return normalizeSlots(list, newWorkspace)
+}
+
 function initialWorkspaces(): Workspace[] {
-  return Array.from({ length: 9 }, newWorkspace)
+  return Array.from({ length: DEFAULT_WORKSPACES }, newWorkspace)
 }
 
 const bootWorkspaces = initialWorkspaces()
@@ -255,6 +260,28 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       ...clearedSelection,
     })),
 
+  /** Append a blank workspace (the grid's + cell); no-op at nine. */
+  addWorkspace: () => {
+    const before = get().workspaces
+    const next = addSlot(before, newWorkspace)
+    if (next === before)
+      return null
+    set({ workspaces: next })
+    return next[next.length - 1].id
+  },
+
+  /**
+   * Remove a workspace from the grid (drag-to-delete); the others close up.
+   * The last one is reset in place instead, so there is always a workspace.
+   */
+  removeWorkspace: id =>
+    set((s) => {
+      const next = removeSlot(s.workspaces, id, newWorkspace)
+      if (next === s.workspaces)
+        return {}
+      return { workspaces: next, activeId: activeAfterRemove(s.workspaces, next, s.activeId), ...clearedSelection }
+    }),
+
   /**
    * Reset every workspace to a fresh blank canvas, keeping their ids and
    * grid slots (photos fall back to the library; the board itself stays).
@@ -267,12 +294,16 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   /** Restore a session saved by `lib/sessionStore` (refresh-safe autosave). */
   hydrate: (session) => {
-    const workspaces = (session.meta.workspaces ?? []).map(w =>
+    // Saves from the fixed nine-slot board load whole; anything out of the
+    // 1–9 range is brought within it (see normalizeSlots).
+    const workspaces = normalizeWorkspaces(session.meta.workspaces).map(w =>
       migrateWorkspaceInserts(w, session.photos),
     )
+    const activeId = workspaces.some(w => w.id === session.meta.activeId) ? session.meta.activeId : workspaces[0].id
     set({
       ...session.meta,
-      workspaces: workspaces.length ? workspaces : session.meta.workspaces,
+      workspaces,
+      activeId,
       photos: session.photos,
       labelSel: null,
       stickerSel: null,
@@ -625,7 +656,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   moveWorkspace: (id, to) =>
     set((s) => {
       const from = s.workspaces.findIndex(w => w.id === id)
-      if (from === -1 || to < 0 || to > 8 || from === to)
+      if (from === -1 || to < 0 || to >= Math.min(s.workspaces.length, MAX_WORKSPACES) || from === to)
         return {}
       const next = [...s.workspaces]
       const [ws] = next.splice(from, 1)
@@ -851,6 +882,9 @@ interface Actions {
   openStickerMaker: (paneId: string | null) => void
   clearLibrary: () => void
   resetWorkspace: (id: string) => void
+  /** Returns the new workspace's id, or null when the board is full. */
+  addWorkspace: () => string | null
+  removeWorkspace: (id: string) => void
   resetAllWorkspaces: () => void
   hydrate: (session: { meta: SessionMeta, photos: Photo[] }) => void
   split: (paneId: string, dir: 'row' | 'column') => void

@@ -13,7 +13,7 @@ import { leafList } from '../lib/panes'
 import { clearSession } from '../lib/sessionStore'
 import { say } from '../lib/toast'
 import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
-import { activeWs, migrateWorkspaceInserts, useStore } from '../store'
+import { activeWs, migrateWorkspaceInserts, normalizeWorkspaces, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SettingsPanel } from './SettingsPanel'
@@ -344,10 +344,11 @@ export function TopBar({
     // and the old autosaved session must not survive the replaced board.
     clearImageCaches()
     void clearSession()
+    const workspaces = normalizeWorkspaces(doc.workspaces).map(w => migrateWorkspaceInserts(w, photos))
     useStore.setState({
       photos,
-      workspaces: doc.workspaces.map(w => migrateWorkspaceInserts(w, photos)),
-      activeId: doc.workspaces.some(w => w.id === doc.activeId) ? doc.activeId : doc.workspaces[0].id,
+      workspaces,
+      activeId: workspaces.some(w => w.id === doc.activeId) ? doc.activeId : workspaces[0].id,
       gap: doc.settings.gap,
       radius: doc.settings.radius,
       bg: doc.settings.bg,

@@ -94,7 +94,7 @@ export function FloatActions() {
         open={resetAsk}
         title={grid ? t('Reset all workspaces?') : t('Reset this workspace?')}
         description={grid
-          ? t('This clears the pane layout and photo placement of all 9 workspaces. Photos stay in the library. This cannot be undone.')
+          ? t('This clears the pane layout and photo placement of all workspaces. Photos stay in the library. This cannot be undone.')
           : t('This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.', { n: pos })}
         confirmLabel={grid ? t('Reset all') : t('Reset')}
         danger

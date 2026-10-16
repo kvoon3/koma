@@ -36,7 +36,7 @@ export const zhHans: Record<string, string> = {
   'Workspace reset': '工作区已重置',
   'Reset all workspaces': '重置所有工作区',
   'Reset all workspaces?': '重置所有工作区？',
-  'This clears the pane layout and photo placement of all 9 workspaces. Photos stay in the library. This cannot be undone.': '这会清空全部 9 个工作区的窗格布局和照片摆位。照片仍保留在素材库中，且无法撤销。',
+  'This clears the pane layout and photo placement of all workspaces. Photos stay in the library. This cannot be undone.': '这会清空全部工作区的窗格布局和照片摆位。照片仍保留在素材库中，且无法撤销。',
   'Reset all': '全部重置',
   'All workspaces reset': '所有工作区已重置',
 
@@ -316,7 +316,7 @@ export const zhHans: Record<string, string> = {
 
   // HelpOverlay
   'How to use': '使用说明',
-  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Nine workspaces live behind the G key: the 3×3 grid shows them all, drag to reorder, click one to edit it.': '一开始只有一个窗格。悬停任意窗格，它的顶部中央会淡入拆分按钮，用它**拆分**出更多窗格（窄于 lg 时顶栏中间也有同一组按钮），拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴图 / 替换照片 / 文字）在一个底部栏上方的面板里，默认展开（也可以用面板上边缘的把手收起）。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着九个工作区：3×3 网格可以总览全部，拖动即可重新排序，点击其中一个即可编辑。',
+  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Up to nine workspaces live behind the G key: the grid shows them all, drag one to reorder it (long-press on touch) or onto the red strip under the top bar to delete it, + adds one, click one to edit it.': '一开始只有一个窗格。悬停任意窗格，它的顶部中央会淡入拆分按钮，用它**拆分**出更多窗格（窄于 lg 时顶栏中间也有同一组按钮），拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴图 / 替换照片 / 文字）在一个底部栏上方的面板里，默认展开（也可以用面板上边缘的把手收起）。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着最多九个工作区：网格可以总览全部，拖动即可重新排序（触屏需长按），拖到顶栏下方的红色条即可删除，+ 可以新增一个，点击其中一个即可编辑。',
   'Keyboard': '键盘',
   'Mouse / Trackpad': '鼠标 / 触控板',
   'Focus the pane left / down / up / right': '聚焦左 / 下 / 上 / 右的窗格',
@@ -384,7 +384,7 @@ export const zhHans: Record<string, string> = {
 
   // ClearConfirm
   'Clear library?': '清空素材库？',
-  'This removes all imported photos and resets all 9 workspaces to blank canvases. This cannot be undone.': '这会移除所有已导入的照片，并把 9 个工作区重置为空画布，且无法撤销。',
+  'This removes all imported photos and resets all workspaces to blank canvases. This cannot be undone.': '这会移除所有已导入的照片，并把所有工作区重置为空画布，且无法撤销。',
   'Cancel': '取消',
   'Clear all': '全部清空',
 
@@ -426,7 +426,7 @@ export const zhHans: Record<string, string> = {
   'Edit this workspace': '编辑这个工作区',
   'Start a new collage here': '在这里开始新的拼图',
   'New collage': '新建拼图',
-  'Snapshot all nine workspaces as one image': '把九个工作区截成一张图',
+  'Snapshot all workspaces as one image': '把所有工作区截成一张图',
 
   // Workspace file (save / open the whole board)
   'Workspace': '工作区',
@@ -444,7 +444,7 @@ export const zhHans: Record<string, string> = {
 
   // Toasts
   'Rendering {n} / {total}...': '渲染中 {n} / {total}…',
-  'Rendering the 3×3 snapshot...': '正在渲染九宫格快照…',
+  'Rendering the grid snapshot...': '正在渲染九宫格快照…',
   'Rendering at original resolution...': '正在按原始分辨率渲染…',
   'Export failed: {msg}': '导出失败：{msg}',
   'Added {n} photos': '已添加 {n} 张照片',
@@ -452,4 +452,5 @@ export const zhHans: Record<string, string> = {
   'Library cleared': '素材库已清空',
   'Fonts unavailable, used system fallback: {names}': '字体不可用，已改用系统字体：{names}',
   'Drop here to delete': '拖到这里删除',
+  'Add a workspace': '新增工作区',
 }
