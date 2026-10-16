@@ -29,6 +29,7 @@
     "heic-to": "^1.6.6",
     "lucide": "^1.56.0",
     "morphicons": "^1.7.1",
+    "motion": "^14.3.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "simple-icons": "^16.35.0",
