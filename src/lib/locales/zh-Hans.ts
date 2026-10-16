@@ -457,4 +457,9 @@ export const zhHans: Record<string, string> = {
   'Fonts unavailable, used system fallback: {names}': '字体不可用，已改用系统字体：{names}',
   'Drop here to delete': '拖到这里删除',
   'Add a workspace': '新增工作区',
+  'Dock background': '工具栏背景',
+  'Solid': '纯色半透明',
+  'Frosted glass': '毛玻璃',
+  'Liquid glass': '液态玻璃',
+  'Dock opacity': '工具栏不透明度',
 }

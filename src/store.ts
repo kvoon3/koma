@@ -57,6 +57,7 @@ export interface PaneClip {
 
 /** Bottom tools sheet snap: hidden / one scrolling row / wrapped multi-row. */
 export type ToolsDockMode = 'collapsed' | 'row' | 'expanded'
+export type DockBg = 'solid' | 'frosted' | 'liquid'
 
 interface State {
   photos: Photo[]
@@ -88,8 +89,11 @@ interface State {
    * repeated requests for the same pane still fire.
    */
   labelEditReq: { labelId: string, seq: number } | null
+  dockBg: DockBg
+  /** Dock background opacity, 0–100 (%). */
+  dockOpacity: number
   /**
-   * Bottom tools sheet snap state. Session-only; starts on single-row. Drag
+   * Bottom tools sheet snap state. Persisted; starts collapsed. Drag
    * the handle or tap it to move between collapsed / row / expanded.
    */
   toolsDockMode: ToolsDockMode
@@ -114,13 +118,42 @@ export const EDGE_FADE_STRENGTH = 100
 export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
 
-export const SETTINGS_VERSION = 1
+export const DOCK_BG: DockBg = 'solid'
+export const DOCK_OPACITY = 60
+export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
+
+export const SETTINGS_VERSION = 6
+
+const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
+const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
 
 /** Persisted-settings migration (zustand `persist`); pure for unit tests. */
 export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
   const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
   if (version < 1)
     p.blendCrossfade = BLEND_CROSSFADE
+  // v2: dock background + opacity + handle icon, and the dock mode is now
+  // persisted (see v6 for the default). Sanitize either way.
+  if (version < 2)
+    p.toolsDockMode = TOOLS_DOCK_MODE
+  // v6: the default dock mode became 'row'. A saved pre-v6 'collapsed' was
+  // the old default and can't be told from a choice, so reset it once.
+  if (version < 6)
+    p.toolsDockMode = TOOLS_DOCK_MODE
+  // v5: default became solid. Pre-v5 'frosted' was the old default and can't
+  // be told from an explicit pick (preview-only), so reset it.
+  if (version < 5 && p.dockBg === 'frosted')
+    p.dockBg = DOCK_BG
+  // v4: the 'transparent' dock style is gone; it (and any unknown value)
+  // falls back to the default below.
+  if (!DOCK_BGS.includes(p.dockBg as DockBg))
+    p.dockBg = DOCK_BG
+  const op = Number(p.dockOpacity)
+  p.dockOpacity = Number.isFinite(op) && p.dockOpacity != null ? Math.min(100, Math.max(0, op)) : DOCK_OPACITY
+  // v3: the temporary handle-icon toggle is gone (ruler is fixed).
+  delete p.dockHandleIcon
+  if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
+    p.toolsDockMode = TOOLS_DOCK_MODE
   return p
 }
 export const MIN_PANE_PX = 56
@@ -183,7 +216,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
-  toolsDockMode: 'row',
+  toolsDockMode: TOOLS_DOCK_MODE,
+  dockBg: DOCK_BG,
+  dockOpacity: DOCK_OPACITY,
   paneClip: null,
   stickerMakerFor: null,
 
@@ -640,6 +675,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       edgeFadeStrength: EDGE_FADE_STRENGTH,
       blendCrossfade: BLEND_CROSSFADE,
       paneBorder: PANE_BORDER,
+      dockBg: DOCK_BG,
+      dockOpacity: DOCK_OPACITY,
     }),
 
   setCanvasSize: (ratio, fill) =>
@@ -754,6 +791,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // `blendCrossfade: false` (the old default) even if never touched, so it
   // cannot be told apart from an explicit choice: reset it to the new default.
   version: SETTINGS_VERSION,
+  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default.
   migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
@@ -764,6 +802,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     edgeFadeStrength: state.edgeFadeStrength,
     blendCrossfade: state.blendCrossfade,
     paneBorder: state.paneBorder,
+    dockBg: state.dockBg,
+    dockOpacity: state.dockOpacity,
+    toolsDockMode: state.toolsDockMode,
   }),
 }))
 

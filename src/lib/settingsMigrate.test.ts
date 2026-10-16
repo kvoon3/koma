@@ -1,18 +1,73 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { BLEND_CROSSFADE, migrateSettings } from '../store'
+import { BLEND_CROSSFADE, DOCK_BG, DOCK_OPACITY, migrateSettings, SETTINGS_VERSION } from '../store'
 
 describe('migrateSettings', () => {
   test('crossfade is the default', () => {
     expect(BLEND_CROSSFADE).toBe(true)
   })
   test('v0 stored false (old default) → on', () => {
-    expect(migrateSettings({ gap: 4, blendCrossfade: false }, 0)).toEqual({ gap: 4, blendCrossfade: true })
+    expect(migrateSettings({ gap: 4, blendCrossfade: false }, 0)).toMatchObject({ gap: 4, blendCrossfade: true })
   })
   test('v0 without the key → on', () => {
     expect(migrateSettings({ gap: 4 }, 0).blendCrossfade).toBe(true)
   })
   test('v1 explicit off is kept', () => {
     expect(migrateSettings({ blendCrossfade: false }, 1).blendCrossfade).toBe(false)
+  })
+})
+
+describe('migrateSettings v2 (dock)', () => {
+  test('version is 6', () => {
+    expect(SETTINGS_VERSION).toBe(6)
+  })
+  test('v1 → v2 adds dock defaults and starts in row', () => {
+    expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toEqual({
+      gap: 2,
+      blendCrossfade: false,
+      dockBg: DOCK_BG,
+      dockOpacity: DOCK_OPACITY,
+      toolsDockMode: 'row',
+    })
+  })
+  test('v2 values are kept', () => {
+    const v = { dockBg: 'liquid', dockOpacity: 30, toolsDockMode: 'row' }
+    expect(migrateSettings({ ...v, dockHandleIcon: 'sliders' }, 2)).toEqual(v)
+    expect(migrateSettings({ dockBg: 'frosted' }, 5).dockBg).toBe('frosted')
+  })
+  test('invalid values are sanitized', () => {
+    expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, toolsDockMode: 'huge' }, 2)).toEqual({
+      dockBg: DOCK_BG,
+      dockOpacity: 100,
+      toolsDockMode: 'row',
+    })
+  })
+  test('null persisted state', () => {
+    expect(migrateSettings(null, 0).toolsDockMode).toBe('row')
+  })
+})
+
+describe('migrateSettings v4', () => {
+  test('saved transparent dock style → default', () => {
+    expect(migrateSettings({ dockBg: 'transparent', dockOpacity: 40 }, 3)).toMatchObject({ dockBg: DOCK_BG, dockOpacity: 40 })
+  })
+  test('v3 liquid is kept', () => {
+    expect(migrateSettings({ dockBg: 'liquid' }, 3).dockBg).toBe('liquid')
+  })
+})
+
+describe('migrateSettings v5', () => {
+  test('default is solid', () => {
+    expect(DOCK_BG).toBe('solid')
+  })
+  test('pre-v5 frosted (old default) → solid; liquid kept', () => {
+    expect(migrateSettings({ dockBg: 'frosted' }, 4).dockBg).toBe('solid')
+    expect(migrateSettings({ dockBg: 'liquid' }, 4).dockBg).toBe('liquid')
+  })
+
+  test('v5 → v6 resets the saved dock mode to row once', () => {
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 5).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'expanded' }, 5).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('collapsed')
   })
 })
