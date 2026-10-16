@@ -14,7 +14,7 @@ import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
-import { boardStickerRect, labelPaint, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
+import { boardStickerRect, cornerRadiiCss, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { LabelIconGlyph } from './BoardLabel'
@@ -87,7 +87,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
     top: cell.y,
     width: cell.w,
     height: cell.h,
-    borderRadius: radius * unit,
+    borderRadius: cornerRadiiCss(leafCornerRadii(radius * unit, seam, 0)),
   }
   const place = iw && ih
     ? placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
