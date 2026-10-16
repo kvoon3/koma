@@ -9,7 +9,6 @@ import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
-import { liquidGlassRef } from '../lib/liquidGlass'
 import { leafList } from '../lib/panes'
 import { clearSession } from '../lib/sessionStore'
 import { say } from '../lib/toast'
@@ -31,7 +30,7 @@ const hintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums
 
 // `data-instant` fires on menubar hand-offs: the incoming panel slides over from
 // the trigger it left (no fade re-run), the outgoing one is gone at once.
-const popupCls = 'min-w-[190px] rounded-none glass-liquid glass-pop p-1 text-txt outline-0 origin-[var(--transform-origin)] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_var(--dur-surface)_var(--ease-out)]'
+const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_var(--dur-surface)_var(--ease-out)]'
 
 /** The top bar's dropdowns: they trade the open panel with each other on hover. */
 type HeaderMenuId = 'workspace' | 'photo' | 'help' | 'lang'
@@ -58,7 +57,7 @@ function CatMenu({ label, icon, hop, open, onOpenChange, onTriggerEnter, childre
       />
       <Menu.Portal>
         <Menu.Positioner sideOffset={4} align="start" className="z-[260] select-none outline-0">
-          <Menu.Popup ref={liquidGlassRef} className={popupCls} style={{ '--menu-hop': `${hop}px` } as CSSProperties}>{children}</Menu.Popup>
+          <Menu.Popup className={popupCls} style={{ '--menu-hop': `${hop}px` } as CSSProperties}>{children}</Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
@@ -97,7 +96,7 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
       />
       <Menu.Portal>
         <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
-          <Menu.Popup ref={liquidGlassRef} className={popupCls}>
+          <Menu.Popup className={popupCls}>
             <Menu.RadioGroup value={lang} onValueChange={v => setLang(v as Lang)}>
               {LANG_ITEMS.map(([value, name]) => (
                 <Menu.RadioItem key={value} className={itemCls} value={value} closeOnClick>

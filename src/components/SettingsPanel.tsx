@@ -8,7 +8,6 @@ import { fieldLabelCls, fieldRowCls, RangeField, SelectField } from '@/component
 import { Tip } from '@/components/ui/tip'
 import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
 import { useT } from '../lib/i18n'
-import { liquidGlassRef } from '../lib/liquidGlass'
 import { say } from '../lib/toast'
 import { DOCK_BG, DOCK_OPACITY, useStore } from '../store'
 
@@ -19,7 +18,7 @@ const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-str
  * Settings keeps text/font mirror only. Canvas appearance knobs live in the
  * Tools dock Border panel; Grid gap is on the 3x3 grid route only.
  */
-const popup = 'flex max-h-[min(70dvh,520px)] w-[min(320px,calc(100vw-20px))] max-sm:w-[calc(100vw-12px)] flex-col overflow-hidden rounded-none glass-liquid glass-pop text-txt outline-0 origin-[var(--transform-origin)] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
+const popup = 'flex max-h-[min(70dvh,520px)] w-[min(320px,calc(100vw-20px))] max-sm:w-[calc(100vw-12px)] flex-col overflow-hidden rounded-none border border-line-strong bg-panel text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 
 export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: boolean, onOpenChange: (open: boolean) => void, onTriggerEnter?: () => void }) {
   const t = useT()
@@ -52,7 +51,7 @@ export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: bo
           collisionPadding={6}
           className="z-[260] select-none outline-0"
         >
-          <Popover.Popup ref={liquidGlassRef} className={popup}>
+          <Popover.Popup className={popup}>
             <header className="flex flex-none items-center gap-2.5 py-1.5 pr-2.5 pl-3.5">
               <Popover.Title className="m-0 text-[12.5px] font-bold">{t('Settings')}</Popover.Title>
               <span className="flex-1" />

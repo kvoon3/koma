@@ -7,7 +7,6 @@ import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField } from '@/components/ui/field'
 import { useT } from '../lib/i18n'
-import { liquidGlassRef } from '../lib/liquidGlass'
 import { say } from '../lib/toast'
 import { isTransparentBg, useStore } from '../store'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
@@ -75,7 +74,7 @@ export function AppearanceDockTools() {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
-          <Popover.Popup ref={liquidGlassRef} className={popup}>
+          <Popover.Popup className={popup}>
             <div className="mb-2.5 flex items-center gap-2">
               <p className={heading}>{t('Border')}</p>
               <span className="flex-1" />
@@ -175,7 +174,7 @@ export function GridDockTool() {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
-          <Popover.Popup ref={liquidGlassRef} className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[min(280px,calc(100vw-24px))] p-3`}>
+          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[min(280px,calc(100vw-24px))] p-3`}>
             <RangeField label={t('Grid gap')} text={`${gridGap}px`} max={40} value={gridGap} onChange={v => patch({ gridGap: v })} />
           </Popover.Popup>
         </Popover.Positioner>

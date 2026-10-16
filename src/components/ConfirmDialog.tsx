@@ -1,6 +1,5 @@
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { useT } from '../lib/i18n'
-import { liquidGlassRef } from '../lib/liquidGlass'
 import { dialogButton } from './ui/buttonStyles'
 
 /** Generic destructive-or-not confirm (clear library, open workspace file, …). */
@@ -24,7 +23,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel, danger, 
     >
       <AlertDialog.Portal>
         <AlertDialog.Backdrop className="fixed z-(--z-modal) inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-ending-style:opacity-0" />
-        <AlertDialog.Popup ref={liquidGlassRef} className="fixed z-(--z-modal) left-1/2 top-1/2 flex w-[min(360px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col border glass-liquid text-txt outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
+        <AlertDialog.Popup className="fixed z-(--z-modal) left-1/2 top-1/2 flex w-[min(360px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
           <AlertDialog.Title className="border-b border-line px-4 py-[11px] text-[13.5px] font-semibold">
             {title}
           </AlertDialog.Title>

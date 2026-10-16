@@ -5,7 +5,6 @@ import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { isWeChat, tryOpenInBrowser, weChatPlatform } from '../lib/browser'
 import { useT } from '../lib/i18n'
-import { liquidGlassRef } from '../lib/liquidGlass'
 import { buttonBase, buttonVariants, dialogButton } from './ui/buttonStyles'
 
 /**
@@ -71,7 +70,7 @@ export function WeChatGuard() {
       <AlertDialog.Root open={step === 'ask'}>
         <AlertDialog.Portal>
           <AlertDialog.Backdrop className="fixed z-(--z-modal) inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-ending-style:opacity-0" />
-          <AlertDialog.Popup ref={liquidGlassRef} className="fixed z-(--z-modal) left-1/2 top-1/2 flex w-[min(380px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col border glass-liquid text-txt outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
+          <AlertDialog.Popup className="fixed z-(--z-modal) left-1/2 top-1/2 flex w-[min(380px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
             <AlertDialog.Title className="border-b border-line px-4 py-[11px] text-[13.5px] font-semibold">
               {t('WeChat browser detected')}
             </AlertDialog.Title>
@@ -105,7 +104,7 @@ export function WeChatGuard() {
             <span className="grid h-[30px] w-[54px] place-items-center border border-line-strong bg-panel-2 pl-[0.12em] text-[15px] leading-none tracking-[0.12em] text-txt shadow-pop">···</span>
             <span className="text-accent"><MorphIcon icon={ArrowUpRight} size={15} strokeWidth={2} /></span>
           </div>
-          <Dialog.Popup ref={liquidGlassRef} className="fixed z-(--z-modal) bottom-[calc(env(safe-area-inset-bottom,0px)+14px)] left-1/2 flex w-[min(360px,calc(100vw-32px))] -translate-x-1/2 flex-col border glass-liquid text-txt outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:translate-y-3 data-starting-style:opacity-0 data-ending-style:opacity-0">
+          <Dialog.Popup className="fixed z-(--z-modal) bottom-[calc(env(safe-area-inset-bottom,0px)+14px)] left-1/2 flex w-[min(360px,calc(100vw-32px))] -translate-x-1/2 flex-col border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:translate-y-3 data-starting-style:opacity-0 data-ending-style:opacity-0">
             <header className="flex items-center justify-between gap-2.5 border-b border-line py-[11px] pl-4 pr-3">
               <Dialog.Title className="m-0 text-[13.5px] font-semibold">{t('Open in your browser')}</Dialog.Title>
               <Dialog.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label={t('Close')}>
