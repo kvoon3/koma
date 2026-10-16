@@ -316,7 +316,7 @@ export function Stage() {
   // its controls while a label is selected.
   const compact = useMediaQuery('(max-width: 1023.98px)')
   const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
-  // Appearance tools always live in the dock; pane/label tools join when relevant.
+  // Canvas appearance tools always live in the dock; pane/label tools join when relevant.
   const toolsHidden = false
 
   return (
@@ -384,9 +384,9 @@ export function Stage() {
         </div>
       </CanvasMenu>
 
-      {/* Tools dock: Appearance (canvas) is always here; pane/label tools join
-          when a photo pane or compact label selection is active. Overlay only —
-          the handle opens/collapses it. */}
+      {/* Tools dock: canvas appearance tools (Gap/Radius/Border/Blend/Grid/Reset)
+          are always here; pane/label tools join when a photo pane or compact
+          label selection is active. Overlay only; the handle opens/collapses it. */}
       <ToolsDock
         hidden={toolsHidden}
         open={toolsOpen}

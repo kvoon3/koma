@@ -14,8 +14,8 @@ const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-
 const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-(--dur-fast) group-data-checked/switch:translate-x-3.5'
 
 /**
- * Settings keeps text/font mirror only. Appearance (gap, blend, etc.) lives
- * in the bottom Tools dock via AppearanceDockTools.
+ * Settings keeps text/font mirror only. Canvas appearance knobs live as
+ * separate bottom Tools entries (Gap, Radius, Border, Blend, Grid, Reset).
  */
 const popup = 'flex max-h-[min(70dvh,520px)] w-[min(320px,calc(100vw-20px))] max-sm:w-[calc(100vw-12px)] flex-col overflow-hidden rounded-none border border-line-strong bg-panel text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 

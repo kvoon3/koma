@@ -1,8 +1,10 @@
+import type { IconInput } from 'morphicons/react'
+import type { ReactNode } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { Switch } from '@base-ui/react/switch'
-import { SlidersHorizontal } from 'lucide'
+import { BetweenHorizontalStart, Blend, Frame, Grid3x3, Radius, RotateCcw } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField } from '@/components/ui/field'
@@ -14,23 +16,24 @@ import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
 const CUSTOM_BG = '#18181b'
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
+type CanvasTool = 'gap' | 'radius' | 'blend' | 'grid'
 
-const section = 'flex min-w-0 flex-col gap-[7px]'
-const heading = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
 const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
 const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-(--dur-fast) group-data-checked/switch:translate-x-3.5'
 const swatch = 'box-border grid h-[26px] w-[30px] cursor-pointer place-items-center rounded-none border border-line-strong transition-[border-color,scale] duration-(--dur-fast) active:scale-[0.97] p-0 data-checked:border-accent data-checked:shadow-[inset_0_0_0_1px_var(--accent)] focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
 const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--panel)]'
 const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
-const popup = `${menuSurfaceCls} ${dockPopupMotionCls} w-[min(320px,calc(100vw-24px))] max-h-[min(70dvh,480px)] overflow-y-auto overscroll-contain p-3.5`
+const pressedCls = 'bg-chip-on text-chip-on-txt shadow-[inset_0_-2px_0_var(--accent)] hover:bg-chip-on hover:text-chip-on-txt'
+const popup = `${menuSurfaceCls} ${dockPopupMotionCls} w-[min(280px,calc(100vw-24px))] p-3`
+const fields = 'flex min-w-0 flex-col gap-[7px]'
 
 /**
- * Canvas appearance controls in the bottom Tools dock (moved out of Settings).
- * Includes the opt-in blend crossfade toggle.
+ * Canvas appearance controls as separate bottom Tools entries (Gap, Radius,
+ * Border, Blend, Grid, Reset). Replaces the single Appearance mega-popover.
  */
 export function AppearanceDockTools() {
-  const [open, setOpen] = useState(false)
+  const [openTool, setOpenTool] = useState<CanvasTool | null>(null)
   const gap = useStore(s => s.gap)
   const gridGap = useStore(s => s.gridGap)
   const radius = useStore(s => s.radius)
@@ -62,90 +65,131 @@ export function AppearanceDockTools() {
       patch({ bg: CUSTOM_BG })
   }
 
+  const pop = { openTool, setOpenTool }
+
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <>
+      <ToolPopover id="gap" {...pop} label={t('Gap')} icon={BetweenHorizontalStart}>
+        <div className={fields}>
+          <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
+          <div className={fieldRowCls}>
+            <span className={fieldLabelCls}>{t('Gap fill')}</span>
+            <RadioGroup
+              className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
+              aria-label={t('Gap fill')}
+              value={mode}
+              onValueChange={next => setMode(next)}
+            >
+              <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
+                <Radio.Indicator className={swatchDot} />
+              </Radio.Root>
+              <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
+                <Radio.Indicator className={swatchDot} />
+              </Radio.Root>
+              <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
+                <Radio.Indicator className={swatchDot} />
+              </Radio.Root>
+              <input
+                type="color"
+                className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
+                aria-label={t('Custom gap fill')}
+                title={t('Pick a custom color')}
+                value={mode === 'custom' ? bg : CUSTOM_BG}
+                onChange={e => patch({ bg: e.target.value })}
+              />
+            </RadioGroup>
+          </div>
+        </div>
+      </ToolPopover>
+
+      <ToolPopover id="radius" {...pop} label={t('Radius')} icon={Radius}>
+        <div className={fields}>
+          <RangeField label={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} value={radius} onChange={v => patch({ radius: v })} />
+        </div>
+      </ToolPopover>
+
+      <button
+        type="button"
+        className={`${toolsBtnCls} ${dockBtnStateCls}${paneBorder ? ` ${pressedCls}` : ''}`}
+        title={t('Pane border')}
+        aria-label={t('Border')}
+        aria-pressed={paneBorder}
+        data-dock-tool={t('Border')}
+        onClick={() => patch({ paneBorder: !paneBorder })}
+      >
+        <MorphIcon icon={Frame} size={22} strokeWidth={1.5} />
+        <span className={toolsLabelCls}>{t('Border')}</span>
+      </button>
+
+      <ToolPopover id="blend" {...pop} label={t('Blend')} icon={Blend}>
+        <div className={fields}>
+          <div className={fieldRowCls}>
+            <span className={fieldLabelCls}>{t('Photo crossfade')}</span>
+            <Switch.Root
+              className={toggle}
+              aria-label={t('Photo crossfade')}
+              checked={blendCrossfade}
+              onCheckedChange={checked => patch({ blendCrossfade: checked })}
+            >
+              <Switch.Thumb className={toggleThumb} />
+            </Switch.Root>
+          </div>
+          <RangeField label={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} value={edgeFade} onChange={v => patch({ edgeFade: v })} />
+          <RangeField label={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} value={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
+        </div>
+      </ToolPopover>
+
+      <ToolPopover id="grid" {...pop} label={t('Grid')} icon={Grid3x3}>
+        <div className={fields}>
+          <RangeField label={t('Grid gap')} text={`${gridGap}px`} max={40} value={gridGap} onChange={v => patch({ gridGap: v })} />
+        </div>
+      </ToolPopover>
+
+      <button
+        type="button"
+        className={`${toolsBtnCls} ${dockBtnStateCls}`}
+        title={t('Reset settings')}
+        aria-label={t('Reset')}
+        data-dock-tool={t('Reset')}
+        onClick={() => {
+          resetSettings()
+          say(t('Settings reset'))
+        }}
+      >
+        <MorphIcon icon={RotateCcw} size={22} strokeWidth={1.5} />
+        <span className={toolsLabelCls}>{t('Reset')}</span>
+      </button>
+    </>
+  )
+}
+
+/** One dock tool button that opens its control popover above the icon. */
+function ToolPopover({ id, openTool, setOpenTool, label, icon, children }: {
+  id: CanvasTool
+  openTool: CanvasTool | null
+  setOpenTool: (tool: CanvasTool | null) => void
+  label: string
+  icon: IconInput
+  children: ReactNode
+}) {
+  return (
+    <Popover.Root
+      open={openTool === id}
+      onOpenChange={open => setOpenTool(open ? id : (openTool === id ? null : openTool))}
+    >
       <Popover.Trigger
         className={`${toolsBtnCls} ${dockBtnStateCls}`}
-        title={t('Appearance')}
-        aria-label={t('Appearance')}
-        data-dock-tool={t('Appearance')}
+        title={label}
+        aria-label={label}
+        data-dock-tool={label}
       >
-        <MorphIcon icon={SlidersHorizontal} size={22} strokeWidth={1.5} />
-        <span className={toolsLabelCls}>{t('Appearance')}</span>
+        <MorphIcon icon={icon} size={22} strokeWidth={1.5} />
+        <span className={toolsLabelCls}>{label}</span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
           <Popover.Popup className={popup}>
-            <div className="mb-2.5 flex items-center gap-2">
-              <p className={heading}>{t('Appearance')}</p>
-              <span className="flex-1" />
-              <button
-                type="button"
-                className="cursor-pointer rounded-none border-0 bg-transparent px-1.5 py-0.5 text-[11px] font-semibold text-dim transition-colors hover:text-txt"
-                onClick={() => {
-                  resetSettings()
-                  say(t('Settings reset'))
-                }}
-              >
-                {t('Reset')}
-              </button>
-            </div>
-            <section className={section}>
-              <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Gap fill')}</span>
-                <RadioGroup
-                  className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
-                  aria-label={t('Gap fill')}
-                  value={mode}
-                  onValueChange={next => setMode(next)}
-                >
-                  <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <input
-                    type="color"
-                    className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
-                    aria-label={t('Custom gap fill')}
-                    title={t('Pick a custom color')}
-                    value={mode === 'custom' ? bg : CUSTOM_BG}
-                    onChange={e => patch({ bg: e.target.value })}
-                  />
-                </RadioGroup>
-              </div>
-              <RangeField label={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} value={radius} onChange={v => patch({ radius: v })} />
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Pane border')}</span>
-                <Switch.Root
-                  className={toggle}
-                  aria-label={t('Pane border')}
-                  checked={paneBorder}
-                  onCheckedChange={checked => patch({ paneBorder: checked })}
-                >
-                  <Switch.Thumb className={toggleThumb} />
-                </Switch.Root>
-              </div>
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Photo crossfade')}</span>
-                <Switch.Root
-                  className={toggle}
-                  aria-label={t('Photo crossfade')}
-                  checked={blendCrossfade}
-                  onCheckedChange={checked => patch({ blendCrossfade: checked })}
-                >
-                  <Switch.Thumb className={toggleThumb} />
-                </Switch.Root>
-              </div>
-              <RangeField label={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} value={edgeFade} onChange={v => patch({ edgeFade: v })} />
-              <RangeField label={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} value={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
-              <RangeField label={t('Grid gap')} text={`${gridGap}px`} max={40} value={gridGap} onChange={v => patch({ gridGap: v })} />
-            </section>
+            {children}
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>
