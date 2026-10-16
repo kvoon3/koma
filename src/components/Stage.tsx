@@ -367,8 +367,7 @@ export function Stage() {
       </CanvasMenu>
 
       {/* Tools dock: Border (appearance panel) always here; pane/label tools join
-          when relevant. Bottom sheet: collapsed / single-row / multi-row via
-          handle drag or tap. */}
+          when relevant. Base UI Drawer snap points: collapsed / row / expanded. */}
       <ToolsDock
         hidden={toolsHidden}
         contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}

@@ -262,6 +262,7 @@ export const zhHans: Record<string, string> = {
   'Sticker': '贴图',
   'Replace': '换照片',
   'Text': '文字',
+  'Tools': '工具',
   'Show tools': '拉起工具面板',
   'Hide tools': '收起工具面板',
   'Drag to change canvas aspect · double-click to reset': '拖动改变画布比例 · 双击恢复',

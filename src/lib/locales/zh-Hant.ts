@@ -261,6 +261,7 @@ export const zhHant: Record<string, string> = {
   'Sticker': '貼圖',
   'Replace': '換照片',
   'Text': '文字',
+  'Tools': '工具',
   'Show tools': '展開工具面板',
   'Hide tools': '收起工具面板',
   'Drag to change canvas aspect · double-click to reset': '拖曳改變畫布比例 · 雙擊重設',
