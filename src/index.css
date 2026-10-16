@@ -412,27 +412,6 @@ html.dark {
     background-position: 0 0, 4px 4px;
     background-size: 8px 8px;
   }
-
-  /*
-   * A strip that scrolls sideways wears its ends soft: the mask fades exactly
-   * the stretch that is scrolled out of view, so it grows to `--scroll-fade-size`
-   * within one fade of scrolling and falls back to nothing at either edge. A
-   * strip that fits its box, or sits flush against an end, stays crisp.
-   * `--scroll-overflow-*` are measured by useScrollFade.
-   */
-  .scroll-fade {
-    --scroll-fade-size: 32px;
-    --scroll-overflow-start: 0px;
-    --scroll-overflow-end: 0px;
-    mask-image: linear-gradient(
-      to right,
-      transparent 0,
-      black min(var(--scroll-fade-size), var(--scroll-overflow-start)),
-      black calc(100% - min(var(--scroll-fade-size), var(--scroll-overflow-end))),
-      transparent 100%
-    );
-    mask-repeat: no-repeat;
-  }
 }
 
 /*
