@@ -1,12 +1,12 @@
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
-import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
+import type { CornerRadii, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
 import { isTransparentBg } from '../store'
 import { mapSeq } from './async'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, labelIconNode, loadLabelIcon } from './labelIcons'
-import { boardStickerRect, labelPaint, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
+import { boardStickerRect, labelPaint, labelRect, layoutTree, leafCornerRadii, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -43,25 +43,39 @@ export function outputSizeFor(longSide: number, ratio: number) {
   } as ExportOptions)
 }
 
+function clampCorner(r: number, w: number, h: number) {
+  return Math.max(0, Math.min(r, w / 2, h / 2))
+}
+
 function roundRect(
   c: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  r: number,
+  radii: number | CornerRadii,
 ) {
-  const rr = Math.max(0, Math.min(r, w / 2, h / 2))
+  const src: CornerRadii = typeof radii === 'number'
+    ? [radii, radii, radii, radii]
+    : radii
+  const tl = clampCorner(src[0], w, h)
+  const tr = clampCorner(src[1], w, h)
+  const br = clampCorner(src[2], w, h)
+  const bl = clampCorner(src[3], w, h)
   c.beginPath()
   if (typeof c.roundRect === 'function') {
-    c.roundRect(x, y, w, h, rr)
+    c.roundRect(x, y, w, h, [tl, tr, br, bl])
     return
   }
-  c.moveTo(x + rr, y)
-  c.arcTo(x + w, y, x + w, y + h, rr)
-  c.arcTo(x + w, y + h, x, y + h, rr)
-  c.arcTo(x, y + h, x, y, rr)
-  c.arcTo(x, y, x + w, y, rr)
+  c.moveTo(x + tl, y)
+  c.lineTo(x + w - tr, y)
+  c.arcTo(x + w, y, x + w, y + tr, tr)
+  c.lineTo(x + w, y + h - br)
+  c.arcTo(x + w, y + h, x + w - br, y + h, br)
+  c.lineTo(x + bl, y + h)
+  c.arcTo(x, y + h, x, y + h - bl, bl)
+  c.lineTo(x, y + tl)
+  c.arcTo(x, y, x + tl, y, tl)
   c.closePath()
 }
 
@@ -100,7 +114,7 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
     gap,
     radius: opts.radius * u,
     fade,
-    seam: fade > 0 ? seamSides(l.leaves, gap) : new Map(),
+    seam: seamSides(l.leaves, gap),
     cells,
     labels: (opts.labels ?? []).filter(l => l.text.trim()),
   }
@@ -235,10 +249,10 @@ function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: Ex
     if (!full)
       continue
     const p = placement(rect, leaf, photo.trueW, photo.trueH)
-    ctx.save()
-    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
-    ctx.clip()
     const seam = prep.seam.get(leaf.id)
+    ctx.save()
+    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, leafCornerRadii(prep.radius, seam, prep.gap))
+    ctx.clip()
     if (seam && (seam.left || seam.right || seam.top || seam.bottom))
       drawFadedPhoto(ctx, full.src, p, rect, seam, prep.fade)
     else
@@ -536,10 +550,10 @@ function drawLiveCell(
 ) {
   const { leaf, rect } = cell
   const p = placement(rect, leaf, v.videoWidth, v.videoHeight)
-  ctx.save()
-  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
-  ctx.clip()
   const seam = prep.seam.get(leaf.id)
+  ctx.save()
+  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, leafCornerRadii(prep.radius, seam, prep.gap))
+  ctx.clip()
   if (seam && (seam.left || seam.right || seam.top || seam.bottom))
     drawFadedPhoto(ctx, v, p, rect, seam, prep.fade)
   else

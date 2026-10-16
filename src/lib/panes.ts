@@ -409,6 +409,34 @@ export function seamFadeWidth(fade: number, rect: Rect) {
   return Math.max(0, Math.min(fade, rect.w / 2, rect.h / 2))
 }
 
+/** Per-corner radii in CSS / canvas order: top-left, top-right, bottom-right, bottom-left. */
+export type CornerRadii = [number, number, number, number]
+
+/**
+ * When gap is 0, square the corners that sit on a photo-photo seam so adjacent
+ * leaves meet flush. Outer corners keep `radius`. With gap > 0 the full radius
+ * stays so intentional gutters keep their rounded look.
+ */
+export function leafCornerRadii(
+  radius: number,
+  seam: SeamSides | undefined,
+  gap: number,
+): CornerRadii {
+  const r = Math.max(0, radius)
+  if (gap > 0 || r === 0 || !seam)
+    return [r, r, r, r]
+  return [
+    seam.left || seam.top ? 0 : r,
+    seam.right || seam.top ? 0 : r,
+    seam.right || seam.bottom ? 0 : r,
+    seam.left || seam.bottom ? 0 : r,
+  ]
+}
+
+export function cornerRadiiCss(radii: CornerRadii): string {
+  return `${radii[0]}px ${radii[1]}px ${radii[2]}px ${radii[3]}px`
+}
+
 /** CSS mask feathering a pane's seam edges; undefined when nothing fades. */
 export function seamMaskStyle(seam: SeamSides | undefined, w: number): CSSProperties | undefined {
   if (!seam || w <= 0)

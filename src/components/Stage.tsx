@@ -509,6 +509,7 @@ function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onF
           leaf={node}
           rect={rect}
           radius={view.radius}
+          gap={view.gap}
           bordered={paneBorder}
           fade={paneFade}
           seam={seams.get(node.id)}
