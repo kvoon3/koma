@@ -15,6 +15,7 @@ import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
 import { Stage } from './components/Stage'
 import ToastHost from './components/ToastHost'
+import { ToolsDockHost } from './components/ToolsDock'
 import { TopBar } from './components/TopBar'
 import { WeChatGuard } from './components/WeChatGuard'
 import { WorkspaceGrid } from './components/WorkspaceGrid'
@@ -524,13 +525,16 @@ function RootLayout() {
           onClearAsk={() => setClearAsk(true)}
         />
 
-        <main className="relative min-h-0 flex-1">
-          <AppCommandsContext value={commands}>
-            <Outlet />
-            {/* Floating page actions (back / reset) hover over the active view. */}
-            <FloatActions />
-          </AppCommandsContext>
-        </main>
+        {/* One persistent dock for every route; routes portal their tools in. */}
+        <ToolsDockHost>
+          <main className="relative min-h-0 flex-1">
+            <AppCommandsContext value={commands}>
+              <Outlet />
+              {/* Floating page actions (back / reset) hover over the active view. */}
+              <FloatActions />
+            </AppCommandsContext>
+          </main>
+        </ToolsDockHost>
 
         {/* Footer rides inside ToolsDock (full-width sheet). */}
         <LibraryDrawer open={libOpen} onClose={() => setLibOpen(false)} onRequestClear={() => setClearAsk(true)} />

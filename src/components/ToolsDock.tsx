@@ -1,10 +1,12 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, Dispatch, ReactNode, SetStateAction } from 'react'
 import type { ToolsDockMode } from '../store'
 import { Drawer } from '@base-ui/react/drawer'
-import { ChevronDown, ChevronUp } from 'lucide'
+import { ChevronDown, ChevronUp, Minus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useT } from '../lib/i18n'
+import { clampDockMode, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { Footer } from './Footer'
@@ -17,17 +19,11 @@ const HANDLE_H = 28
 const MAX_EXP_VH = 0.4
 const FALLBACK_ROW = 72
 
-const ORDER: ToolsDockMode[] = ['collapsed', 'row', 'expanded']
-
 const handleCls = 'relative z-1 flex h-[28px] w-full shrink-0 cursor-grab touch-none select-none items-center justify-center border-0 bg-transparent p-0 text-float-icon transition-[color,scale] duration-(--dur-surface) active:cursor-grabbing active:scale-[0.97] hover:text-txt'
 const scrollRowCls = 'overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const scrollExpCls = 'overflow-x-hidden overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
-
-function nextMode(mode: ToolsDockMode): ToolsDockMode {
-  return ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length]!
-}
 
 function modeLabel(mode: ToolsDockMode, t: (k: string) => string): string {
   if (mode === 'collapsed')
@@ -37,10 +33,10 @@ function modeLabel(mode: ToolsDockMode, t: (k: string) => string): string {
   return t('Hide tools')
 }
 
-function modeFromSnap(snap: number | string, snaps: number[]): ToolsDockMode {
+function modeFromSnap(snap: number | string, snaps: number[], order: readonly ToolsDockMode[]): ToolsDockMode {
   const idx = snaps.findIndex(p => Object.is(p, snap))
   if (idx >= 0)
-    return ORDER[idx]!
+    return order[idx]!
   if (typeof snap === 'number') {
     let best = 0
     let bestDist = Math.abs(snaps[0]! - snap)
@@ -51,38 +47,105 @@ function modeFromSnap(snap: number | string, snaps: number[]): ToolsDockMode {
         bestDist = d
       }
     }
-    return ORDER[best]!
+    return order[best]!
   }
   return 'row'
 }
 
+interface DockSlot { hidden: boolean, contextKey: string }
+interface DockCtx {
+  target: HTMLDivElement | null
+  setSlot: Dispatch<SetStateAction<DockSlot | null>>
+}
+const ToolsDockContext = createContext<DockCtx | null>(null)
+
 /**
- * Full-width Base UI Drawer tools sheet: handle + tools snap above an
- * always-on Footer strip (byline lives in the sheet, not under it).
- * Collapsed / row / expanded via snap points; chevron morphs up↔down.
+ * Route-level dock content. Portals `children` into the single persistent
+ * dock owned by `ToolsDockHost`, so switching routes (grid ⇄ stage) swaps
+ * content without remounting the Drawer (a remount replays the enter
+ * animation and re-seeds snap points from fallback heights → jitter).
  */
 export function ToolsDock({ hidden, contextKey, children }: {
   hidden: boolean
   contextKey: string
   children: ReactNode
 }) {
+  const ctx = use(ToolsDockContext)
+  const setSlot = ctx?.setSlot
+  useLayoutEffect(() => {
+    setSlot?.({ hidden, contextKey })
+  }, [setSlot, hidden, contextKey])
+  useLayoutEffect(() => () => setSlot?.(null), [setSlot])
+  if (!ctx?.target)
+    return null
+  return createPortal(children, ctx.target)
+}
+
+/**
+ * Full-width Base UI Drawer tools sheet, mounted once in the root layout:
+ * handle + tools snap above an always-on Footer strip.
+ * Collapsed / row / expanded via snap points (expanded only when the tools
+ * wrap). Handle icon morphs line (collapsed) → chevron up (row) → down.
+ */
+export function ToolsDockHost({ children }: { children: ReactNode }) {
+  const [target, setTarget] = useState<HTMLDivElement | null>(null)
+  const [slot, setSlot] = useState<DockSlot | null>(null)
+  const ctx = useMemo(() => ({ target, setSlot }), [target])
+  return (
+    <ToolsDockContext value={ctx}>
+      {children}
+      <DockSheet hidden={slot == null || slot.hidden} contextKey={slot?.contextKey ?? ''} innerRef={setTarget} />
+    </ToolsDockContext>
+  )
+}
+
+function DockSheet({ hidden, contextKey, innerRef: setInner }: {
+  hidden: boolean
+  contextKey: string
+  innerRef: (el: HTMLDivElement | null) => void
+}) {
   const t = useT()
-  const mode = useStore(s => s.toolsDockMode)
+  const storedMode = useStore(s => s.toolsDockMode)
   const setMode = useStore(s => s.setToolsDockMode)
 
   const innerRef = useRef<HTMLDivElement | null>(null)
   const [rowH, setRowH] = useState(FALLBACK_ROW)
   const [expH, setExpH] = useState(FALLBACK_ROW)
+  const [fitsOneRow, setFitsOneRow] = useState(true)
+  const cap = useMemo(() => ({ fitsOneRow }), [fitsOneRow])
+  const mode = clampDockMode(storedMode, cap)
+  const order = dockModes(cap)
 
   const wrap = mode === 'expanded'
   const scrollRef = useScrollFade<HTMLDivElement>(wrap ? 'y' : 'x')
 
   const snapPoints = useMemo(
-    () => [HANDLE_H, HANDLE_H + rowH, HANDLE_H + expH] as number[],
-    [rowH, expH],
+    () => (fitsOneRow ? [HANDLE_H, HANDLE_H + rowH] : [HANDLE_H, HANDLE_H + rowH, HANDLE_H + expH]) as number[],
+    [rowH, expH, fitsOneRow],
   )
-  const snapPoint = snapPoints[ORDER.indexOf(mode)] ?? snapPoints[1]!
-  const toolsMaxH = snapPoints[2]!
+  const snapPoint = snapPoints[order.indexOf(mode)] ?? snapPoints[1]!
+  const toolsMaxH = snapPoints.at(-1)!
+
+  // Content-driven snap geometry changes (route switch, wrap change) must not
+  // animate: the sheet would slide even though the user's mode is unchanged.
+  // Only mode changes animate the transform.
+  const [instant, setInstant] = useState(false)
+  const lastGeomRef = useRef({ toolsMaxH, mode })
+  useLayoutEffect(() => {
+    const prev = lastGeomRef.current
+    lastGeomRef.current = { toolsMaxH, mode }
+    if (prev.toolsMaxH === toolsMaxH || prev.mode !== mode)
+      return
+    setInstant(true)
+    let r2 = 0
+    const r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => setInstant(false))
+    })
+    return () => {
+      cancelAnimationFrame(r1)
+      cancelAnimationFrame(r2)
+    }
+  }, [toolsMaxH, mode])
 
   const measure = useCallback(() => {
     const el = innerRef.current
@@ -97,7 +160,9 @@ export function ToolsDock({ hidden, contextKey, children }: {
     el.style.flexWrap = 'nowrap'
     el.style.width = 'max-content'
     el.style.maxWidth = 'none'
-    const row = Math.ceil(el.getBoundingClientRect().height) || FALLBACK_ROW
+    const rect = el.getBoundingClientRect()
+    const row = Math.ceil(rect.height) || FALLBACK_ROW
+    const rowW = Math.ceil(rect.width)
     const panelW = el.parentElement?.clientWidth || window.innerWidth
     el.style.flexWrap = 'wrap'
     el.style.width = '100%'
@@ -109,20 +174,41 @@ export function ToolsDock({ hidden, contextKey, children }: {
     el.style.visibility = prevVis
     setRowH(row)
     setExpH(Math.max(row, exp))
+    // Empty slot (between routes) keeps the last capacity: no snap churn.
+    if (el.childElementCount > 0)
+      setFitsOneRow(rowW <= panelW)
   }, [])
+
+  const attachInner = useCallback((el: HTMLDivElement | null) => {
+    innerRef.current = el
+    setInner(el)
+  }, [setInner])
 
   useLayoutEffect(() => {
     measure()
-  }, [measure, children, contextKey, mode])
+  }, [measure, contextKey, mode])
 
+  // Portaled route content changes without re-rendering this sheet:
+  // observe DOM + size instead of depending on `children`.
   useEffect(() => {
+    const el = innerRef.current
+    if (!el)
+      return
+    const mo = new MutationObserver(() => measure())
+    mo.observe(el, { childList: true, subtree: true, characterData: true })
+    const ro = new ResizeObserver(() => measure())
+    if (el.parentElement)
+      ro.observe(el.parentElement)
     const onResize = () => measure()
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    return () => {
+      mo.disconnect()
+      ro.disconnect()
+      window.removeEventListener('resize', onResize)
+    }
   }, [measure])
 
-  // Expanded: point down (can collapse). Otherwise point up (can open more).
-  const handleIcon = mode === 'expanded' ? ChevronDown : ChevronUp
+  const handleIcon = mode === 'collapsed' ? Minus : mode === 'expanded' ? ChevronDown : ChevronUp
 
   return (
     <Drawer.Root
@@ -136,16 +222,16 @@ export function ToolsDock({ hidden, contextKey, children }: {
       onOpenChange={(next, details) => {
         if (!next) {
           details.cancel()
-          setMode('collapsed')
+          setMode(dockTransition(mode, { type: 'dismiss' }, cap))
         }
       }}
       onSnapPointChange={(next, details) => {
         if (next == null) {
           details.cancel()
-          setMode('collapsed')
+          setMode(dockTransition(mode, { type: 'dismiss' }, cap))
           return
         }
-        setMode(modeFromSnap(next, snapPoints))
+        setMode(dockTransition(mode, { type: 'snap', mode: modeFromSnap(next, snapPoints, order) }, cap))
       }}
     >
       <Drawer.Portal keepMounted>
@@ -166,8 +252,9 @@ export function ToolsDock({ hidden, contextKey, children }: {
                 initialFocus={false}
                 finalFocus={false}
                 data-dock-mode={mode}
-                style={{ height: toolsMaxH }}
-                className="group/dock pointer-events-auto relative box-border flex w-full flex-col overflow-hidden rounded-none border-t border-line bg-drawer-bg shadow-pop outline-0 translate-y-[calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full"
+                data-instant={instant || undefined}
+                style={{ 'height': toolsMaxH, '--dock-offset': `${toolsMaxH - snapPoint}px` } as CSSProperties}
+                className="group/dock pointer-events-auto relative box-border flex w-full flex-col overflow-hidden rounded-none border-t border-line bg-drawer-bg shadow-pop outline-0 translate-y-[calc(var(--dock-offset)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-instant:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-full data-ending-style:translate-y-full"
               >
                 <button
                   type="button"
@@ -176,7 +263,7 @@ export function ToolsDock({ hidden, contextKey, children }: {
                   aria-label={modeLabel(mode, t)}
                   aria-expanded={mode !== 'collapsed'}
                   aria-valuetext={mode}
-                  onClick={() => setMode(nextMode(mode))}
+                  onClick={() => setMode(dockTransition(mode, { type: 'tap' }, cap))}
                 >
                   <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
                 </button>
@@ -195,12 +282,10 @@ export function ToolsDock({ hidden, contextKey, children }: {
                     inert={mode === 'collapsed' || undefined}
                   >
                     <div
-                      key={contextKey}
-                      ref={innerRef}
-                      className={`${wrap ? wrapCls : rowCls} transition-[opacity,translate] duration-(--dur-surface) ease-(--ease-out) starting:translate-y-1 starting:opacity-0`}
-                    >
-                      {children}
-                    </div>
+                      ref={attachInner}
+                      data-dock-context={contextKey}
+                      className={wrap ? wrapCls : rowCls}
+                    />
                   </div>
                 </Drawer.Content>
               </Drawer.Popup>
