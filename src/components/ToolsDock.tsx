@@ -11,10 +11,16 @@ import { useStore } from '../store'
 export const toolsBtnCls = 'flex w-[80px] shrink-0 cursor-pointer flex-col items-center justify-center gap-1.5 whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-3 text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
 export const toolsLabelCls = 'text-[11.5px] font-semibold text-txt'
 
-/** Peek height for the collapsed snap (handle only). */
+/**
+ * Handle chrome height = collapsed snap. Keep in sync with `handleCls` h-[].
+ * Footer clearance lives on the viewport (not popup margin) so every snap
+ * rests above the status strip the same way.
+ */
 const HANDLE_H = 28
 const MAX_EXP_VH = 0.4
 const FALLBACK_ROW = 72
+/** Matches Footer: statusH + safe-area. Reserved on the drawer viewport. */
+const FOOTER_PAD = 'calc(var(--statusH) + env(safe-area-inset-bottom, 0px))'
 
 const ORDER: ToolsDockMode[] = ['collapsed', 'row', 'expanded']
 
@@ -41,7 +47,6 @@ function modeFromSnap(snap: number | string, snaps: number[]): ToolsDockMode {
   const idx = snaps.findIndex(p => Object.is(p, snap))
   if (idx >= 0)
     return ORDER[idx]!
-  // Measurements shifted mid-gesture: pick nearest by value.
   if (typeof snap === 'number') {
     let best = 0
     let bestDist = Math.abs(snaps[0]! - snap)
@@ -61,7 +66,8 @@ function modeFromSnap(snap: number | string, snaps: number[]): ToolsDockMode {
  * Persistent bottom tools sheet via Base UI Drawer snap points
  * (collapsed peek / single-row / multi-row). Always mounted+open so the
  * stage stays usable (`modal={false}`); collapsed is the lowest snap, not
- * an unmount. Swipe follows the finger; tap the handle to cycle.
+ * an unmount. Footer stays visible: viewport pads by footer height so every
+ * snap rests above the status strip. Swipe follows the finger; tap cycles.
  */
 export function ToolsDock({ hidden, contextKey, children }: {
   hidden: boolean
@@ -93,6 +99,9 @@ export function ToolsDock({ hidden, contextKey, children }: {
     const prevWrap = el.style.flexWrap
     const prevW = el.style.width
     const prevMax = el.style.maxWidth
+    // Measure even when collapsed (tools are invisible but still laid out).
+    const prevVis = el.style.visibility
+    el.style.visibility = 'hidden'
     el.style.flexWrap = 'nowrap'
     el.style.width = 'max-content'
     el.style.maxWidth = 'none'
@@ -105,6 +114,7 @@ export function ToolsDock({ hidden, contextKey, children }: {
     el.style.flexWrap = prevWrap
     el.style.width = prevW
     el.style.maxWidth = prevMax
+    el.style.visibility = prevVis
     setRowH(row)
     setExpH(Math.max(row, exp))
   }, [])
@@ -153,9 +163,13 @@ export function ToolsDock({ hidden, contextKey, children }: {
       }}
     >
       <Drawer.Portal keepMounted>
-        {/* pointer-events-none on the viewport so the stage stays interactive
-            through empty space; the popup re-enables hits. */}
+        {/*
+          Footer clearance on the viewport (padding), not popup margin: snap
+          translate then always rests above the status strip in every state.
+          pointer-events-none so the stage stays interactive through empty space.
+        */}
         <Drawer.Viewport
+          style={{ paddingBottom: FOOTER_PAD }}
           className={`tools-dock fixed inset-0 z-30 flex items-end justify-center pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
             hidden ? 'opacity-0' : 'opacity-100'
           }`}
@@ -166,7 +180,7 @@ export function ToolsDock({ hidden, contextKey, children }: {
             finalFocus={false}
             data-dock-mode={mode}
             style={{ height: popupH }}
-            className="pointer-events-auto relative box-border flex w-fit max-w-[min(920px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 mb-[calc(var(--statusH)+env(safe-area-inset-bottom))] translate-y-[calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]"
+            className="group/dock pointer-events-auto relative box-border flex w-fit max-w-[min(920px,100vw)] flex-col overflow-hidden rounded-none border border-b-0 border-line bg-drawer-bg text-txt shadow-pop outline-0 translate-y-[calc(var(--drawer-snap-point-offset,0px)+var(--drawer-swipe-movement-y,0px))] transition-transform duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform data-swiping:duration-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-starting-style:translate-y-[calc(100%+var(--statusH))] data-ending-style:translate-y-[calc(100%+var(--statusH))]"
           >
             <button
               type="button"
@@ -182,13 +196,21 @@ export function ToolsDock({ hidden, contextKey, children }: {
             </button>
             <Drawer.Content className="flex min-h-0 flex-1 flex-col outline-0">
               <Drawer.Title className="sr-only">{t('Tools')}</Drawer.Title>
-              {/* Row: ignore-x so horizontal pans stay on the strip; expanded relies on scroll-edge. */}
+              {/*
+                Collapsed at rest: hide tools so icons/labels cannot leak under
+                the handle peek. While swiping, show again so the gesture reveals
+                the row. Row: ignore-x so horizontal pans stay on the strip.
+              */}
               <div
                 ref={scrollRef}
                 style={wrap ? scrollFadeStyle : scrollFadeStyleX}
                 data-dock-fade=""
                 data-base-ui-swipe-ignore={wrap ? undefined : 'x'}
-                className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls}`}
+                className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${
+                  mode === 'collapsed'
+                    ? 'invisible pointer-events-none group-data-swiping/dock:visible group-data-swiping/dock:pointer-events-auto'
+                    : ''
+                }`}
                 inert={mode === 'collapsed' || undefined}
               >
                 <div
