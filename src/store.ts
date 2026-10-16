@@ -1,3 +1,4 @@
+import type { BgImage } from './lib/collageBg'
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { SessionMeta } from './lib/sessionStore'
@@ -68,6 +69,10 @@ interface State {
   gridGap: number
   radius: number
   bg: string
+  /** Whole-collage background gradient end color over `bg` (see lib/collageBg). */
+  bgGradient: string | null
+  /** Whole-collage background photo over `bg` (see lib/collageBg). */
+  bgImage: BgImage | null
   edgeFade: number
   edgeFadeStrength: number
   /**
@@ -114,13 +119,18 @@ export const EDGE_FADE_STRENGTH = 100
 export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
 
-export const SETTINGS_VERSION = 1
+export const SETTINGS_VERSION = 2
 
 /** Persisted-settings migration (zustand `persist`); pure for unit tests. */
 export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
   const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
   if (version < 1)
     p.blendCrossfade = BLEND_CROSSFADE
+  // v2: whole-collage background layers over the gap fill; off for old saves.
+  if (version < 2) {
+    p.bgGradient ??= null
+    p.bgImage ??= null
+  }
   return p
 }
 export const MIN_PANE_PX = 56
@@ -173,6 +183,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   gridGap: GRID_GAP,
   radius: RADIUS,
   bg: BG,
+  bgGradient: null,
+  bgImage: null,
   edgeFade: EDGE_FADE,
   edgeFadeStrength: EDGE_FADE_STRENGTH,
   blendCrossfade: BLEND_CROSSFADE,
@@ -267,6 +279,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       // The clipboard points at photos that no longer exist.
       paneClip: null,
       stickerMakerFor: null,
+      // The background photo is gone with the library.
+      bgImage: null,
     }))
   },
 
@@ -636,6 +650,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       gridGap: GRID_GAP,
       radius: RADIUS,
       bg: BG,
+      bgGradient: null,
+      bgImage: null,
       edgeFade: EDGE_FADE,
       edgeFadeStrength: EDGE_FADE_STRENGTH,
       blendCrossfade: BLEND_CROSSFADE,
@@ -760,6 +776,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     gridGap: state.gridGap,
     radius: state.radius,
     bg: state.bg,
+    bgGradient: state.bgGradient,
+    bgImage: state.bgImage,
     edgeFade: state.edgeFade,
     edgeFadeStrength: state.edgeFadeStrength,
     blendCrossfade: state.blendCrossfade,

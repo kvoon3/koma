@@ -17,6 +17,7 @@ import { AppearanceDockTools } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
+import { CollageBgLayer } from './CollageBgLayer'
 import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
@@ -329,6 +330,7 @@ export function Stage() {
             className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
             style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
           >
+            <CollageBgLayer W={view.W} H={view.H} photoById={photoById} />
             {!blendCrossfade && (
               <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
             )}

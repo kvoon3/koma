@@ -1,7 +1,9 @@
+import type { BgImage } from './collageBg'
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
 import type { CornerRadii, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
 import { isTransparentBg } from '../store'
 import { mapSeq } from './async'
+import { paintCollageBg } from './collageBg'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
@@ -15,6 +17,9 @@ export interface ExportOptions {
   gap: number
   radius: number
   bg: string
+  /** Whole-collage background layers over `bg` (see lib/collageBg). */
+  bgGradient?: string | null
+  bgImage?: BgImage | null
   edgeFade: number
   edgeFadeStrength: number
   /** Opt-in overlap crossfade; default backdrop feather when false/omitted. */
@@ -198,8 +203,8 @@ function drawFadedPhoto(
 }
 
 /** Every photo a collage paint will draw, cells first then their stickers, deduped. */
-function paintPhotos(prep: Prepared, photos: Map<string, Photo>, stickers: Sticker[] = []): Photo[] {
-  const wanted: Photo[] = []
+function paintPhotos(prep: Prepared, photos: Map<string, Photo>, stickers: Sticker[] = [], bgPhoto?: Photo): Photo[] {
+  const wanted: Photo[] = bgPhoto ? [bgPhoto] : []
   for (const { photo } of prep.cells)
     wanted.push(photo)
   for (const st of stickers) {
@@ -392,7 +397,10 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     // Resolve every source before the first draw, then paint synchronously:
     // the draws share one 2D context, so their order is the output.
     const stickers = opts.stickers ?? []
-    const src = await resolveSources(paintPhotos(prep, opts.photos, stickers), sources)
+    const bgPhoto = opts.bgImage ? opts.photos.get(opts.bgImage.photoId) : undefined
+    const src = await resolveSources(paintPhotos(prep, opts.photos, stickers, bgPhoto), sources)
+    // Whole-collage background layers, under everything the panes paint.
+    paintCollageBg(ctx, W, H, { bg: opts.bg, gradient: opts.bgGradient ?? null, image: opts.bgImage ?? null }, (bgPhoto && src.get(bgPhoto)) || null)
     // Backdrop feather (default) or overlap crossfade (opt-in).
     if (!prep.crossfade)
       drawBackdrop(ctx, prep, opts, src)

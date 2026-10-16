@@ -1,4 +1,5 @@
 import type { Workspace } from '../store'
+import type { BgImage } from './collageBg'
 import type { Photo } from './imageStore'
 import { mapSeq } from './async'
 import { downloadBlob } from './exporter'
@@ -13,6 +14,9 @@ export interface WorkspaceDocV1 {
     gap: number
     radius: number
     bg: string
+    /** Optional: files saved before the collage background lack them. */
+    bgGradient?: string | null
+    bgImage?: BgImage | null
     longSide: number
     format: 'image/jpeg' | 'image/png'
     quality: number
@@ -33,6 +37,8 @@ export interface WorkspaceFileState {
   gap: number
   radius: number
   bg: string
+  bgGradient: string | null
+  bgImage: BgImage | null
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
@@ -89,6 +95,8 @@ export async function buildDoc(s: WorkspaceFileState): Promise<WorkspaceDocV1> {
       gap: s.gap,
       radius: s.radius,
       bg: s.bg,
+      bgGradient: s.bgGradient,
+      bgImage: s.bgImage,
       longSide: s.longSide,
       format: s.format,
       quality: s.quality,
