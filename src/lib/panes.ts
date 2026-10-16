@@ -300,6 +300,31 @@ export function removeLeaf(root: Node, paneId: string): Node | null {
   return { ...root, a, b }
 }
 
+/**
+ * Drag-to-delete on the stage: drop the pane from the split tree so its
+ * sibling takes over the freed space (same collapse as closing a pane). The
+ * last remaining pane can't collapse into nothing, so it is cleared in place
+ * instead: same id (focus stays valid), no photo, stickers or label. An
+ * unknown id returns the root untouched.
+ */
+export function deletePane(root: Node, paneId: string): Node {
+  if (!findLeaf(root, paneId))
+    return root
+  const next = removeLeaf(root, paneId)
+  return next ?? { ...newLeaf(), id: paneId }
+}
+
+/**
+ * Drag-to-delete on the 3×3 grid: the board always has nine slots, so the
+ * dropped workspace is reset to a fresh blank one in its own slot (same id and
+ * position; nothing shifts). An unknown id returns the list untouched.
+ */
+export function resetSlot<T extends { id: string }>(list: T[], id: string, fresh: () => T): T[] {
+  if (!list.some(w => w.id === id))
+    return list
+  return list.map(w => (w.id === id ? { ...fresh(), id } : w))
+}
+
 export function updateLeafIn(root: Node, paneId: string, patch: Partial<Leaf>): Node {
   return mapNode(root, paneId, n => (n.type === 'leaf' ? { ...n, ...patch } : n))
 }

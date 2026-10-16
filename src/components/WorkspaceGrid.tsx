@@ -1,7 +1,7 @@
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
-import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, pointerWithin, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
@@ -18,6 +18,7 @@ import { boardStickerRect, labelPaint, layoutTree, leafList, placement, rotation
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { LabelIconGlyph } from './BoardLabel'
+import { DeleteZone } from './DeleteZone'
 import { SeamBackdrop } from './Stage'
 import { Tip } from './ui/tip'
 
@@ -280,6 +281,21 @@ function step(from: number, dir: 'left' | 'right' | 'up' | 'down' | 'next') {
   return ((r + 1) % 3) * 3 + c
 }
 
+const DELETE_ZONE_ID = '__delete__'
+
+/**
+ * The delete strip is hit by the pointer itself (it sits outside the grid, so
+ * closestCenter would never pick it, and must not steal near-top drops);
+ * every other drop keeps the sortable's closestCenter over the cells only.
+ */
+const deleteFirst: CollisionDetection = (args) => {
+  const zone = args.droppableContainers.filter(c => c.id === DELETE_ZONE_ID)
+  const hit = pointerWithin({ ...args, droppableContainers: zone })
+  if (hit.length)
+    return hit
+  return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(c => c.id !== DELETE_ZONE_ID) })
+}
+
 /**
  * The 3×3 workspace overview: read-only square previews of all nine
  * workspaces. Click a cell to edit that workspace, drag a cell onto another
@@ -378,6 +394,11 @@ export function WorkspaceGrid() {
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragId(null)
     dragEndedAtRef.current = Date.now()
+    if (over?.id === DELETE_ZONE_ID) {
+      navigator.vibrate?.(10)
+      useStore.getState().resetWorkspace(String(active.id))
+      return
+    }
     if (!over || active.id === over.id)
       return
     const arr = useStore.getState().workspaces
@@ -401,7 +422,7 @@ export function WorkspaceGrid() {
     <div ref={wrapRef} className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden">
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={deleteFirst}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
@@ -410,6 +431,7 @@ export function WorkspaceGrid() {
           dragEndedAtRef.current = Date.now()
         }}
       >
+        <GridDeleteZone active={!!dragId} label={t('Drop here to delete')} />
         <SortableContext items={ids} strategy={rectSortingStrategy}>
           {/* The snapshot chip sits above the grid, as part of the same group:
               it takes layout space, so the centered board never grows past
@@ -474,6 +496,11 @@ export function WorkspaceGrid() {
       </DndContext>
     </div>
   )
+}
+
+function GridDeleteZone({ active, label }: { active: boolean, label: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: DELETE_ZONE_ID })
+  return <DeleteZone setRef={setNodeRef} active={active} over={isOver} label={label} />
 }
 
 function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEnter }: {

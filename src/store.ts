@@ -8,16 +8,18 @@ import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
 import {
 
+  deletePane,
   findLeaf,
   layoutTree,
   leafList,
-  neighborLeaf,
 
+  neighborLeaf,
   newLabel,
   newLeaf,
-  placement,
 
+  placement,
   removeLeaf,
+  resetSlot,
   setSplitRatioIn,
   splitLeaf,
   stickerToBoard,
@@ -249,7 +251,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    */
   resetWorkspace: id =>
     set(s => ({
-      workspaces: s.workspaces.map(w => (w.id === id ? { ...newWorkspace(), id: w.id } : w)),
+      workspaces: resetSlot(s.workspaces, id, newWorkspace),
       ...clearedSelection,
     })),
 
@@ -441,6 +443,21 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           root: next,
           focusId,
         })),
+      }))
+  },
+
+  deletePane: (paneId) => {
+    const s = get()
+    const ws = activeWs(s)
+    const next = deletePane(ws.root, paneId)
+    if (next === ws.root)
+      return
+    const leaves = leafList(next)
+    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    runPaneMorph([paneId], () =>
+      set({
+        workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
+        ...clearedSelection,
       }))
   },
 
@@ -838,6 +855,7 @@ interface Actions {
   hydrate: (session: { meta: SessionMeta, photos: Photo[] }) => void
   split: (paneId: string, dir: 'row' | 'column') => void
   closePane: (paneId: string) => void
+  deletePane: (paneId: string) => void
   resizeSplit: (splitId: string, ratio: number) => void
   assign: (paneId: string, photoId: string) => void
   assignMany: (photoIds: string[]) => void

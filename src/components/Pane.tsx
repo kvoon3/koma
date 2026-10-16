@@ -7,6 +7,7 @@ import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { usePreview } from '../hooks'
+import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { pickPhotoForPane } from '../lib/paneCommands'
 import { clampLeaf, photoNorm, placement, seamFadeWidth, seamMaskStyle } from '../lib/panes'
@@ -751,7 +752,10 @@ function swapOverAtEl(rt: PaneGestureRuntime, x: number, y: number) {
   const el = document.elementsFromPoint(x, y)
     .map(n => n.closest<HTMLElement>('[data-pane-id]'))
     .find(n => n != null) ?? null
-  const target = el && el.dataset.paneId !== rt.paneId ? el : null
+  // The delete strip under the top bar wins over any pane beneath it.
+  const onZone = overDeleteZone(x, y)
+  setDeleteZone(true, onZone)
+  const target = !onZone && el && el.dataset.paneId !== rt.paneId ? el : null
   if (rt.overRef.current !== target) {
     clearSwapOverEl(rt.overRef)
     if (target) {
@@ -769,8 +773,16 @@ function swapOverAtEl(rt: PaneGestureRuntime, x: number, y: number) {
  */
 function finishSwapDrag(rt: SwapDropCtx, commit: boolean) {
   const targetId = rt.overRef.current?.dataset.paneId
+  const toDelete = useDeleteZone.getState().over
+  setDeleteZone(false)
   clearSwapOverEl(rt.overRef)
   document.body.style.cursor = ''
+  if (commit && toDelete) {
+    navigator.vibrate?.(10)
+    rt.setSwapAt(null)
+    useStore.getState().deletePane(rt.paneId)
+    return
+  }
   if (commit && targetId) {
     navigator.vibrate?.(10)
     const sourceId = rt.paneId

@@ -435,4 +435,5 @@ export const zhHant: Record<string, string> = {
   'No image files found': '找不到任何圖片檔',
   'Library cleared': '素材庫已清空',
   'Fonts unavailable, used system fallback: {names}': '字體無法使用，已改用系統字體：{names}',
+  'Drop here to delete': '拖到這裡刪除',
 }

@@ -451,4 +451,5 @@ export const zhHans: Record<string, string> = {
   'No image files found': '没有找到图片文件',
   'Library cleared': '素材库已清空',
   'Fonts unavailable, used system fallback: {names}': '字体不可用，已改用系统字体：{names}',
+  'Drop here to delete': '拖到这里删除',
 }
