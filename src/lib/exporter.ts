@@ -6,7 +6,7 @@ import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fo
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, labelIconNode, loadLabelIcon } from './labelIcons'
-import { boardStickerRect, labelPaint, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
+import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, labelRect, layoutTree, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -71,9 +71,11 @@ interface Prepared {
   u: number
   gap: number
   radius: number
+  /** Effective crossfade width (EDGE_FADE × strength); 0 when gap>0 or blend off. */
   fade: number
   seam: Map<string, SeamSides>
-  cells: { leaf: Leaf, rect: Rect, photo: Photo }[]
+  /** `rect` is the expanded draw box; `layout` is the pre-overlap layout cell for placement. */
+  cells: { leaf: Leaf, rect: Rect, layout: Rect, photo: Photo }[]
   labels: PaneLabel[]
 }
 
@@ -81,9 +83,9 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
   const u = Math.min(W, H) / 1000
   const gap = opts.gap * u
   const l = layoutTree(opts.root, W, H, gap)
-  // Backdrop blend: pane edges feather into the shared blurred field drawn
-  // behind everything; width 0 turns the whole treatment off.
-  const fade = opts.edgeFade * u
+  // Crossfade: neighbors overlap by fade and use opposing masks (gap>0 skips).
+  const fade = blendFadePx(opts.edgeFade * u, opts.edgeFadeStrength, gap)
+  const seam = fade > 0 ? seamSides(l.leaves, gap) : new Map()
   const cells: Prepared['cells'] = []
   for (const { node, rect } of l.leaves) {
     if (!node.photoId)
@@ -91,7 +93,13 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
     const photo = opts.photos.get(node.photoId)
     if (!photo?.trueW)
       continue
-    cells.push({ leaf: node, rect, photo })
+    const sides = seam.get(node.id)
+    cells.push({
+      leaf: node,
+      layout: rect,
+      rect: expandRectForBlend(rect, sides, fade),
+      photo,
+    })
   }
   return {
     W,
@@ -100,17 +108,17 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
     gap,
     radius: opts.radius * u,
     fade,
-    seam: fade > 0 ? seamSides(l.leaves, gap) : new Map(),
+    seam,
     cells,
     labels: (opts.labels ?? []).filter(l => l.text.trim()),
   }
 }
 
 /**
- * Draw one photo with feathered seam edges: painted into a scratch canvas,
- *  alpha-masked per seam edge with successive destination-in gradient fills
- *  (each fill multiplies the alpha, so edges combine), then stamped into the
- *  pane rect. The caller's roundRect clip still rounds the corners.
+ * Draw one photo with opposing seam fades for crossfade: scratch + destination-in
+ * gradients per seam edge, then stamped into the (possibly expanded) pane rect.
+ * Pair with globalCompositeOperation "lighter" so complementary alphas mix
+ * instead of punching through to the gap fill.
  */
 function drawFadedPhoto(
   ctx: CanvasRenderingContext2D,
@@ -196,55 +204,20 @@ async function resolveSources(wanted: Photo[], sources: FullSourceBatch): Promis
 }
 
 /**
- * Shared backdrop under feathered pane edges. Seam photos are stamped opaque
- * and leaf-clipped onto an offscreen canvas, then that whole field is blurred
- * once onto the board. Blurring each photo alone softens into transparent over
- * gap fill (near-black join). An opaque per-leaf underlay under per-photo blur
- * blocks black but flattens the crossfade. Composite-then-blur keeps an opaque
- * soft mix of both sides. Mirrors SeamBackdrop in the Stage preview.
- */
-function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, src: Map<Photo, FullSource | null>) {
-  if (prep.fade <= 0)
-    return
-  const R = Math.max(prep.u * 40, prep.fade)
-  const off = document.createElement('canvas')
-  off.width = prep.W
-  off.height = prep.H
-  const octx = off.getContext('2d')!
-  octx.imageSmoothingQuality = 'high'
-  for (const { leaf, rect, photo } of prep.cells) {
-    const seam = prep.seam.get(leaf.id)
-    if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
-      continue
-    const full = src.get(photo)
-    if (!full)
-      continue
-    const p = placement(rect, leaf, photo.trueW, photo.trueH)
-    octx.save()
-    octx.beginPath()
-    octx.rect(rect.x, rect.y, rect.w, rect.h)
-    octx.clip()
-    octx.drawImage(full.src, p.x, p.y, p.w, p.h)
-    octx.restore()
-  }
-  ctx.save()
-  ctx.globalAlpha = Math.max(0, Math.min(1, opts.edgeFadeStrength / 100))
-  if (typeof ctx.filter === 'string')
-    ctx.filter = `blur(${R}px)`
-  ctx.drawImage(off, 0, 0)
-  ctx.restore()
-}
-
-/**
  * Clip each photo into its pane and draw it placed (feathered at seams).
  * Board stickers are drawn later, unclipped.
  */
 function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: ExportOptions, src: Map<Photo, FullSource | null>) {
-  for (const { leaf, rect, photo } of prep.cells) {
+  // Opposing masks + lighter: complementary alphas add to a true crossfade
+  // (source-over would darken toward the gap fill under the fade).
+  const crossfade = prep.fade > 0
+  if (crossfade)
+    ctx.globalCompositeOperation = 'lighter'
+  for (const { leaf, rect, layout, photo } of prep.cells) {
     const full = src.get(photo)
     if (!full)
       continue
-    const p = placement(rect, leaf, photo.trueW, photo.trueH)
+    const p = placement(layout, leaf, photo.trueW, photo.trueH)
     ctx.save()
     roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
     ctx.clip()
@@ -255,6 +228,8 @@ function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: Ex
       ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
     ctx.restore()
   }
+  if (crossfade)
+    ctx.globalCompositeOperation = 'source-over'
 }
 
 /** Draw board-level stickers over the whole collage (not clipped to panes). */
@@ -367,8 +342,7 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     // the draws share one 2D context, so their order is the output.
     const stickers = opts.stickers ?? []
     const src = await resolveSources(paintPhotos(prep, opts.photos, stickers), sources)
-    // The blurred field goes under the panes; their feathered edges melt into it.
-    drawBackdrop(ctx, prep, opts, src)
+    // Overlap + opposing fades with lighter compositing (true crossfade).
     drawPhotoCells(ctx, prep, opts, src)
     drawBoardStickers(ctx, prep, stickers, opts.photos, src)
     await ensureLabelFonts(prep)
@@ -544,8 +518,8 @@ function drawLiveCell(
   _opts: ExportOptions,
   _src: Map<Photo, FullSource | null>,
 ) {
-  const { leaf, rect } = cell
-  const p = placement(rect, leaf, v.videoWidth, v.videoHeight)
+  const { leaf, rect, layout } = cell
+  const p = placement(layout, leaf, v.videoWidth, v.videoHeight)
   ctx.save()
   roundRect(ctx, rect.x, rect.y, rect.w, rect.h, prep.radius)
   ctx.clip()
@@ -647,12 +621,12 @@ export function buildCropReport(opts: ExportOptions): string {
   lines.push('# Save as crop.sh and run it in the photos directory to batch-crop the same framing')
   lines.push('')
 
-  prep.cells.forEach(({ leaf, rect, photo }, i) => {
-    const p = placement(rect, leaf, photo.trueW, photo.trueH)
-    let sx = Math.round((rect.x - p.x) / p.scale)
-    let sy = Math.round((rect.y - p.y) / p.scale)
-    let sw = Math.round(rect.w / p.scale)
-    let sh = Math.round(rect.h / p.scale)
+  prep.cells.forEach(({ leaf, layout, photo }, i) => {
+    const p = placement(layout, leaf, photo.trueW, photo.trueH)
+    let sx = Math.round((layout.x - p.x) / p.scale)
+    let sy = Math.round((layout.y - p.y) / p.scale)
+    let sw = Math.round(layout.w / p.scale)
+    let sh = Math.round(layout.h / p.scale)
     sx = Math.max(0, Math.min(photo.trueW - 1, sx))
     sy = Math.max(0, Math.min(photo.trueH - 1, sy))
     sw = Math.max(1, Math.min(photo.trueW - sx, sw))

@@ -69,7 +69,12 @@ function PanePhotoContent({
         <div
           data-photo-clip=""
           className={`absolute inset-0 overflow-hidden transition-opacity duration-(--dur-surface) ${carried ? ' opacity-25' : ''}`}
-          style={{ ...mask, borderRadius: radius }}
+          style={{
+            ...mask,
+            borderRadius: radius,
+            // Complementary seam alphas must add (not source-over onto black).
+            mixBlendMode: mask ? 'plus-lighter' : undefined,
+          }}
         >
           <img
             src={preview.url}
@@ -392,7 +397,10 @@ function PaneOutline({
 
 interface Props {
   leaf: Leaf
+  /** Visual box (expanded into seams when blend is on). */
   rect: Rect
+  /** Pre-overlap layout cell for photo placement; defaults to `rect`. */
+  layoutRect?: Rect
   radius: number
   bordered: boolean
   fade: number
@@ -445,7 +453,13 @@ function PaneLivePhoto({
     return null
   return (
     <>
-      <div className="absolute inset-0" style={mask}>
+      <div
+        className="absolute inset-0"
+        style={{
+          ...mask,
+          mixBlendMode: mask ? 'plus-lighter' : undefined,
+        }}
+      >
         {/* The peek plays muted: the export's own recording is silent too (a
             canvas capture carries no audio), and a silent layer is allowed to
             start without waiting on the browser's audio permission. */}
@@ -1316,6 +1330,7 @@ function usePaneDrop({
 function PaneImpl({
   leaf,
   rect,
+  layoutRect,
   radius,
   bordered,
   fade,
@@ -1344,7 +1359,8 @@ function PaneImpl({
 
   const iw = preview?.w ?? 0
   const ih = preview?.h ?? 0
-  const cell: Rect = rect
+  // Placement stays on the layout cell so enabling blend does not reframe the photo.
+  const cell: Rect = layoutRect ?? rect
   const place = iw && ih ? placement(cell, leaf, iw, ih) : null
 
   const toCanvas = useCallback(

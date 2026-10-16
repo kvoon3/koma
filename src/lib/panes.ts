@@ -409,6 +409,40 @@ export function seamFadeWidth(fade: number, rect: Rect) {
   return Math.max(0, Math.min(fade, rect.w / 2, rect.h / 2))
 }
 
+/**
+ * Fade px used for crossfade overlap. Strength scales intensity; gap>0
+ * disables overlap so intentional gutters keep solid gap fill.
+ */
+export function blendFadePx(fade: number, strength: number, gap: number) {
+  if (gap > 0 || fade <= 0 || strength <= 0)
+    return 0
+  return fade * Math.min(1, Math.max(0, strength / 100))
+}
+
+/**
+ * Grow a layout rect into each photo-photo seam by half the fade so neighbors
+ * overlap; opposing masks then crossfade sharp photos in that band.
+ */
+export function expandRectForBlend(rect: Rect, seam: SeamSides | undefined, fadePx: number): Rect {
+  if (!seam || fadePx <= 0)
+    return rect
+  const g = seamFadeWidth(fadePx, rect) / 2
+  let { x, y, w, h } = rect
+  if (seam.left) {
+    x -= g
+    w += g
+  }
+  if (seam.right)
+    w += g
+  if (seam.top) {
+    y -= g
+    h += g
+  }
+  if (seam.bottom)
+    h += g
+  return { x, y, w, h }
+}
+
 /** CSS mask feathering a pane's seam edges; undefined when nothing fades. */
 export function seamMaskStyle(seam: SeamSides | undefined, w: number): CSSProperties | undefined {
   if (!seam || w <= 0)

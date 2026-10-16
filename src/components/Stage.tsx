@@ -1,15 +1,15 @@
 import type { IconInput } from 'morphicons/react'
 import type { Photo } from '../lib/imageStore'
-import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { Divider, PaneLabel, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, ChevronUp, Columns2, CopyPlus, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RotateCcw, Scaling, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, WandSparkles, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, useMediaQuery, usePreview } from '../hooks'
+import { useElementSize, useMediaQuery } from '../hooks'
 import { useT } from '../lib/i18n'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
-import { dividerLine, placement, ratioFromPointer, seamSides } from '../lib/panes'
+import { blendFadePx, dividerLine, expandRectForBlend, ratioFromPointer, seamSides } from '../lib/panes'
 import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { BoardInserts } from './BoardInserts'
@@ -336,15 +336,13 @@ export function Stage() {
             className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
             style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
           >
-            <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
-
             <PaneLayers
               view={view}
               seams={seams}
               photoById={photoById}
               focusId={focusId}
               paneBorder={paneBorder}
-              paneFade={paneFade}
+              paneFade={blendFadePx(paneFade, fadeStrength, view.gap)}
               onFocus={focus}
               onUpdate={updateLeaf}
               onSplit={split}
@@ -407,94 +405,6 @@ export function Stage() {
   )
 }
 
-/**
- * One seam photo stamped opaque and clipped to its leaf. The parent
- * SeamBackdrop applies one blur to the composited field so adjacent photos
- * soft-mix without punching gap fill.
- */
-function BackdropLeaf({ leaf, rect, photo }: {
-  leaf: Leaf
-  rect: Rect
-  photo: Photo
-}) {
-  const preview = usePreview(photo)
-  if (!preview)
-    return null
-  const place = placement(rect, leaf, preview.w, preview.h)
-  return (
-    <div
-      className="pointer-events-none absolute overflow-hidden"
-      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
-    >
-      <img
-        src={preview.url}
-        alt=""
-        draggable={false}
-        className="pointer-events-none absolute block max-w-none"
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          transformOrigin: '0 0',
-          transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
-        }}
-      />
-    </div>
-  )
-}
-
-/**
- * Shared backdrop under feathered pane edges: opaque leaf stamps composited,
- * then one CSS blur on the whole field (same idea as export drawBackdrop).
- * Shared with the 3×3 workspace preview (WorkspaceGrid).
- */
-export function SeamBackdrop({ leaves, photoById, radius, opacity, gap = 0 }: {
-  leaves: { node: Leaf, rect: Rect }[]
-  photoById: Map<string, Photo>
-  radius: number
-  opacity: number
-  gap?: number
-}) {
-  // Backdrop only where a photo seam exists; panes without a
-  // photo-bearing neighbor skip it, so empty neighbors stay blank
-  // instead of bleeding a blurred copy of the filled pane.
-  const seams = useMemo(() => seamSides(leaves, gap), [leaves, gap])
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 overflow-hidden"
-      style={{ opacity, filter: `blur(${radius}px)` }}
-    >
-      {leaves.map(({ node, rect }) => {
-        const photo = node.photoId ? photoById.get(node.photoId) : undefined
-        const seam = seams.get(node.id)
-        if (!photo || !seam || !(seam.left || seam.right || seam.top || seam.bottom))
-          return null
-        return <BackdropLeaf key={node.id} leaf={node} rect={rect} photo={photo} />
-      })}
-    </div>
-  )
-}
-
-/** The shared blurred backdrop layer, drawn only while the edge fade is on. */
-function SeamLayer({ view, photoById, paneFade, fadeStrength }: {
-  view: Derived
-  photoById: Map<string, Photo>
-  paneFade: number
-  fadeStrength: number
-}) {
-  if (paneFade <= 0)
-    return null
-  return (
-    <SeamBackdrop
-      leaves={view.leaves}
-      photoById={photoById}
-      radius={Math.max(view.unit * 40, view.fade)}
-      opacity={fadeStrength / 100}
-      gap={view.gap}
-    />
-  )
-}
-
 /** The photo panes themselves: one `Pane` per leaf of the layout. */
 function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onFocus, onUpdate, onSplit, onClose }: {
   view: Derived
@@ -510,26 +420,33 @@ function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, onF
 }) {
   return (
     <>
-      {view.leaves.map(({ node, rect }) => (
-        <Pane
-          key={node.id}
-          leaf={node}
-          rect={rect}
-          radius={view.radius}
-          bordered={paneBorder}
-          fade={paneFade}
-          seam={seams.get(node.id)}
-          unit={view.unit}
-          photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
-          photoById={photoById}
-          focused={focusId === node.id}
-          canClose={view.leaves.length > 1}
-          onFocus={onFocus}
-          onUpdate={onUpdate}
-          onSplit={onSplit}
-          onClose={onClose}
-        />
-      ))}
+      {view.leaves.map(({ node, rect }) => {
+        const seam = seams.get(node.id)
+        // Only photo panes overlap; empty panes stay put so they do not cover the blend.
+        const draw = node.photoId ? expandRectForBlend(rect, seam, paneFade) : rect
+        const fade = node.photoId ? paneFade : 0
+        return (
+          <Pane
+            key={node.id}
+            leaf={node}
+            layoutRect={rect}
+            rect={draw}
+            radius={view.radius}
+            bordered={paneBorder}
+            fade={fade}
+            seam={seam}
+            unit={view.unit}
+            photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
+            photoById={photoById}
+            focused={focusId === node.id}
+            canClose={view.leaves.length > 1}
+            onFocus={onFocus}
+            onUpdate={onUpdate}
+            onSplit={onSplit}
+            onClose={onClose}
+          />
+        )
+      })}
     </>
   )
 }

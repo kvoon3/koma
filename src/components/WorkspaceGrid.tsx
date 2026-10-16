@@ -14,11 +14,10 @@ import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
-import { boardStickerRect, labelPaint, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
+import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, layoutTree, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { isTransparentBg, useStore } from '../store'
 import { LabelIconGlyph } from './BoardLabel'
-import { SeamBackdrop } from './Stage'
 import { Tip } from './ui/tip'
 
 // Virtual canvas short side for preview layout math. Any value works; the
@@ -81,7 +80,8 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
   const radius = useStore(s => s.radius)
   const iw = preview?.w ?? 0
   const ih = preview?.h ?? 0
-  const cell: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
+  const layout: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
+  const cell = leaf.photoId ? expandRectForBlend(layout, seam, fade) : layout
   const style: React.CSSProperties = {
     left: cell.x,
     top: cell.y,
@@ -90,17 +90,20 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
     borderRadius: radius * unit,
   }
   const place = iw && ih
-    ? placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
+    ? placement(layout, leaf, iw, ih)
     : null
-  // Blend: the same seam feather the editor's panes use, scaled to the cell.
-  const mask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
-  // No pane background: like the editor, the blurred field shows through the
-  // feathered seam edges (an opaque leaf would hide the blend).
+  const mask = leaf.photoId ? seamMaskStyle(seam, seamFadeWidth(fade, layout)) : undefined
   return (
     <div className={`absolute overflow-hidden ${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`} style={style}>
       {preview && place
         ? (
-            <div className="absolute inset-0" style={mask}>
+            <div
+              className="absolute inset-0"
+              style={{
+                ...mask,
+                mixBlendMode: mask ? 'plus-lighter' : undefined,
+              }}
+            >
               <img
                 src={preview.url}
                 alt=""
@@ -111,7 +114,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, photoById }: {
                   left: 0,
                   top: 0,
                   transformOrigin: '0 0',
-                  transform: `translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
+                  transform: `translate(${place.x - cell.x}px, ${place.y - cell.y}px) scale(${place.scale})`,
                 }}
               />
             </div>
@@ -144,9 +147,8 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
   const ph = VH * k
   // Font/radius unit follows the canvas short edge, like the editor.
   const unit = (Math.min(VW, VH) / 1000) * k
-  // Backdrop blend, scaled down from the editor: pane edges feather into a
-  // shared blurred field behind them; width 0 turns the whole treatment off.
-  const fade = edgeFade * unit
+  // Crossfade overlap, scaled like the editor (gap is always 0 in overview cells).
+  const fade = blendFadePx(edgeFade * unit, fadeStrength, 0)
   const seams = useMemo(() => seamSides(view.leaves, 0), [view])
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -159,17 +161,6 @@ function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels 
           background: isTransparentBg(bg) ? undefined : bg,
         }}
       >
-        {fade > 0 && (
-          <SeamBackdrop
-            leaves={view.leaves.map(({ node, rect }) => ({
-              node,
-              rect: { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k },
-            }))}
-            photoById={photoById}
-            radius={Math.max(unit * 40, fade)}
-            opacity={fadeStrength / 100}
-          />
-        )}
         {view.leaves.map(({ node, rect }) => (
           <PreviewLeaf
             key={node.id}
