@@ -18,10 +18,9 @@ import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labe
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { gridStep, MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
-import { GridDockTool } from './AppearanceTools'
 import { LabelIconGlyph } from './BoardLabel'
 import { DeleteZone } from './DeleteZone'
-import { SeamBackdrop } from './Stage'
+import { DockToolset, SeamBackdrop } from './Stage'
 import { ToolsDock } from './ToolsDock'
 import { Tip } from './ui/tip'
 
@@ -512,7 +511,7 @@ export function WorkspaceGrid() {
 
       {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage. */}
       <ToolsDock hidden={false} contextKey="grid">
-        <GridDockTool />
+        <DockToolset route="grid" />
       </ToolsDock>
     </div>
   )
