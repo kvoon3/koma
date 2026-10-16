@@ -6,7 +6,7 @@ import { Switch } from '@base-ui/react/switch'
 import { Frame, Grid3x3, ImagePlus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useRef, useState } from 'react'
-import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField } from '@/components/ui/field'
+import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField, SegmentedField } from '@/components/ui/field'
 import { useThumb } from '../hooks'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
@@ -25,7 +25,6 @@ const swatch = 'box-border grid h-[26px] w-[30px] cursor-pointer place-items-cen
 const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--panel)]'
 const popup = `${menuSurfaceCls} ${dockPopupMotionCls} w-[min(320px,calc(100vw-24px))] max-h-[min(70dvh,480px)] overflow-y-auto overscroll-contain p-3.5`
 const fields = 'flex min-w-0 flex-col gap-[7px]'
-const segment = 'box-border min-h-[26px] cursor-pointer rounded-none border-0 border-l border-line-strong bg-transparent px-2 text-[11.5px] font-semibold text-dim transition-colors duration-(--dur-fast) first:border-l-0 hover:text-txt data-checked:bg-accent data-checked:text-white focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
 const heading = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
 
 /** One library photo as a background choice. */
@@ -126,19 +125,12 @@ export function AppearanceDockTools() {
             </div>
             <section className={fields}>
               <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Background')}</span>
-                <RadioGroup
-                  className={`${fieldControlCls} col-span-2 grid grid-cols-3 border border-line-strong sm:col-span-2`}
-                  aria-label={t('Background')}
-                  value={kind}
-                  onValueChange={next => setKind(next as BgKind)}
-                >
-                  {([['solid', t('Solid')], ['gradient', t('Gradient')], ['image', t('Image')]] as const).map(([v, label]) => (
-                    <Radio.Root key={v} value={v} className={segment}>{label}</Radio.Root>
-                  ))}
-                </RadioGroup>
-              </div>
+              <SegmentedField
+                label={t('Background')}
+                value={kind}
+                items={[{ value: 'solid', label: t('Solid') }, { value: 'gradient', label: t('Gradient') }, { value: 'image', label: t('Image') }]}
+                onChange={setKind}
+              />
               {kind !== 'image' && (
                 <div className={fieldRowCls}>
                   <span className={fieldLabelCls}>{kind === 'gradient' ? t('Gradient start color') : t('Color')}</span>

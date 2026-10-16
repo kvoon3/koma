@@ -1,3 +1,5 @@
+import { Radio } from '@base-ui/react/radio'
+import { RadioGroup } from '@base-ui/react/radio-group'
 import { Select } from '@base-ui/react/select'
 import { Slider } from '@base-ui/react/slider'
 import { Check, ChevronDown } from 'lucide'
@@ -149,6 +151,36 @@ export function SelectField({ label, value, items, onChange }: {
           </Select.Positioner>
         </Select.Portal>
       </Select.Root>
+    </div>
+  )
+}
+
+const segmentCls = 'box-border min-h-[26px] min-w-0 cursor-pointer truncate rounded-none border-0 border-l border-line-strong bg-panel-2 px-2 text-xs text-dim transition-colors duration-(--dur-fast) first:border-l-0 hover:bg-chip-hover hover:text-txt data-checked:bg-chip-on data-checked:font-semibold data-checked:text-chip-on-txt data-checked:shadow-[inset_0_-2px_0_var(--accent)] data-checked:hover:bg-chip-on data-checked:hover:text-chip-on-txt focus-visible:outline-1 focus-visible:-outline-offset-2 focus-visible:outline-accent'
+
+/**
+ * A labelled single-choice segmented control: equal-width options in one
+ * bordered strip, the checked one in the dock's selected-chip colors.
+ */
+export function SegmentedField<V extends string>({ label, value, items, onChange }: {
+  label: string
+  value: V
+  items: readonly { value: V, label: string }[]
+  onChange: (value: V) => void
+}) {
+  return (
+    <div className={fieldRowCls}>
+      <span className={fieldLabelCls}>{label}</span>
+      <RadioGroup
+        className={`${fieldControlCls} col-span-2 grid border border-line-strong sm:col-span-2`}
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+        aria-label={label}
+        value={value}
+        onValueChange={v => onChange(v as V)}
+      >
+        {items.map(item => (
+          <Radio.Root key={item.value} value={item.value} className={segmentCls}>{item.label}</Radio.Root>
+        ))}
+      </RadioGroup>
     </div>
   )
 }
