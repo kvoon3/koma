@@ -18,16 +18,16 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 6', () => {
-    expect(SETTINGS_VERSION).toBe(6)
+  test('version is 7', () => {
+    expect(SETTINGS_VERSION).toBe(7)
   })
-  test('v1 → v2 adds dock defaults and starts collapsed', () => {
+  test('v1 → v2 adds dock defaults and starts in row', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toMatchObject({
       gap: 2,
       blendCrossfade: false,
       dockBg: DOCK_BG,
       dockOpacity: DOCK_OPACITY,
-      toolsDockMode: 'collapsed',
+      toolsDockMode: 'row',
     })
   })
   test('v2 values are kept', () => {
@@ -39,11 +39,11 @@ describe('migrateSettings v2 (dock)', () => {
     expect(migrateSettings({ dockBg: 'neon', dockOpacity: 400, toolsDockMode: 'huge' }, 2)).toMatchObject({
       dockBg: DOCK_BG,
       dockOpacity: 100,
-      toolsDockMode: 'collapsed',
+      toolsDockMode: 'row',
     })
   })
   test('null persisted state', () => {
-    expect(migrateSettings(null, 0).toolsDockMode).toBe('collapsed')
+    expect(migrateSettings(null, 0).toolsDockMode).toBe('row')
   })
 })
 
@@ -64,12 +64,18 @@ describe('migrateSettings v5', () => {
     expect(migrateSettings({ dockBg: 'frosted' }, 4).dockBg).toBe('solid')
     expect(migrateSettings({ dockBg: 'liquid' }, 4).dockBg).toBe('liquid')
   })
+
+  test('v5 → v6 resets the saved dock mode to row once', () => {
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 5).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'expanded' }, 5).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('collapsed')
+  })
 })
 
-describe('migrateSettings v6', () => {
+describe('migrateSettings v7', () => {
   test('adds the 1:1 grid cell ratio; keeps valid, fixes invalid', () => {
-    expect(migrateSettings({}, 5).gridCellRatio).toBe('1:1')
-    expect(migrateSettings({ gridCellRatio: '4:5' }, 5).gridCellRatio).toBe('4:5')
-    expect(migrateSettings({ gridCellRatio: '2:1' }, 5).gridCellRatio).toBe('1:1')
+    expect(migrateSettings({}, 6).gridCellRatio).toBe('1:1')
+    expect(migrateSettings({ gridCellRatio: '4:5' }, 6).gridCellRatio).toBe('4:5')
+    expect(migrateSettings({ gridCellRatio: '2:1' }, 6).gridCellRatio).toBe('1:1')
   })
 })
