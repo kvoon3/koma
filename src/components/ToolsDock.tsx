@@ -234,7 +234,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     >
       <Drawer.Portal keepMounted>
         <Drawer.Viewport
-          className={`tools-dock fixed inset-0 z-30 flex items-end pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
+          className={`tools-dock fixed inset-0 z-(--z-dock) flex items-end pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
             hidden ? 'opacity-0' : 'opacity-100'
           }`}
           inert={hidden || undefined}

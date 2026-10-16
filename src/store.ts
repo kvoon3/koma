@@ -108,8 +108,18 @@ export const RADIUS = 0
 export const BG = '#000000'
 export const EDGE_FADE = 60
 export const EDGE_FADE_STRENGTH = 100
-export const BLEND_CROSSFADE = false
+export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
+
+export const SETTINGS_VERSION = 1
+
+/** Persisted-settings migration (zustand `persist`); pure for unit tests. */
+export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
+  const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
+  if (version < 1)
+    p.blendCrossfade = BLEND_CROSSFADE
+  return p
+}
 export const MIN_PANE_PX = 56
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
@@ -710,6 +720,11 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // Visual settings survive reloads; the rest of the state (workspaces,
   // photos) stays session-only.
   name: 'collage:settings',
+  // v1: crossfade became the default blend. v0 always persisted
+  // `blendCrossfade: false` (the old default) even if never touched, so it
+  // cannot be told apart from an explicit choice: reset it to the new default.
+  version: SETTINGS_VERSION,
+  migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
     gridGap: state.gridGap,
