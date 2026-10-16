@@ -1,11 +1,11 @@
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
-import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, MouseSensor, pointerWithin, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Camera, LayoutDashboard, LoaderCircle } from 'lucide'
+import { Camera, LayoutDashboard, LoaderCircle, Plus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -16,9 +16,11 @@ import { useT } from '../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
 import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
+import { gridStep, MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
 import { GridDockTool } from './AppearanceTools'
 import { LabelIconGlyph } from './BoardLabel'
+import { DeleteZone } from './DeleteZone'
 import { SeamBackdrop } from './Stage'
 import { ToolsDock } from './ToolsDock'
 import { Tip } from './ui/tip'
@@ -285,18 +287,19 @@ function dirForKey(k: string): NavDir | null {
   return null
 }
 
-function step(from: number, dir: 'left' | 'right' | 'up' | 'down' | 'next') {
-  if (dir === 'next')
-    return (from + 1) % 9
-  const r = Math.floor(from / 3)
-  const c = from % 3
-  if (dir === 'left')
-    return r * 3 + ((c + 2) % 3)
-  if (dir === 'right')
-    return r * 3 + ((c + 1) % 3)
-  if (dir === 'up')
-    return ((r + 2) % 3) * 3 + c
-  return ((r + 1) % 3) * 3 + c
+const DELETE_ZONE_ID = '__delete__'
+
+/**
+ * The delete strip is hit by the pointer itself (it sits outside the grid, so
+ * closestCenter would never pick it, and must not steal near-top drops);
+ * every other drop keeps the sortable's closestCenter over the cells only.
+ */
+const deleteFirst: CollisionDetection = (args) => {
+  const zone = args.droppableContainers.filter(c => c.id === DELETE_ZONE_ID)
+  const hit = pointerWithin({ ...args, droppableContainers: zone })
+  if (hit.length)
+    return hit
+  return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(c => c.id !== DELETE_ZONE_ID) })
 }
 
 /**
@@ -358,12 +361,12 @@ export function WorkspaceGrid() {
       const dirKey = dirForKey(k)
       if (dirKey) {
         e.preventDefault()
-        setHl(step(hlRef.current, dirKey))
+        setHl(gridStep(hlRef.current, dirKey, useStore.getState().workspaces.length))
         return
       }
       if (k === 'Tab') {
         e.preventDefault()
-        setHl(step(hlRef.current, 'next'))
+        setHl(gridStep(hlRef.current, 'next', useStore.getState().workspaces.length))
         return
       }
       if (k === 'Enter') {
@@ -383,9 +386,13 @@ export function WorkspaceGrid() {
   // that tracks the pointer 1:1 while the remaining cells translate to make
   // room (rectSortingStrategy), and the drop commits via moveWorkspace.
   const [dragId, setDragId] = useState<string | null>(null)
-  const sensors = useSensors(useSensor(PointerSensor, {
-    activationConstraint: { distance: 5 },
-  }))
+  // Mouse drags after 5px; touch is a long press, like the stage carry. The
+  // TouchSensor adds the non-passive touchmove iOS Safari needs, so the
+  // browser can't claim the touch (pointercancel) before the drag arms.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  )
   // Suppress the click that follows a finished drag; it must not enter.
   const dragEndedAtRef = useRef(0)
 
@@ -397,6 +404,11 @@ export function WorkspaceGrid() {
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragId(null)
     dragEndedAtRef.current = Date.now()
+    if (over?.id === DELETE_ZONE_ID) {
+      navigator.vibrate?.(10)
+      useStore.getState().removeWorkspace(String(active.id))
+      return
+    }
     if (!over || active.id === over.id)
       return
     const arr = useStore.getState().workspaces
@@ -407,20 +419,24 @@ export function WorkspaceGrid() {
   }
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const cell = Math.max(60, Math.floor(
+  const fit = Math.max(60, Math.floor(
     Math.min(
       (wrapSize.w - 48 - gridGap * 2) / 3,
       (wrapSize.h - 48 - SNAP_ROW_H - gridGap * 2) / 3,
       GRID_CELL_MAX,
     ),
   ))
+  // Centering an odd leftover put every cell on a half pixel, where 1px
+  // edges snap unevenly (the + cell's dashed right edge vanished). One px
+  // less flips the board's parity, so the cells land on whole pixels.
+  const cell = fit > 60 && (wrapSize.w - (fit * 3 + gridGap * 2)) % 2 !== 0 ? fit - 1 : fit
   const box = { w: cell, h: cell }
 
   return (
     <div ref={wrapRef} className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden">
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={deleteFirst}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
@@ -429,17 +445,18 @@ export function WorkspaceGrid() {
           dragEndedAtRef.current = Date.now()
         }}
       >
+        <GridDeleteZone active={!!dragId} label={t('Drop here to delete')} />
         <SortableContext items={ids} strategy={rectSortingStrategy}>
           {/* The snapshot chip sits above the grid, as part of the same group:
               it takes layout space, so the centered board never grows past
               the stage or clips the chip. */}
           <div className="flex flex-col items-center gap-3">
             <Tip
-              label={t('Snapshot all nine workspaces as one image')}
+              label={t('Snapshot all workspaces as one image')}
               trigger={(
                 <button
                   className={snapBtnCls}
-                  aria-label={t('Snapshot all nine workspaces as one image')}
+                  aria-label={t('Snapshot all workspaces as one image')}
                   disabled={!anyFilled || busy || snapBusy}
                   onClick={() => {
                     setSnapBusy(true)
@@ -474,6 +491,7 @@ export function WorkspaceGrid() {
                   }}
                 />
               ))}
+              {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} />}
             </div>
           </div>
         </SortableContext>
@@ -497,6 +515,33 @@ export function WorkspaceGrid() {
         <GridDockTool />
       </ToolsDock>
     </div>
+  )
+}
+
+function GridDeleteZone({ active, label }: { active: boolean, label: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: DELETE_ZONE_ID })
+  return <DeleteZone setRef={setNodeRef} active={active} over={isOver} label={label} />
+}
+
+/** The + cell after the last workspace: adds a blank one. Not sortable. */
+function AddCell({ cell }: { cell: number }) {
+  const t = useT()
+  return (
+    <button
+      data-add-cell=""
+      className="relative grid cursor-pointer select-none place-items-center border-0 bg-transparent p-0 text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-txt"
+      style={{ width: cell, height: cell }}
+      aria-label={t('Add a workspace')}
+      title={t('Add a workspace')}
+      onClick={() => useStore.getState().addWorkspace()}
+    >
+      {/* The dashed frame is drawn, not a CSS border: an SVG rect inset by
+          half its stroke keeps all four edges inside the box at any offset. */}
+      <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full overflow-visible text-line-strong">
+        <rect x="0.5" y="0.5" width={cell - 1} height={cell - 1} fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" shapeRendering="crispEdges" />
+      </svg>
+      <MorphIcon icon={Plus} size={26} strokeWidth={1.75} />
+    </button>
   )
 }
 

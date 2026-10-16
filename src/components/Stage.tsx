@@ -17,6 +17,7 @@ import { AppearanceDockTools } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
+import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
 import { StickerMakerDialog } from './StickerMakerDialog'
 import { toolsBtnCls, ToolsDock, toolsLabelCls } from './ToolsDock'
@@ -312,6 +313,7 @@ export function Stage() {
       ref={wrapRef}
       className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragId ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
     >
+      <DeleteZone label={t('Drop here to delete')} />
       <CanvasMenu>
         <div
           className="flex min-h-0 w-full flex-1 items-center justify-center"
