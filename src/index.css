@@ -252,6 +252,10 @@ html.dark {
   @media (pointer: coarse) {
     :root { --statusH: 44px; }
   }
+
+  @media (pointer: coarse) and (max-width: 639px) {
+    :root { --statusH: 40px; }
+  }
 }
 
 /*
