@@ -135,4 +135,71 @@ function flag(s: { left: boolean, right: boolean, top: boolean, bottom: boolean 
   }
 }
 
-console.log('check-seams: OK')
+// 10. Integer-snap: odd W + ratio 0.5 → flush abut with integer edges (gap=0).
+{
+  const root = split('row', leaf('a'), leaf('b'))
+  const W = 1001
+  const { leaves } = layoutTree(root, W, 800, 0)
+  const a = leaves.find(l => l.node.photoId === 'a')!.rect
+  const b = leaves.find(l => l.node.photoId === 'b')!.rect
+  if (a.x + a.w !== b.x)
+    throw new Error(`odd-W abut: a.x+a.w=${a.x + a.w} b.x=${b.x}`)
+  if (!Number.isInteger(a.x) || !Number.isInteger(a.w) || !Number.isInteger(b.x) || !Number.isInteger(b.w))
+    throw new Error(`odd-W integers: a=${JSON.stringify(a)} b=${JSON.stringify(b)}`)
+  if (a.w + b.w !== W)
+    throw new Error(`odd-W sum: ${a.w}+${b.w} !== ${W}`)
+}
+
+// 11. ratio 1/3 on W=1000 → integer edges, exact cover.
+{
+  const root = split('row', leaf('a'), leaf('b'), 1 / 3)
+  const W = 1000
+  const { leaves } = layoutTree(root, W, 800, 0)
+  const a = leaves.find(l => l.node.photoId === 'a')!.rect
+  const b = leaves.find(l => l.node.photoId === 'b')!.rect
+  if (a.x + a.w !== b.x)
+    throw new Error(`1/3 abut: a.x+a.w=${a.x + a.w} b.x=${b.x}`)
+  if (!Number.isInteger(a.w) || !Number.isInteger(b.w))
+    throw new Error(`1/3 integers: aw=${a.w} bw=${b.w}`)
+  if (a.w + b.w !== W)
+    throw new Error(`1/3 sum: ${a.w}+${b.w} !== ${W}`)
+  // Math.round(1000/3) = 333
+  if (a.w !== 333)
+    throw new Error(`1/3 aw: expected 333 got ${a.w}`)
+}
+
+// 12. gap>0 still sums: a.w + gap + b.w === outer content width.
+{
+  const root = split('row', leaf('a'), leaf('b'))
+  const W = 1000
+  const gap = 20
+  const { leaves } = layoutTree(root, W, 800, gap)
+  const a = leaves.find(l => l.node.photoId === 'a')!.rect
+  const b = leaves.find(l => l.node.photoId === 'b')!.rect
+  const content = W - gap * 2
+  if (a.w + gap + b.w !== content)
+    throw new Error(`gap sum: ${a.w}+${gap}+${b.w} !== ${content}`)
+  if (a.x + a.w + gap !== b.x)
+    throw new Error(`gap abut spacing: ${a.x + a.w}+${gap} !== ${b.x}`)
+  if (!Number.isInteger(a.w) || !Number.isInteger(b.w))
+    throw new Error(`gap integers: aw=${a.w} bw=${b.w}`)
+}
+
+// 13. Column split + nested 2x2 stay integer-flush at gap=0.
+{
+  const root = split('column', split('row', leaf('a'), leaf('b')), split('row', leaf('c'), leaf('d')))
+  const W = 801
+  const H = 601
+  const { leaves } = layoutTree(root, W, H, 0)
+  for (const { rect } of leaves) {
+    if (!Number.isInteger(rect.x) || !Number.isInteger(rect.y) || !Number.isInteger(rect.w) || !Number.isInteger(rect.h))
+      throw new Error(`2x2 odd integer rect: ${JSON.stringify(rect)}`)
+  }
+  const by = (p: string) => leaves.find(l => l.node.photoId === p)!.rect
+  if (by('a').x + by('a').w !== by('b').x)
+    throw new Error('2x2 top row abut')
+  if (by('a').y + by('a').h !== by('c').y)
+    throw new Error('2x2 left col abut')
+}
+
+console.log('check-seams: OK (incl. pixel-snap)')
