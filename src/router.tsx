@@ -106,8 +106,8 @@ async function renderGridItems(): Promise<RenderedItem[]> {
   })).flat()
 }
 
-/** The whole 3×3 board as one image, named like the other exports. */
-async function renderGridSnapshotItem(): Promise<RenderedItem> {
+/** The whole 3×3 board as one image (grid_all), alongside the per-cell run. */
+async function renderGridSnapshotItem(stamp: string): Promise<RenderedItem> {
   const s = useStore.getState()
   const canvas = await renderGridSnapshot({
     workspaces: s.workspaces,
@@ -121,14 +121,15 @@ async function renderGridSnapshotItem(): Promise<RenderedItem> {
     photos: photoMap(s.photos),
     cellRatio: cellRatioValue(s.gridCellRatio),
   })
-  const item = await itemFromCanvas(canvas, `grid_${canvas.width}x${canvas.height}_${exportStamp()}`)
+  const item = await itemFromCanvas(canvas, `grid_all_${stamp}`)
   canvas.width = canvas.height = 0
   return item
 }
 
 /**
- * Grid snapshot "Each cell": every filled cell as its own image, cropped to the cell
- * aspect and named in posting order (grid_01_of_09 …), for a 9-grid post.
+ * The grid snapshot run: every filled cell as its own image, cropped to the
+ * cell aspect and named in posting order (grid_01_of_09 …) for a 9-grid post,
+ * then the whole board as one image last so the cells keep their order.
  */
 async function renderGridCellItems(): Promise<RenderedItem[]> {
   const s = useStore.getState()
@@ -151,6 +152,8 @@ async function renderGridCellItems(): Promise<RenderedItem[]> {
     items.push({ kind: 'image', blob, name: gridCellFileName(i, total, ext, stamp), w: canvas.width, h: canvas.height })
     canvas.width = canvas.height = 0
   })
+  if (items.length)
+    items.push(await renderGridSnapshotItem(stamp))
   return items
 }
 
@@ -426,20 +429,6 @@ function RootLayout() {
     void doExport()
   })
 
-  const doSnapshotGrid = useCallback(async () => {
-    setBusy(true)
-    say(t('Rendering the grid snapshot...'))
-    try {
-      showRun([await renderGridSnapshotItem()])
-    }
-    catch (e) {
-      say(t('Export failed: {msg}', { msg: (e as Error).message }))
-    }
-    finally {
-      setBusy(false)
-    }
-  }, [showRun])
-
   const doExportGridCells = useCallback(async () => {
     setBusy(true)
     say(t('Rendering at original resolution...'))
@@ -461,7 +450,6 @@ function RootLayout() {
   // The chrome commands a menu deep in the tree may invoke (see CanvasMenu).
   const commands = useMemo<AppCommands>(() => ({
     exportNow: doExport,
-    snapshotGrid: doSnapshotGrid,
     exportGridCells: doExportGridCells,
     showCrops: doCrops,
     setLibraryOpen: setLibOpen,
@@ -469,7 +457,7 @@ function RootLayout() {
     setHelpOpen,
     busy,
     grid,
-  }), [doExport, doSnapshotGrid, doExportGridCells, doCrops, setLibOpen, setSettingsOpen, busy, grid])
+  }), [doExport, doExportGridCells, doCrops, setLibOpen, setSettingsOpen, busy, grid])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

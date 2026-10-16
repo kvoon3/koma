@@ -91,8 +91,20 @@ function saveItem(item: ExportItem, t: Translate): void {
   say(t('Saved'))
 }
 
+const filesByRun = new WeakMap<ExportItem[], File[]>()
+
+/**
+ * The run as Files, built once per run: the render (canShareAll) prepares
+ * them, so the Share-all tap calls `navigator.share` with no work in between
+ * and iOS still counts it as the user's gesture.
+ */
 function itemFiles(list: ExportItem[]): File[] {
-  return list.map(i => new File([i.blob], i.name, { type: i.blob.type }))
+  let files = filesByRun.get(list)
+  if (!files) {
+    files = list.map(i => new File([i.blob], i.name, { type: i.blob.type }))
+    filesByRun.set(list, files)
+  }
+  return files
 }
 
 /**

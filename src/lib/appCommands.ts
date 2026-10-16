@@ -10,7 +10,6 @@ export interface AppCommands {
   /** Export the active view: the workspace in the editor, every non-empty workspace in the grid. */
   exportNow: () => void
   /** Render the whole 3×3 overview as one image and open it in the export dialog. */
-  snapshotGrid: () => Promise<void>
   /** Export every filled grid cell as its own image, in posting order. */
   exportGridCells: () => Promise<void>
   /** Open the per-pane crop report dialog. */
@@ -28,7 +27,6 @@ function noop() {}
 
 export const AppCommandsContext = createContext<AppCommands>({
   exportNow: noop,
-  snapshotGrid: async () => {},
   exportGridCells: async () => {},
   showCrops: noop,
   setLibraryOpen: noop,
