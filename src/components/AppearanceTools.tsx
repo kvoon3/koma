@@ -1,11 +1,13 @@
+import type { Photo } from '../lib/imageStore'
 import { Popover } from '@base-ui/react/popover'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
 import { Switch } from '@base-ui/react/switch'
-import { Frame, Grid3x3 } from 'lucide'
+import { Frame, Grid3x3, ImagePlus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useState } from 'react'
-import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField } from '@/components/ui/field'
+import { useRef, useState } from 'react'
+import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField, SegmentedField } from '@/components/ui/field'
+import { useThumb } from '../hooks'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
 import { isTransparentBg, useStore } from '../store'
@@ -14,7 +16,8 @@ import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
 
 const CUSTOM_BG = '#18181b'
 
-type BgMode = 'black' | 'white' | 'transparent' | 'custom'
+/** Opposite end for a fresh gradient: dark fills fade to white, light to black. */
+const gradientEnd = (bg: string) => (bg === '#ffffff' ? '#000000' : '#ffffff')
 
 const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
 const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-(--dur-fast) group-data-checked/switch:translate-x-3.5'
@@ -23,6 +26,20 @@ const swatchDot = 'h-2.5 w-2.5 bg-accent shadow-[0_0_0_2px_var(--panel)]'
 const popup = `${menuSurfaceCls} ${dockPopupMotionCls} w-[min(320px,calc(100vw-24px))] max-h-[min(70dvh,480px)] overflow-y-auto overscroll-contain p-3.5`
 const fields = 'flex min-w-0 flex-col gap-[7px]'
 const heading = 'm-0 text-[10.5px] font-semibold tracking-[0.1em] uppercase text-faint'
+
+/** One library photo as a background choice. */
+function BgPhotoSwatch({ photo, label }: { photo: Photo, label: string }) {
+  const url = useThumb(photo, true)
+  return (
+    <Radio.Root value={photo.id} aria-label={label} title={photo.name} className={`${swatch} shrink-0 overflow-hidden bg-panel-2`}>
+      {url && <img src={url} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />}
+      <Radio.Indicator className={`${swatchDot} absolute`} />
+    </Radio.Root>
+  )
+}
+
+type BgMode = 'black' | 'white' | 'transparent' | 'custom'
+type BgKind = 'solid' | 'gradient' | 'image'
 
 /**
  * The one canvas-appearance Tools entry on the collage stage: Border.
@@ -38,9 +55,26 @@ export function AppearanceDockTools() {
   const blendCrossfade = useStore(s => s.blendCrossfade)
   const paneBorder = useStore(s => s.paneBorder)
   const bg = useStore(s => s.bg)
+  const bgGradient = useStore(s => s.bgGradient)
+  const bgImage = useStore(s => s.bgImage)
+  const photos = useStore(s => s.photos)
   const patch = useStore(s => s.patch)
   const resetSettings = useStore(s => s.resetSettings)
   const t = useT()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const storedKind: BgKind = bgImage ? 'image' : bgGradient && !isTransparentBg(bg) ? 'gradient' : 'solid'
+  const [pendingImage, setPendingImage] = useState(false)
+  const kind: BgKind = pendingImage && storedKind === 'solid' ? 'image' : storedKind
+
+  const setKind = (next: BgKind) => {
+    setPendingImage(next === 'image')
+    if (next === 'solid')
+      patch({ bgGradient: null, bgImage: null })
+    else if (next === 'gradient')
+      patch({ bg: isTransparentBg(bg) ? '#000000' : bg, bgGradient: bgGradient ?? gradientEnd(bg), bgImage: null })
+    else
+      patch({ bgGradient: null })
+  }
 
   const mode: BgMode = isTransparentBg(bg)
     ? 'transparent'
@@ -91,33 +125,111 @@ export function AppearanceDockTools() {
             </div>
             <section className={fields}>
               <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Gap fill')}</span>
-                <RadioGroup
-                  className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
-                  aria-label={t('Gap fill')}
-                  value={mode}
-                  onValueChange={next => setMode(next)}
-                >
-                  <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
-                  <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
-                    <Radio.Indicator className={swatchDot} />
-                  </Radio.Root>
+              <SegmentedField
+                label={t('Background')}
+                value={kind}
+                items={[{ value: 'solid', label: t('Solid color') }, { value: 'gradient', label: t('Gradient') }, { value: 'image', label: t('Image') }]}
+                onChange={setKind}
+              />
+              {kind !== 'image' && (
+                <div className={fieldRowCls}>
+                  <span className={fieldLabelCls}>{kind === 'gradient' ? t('Gradient start color') : t('Color')}</span>
+                  <RadioGroup
+                    className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
+                    aria-label={t('Background')}
+                    value={mode}
+                    onValueChange={next => setMode(next)}
+                  >
+                    <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
+                      <Radio.Indicator className={swatchDot} />
+                    </Radio.Root>
+                    <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
+                      <Radio.Indicator className={swatchDot} />
+                    </Radio.Root>
+                    {kind === 'solid' && (
+                      <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
+                        <Radio.Indicator className={swatchDot} />
+                      </Radio.Root>
+                    )}
+                    <input
+                      type="color"
+                      className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
+                      aria-label={t('Custom background color')}
+                      title={t('Pick a custom color')}
+                      value={mode === 'custom' ? bg : CUSTOM_BG}
+                      onChange={e => patch({ bg: e.target.value })}
+                    />
+                  </RadioGroup>
+                </div>
+              )}
+              {kind === 'gradient' && bgGradient && (
+                <div className={fieldRowCls}>
+                  <span className={fieldLabelCls}>{t('Gradient end color')}</span>
+                  <div className={`${fieldControlCls} col-start-1 flex items-center gap-1.5`}>
+                    <input
+                      type="color"
+                      className={`${colorInputCls} w-9 border-line-strong`}
+                      aria-label={t('Gradient end color')}
+                      title={t('Gradient end color')}
+                      value={bgGradient}
+                      onChange={e => patch({ bgGradient: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+              {kind === 'image' && (
+                <div className={fieldRowCls}>
+                  <span className={fieldLabelCls}>{t('Image')}</span>
+                  <RadioGroup
+                    className={`${fieldControlCls} col-span-2 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] sm:col-span-2`}
+                    aria-label={t('Background photo')}
+                    value={bgImage?.photoId ?? ''}
+                    onValueChange={id => patch({ bgImage: id ? { photoId: id as string, blur: bgImage?.blur ?? true } : null })}
+                  >
+                    <button
+                      type="button"
+                      aria-label={t('Upload background photo')}
+                      title={t('Upload background photo')}
+                      className={`${swatch} shrink-0 bg-panel-2 text-dim`}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+                    </button>
+                    <Radio.Root value="" aria-label={t('No background photo')} title={t('No background photo')} className={`${swatch} shrink-0 swatch-clear`}>
+                      <Radio.Indicator className={swatchDot} />
+                    </Radio.Root>
+                    {photos.map(p => <BgPhotoSwatch key={p.id} photo={p} label={t('Background photo')} />)}
+                  </RadioGroup>
                   <input
-                    type="color"
-                    className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
-                    aria-label={t('Custom gap fill')}
-                    title={t('Pick a custom color')}
-                    value={mode === 'custom' ? bg : CUSTOM_BG}
-                    onChange={e => patch({ bg: e.target.value })}
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      e.target.value = ''
+                      if (!file)
+                        return
+                      const added = useStore.getState().addPhotos([file], false)[0]
+                      if (added)
+                        patch({ bgImage: { photoId: added.id, blur: bgImage?.blur ?? true } })
+                    }}
                   />
-                </RadioGroup>
-              </div>
+                </div>
+              )}
+              {kind === 'image' && bgImage && (
+                <div className={fieldRowCls}>
+                  <span className={fieldLabelCls}>{t('Blur photo')}</span>
+                  <Switch.Root
+                    className={toggle}
+                    aria-label={t('Blur photo')}
+                    checked={bgImage.blur}
+                    onCheckedChange={checked => patch({ bgImage: { ...bgImage, blur: checked } })}
+                  >
+                    <Switch.Thumb className={toggleThumb} />
+                  </Switch.Root>
+                </div>
+              )}
               <RangeField label={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} value={radius} onChange={v => patch({ radius: v })} />
               <div className={fieldRowCls}>
                 <span className={fieldLabelCls}>{t('Pane border')}</span>

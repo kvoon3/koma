@@ -19,7 +19,7 @@ describe('migrateSettings', () => {
 
 describe('migrateSettings v2 (dock)', () => {
   test('version is 7', () => {
-    expect(SETTINGS_VERSION).toBe(7)
+    expect(SETTINGS_VERSION).toBe(8)
   })
   test('v1 → v2 adds dock defaults and starts in row', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toMatchObject({
@@ -77,5 +77,16 @@ describe('migrateSettings v7', () => {
     expect(migrateSettings({}, 6).gridCellRatio).toBe('1:1')
     expect(migrateSettings({ gridCellRatio: '4:5' }, 6).gridCellRatio).toBe('4:5')
     expect(migrateSettings({ gridCellRatio: '2:1' }, 6).gridCellRatio).toBe('1:1')
+  })
+})
+
+describe('migrateSettings v8 (collage background)', () => {
+  test('pre-v8 gets no gradient and no photo', () => {
+    expect(migrateSettings({ bg: '#ffffff' }, 7)).toMatchObject({ bg: '#ffffff', bgGradient: null, bgImage: null })
+    expect(migrateSettings({}, 0)).toMatchObject({ bgGradient: null, bgImage: null })
+  })
+  test('v8 values are kept', () => {
+    const bgImage = { photoId: 'p1', blur: true }
+    expect(migrateSettings({ bgGradient: '#ff0000', bgImage }, 8)).toMatchObject({ bgGradient: '#ff0000', bgImage })
   })
 })

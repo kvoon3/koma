@@ -1,3 +1,4 @@
+import type { BgImage } from './lib/collageBg'
 import type { GridCellRatio } from './lib/gridTools'
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
@@ -71,6 +72,10 @@ interface State {
   gridGap: number
   radius: number
   bg: string
+  /** Whole-collage background gradient end color over `bg` (see lib/collageBg). */
+  bgGradient: string | null
+  /** Whole-collage background photo over `bg` (see lib/collageBg). */
+  bgImage: BgImage | null
   edgeFade: number
   edgeFadeStrength: number
   /**
@@ -126,7 +131,7 @@ export const DOCK_BG: DockBg = 'solid'
 export const DOCK_OPACITY = 60
 export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
 
-export const SETTINGS_VERSION = 7
+export const SETTINGS_VERSION = 8
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
 const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
@@ -161,6 +166,11 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
   delete p.dockHandleIcon
   if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
     p.toolsDockMode = TOOLS_DOCK_MODE
+  // v8: whole-collage background layers over the gap fill; off for old saves.
+  if (version < 8) {
+    p.bgGradient ??= null
+    p.bgImage ??= null
+  }
   return p
 }
 export const MIN_PANE_PX = 56
@@ -213,6 +223,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   gridGap: GRID_GAP,
   radius: RADIUS,
   bg: BG,
+  bgGradient: null,
+  bgImage: null,
   edgeFade: EDGE_FADE,
   edgeFadeStrength: EDGE_FADE_STRENGTH,
   blendCrossfade: BLEND_CROSSFADE,
@@ -310,6 +322,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       // The clipboard points at photos that no longer exist.
       paneClip: null,
       stickerMakerFor: null,
+      // The background photo is gone with the library.
+      bgImage: null,
     }))
   },
 
@@ -690,6 +704,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       gridGap: GRID_GAP,
       radius: RADIUS,
       bg: BG,
+      bgGradient: null,
+      bgImage: null,
       edgeFade: EDGE_FADE,
       edgeFadeStrength: EDGE_FADE_STRENGTH,
       blendCrossfade: BLEND_CROSSFADE,
@@ -817,6 +833,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     gridGap: state.gridGap,
     radius: state.radius,
     bg: state.bg,
+    bgGradient: state.bgGradient,
+    bgImage: state.bgImage,
     edgeFade: state.edgeFade,
     edgeFadeStrength: state.edgeFadeStrength,
     blendCrossfade: state.blendCrossfade,

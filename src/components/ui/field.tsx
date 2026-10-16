@@ -1,8 +1,10 @@
+import { Radio } from '@base-ui/react/radio'
+import { RadioGroup } from '@base-ui/react/radio-group'
 import { Select } from '@base-ui/react/select'
 import { Slider } from '@base-ui/react/slider'
 import { Check, ChevronDown } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { menuItemCls } from './menu'
+import { dockBtnStateCls, dockBtnSurfaceCls, menuItemCls } from './menu'
 
 /**
  * The app's one labelled-control row: label / control / value on a single
@@ -149,6 +151,35 @@ export function SelectField({ label, value, items, onChange }: {
           </Select.Positioner>
         </Select.Portal>
       </Select.Root>
+    </div>
+  )
+}
+
+const segmentCls = `${dockBtnSurfaceCls} ${dockBtnStateCls} flex h-8 min-w-0 flex-1 basis-0 items-center justify-center truncate px-1.5 text-center text-[11.5px] font-semibold`
+
+/**
+ * A labelled single-choice segmented control: a row of equal-width dock tool
+ * buttons, the checked one in the dock's active state.
+ */
+export function SegmentedField<V extends string>({ label, value, items, onChange }: {
+  label: string
+  value: V
+  items: readonly { value: V, label: string }[]
+  onChange: (value: V) => void
+}) {
+  return (
+    <div className={fieldRowCls}>
+      <span className={fieldLabelCls}>{label}</span>
+      <RadioGroup
+        className={`${fieldControlCls} col-span-2 flex sm:col-span-2`}
+        aria-label={label}
+        value={value}
+        onValueChange={v => onChange(v as V)}
+      >
+        {items.map(item => (
+          <Radio.Root key={item.value} value={item.value} className={segmentCls}>{item.label}</Radio.Root>
+        ))}
+      </RadioGroup>
     </div>
   )
 }

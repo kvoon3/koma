@@ -1,4 +1,5 @@
 import type { Workspace } from '../store'
+import type { BgImage } from './collageBg'
 
 export interface SessionPhotoRecord {
   id: string
@@ -15,6 +16,9 @@ export interface SessionMeta {
   gap: number
   radius: number
   bg: string
+  /** Absent in sessions saved before the collage background (see migrateSettings v2). */
+  bgGradient?: string | null
+  bgImage?: BgImage | null
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
