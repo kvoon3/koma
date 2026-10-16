@@ -106,7 +106,7 @@ async function renderGridItems(): Promise<RenderedItem[]> {
   })).flat()
 }
 
-/** The whole 3×3 board as one image (grid_all), alongside the per-cell run. */
+/** The whole 3×3 board as one image (grid_all), leading the per-cell run. */
 async function renderGridSnapshotItem(stamp: string): Promise<RenderedItem> {
   const s = useStore.getState()
   const canvas = await renderGridSnapshot({
@@ -129,7 +129,7 @@ async function renderGridSnapshotItem(stamp: string): Promise<RenderedItem> {
 /**
  * The grid snapshot run: every filled cell as its own image, cropped to the
  * cell aspect and named in posting order (grid_01_of_09 …) for a 9-grid post,
- * then the whole board as one image last so the cells keep their order.
+ * with the whole board as one image (grid_all) first.
  */
 async function renderGridCellItems(): Promise<RenderedItem[]> {
   const s = useStore.getState()
@@ -153,7 +153,7 @@ async function renderGridCellItems(): Promise<RenderedItem[]> {
     canvas.width = canvas.height = 0
   })
   if (items.length)
-    items.push(await renderGridSnapshotItem(stamp))
+    items.unshift(await renderGridSnapshotItem(stamp))
   return items
 }
 
