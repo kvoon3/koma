@@ -155,13 +155,14 @@ export function SelectField({ label, value, items, onChange }: {
   )
 }
 
-const segmentTrackCls = 'relative grid min-h-9 rounded-[10px] bg-panel-2 p-0.5 shadow-[inset_0_0_0_1px_var(--line)]'
-const segmentPillCls = 'pointer-events-none absolute inset-y-0.5 left-0.5 rounded-lg bg-panel shadow-[0_1px_3px_rgba(0,0,0,0.12),0_0_0_0.5px_var(--line-strong)] transition-transform duration-(--dur-surface) ease-(--ease-out) motion-reduce:transition-none'
-const segmentCls = 'relative z-[1] min-w-0 cursor-pointer truncate rounded-lg border-0 bg-transparent px-2 text-[13px] font-medium text-dim transition-colors duration-(--dur-fast) hover:text-txt data-checked:text-txt focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent'
+const segmentTrackCls = 'relative grid min-h-9'
+const segmentPillCls = 'pointer-events-none absolute inset-y-0 left-0 box-border border border-accent bg-accent transition-transform duration-(--dur-surface) ease-(--ease-out) motion-reduce:transition-none'
+const segmentCls = 'relative min-w-0 cursor-pointer truncate rounded-none border-0 bg-transparent px-2 text-[13px] font-medium text-dim transition-colors duration-(--dur-fast) hover:text-txt data-checked:text-on-accent data-checked:hover:text-on-accent focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-accent'
 
 /**
- * A labelled single-choice segmented control: equal-width options on a muted
- * rounded track, the checked one under a raised pill that slides between them.
+ * A labelled single-choice segmented control: equal-width options with no fill;
+ * the checked one sits on an inverted accent block (the Switch's checked
+ * tokens) that slides between them.
  */
 export function SegmentedField<V extends string>({ label, value, items, onChange }: {
   label: string
@@ -184,7 +185,7 @@ export function SegmentedField<V extends string>({ label, value, items, onChange
         <span
           aria-hidden
           className={segmentPillCls}
-          style={{ width: `calc((100% - 4px) / ${n})`, transform: `translateX(${at * 100}%)` }}
+          style={{ width: `calc(100% / ${n})`, transform: `translateX(${at * 100}%)` }}
         />
         {items.map(item => (
           <Radio.Root key={item.value} value={item.value} className={segmentCls}>{item.label}</Radio.Root>
