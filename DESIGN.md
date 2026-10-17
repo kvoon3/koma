@@ -191,6 +191,34 @@ the cells). It renders the whole board as **one image** (`renderGridSnapshot`)
 and opens it in the export preview: the same cover-fit cells at export scale,
 the grid gap scaled with the board, empty cells left blank.
 
+## Grid groups (dual 9-grid: arrangement A vs B)
+
+A board is a group of nine, and the overview holds up to four of them
+(`MAX_GRIDS`), so two arrangements can be built and compared before committing
+to one. A **group bar** above the grid names the boards and switches which one
+the board chrome works on: a click opens a group, a double-click renames it
+(inline, Enter or blur commits), the open group's × deletes it behind a confirm,
+and undo brings the board back with its cells. `+` adds a group (A, B, C, D) and
+opens it. The **compare chip** renders two of them side by side, neighbour
+selects picking which: two full 3×3 grids of the same cell previews, captioned
+by group name, and a cell still opens the editor for that cell in its own group
+(which opens that group first). Comparison is a mode of the overview, not a
+route, so the hash URL and the back button keep meaning what they meant, and it
+is read-only otherwise: no drag, no + cell, no delete strip, no keyboard walk.
+Exports, Shuffle/Clear and the + cell act on the **open** group, the board the
+editor would open.
+
+The store keeps the open group's cells in `workspaces`, so every pane and board
+action, and every reader of "the board", still works on the board in view, and
+keeps the other groups' boards in `parkedBoards` (by group id); opening a group
+swaps the two. Adding, deleting and renaming a group are board mutations and
+ride the undo stack (`lib/history`), exactly like an added workspace; switching
+is navigation and pushes nothing, like `patch({ activeId })`. The session saves
+one entry per group (`grids`: id, name, cells, its last active cell) beside the
+open board's `workspaces`, so a session written before groups loads as group A
+with every cell intact, and a build from before groups still reads the board it
+saved.
+
 ## Export preview (`components/ExportDialog.tsx`)
 
 Rendering is the slow half and happens first (the top bar's Export chip keeps
