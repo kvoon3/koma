@@ -376,7 +376,6 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
               title={handleLabel}
               aria-label={handleLabel}
               aria-expanded={mode !== 'collapsed'}
-              aria-valuetext={mode}
               onClick={() => setMode(dockTransition(mode, { type: 'tap' }, cap))}
             >
               <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
