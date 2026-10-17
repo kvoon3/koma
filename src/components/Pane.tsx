@@ -10,7 +10,7 @@ import { usePreview } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { pickPhotoForPane } from '../lib/paneCommands'
-import { clampLeaf, cornerRadiiCss, leafCornerRadii, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
+import { clampLeaf, cornerRadiiCss, isPaneTransformed, leafCornerRadii, paneTransform, paneTransformCss, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -52,6 +52,7 @@ function PanePhotoContent({
   crossfade,
   onPick,
   carried,
+  turn,
 }: {
   preview: Preview | null
   place: ReturnType<typeof placement> | null
@@ -63,8 +64,29 @@ function PanePhotoContent({
   onPick: () => void
   /** The photo is being carried as the swap/Move ghost: dim the original. */
   carried: boolean
+  /** CSS for the pane's turn and mirrors; null while it is upright. */
+  turn: string | null
 }) {
   const t = useT()
+  const img = preview && place
+    ? (
+        <img
+          src={preview.url}
+          alt=""
+          draggable={false}
+          data-photo-img
+          className="photo-in block max-w-none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            transformOrigin: '0 0',
+            transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
+            maxWidth: 'none',
+          }}
+        />
+      )
+    : null
   return preview && place
     ? (
         // The mask wrapper spans the pane box, so the feather gradients line
@@ -80,21 +102,12 @@ function PanePhotoContent({
             mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
           }}
         >
-          <img
-            src={preview.url}
-            alt=""
-            draggable={false}
-            data-photo-img
-            className="photo-in block max-w-none"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              transformOrigin: '0 0',
-              transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
-              maxWidth: 'none',
-            }}
-          />
+          {/* The pane's turn and mirrors ride one layer inside the clip, so
+              the pane box (and its radius, mask and feather) stays square:
+              only the photo turns, exactly as the exporter turns it. */}
+          {turn
+            ? <div className="absolute inset-0" style={{ transform: turn }}>{img}</div>
+            : img}
         </div>
       )
     : photoId
@@ -433,6 +446,7 @@ function PaneLivePhoto({
   mask,
   crossfade,
   live,
+  turn,
   videoRef,
   onToggle,
 }: {
@@ -442,6 +456,8 @@ function PaneLivePhoto({
   mask?: React.CSSProperties
   crossfade?: boolean
   live: boolean
+  /** The pane's turn and mirrors, so the video plays in the photo's frame. */
+  turn: string | null
   videoRef: React.RefObject<HTMLVideoElement | null>
   onToggle: () => void
 }) {
@@ -473,21 +489,23 @@ function PaneLivePhoto({
         {/* The peek plays muted: the export's own recording is silent too (a
             canvas capture carries no audio), and a silent layer is allowed to
             start without waiting on the browser's audio permission. */}
-        <video
-          ref={videoRef}
-          className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
-          style={{
-            left: place.x - rect.x,
-            top: place.y - rect.y,
-            width: place.w,
-            height: place.h,
-          }}
-          muted
-          loop
-          playsInline
-          preload="auto"
-          draggable={false}
-        />
+        <div className="absolute inset-0" style={{ transform: turn ?? undefined }}>
+          <video
+            ref={videoRef}
+            className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
+            style={{
+              left: place.x - rect.x,
+              top: place.y - rect.y,
+              width: place.w,
+              height: place.h,
+            }}
+            muted
+            loop
+            playsInline
+            preload="auto"
+            draggable={false}
+          />
+        </div>
       </div>
       <PaneLiveBadge playing={live} onToggle={onToggle} />
     </>
@@ -1454,6 +1472,11 @@ function PaneImpl({
   // Feather the photo's seam edges (and the Live Photo video that replaces
   // it visually); stickers/labels stay sharp above it.
   const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
+  // The pane's turn and mirrors, about the pane box's center (the exporter
+  // turns about the same point, from the same `paneTransform`). Upright and
+  // unflipped panes keep the plain img, so today's rendering is untouched.
+  const transform = paneTransform(rect, leaf)
+  const turn = isPaneTransformed(transform) ? paneTransformCss(transform) : null
   const radiusCss = cornerRadiiCss(leafCornerRadii(radius, seam, gap))
 
   // The carried photo rides the pointer at roughly its pane size (capped).
@@ -1492,6 +1515,7 @@ function PaneImpl({
         radius={radiusCss}
         onPick={pickForPane}
         carried={!!swapAt}
+        turn={turn}
       />
 
       {place && (
@@ -1502,6 +1526,7 @@ function PaneImpl({
           mask={photoMask}
           crossfade={crossfade}
           live={live}
+          turn={turn}
           videoRef={liveVideoRef}
           onToggle={toggleLivePin}
         />
