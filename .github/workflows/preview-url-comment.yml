@@ -56,7 +56,7 @@ jobs:
 
             const statusLine = live
               ? `Preview is up (commit \`${sha}\`).`
-              : `Preview URL ready — Cloudflare build may still be running (last check: ${lastStatus}, commit \`${sha}\`).`
+              : `Preview URL ready; Cloudflare build may still be running (last check: ${lastStatus}, commit \`${sha}\`).`
 
             const body = [
               MARKER,

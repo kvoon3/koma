@@ -281,7 +281,7 @@ The language lives in the top bar's globe menu, next to the theme toggle:
 English / 简体中文, one row each. The panel's header carries the title and a
 `Reset` button that puts every visual knob back to its default (gap, grid gap,
 radius, gap fill, blend, pane border, font mirror) and toasts. It closes the way
-the other dropdowns do: the trigger again, a click outside, or `Esc` — which no
+the other dropdowns do: the trigger again, a click outside, or `Esc`, which no
 longer backs out of the editor, base-ui having claimed the key for the open
 popover.
 
@@ -324,7 +324,7 @@ stays instant. A committed pane swap runs inside a view transition the same way
 (`runSwapTransition` in `src/components/Pane.tsx`): it names the photo's
 clipping wrapper on both panes so the two crops glide across. The named element
 has to be the clip (`[data-photo-clip]`, pane-sized, `overflow: hidden`), never
-the `img` — the API snapshots an element at its own box, so naming the img
+the `img`: the API snapshots an element at its own box, so naming the img
 snapshots the whole image and the morph spills past the pane over its
 neighbours. Shared UI primitives live in `src/components/ui/`; `field.tsx`
 holds the one labelled-control row (label / control / value), the range slider,
