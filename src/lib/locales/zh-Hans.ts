@@ -502,10 +502,12 @@ export const zhHans: Record<string, string> = {
   'Invert': '对调',
   'Square (1:1)': '正方形（1:1）',
   // Dual grid (two 9-grid groups, compared side by side)
+  // Dual grid (two 9-grid groups, compared side by side or stacked)
   'Compare': '对比',
   'Exit compare': '退出对比',
-  'First group': '左边分组',
-  'Second group': '右边分组',
+  // First / second, not left / right: on a phone the two boards stack.
+  'First group': '第一个分组',
+  'Second group': '第二个分组',
   'Add a group': '新增分组',
   'Rename': '重命名',
   'Delete group?': '删除分组？',
