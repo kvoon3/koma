@@ -13,6 +13,7 @@ import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '..
 import { labelBgAlpha, labelPaint, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
+import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls } from './ui/menu'
 
 /** A label icon drawn inline at the label's font size, in its text color. */
@@ -640,19 +641,26 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelCont
 
 const DOCK_SWATCHES = ['#ffffff', '#000000', '#e5484d', '#f5a524', '#f7e463', '#30a46c', '#0090ff', '#8e4ec6']
 
-const dockBtnBaseCls = 'grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-float-icon transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt'
-const dockBtnCls = `${dockBtnBaseCls} ${dockBtnStateCls}`
+/** The dock's own tool button and caption (see ToolsDock): the label tools are dock tools. */
+const dockToolCls = `${toolsBtnCls} ${dockBtnStateCls}`
 const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border border-line-strong bg-panel p-2 text-txt shadow-pop outline-0'
 const swatchCls = 'box-border h-7 w-7 cursor-pointer rounded-none border border-line-strong p-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] aria-pressed:outline-2 aria-pressed:outline-accent aria-pressed:outline-offset-1'
 
 type DockTool = 'font' | 'fg' | 'bg' | 'alpha' | 'icon'
 
-/** One dock icon that opens its control in a small popover just above it. */
-function DockPopover({ id, openTool, setOpenTool, label, trigger, children }: {
+/**
+ * One dock tool that opens its control in a small popover just above it. The
+ * trigger is the dock's own tool button (`toolsBtnCls`): icon plus the caption
+ * the display mode shows, exactly like the tools it stands in for.
+ */
+function DockPopover({ id, openTool, setOpenTool, label, caption, trigger, children }: {
   id: DockTool
   openTool: DockTool | null
   setOpenTool: (tool: DockTool | null) => void
+  /** Title: the full name of the control. */
   label: string
+  /** Caption: the short name the dock row shows under the icon. */
+  caption: string
   trigger: React.ReactNode
   children: React.ReactNode
 }) {
@@ -661,8 +669,9 @@ function DockPopover({ id, openTool, setOpenTool, label, trigger, children }: {
       open={openTool === id}
       onOpenChange={open => setOpenTool(open ? id : (openTool === id ? null : openTool))}
     >
-      <Popover.Trigger className={dockBtnCls} title={label} aria-label={label}>
+      <Popover.Trigger className={dockToolCls} title={label} aria-label={caption}>
         {trigger}
+        <span className={toolsLabelCls}>{caption}</span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[260] select-none outline-0">
@@ -675,11 +684,15 @@ function DockPopover({ id, openTool, setOpenTool, label, trigger, children }: {
   )
 }
 
-/** A tool icon with a small bar showing its current color underneath. */
+/**
+ * A tool icon with a small bar showing its current color underneath. The whole
+ * glyph is the icon line's 22px (17 + 1 gap + 4 bar), so the button it sits in
+ * is the same height as every other dock tool's.
+ */
 function ColorGlyph({ icon, color }: { icon: IconNode, color: string }) {
   return (
-    <span className="flex flex-col items-center gap-[3px]">
-      <MorphIcon icon={icon} size={16} strokeWidth={1.75} />
+    <span className="flex h-[22px] w-[22px] flex-col items-center justify-center gap-[1px]">
+      <MorphIcon icon={icon} size={17} strokeWidth={1.5} />
       <span className="h-[4px] w-[18px] border border-line-strong" style={{ background: color }} />
     </span>
   )
@@ -714,9 +727,11 @@ function SwatchGrid({ value, label, onChange }: { value: string, label: string, 
 }
 
 /**
- * Mobile (< lg) label tools: a compact row of icons in the bottom dock. Each
- * opens one small popover anchored above its icon, so the label being edited
- * stays in view; only one is open at a time.
+ * Mobile (< lg) label tools: the dock's own tool buttons (see ToolsDock), one
+ * popover each, anchored above the button so the label being edited stays in
+ * view; only one is open at a time. `contents` keeps the wrapper out of the
+ * layout: the buttons are flex items of the dock's row / wrapped container, so
+ * they carry the sheet's display mode and geometry rather than their own.
  */
 export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void }) {
   const iconFadeRef = useScrollFade<HTMLDivElement>()
@@ -727,8 +742,8 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
   const icon = labelIconNode(lab.icon)
   const pop = { openTool, setOpenTool }
   return (
-    <div className="flex w-full items-center justify-center gap-0.5 px-1.5 py-1" data-label-dock="">
-      <DockPopover id="font" {...pop} label={t('Label font')} trigger={<MorphIcon icon={TypeIcon} size={18} strokeWidth={1.75} />}>
+    <div className="contents" data-label-dock="">
+      <DockPopover id="font" {...pop} label={t('Label font')} caption={t('Font')} trigger={<MorphIcon icon={TypeIcon} size={22} strokeWidth={1.5} />}>
         <div className="-mx-2 -my-2 max-h-[min(30dvh,240px)] w-[200px] overflow-y-auto py-1">
           {FONT_CATS.map((cat) => {
             const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
@@ -754,13 +769,13 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
           })}
         </div>
       </DockPopover>
-      <DockPopover id="fg" {...pop} label={t('Text color')} trigger={<ColorGlyph icon={Baseline} color={paint.fg} />}>
+      <DockPopover id="fg" {...pop} label={t('Text color')} caption={t('Text color')} trigger={<ColorGlyph icon={Baseline} color={paint.fg} />}>
         <SwatchGrid value={paint.fg} label={t('Text color')} onChange={fg => setLabel(labelId, { fg })} />
       </DockPopover>
-      <DockPopover id="bg" {...pop} label={t('Background color')} trigger={<ColorGlyph icon={PaintBucket} color={paint.bg} />}>
+      <DockPopover id="bg" {...pop} label={t('Background color')} caption={t('Background')} trigger={<ColorGlyph icon={PaintBucket} color={paint.bg} />}>
         <SwatchGrid value={paint.bg} label={t('Background color')} onChange={bg => setLabel(labelId, { bg })} />
       </DockPopover>
-      <DockPopover id="alpha" {...pop} label={t('Background opacity')} trigger={<MorphIcon icon={Blend} size={18} strokeWidth={1.75} />}>
+      <DockPopover id="alpha" {...pop} label={t('Background opacity')} caption={t('Opacity')} trigger={<MorphIcon icon={Blend} size={22} strokeWidth={1.5} />}>
         <div className="w-[min(260px,calc(100vw-40px))]">
           <RangeField
             label={t('Background opacity')}
@@ -777,7 +792,8 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
         id="icon"
         {...pop}
         label={t('Label icon')}
-        trigger={icon ? <LabelIconGlyph node={icon} size="18" /> : <MorphIcon icon={Smile} size={18} strokeWidth={1.75} />}
+        caption={t('Icon')}
+        trigger={icon ? <LabelIconGlyph node={icon} size="22" /> : <MorphIcon icon={Smile} size={22} strokeWidth={1.5} />}
       >
         <div ref={iconFadeRef} style={scrollFadeStyle} data-icon-fade="" className="grid h-[120px] max-h-[min(40dvh,260px)] grid-cols-6 content-start gap-0.5 overflow-y-auto overscroll-contain p-1">
           {LABEL_ICON_ITEMS.map(item => (
@@ -799,19 +815,20 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
       </DockPopover>
       <button
         type="button"
-        className={dockBtnCls}
+        className={dockToolCls}
         title={t('Invert colors')}
-        aria-label={t('Invert colors')}
+        aria-label={t('Invert')}
         onClick={() => {
           const paint = labelPaint(lab)
           setLabel(labelId, { fg: paint.bg, bg: paint.fg })
         }}
       >
-        <MorphIcon icon={Contrast} size={18} strokeWidth={1.75} />
+        <MorphIcon icon={Contrast} size={22} strokeWidth={1.5} />
+        <span className={toolsLabelCls}>{t('Invert')}</span>
       </button>
-      <span className="mx-0.5 h-6 w-px bg-line" />
-      <button type="button" className={`${dockBtnCls} hover:!text-danger`} title={t('Remove label')} aria-label={t('Delete')} onClick={onDelete}>
-        <MorphIcon icon={Trash2} size={18} strokeWidth={1.75} />
+      <button type="button" className={`${dockToolCls} hover:!text-danger`} title={t('Remove label')} aria-label={t('Delete')} onClick={onDelete}>
+        <MorphIcon icon={Trash2} size={22} strokeWidth={1.5} />
+        <span className={toolsLabelCls}>{t('Delete')}</span>
       </button>
     </div>
   )

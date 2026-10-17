@@ -488,5 +488,8 @@ export const zhHans: Record<string, string> = {
   // Dock rework
   'Collapse tools': '收起工具标签',
   'Canvas ratio': '画布比例',
+  'Opacity': '不透明度',
+  'Icon': '图标',
+  'Invert': '对调',
   'Square (1:1)': '正方形（1:1）',
 }

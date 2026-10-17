@@ -562,14 +562,12 @@ html[data-theme-fade]::view-transition-new(root) {
 /*
  * Text-selected dock (below lg, where the label's floating toolbar gives way to
  * the dock): the text tools are the only thing that can act on the selection,
- * and seven of them already need a phone's full width, so the sheet drops the
- * canvas and grid entries for as long as a label is selected instead of
- * pushing the text tools off the row's right edge.
+ * so the sheet drops the canvas and grid entries for as long as a label is
+ * selected instead of mixing them into the row. The label tools themselves are
+ * `display: contents` (BoardLabel.tsx), so their buttons are flex items of the
+ * sheet's own row / wrapped container and keep the dock's geometry; long rows
+ * scroll like every other tool row.
  */
-.tools-dock [data-dock-context]:has(> [data-label-dock]) {
-  width: 100%;
-  justify-content: center;
-}
 .tools-dock [data-dock-context]:has(> [data-label-dock]) > :not([data-label-dock]) {
   display: none;
 }
