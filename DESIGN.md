@@ -257,10 +257,14 @@ hairline, the same scale-out-of-the-trigger motion). It was a bottom drawer, a
 screen away from the button that opened it; trigger and panel now share a
 corner, so the switch and the surface it opens are one gesture.
 
-Two tabs: `Appearance` (photo gap, gap fill, photo radius, pane border, blend
-width / strength, grid gap) and `Text` (font mirror). Photo gap sits next to
-gap fill, since they are two halves of the same seam; grid gap is last because
-it spaces the 3×3 overview, not the collage.
+Two tabs: `Appearance` (photo gap, gap fill, photo radius, pane border, grid
+gap) and `Text` (font mirror). Photo gap sits next to gap fill, since they are
+two halves of the same seam; grid gap is last because it spaces the 3×3
+overview, not the collage.
+Pane boundaries stay crisp: the seam blend (feather width / strength, photo
+crossfade) is gone. It could not work as designed, since a cover-fit photo has
+no pixels past its cell edge, so the faded band showed the gap fill and left a
+dark seam instead of blending two photos; the panes now tile exactly.
 The strip is set in the panel's heading type, the active tab lit
 and underlined, so it reads as the panel's group labels rather than a second
 chrome layer; the arrow keys move through it and swap the panel, `Tab` walks in
@@ -273,14 +277,13 @@ narrower than the old two-column one.
 | Appearance | Gap fill | Black / white / custom color / **transparent** |
 | Appearance | Photo radius | Corner radius of each pane, 0–20% |
 | Appearance | Pane border | Draw a hairline around each pane |
-| Appearance | Blend width / strength | How far pane seams fade into the shared blurred backdrop |
 | Appearance | Grid gap | Space between the nine overview cells, 0–40 px (default 10) |
 | Text | Font mirror | Use fonts.loli.net as fallback CDN when fonts.googleapis.com is unreachable |
 
 The language lives in the top bar's globe menu, next to the theme toggle:
 English / 简体中文, one row each. The panel's header carries the title and a
 `Reset` button that puts every visual knob back to its default (gap, grid gap,
-radius, gap fill, blend, pane border, font mirror) and toasts. It closes the way
+radius, gap fill, pane border, font mirror) and toasts. It closes the way
 the other dropdowns do: the trigger again, a click outside, or `Esc`, which no
 longer backs out of the editor, base-ui having claimed the key for the open
 popover.

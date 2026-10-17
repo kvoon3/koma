@@ -1,30 +1,24 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { BLEND_CROSSFADE, DOCK_BG, DOCK_OPACITY, migrateSettings, SETTINGS_VERSION } from '../store'
+import { DOCK_BG, DOCK_OPACITY, migrateSettings, SETTINGS_VERSION } from '../store'
 
-describe('migrateSettings', () => {
-  test('crossfade is the default', () => {
-    expect(BLEND_CROSSFADE).toBe(true)
+describe('migrateSettings v9 (seam blend removed)', () => {
+  test('version is 9', () => {
+    expect(SETTINGS_VERSION).toBe(9)
   })
-  test('v0 stored false (old default) → on', () => {
-    expect(migrateSettings({ gap: 4, blendCrossfade: false }, 0)).toMatchObject({ gap: 4, blendCrossfade: true })
-  })
-  test('v0 without the key → on', () => {
-    expect(migrateSettings({ gap: 4 }, 0).blendCrossfade).toBe(true)
-  })
-  test('v1 explicit off is kept', () => {
-    expect(migrateSettings({ blendCrossfade: false }, 1).blendCrossfade).toBe(false)
+  test('saved blend settings are dropped, everything else survives', () => {
+    const out = migrateSettings({ gap: 4, edgeFade: 120, edgeFadeStrength: 40, blendCrossfade: false }, 8)
+    expect(out).not.toHaveProperty('edgeFade')
+    expect(out).not.toHaveProperty('edgeFadeStrength')
+    expect(out).not.toHaveProperty('blendCrossfade')
+    expect(out.gap).toBe(4)
   })
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 7', () => {
-    expect(SETTINGS_VERSION).toBe(8)
-  })
   test('v1 → v2 adds dock defaults and starts in row', () => {
-    expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toMatchObject({
+    expect(migrateSettings({ gap: 2 }, 1)).toMatchObject({
       gap: 2,
-      blendCrossfade: false,
       dockBg: DOCK_BG,
       dockOpacity: DOCK_OPACITY,
       toolsDockMode: 'row',
