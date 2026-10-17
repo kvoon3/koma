@@ -10,12 +10,10 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - Whole-panel background setting
 - AI one-click background removal for collage photos
 - Mobile headerbar layout on small screens
-
-## Wave 1: foundations
-
-- **Undo/redo** (`store.ts`, command entry points): snapshot history over workspace mutations; session-only, capped. Must land first: every later feature adds new state mutations whose history support compounds.
-- **Export fixes** (`exporter.ts`, `exportRun.ts`): reproduce the "rectangle resize exports original size" report (close as cannot-reproduce if it doesn't reproduce), then fix export seams without cross-fade blurring.
-- **Vite devtools** (`vite.config.ts`): dev-only plugin; filler item.
+- Undo/redo: snapshot history, ⌘Z / ⇧⌘Z, gesture coalescing (Wave 1)
+- Export seams fixed by flush opaque drawing; the crossfade blend is retired end-to-end, settings included (Wave 1)
+- "Rectangle export keeps the square size" closed as cannot-reproduce; the size contract is pinned by tests. Note: the grid snapshot intentionally exports square cells.
+- Vite devtools (`@vitejs/devtools`, dev-only) (Wave 1)
 
 ## Wave 2: drawer / panel UX
 
