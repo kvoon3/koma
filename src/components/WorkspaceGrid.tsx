@@ -10,7 +10,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRightLeft, Camera, ChevronDown, Columns2, LayoutDashboard, LoaderCircle, Plus, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, usePreview } from '../hooks'
+import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
@@ -38,11 +38,32 @@ const PV = 400
  */
 const SNAP_ROW_H = 50
 
-/** Air between the two boards of the compare view. */
+/** Air between the two boards of the compare view, side by side. */
 const COMPARE_GAP = 28
+
+/** Air between them when they stack instead (a small screen). */
+const COMPARE_STACK_GAP = 18
 
 /** Room under each compare board for the group name. */
 const COMPARE_CAPTION_H = 26
+
+/**
+ * The chrome the dock keeps at the bottom of the stage on this route: its 28px
+ * handle over the tools row (70px) over the status bar (31–44px, `--statusH`).
+ * Only the stacked compare view has to keep clear of it: it is the one layout
+ * that fills the stage's height (the single board and the wide pair are bounded
+ * by width, and end above the dock on their own).
+ */
+const DOCK_CHROME_H = 144
+
+/**
+ * Below Tailwind's `sm` the compare view stacks its two boards, one above the
+ * other, instead of laying them side by side: two boards of three columns each
+ * leave ~45px cells at phone widths, too small to see or tap. Read through a
+ * media query rather than a `max-sm:` class because the cell size is computed
+ * here, not by CSS (the same idiom as `compact` on the stage).
+ */
+const COMPARE_STACK_QUERY = '(max-width: 639.98px)'
 
 /** The floating-chip idiom shared with FloatActions (back / reset). */
 const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
@@ -289,21 +310,51 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
 
 type NavDir = 'left' | 'right' | 'up' | 'down'
 
+/** How the view lays its boards out: one, or the compare view's two. */
+type BoardLayout = 'single' | 'side' | 'stack'
+
 /**
- * The cell size for the stage: one board fills it, and the compare view's two
- * boards share it (less the air between them, plus a caption row).
+ * The 3×3 slot one board gets, and the smallest cell it may use. A single board
+ * has the whole stage, the compare view's two share it: side by side on a wide
+ * screen (less the air between them, plus a caption row), or one above the
+ * other on a small one (the full width, half the height each).
  */
-function stageCellBox(stage: { w: number, h: number }, twoUp: boolean, gap: number, ratio: number): { cell: number, box: { w: number, h: number } } {
-  const slotW = twoUp ? Math.floor((stage.w - 48 - COMPARE_GAP) / 2) : stage.w - 48
-  const slotH = stage.h - 48 - SNAP_ROW_H - (twoUp ? COMPARE_CAPTION_H : 0)
-  // A single board keeps the grid's 60px floor; two of them on a phone have to
-  // go under it (down to the width the slot actually has) to stay side by side.
-  const min = twoUp ? Math.max(12, Math.floor((slotW - gap * 2) / 3)) : 60
-  const fit = gridCellBox({ w: slotW, h: slotH }, gap, ratio, GRID_CELL_MAX, min)
+function boardSlot(stage: { w: number, h: number }, layout: BoardLayout, gap: number): { w: number, h: number, min: number } {
+  const height = stage.h - 48 - SNAP_ROW_H
+  if (layout === 'side') {
+    const w = Math.floor((stage.w - 48 - COMPARE_GAP) / 2)
+    // Two boards on a phone have to go under the grid's 60px floor (down to the
+    // width the slot actually has) to stay side by side.
+    return { w, h: height - COMPARE_CAPTION_H, min: Math.max(12, Math.floor((w - gap * 2) / 3)) }
+  }
+  if (layout === 'stack') {
+    // Both boards and both captions fit the stage's height, above the dock; at
+    // phone widths the width is no limit, so the cells are bounded by height
+    // and take no floor (there is nothing to scroll: both stay in view).
+    const room = height - DOCK_CHROME_H - COMPARE_STACK_GAP - COMPARE_CAPTION_H * 2
+    return { w: stage.w - 48, h: Math.floor(room / 2), min: 12 }
+  }
+  return { w: stage.w - 48, h: height, min: 60 }
+}
+
+/**
+ * The layout the stage is in: the plain grid is one board; the compare view's
+ * two are side by side, or stacked on a small screen (see COMPARE_STACK_QUERY).
+ */
+function boardLayout(comparing: boolean, compact: boolean): BoardLayout {
+  if (!comparing)
+    return 'single'
+  return compact ? 'stack' : 'side'
+}
+
+/** The cell size for the stage, from the slot its board gets (`boardSlot`). */
+function stageCellBox(stage: { w: number, h: number }, layout: BoardLayout, gap: number, ratio: number): { cell: number, box: { w: number, h: number } } {
+  const slot = boardSlot(stage, layout, gap)
+  const fit = gridCellBox({ w: slot.w, h: Math.max(1, slot.h) }, gap, ratio, GRID_CELL_MAX, slot.min)
   // Centering an odd leftover put every cell on a half pixel, where 1px
   // edges snap unevenly (the + cell's dashed right edge vanished). One px
   // less flips the board's parity, so the cells land on whole pixels.
-  const cell = fit.w > 60 && (slotW - (fit.w * 3 + gap * 2)) % 2 !== 0 ? fit.w - 1 : fit.w
+  const cell = fit.w > 60 && (slot.w - (fit.w * 3 + gap * 2)) % 2 !== 0 ? fit.w - 1 : fit.w
   return { cell, box: { w: cell, h: cell === fit.w ? fit.h : Math.max(1, Math.round(cell / ratio)) } }
 }
 
@@ -358,7 +409,8 @@ const deleteFirst: CollisionDetection = (args) => {
  *
  * Boards come in groups (`lib/workspaces`): the bar above the grid switches
  * which group of nine the overview shows, and the compare chip turns the view
- * into two of them side by side (arrangement A vs B) instead of one.
+ * into two of them (arrangement 1 vs 2) instead of one: side by side where
+ * there is width for it, stacked one above the other on a small screen.
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
@@ -505,14 +557,23 @@ export function WorkspaceGrid() {
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const gridCellRatio = useStore(s => s.gridCellRatio)
-  const { cell, box } = stageCellBox(wrapSize, comparing, gridGap, cellRatioValue(gridCellRatio))
+  const compact = useMediaQuery(COMPARE_STACK_QUERY)
+  const layout = boardLayout(comparing, compact)
+  const { cell, box } = stageCellBox(wrapSize, layout, gridGap, cellRatioValue(gridCellRatio))
 
   return (
-    <div ref={wrapRef} className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden">
+    <div
+      ref={wrapRef}
+      className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden"
+      // Centering happens above the dock, not in the whole stage: a stacked
+      // pair fills the height, so half a reserve spent below would sit under it.
+      style={layout === 'stack' ? { paddingBottom: DOCK_CHROME_H } : undefined}
+    >
       {compareSides
         ? (
             <CompareBoards
               sides={compareSides}
+              stacked={layout === 'stack'}
               cell={cell}
               box={box}
               gridGap={gridGap}
@@ -721,12 +782,15 @@ function GroupBar() {
 }
 
 /**
- * The compare view: two boards side by side (arrangement A vs B), each drawn by
- * the same cell preview the grid uses. Read-only otherwise (no drag, no + cell,
- * no delete strip); a cell still opens its own editor, in its own group.
+ * The compare view: two boards, side by side on a wide screen and stacked on a
+ * small one, each drawn by the same cell preview the grid uses.
+ * Read-only otherwise (no drag, no + cell, no delete strip); a cell still opens
+ * its own editor, in its own group.
  */
-function CompareBoards({ sides, cell, box, gridGap, photoById, transparent, onEnter, onPick, onExit }: {
+function CompareBoards({ sides, stacked, cell, box, gridGap, photoById, transparent, onEnter, onPick, onExit }: {
   sides: { group: GridGroup, board: Workspace[] }[]
+  /** One board above the other (small screen) instead of beside it. */
+  stacked: boolean
   cell: number
   box: { w: number, h: number }
   gridGap: number
@@ -739,7 +803,11 @@ function CompareBoards({ sides, cell, box, gridGap, photoById, transparent, onEn
   return (
     <div className="flex flex-col items-center gap-3">
       <CompareHeader sides={sides} onPick={onPick} onExit={onExit} />
-      <div className="flex items-start" style={{ gap: COMPARE_GAP }}>
+      <div
+        data-compare-layout={stacked ? 'stack' : 'side'}
+        className={stacked ? 'flex flex-col items-center' : 'flex items-start'}
+        style={{ gap: stacked ? COMPARE_STACK_GAP : COMPARE_GAP }}
+      >
         {sides.map(({ group, board }) => (
           <div key={group.id} className="flex flex-col items-center gap-2">
             <div className="grid grid-cols-3" style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}>
