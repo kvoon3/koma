@@ -237,7 +237,7 @@ function initialWorkspaces(): Workspace[] {
 }
 
 const bootWorkspaces = initialWorkspaces()
-/** The one group a fresh board starts with: group A. */
+/** The one group a fresh board starts with: group 1. */
 const bootGridId = uid('g')
 
 /** Active workspace (never null: activeId always matches a workspace). */
@@ -322,7 +322,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   cutoutJob: null,
   workspaces: bootWorkspaces,
   activeId: bootWorkspaces[0].id,
-  grids: [{ id: bootGridId, name: 'A' }],
+  grids: [{ id: bootGridId, name: '1' }],
   activeGridId: bootGridId,
   parkedBoards: {},
   gap: GAP,
