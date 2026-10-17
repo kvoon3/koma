@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, it } from 'bun:test'
-import { activeAfterRemove, addGroup, addSlot, comparePair, DEFAULT_WORKSPACES, gridStep, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './workspaces'
+import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, gridStep, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './workspaces'
 
 let n = 0
 const fresh = () => ({ id: `new${++n}`, v: 0 })
@@ -123,29 +123,6 @@ describe('the group bar', () => {
     const bar = groups('1', '2')
     expect(renameGroup(bar, 'g1', '   ')).toBe(bar)
     expect(renameGroup(bar, 'g1', '2')).toBe(bar)
-  })
-})
-
-describe('comparePair', () => {
-  const bar = groups('1', '2', '3')
-
-  it('defaults to the first two groups', () => {
-    expect(comparePair(bar, null, null)?.map(g => g.name)).toEqual(['1', '2'])
-  })
-
-  it('keeps the picks that still exist', () => {
-    expect(comparePair(bar, 'g2', 'g0')?.map(g => g.name)).toEqual(['3', '1'])
-    // A pick whose group is gone falls back to the first other board.
-    expect(comparePair(bar, 'gone', 'g2')?.map(g => g.name)).toEqual(['1', '3'])
-  })
-
-  it('never shows the same board twice', () => {
-    expect(comparePair(bar, 'g1', 'g1')?.map(g => g.name)).toEqual(['2', '1'])
-  })
-
-  it('has nothing to compare with one group', () => {
-    expect(comparePair(groups('1'), null, null)).toBeNull()
-    expect(comparePair([], null, null)).toBeNull()
   })
 })
 
