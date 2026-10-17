@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { mulberry32 } from './lib/gridTools'
 import { emptyHistory, HISTORY_LIMIT } from './lib/history'
 import { leafList } from './lib/panes'
+import { DEFAULT_WORKSPACES, MAX_GRIDS } from './lib/workspaces'
 
 // The board's mutations run inside `runPaneMorph`, which falls back to a
 // synchronous change when the browser has no View Transition API. A bare
@@ -27,7 +28,7 @@ const storage = {
 }
 Object.assign(globalThis, { window: { localStorage: storage }, localStorage: storage })
 
-const { activeWs, useStore } = await import('./store')
+const { activeWs, boardOf, useStore } = await import('./store')
 
 /** The store as it booted: each test starts from a blank board and no history. */
 const boot = useStore.getState()
@@ -294,5 +295,152 @@ describe('history bounds', () => {
     expect(persisted.workspaces).toBeUndefined()
     // The visual settings it does save are still there.
     expect(persisted.gap).toBe(0)
+  })
+})
+
+describe('grid groups (dual 9-grid)', () => {
+  const state = () => useStore.getState()
+
+  test('a second group opens with its own board and parks the first', () => {
+    const firstId = state().activeGridId
+    state().split(ws().focusId, 'row')
+    const twoPane = ws().root
+
+    const added = state().addGrid()
+    expect(added).not.toBeNull()
+    expect(state().grids.map(g => g.name)).toEqual(['A', 'B'])
+    expect(state().activeGridId).toBe(added!)
+    // A fresh board of its own: the split stayed behind in group A.
+    expect(state().workspaces).toHaveLength(DEFAULT_WORKSPACES)
+    expect(leaves()).toHaveLength(1)
+
+    state().switchGrid(firstId)
+    expect(state().activeGridId).toBe(firstId)
+    expect(ws().root).toBe(twoPane)
+    // The group it left kept its cells instead of sharing A's.
+    expect(state().parkedBoards[added!]!.workspaces.some(w => w.root === twoPane)).toBe(false)
+  })
+
+  test('switching groups is navigation: it pushes no undo entry', () => {
+    const firstId = state().activeGridId
+    const added = state().addGrid()!
+    const depth = state().history.past.length
+    state().switchGrid(firstId)
+    state().switchGrid(added)
+    expect(state().history.past).toHaveLength(depth)
+  })
+
+  test('adding and renaming a group are one undo step each', () => {
+    const firstId = state().activeGridId
+    const added = state().addGrid()!
+    expect(state().history.past).toHaveLength(1)
+    state().renameGrid(added, 'Variant B')
+    expect(state().grids.map(g => g.name)).toEqual(['A', 'Variant B'])
+    expect(state().history.past).toHaveLength(2)
+
+    state().undo()
+    expect(state().grids.map(g => g.name)).toEqual(['A', 'B'])
+    // Undoing the add takes the group and its board away, and the view with it.
+    state().undo()
+    expect(state().grids).toHaveLength(1)
+    expect(state().activeGridId).toBe(firstId)
+    expect(state().parkedBoards).toEqual({})
+    state().redo()
+    expect(state().grids).toHaveLength(2)
+  })
+
+  test('a deleted group comes back with its board on undo', () => {
+    const firstId = state().activeGridId
+    const added = state().addGrid()!
+    state().assign(ws().focusId, 'photo-b')
+    const boardB = state().workspaces
+
+    state().removeGrid(added)
+    expect(state().grids.map(g => g.id)).toEqual([firstId])
+    expect(state().activeGridId).toBe(firstId)
+    expect(state().parkedBoards[added]).toBeUndefined()
+
+    state().undo()
+    expect(state().grids.map(g => g.id)).toEqual([firstId, added])
+    // Undo reopens the group it removed, board and all (the snapshot was taken
+    // while it was the open one), so its cells are back in view.
+    expect(state().activeGridId).toBe(added)
+    expect(boardOf(state(), added)).toBe(boardB)
+    expect(leafList(boardOf(state(), added)[0]!.root).some(l => l.photoId)).toBe(true)
+  })
+
+  test('a no-op group action pushes nothing', () => {
+    const depth = state().history.past.length
+    // One group: it can't be deleted, and an unknown id changes nothing.
+    state().removeGrid(state().activeGridId)
+    state().removeGrid('nope')
+    state().renameGrid('nope', 'X')
+    state().switchGrid(state().activeGridId)
+    // A blank rename never counts.
+    state().renameGrid(state().activeGridId, '  ')
+    expect(state().history.past).toHaveLength(depth)
+  })
+
+  test('four groups is the cap', () => {
+    for (let i = 0; i < MAX_GRIDS + 2; i++) {
+      const added = state().addGrid()
+      if (i < MAX_GRIDS - 1)
+        expect(added).not.toBeNull()
+      else
+        expect(added).toBeNull()
+    }
+    expect(state().grids).toHaveLength(MAX_GRIDS)
+    expect(state().history.past).toHaveLength(MAX_GRIDS - 1)
+  })
+
+  test('a legacy session (one board, no groups) hydrates as group A', () => {
+    const saved = Array.from({ length: 3 }, (_, i) => ({ ...state().workspaces[0]!, id: `legacy${i}` }))
+    saved[1] = { ...saved[1]!, root: { ...saved[1]!.root, id: 'pane-1' } as typeof saved[1]['root'] }
+    state().hydrate({
+      meta: {
+        workspaces: saved,
+        activeId: 'legacy1',
+        gap: 0,
+        radius: 0,
+        bg: '#000000',
+        longSide: 2048,
+        format: 'image/jpeg',
+        quality: 0.92,
+      },
+      photos: [],
+    })
+    expect(state().grids).toHaveLength(1)
+    expect(state().grids[0]!.name).toBe('A')
+    expect(state().workspaces.map(w => w.id)).toEqual(['legacy0', 'legacy1', 'legacy2'])
+    expect(state().activeId).toBe('legacy1')
+    expect(state().parkedBoards).toEqual({})
+    expect(state().history.past).toHaveLength(0)
+  })
+
+  test('a session with groups hydrates every board, open one first', () => {
+    const cell = (id: string) => ({ ...state().workspaces[0]!, id })
+    state().hydrate({
+      meta: {
+        grids: [
+          { id: 'gA', name: 'Cover', workspaces: [cell('a0'), cell('a1')], activeId: 'a1' },
+          { id: 'gB', name: 'Variant', workspaces: [cell('b0')], activeId: 'b0' },
+        ],
+        activeGridId: 'gB',
+        workspaces: [cell('b0')],
+        activeId: 'b0',
+        gap: 0,
+        radius: 0,
+        bg: '#000000',
+        longSide: 2048,
+        format: 'image/jpeg',
+        quality: 0.92,
+      },
+      photos: [],
+    })
+    expect(state().grids.map(g => g.name)).toEqual(['Cover', 'Variant'])
+    expect(state().activeGridId).toBe('gB')
+    expect(state().workspaces.map(w => w.id)).toEqual(['b0'])
+    expect(state().parkedBoards.gA!.workspaces.map(w => w.id)).toEqual(['a0', 'a1'])
+    expect(boardOf(state(), 'gA')).toBe(state().parkedBoards.gA!.workspaces)
   })
 })

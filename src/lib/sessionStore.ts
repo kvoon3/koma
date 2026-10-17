@@ -11,7 +11,25 @@ export interface SessionPhotoRecord {
   videoFile?: File
 }
 
+/** One board of nine, saved with the session (see `normalizeGrids`). */
+export interface SessionGrid {
+  id: string
+  name: string
+  workspaces: Workspace[]
+  /** The cell last edited in this group (where it re-opens). */
+  activeId: string
+}
+
 export interface SessionMeta {
+  /** The board groups, in bar order; absent in sessions saved before dual grid. */
+  grids?: SessionGrid[]
+  /** The group that was open. */
+  activeGridId?: string
+  /**
+   * The open group's cells, written beside `grids` so a build from before the
+   * dual grid still reads the board it saved (and so a session that has no
+   * `grids` at all, from that build, still loads here: see `normalizeGrids`).
+   */
   workspaces: Workspace[]
   activeId: string
   gap: number
@@ -25,6 +43,52 @@ export interface SessionMeta {
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
+}
+
+/** The store slices a session is built from (see `sessionMeta`). */
+export interface SessionSource {
+  grids: { id: string, name: string }[]
+  activeGridId: string
+  workspaces: Workspace[]
+  activeId: string
+  /** Boards of the groups that are not open, by group id. */
+  parkedBoards: Record<string, { workspaces: Workspace[], activeId: string }>
+  gap: number
+  radius: number
+  bg: string
+  cutouts: CutoutMap
+  bgGradient: string | null
+  bgImage: BgImage | null
+  longSide: number
+  format: 'image/jpeg' | 'image/png'
+  quality: number
+}
+
+/**
+ * The session payload for the store's state: one entry per group, each with its
+ * board (the open group's is `workspaces`) and the cell it was last on.
+ */
+export function sessionMeta(s: SessionSource): SessionMeta {
+  return {
+    grids: s.grids.map(g => ({
+      id: g.id,
+      name: g.name,
+      workspaces: g.id === s.activeGridId ? s.workspaces : s.parkedBoards[g.id]?.workspaces ?? [],
+      activeId: g.id === s.activeGridId ? s.activeId : s.parkedBoards[g.id]?.activeId ?? '',
+    })),
+    activeGridId: s.activeGridId,
+    workspaces: s.workspaces,
+    activeId: s.activeId,
+    gap: s.gap,
+    radius: s.radius,
+    bg: s.bg,
+    cutouts: s.cutouts,
+    bgGradient: s.bgGradient,
+    bgImage: s.bgImage,
+    longSide: s.longSide,
+    format: s.format,
+    quality: s.quality,
+  }
 }
 
 const DB_NAME = 'koma-session'
