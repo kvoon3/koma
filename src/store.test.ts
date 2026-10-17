@@ -1,8 +1,9 @@
 /// <reference types="bun" />
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { degToRad, radToDeg } from './lib/detent'
 import { mulberry32 } from './lib/gridTools'
 import { emptyHistory, HISTORY_LIMIT } from './lib/history'
-import { leafList } from './lib/panes'
+import { leafList, rotationOf } from './lib/panes'
 
 // The board's mutations run inside `runPaneMorph`, which falls back to a
 // synchronous change when the browser has no View Transition API. A bare
@@ -294,5 +295,98 @@ describe('history bounds', () => {
     expect(persisted.workspaces).toBeUndefined()
     // The visual settings it does save are still there.
     expect(persisted.gap).toBe(0)
+  })
+})
+
+describe('pane rotation and flips', () => {
+  const focusLeaf = () => leafList(ws().root)[0]!
+
+  test('a rotation gesture is one undo step, and undo puts it back upright', () => {
+    const id = focusLeaf().id
+    if (!focusLeaf().photoId)
+      useStore.getState().assign(id, 'ph-1')
+    useStore.setState({ history: emptyHistory() })
+
+    // The dial streams a reading per pointermove.
+    for (const deg of [15, 30, 45])
+      useStore.getState().rotatePane(id, degToRad(deg))
+    expect(useStore.getState().history.past).toHaveLength(1)
+    expect(radToDeg(rotationOf(focusLeaf()))).toBeCloseTo(45, 12)
+
+    useStore.getState().undo()
+    expect(rotationOf(focusLeaf())).toBe(0)
+    useStore.getState().redo()
+    expect(radToDeg(rotationOf(focusLeaf()))).toBeCloseTo(45, 12)
+  })
+
+  test('a separate gesture is a separate step once something else commits', () => {
+    const id = focusLeaf().id
+    if (!focusLeaf().photoId)
+      useStore.getState().assign(id, 'ph-1')
+    useStore.setState({ history: emptyHistory() })
+
+    useStore.getState().rotatePane(id, degToRad(15))
+    // A flip is its own action: untagged, so it breaks the coalescing window.
+    useStore.getState().flipPane(id, 'y')
+    useStore.getState().rotatePane(id, degToRad(30))
+    expect(useStore.getState().history.past).toHaveLength(3)
+    expect(focusLeaf().flipY).toBe(true)
+  })
+
+  test('the angle is wrapped, so a full turn reads as upright', () => {
+    const id = focusLeaf().id
+    useStore.getState().rotatePane(id, degToRad(370))
+    expect(radToDeg(rotationOf(focusLeaf()))).toBeCloseTo(10, 12)
+    useStore.getState().rotatePane(id, Math.PI * 2)
+    expect(rotationOf(focusLeaf())).toBe(0)
+    // A reading that changes nothing records no step.
+    const depth = useStore.getState().history.past.length
+    useStore.getState().rotatePane(id, 0)
+    expect(useStore.getState().history.past).toHaveLength(depth)
+  })
+
+  test('resetPaneRotation clears the turn and both mirrors in one step', () => {
+    const id = focusLeaf().id
+    useStore.setState({ history: emptyHistory() })
+    useStore.getState().rotatePane(id, degToRad(90))
+    useStore.getState().flipPane(id, 'x')
+    useStore.getState().resetPaneRotation(id)
+    expect(rotationOf(focusLeaf())).toBe(0)
+    expect(focusLeaf().flipX).toBe(false)
+    const depth = useStore.getState().history.past.length
+    // Nothing left to reset: a no-op records nothing.
+    useStore.getState().resetPaneRotation(id)
+    expect(useStore.getState().history.past).toHaveLength(depth)
+  })
+
+  test('framing travels with the photo: swap, copy and paste carry it', () => {
+    const [a, b] = [focusLeaf().id, (() => {
+      useStore.getState().split(focusLeaf().id, 'row')
+      return leafList(ws().root)[1]!.id
+    })()]
+    useStore.getState().assign(a, 'ph-a')
+    useStore.getState().assign(b, 'ph-b')
+    useStore.getState().rotatePane(a, degToRad(90))
+    useStore.getState().flipPane(a, 'x')
+
+    useStore.getState().swapPhotos(a, b)
+    const swapped = leafList(ws().root).find(l => l.id === b)!
+    expect(radToDeg(rotationOf(swapped))).toBeCloseTo(90, 12)
+    expect(swapped.flipX).toBe(true)
+
+    useStore.getState().copyPane(b)
+    useStore.getState().pastePane(a)
+    const pasted = leafList(ws().root).find(l => l.id === a)!
+    expect(radToDeg(rotationOf(pasted))).toBeCloseTo(90, 12)
+    expect(pasted.flipX).toBe(true)
+  })
+
+  test('a fresh photo starts upright', () => {
+    const id = focusLeaf().id
+    useStore.getState().rotatePane(id, degToRad(90))
+    useStore.getState().assign(id, 'ph-new')
+    expect(rotationOf(focusLeaf())).toBe(0)
+    expect(focusLeaf().flipX).toBeFalsy()
+    expect(focusLeaf().flipY).toBeFalsy()
   })
 })

@@ -24,6 +24,7 @@ import { CollageBgLayer } from './CollageBgLayer'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
+import { PaneRotateTool } from './PaneRotateTools'
 import { StickerMakerDialog } from './StickerMakerDialog'
 import { toolsBtnCls, ToolsDock, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls, menuItemCls, menuSurfaceCls } from './ui/menu'
@@ -401,6 +402,9 @@ export function Stage() {
               />
             )
           : tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+        {/* The detent rotation dial + flips: a sibling of the pane tools, so
+            their fixed order and list stay untouched. */}
+        <PaneRotateTool hidden={!!dockLabel} />
       </ToolsDock>
 
       <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => openStickerMaker(null)} />
