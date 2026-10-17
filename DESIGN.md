@@ -33,7 +33,7 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Camera chip above the 3×3 grid (grid view) | Snapshot the whole board as one image and open it in the export preview: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
+| Camera chip on the board's caption row (grid view) | Snapshot the whole board as one image and open it in the export preview: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
 | Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint the hover copy is dropped instead, a touch screen having no hover to fade it in, so the page-row chip is what a phone keeps |
 | Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane itself is the picker instead). The buttons keep their 80px width and the row scrolls sideways when the screen is too narrow to hold them, the end that still hides tools fading out as it goes: nothing fades while the row fits its panel or sits flush against an end |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
@@ -184,11 +184,18 @@ same `stickerRect()`/label math as the editor) into the cell, an empty one wears
 the same near-canvas fill as an empty pane, its content a collage-layout glyph
 over “New collage” in the neutral gray, with no button of its own (the whole
 cell is the click target). `Grid gap` (Appearance tab) spaces the nine cells.
-A camera chip floats above the grid as part of the same centered group (the
-only chrome the overview has, and the layout reserves room for it while sizing
-the cells). It renders the whole board as **one image** (`renderGridSnapshot`)
-and opens it in the export preview: the same cover-fit cells at export scale,
-the grid gap scaled with the board, empty cells left blank.
+The board carries a caption row of its own: its group's name on the left, the
+compare and snapshot chips on the right. The two board chips thus name the
+board they act on instead of floating over it. The snapshot chip renders the whole
+board as **one image** (`renderGridSnapshot`) and opens it in the export preview:
+the same cover-fit cells at export scale, the grid gap scaled with the board,
+empty cells left blank.
+
+The stage sizes every board against chrome it must not grow under: the chips
+strip above (`h-11`), the board's caption row, and the tools dock's sheet
+(`DOCK_CHROME_H`, an overlay that covers the stage's floor). A single board is
+bounded by width on a wide screen and by that budget on a short one; the budget
+is what keeps the third row of cells off the dock instead of under it.
 
 ## Grid groups (dual 9-grid: arrangement 1 vs 2)
 
@@ -198,17 +205,38 @@ to one. A **group bar** above the grid names the boards and switches which one
 the board chrome works on: a click opens a group, a double-click renames it
 (inline, Enter or blur commits), the open group's × deletes it behind a confirm,
 and undo brings the board back with its cells. `+` adds a group (1, 2, 3, 4) and
-opens it. The **compare chip** renders two of them, neighbour selects picking
-which: two full 3×3 grids of the same cell previews, captioned by group name,
-side by side where there is width for it and stacked one above the other below
-Tailwind's `sm` (a phone), where two three-column boards would leave ~45px
-cells. A stacked pair is sized to fit the stage above the dock, both boards in
-view with no scrolling. A cell still opens the editor for that cell in its own
-group (which opens that group first). Comparison is a mode of the overview, not a
-route, so the hash URL and the back button keep meaning what they meant, and it
-is read-only otherwise: no drag, no + cell, no delete strip, no keyboard walk.
+opens it. The group chips own a **full-width toolbar row** pinned directly under
+the app header, in both modes, so 1/2/3/4 keeps one place and never shares a row
+with the compare / snapshot chips: 36px chips with 14px digits, the open one
+outlined in the accent.
+
+The **compare chip** renders two of them: two full 3×3 grids of the same cell
+previews, side by side where there is width for it and stacked one above the
+other below Tailwind's `sm` (a phone), where two three-column boards would leave
+~45px cells. Board A is the open group, so the chips strip and the editor keep
+naming the board the pair shows first; board B is the neighbour, and a swap
+flips the two (the open board following A). Each board wears a caption row of
+its own: an `A`/`B` mark, the group's name as a compact picker, and, on the
+left of the pair, the exit chip. A comparison thus has two named subjects, and
+each board picks its own group. Side by side the boards keep a 48px gutter with
+a full swap chip centred in it; stacked, that chip rides board B's caption,
+which sits in the ≥24px gap between the two boards.
+
+Every board draws all nine slots: the ones past a board's last cell stay drawn
+as flat quiet squares (a hairline over the near-canvas fill, no glyph, no “New
+collage” label), so the pair reads as two 3×3 boards and the two collages are
+not drowned by sixteen empty hints. The overview keeps the full empty-cell
+affordance. A cell still opens the editor for that cell in its own group (which
+opens that group first). Comparison is a mode of the overview, not a route, so
+the hash URL and the back button keep meaning what they meant, and it is
+read-only otherwise: no drag, no + cell, no delete strip, no keyboard walk.
 Exports, Shuffle/Clear and the + cell act on the **open** group, the board the
 editor would open.
+
+A side-by-side pair is sized above the dock. A stacked pair is not: two readable
+boards need the height more than the grid-gap tool, so the stacked view puts the
+whole dock away (`hidden` on `ToolsDock`), and both boards stay in view with no
+scrolling.
 
 The store keeps the open group's cells in `workspaces`, so every pane and board
 action, and every reader of "the board", still works on the board in view, and
