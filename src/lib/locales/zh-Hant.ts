@@ -283,6 +283,7 @@ export const zhHant: Record<string, string> = {
   'System': '系統',
   'Rounded bold': '圓體粗體',
   'Serif': '襯線體',
+  'CJK': '中日韓',
   'Mono': '等寬',
   'Choose an image': '挑選圖片',
   'Outline width': '描邊寬度',
