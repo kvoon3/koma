@@ -27,7 +27,7 @@ import { leafList } from '../../lib/panes'
 import { MAX_GRIDS, MAX_WORKSPACES } from '../../lib/workspaces'
 import { useStore } from '../../store'
 import { AddSlotFrame, CellBody, CellPreview } from './CellPreview'
-import { CARD_GAP, RECEDE_SCALE, STRIP_GAP } from './switcherLayout'
+import { CARD_GAP, RECEDE_BLUR, RECEDE_OPACITY, RECEDE_SCALE, STRIP_GAP } from './switcherLayout'
 
 /** Stable keys for the slots a board has not filled (a board holds nine). */
 const EMPTY_SLOT_KEYS = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] as const
@@ -246,8 +246,8 @@ function PagerBoard({ side, board, cell, box, gap, boardW, photoById, transparen
       style={{
         width: boardW,
         transform: `translateX(${offset}) scale(${RECEDE_SCALE})`,
-        opacity: 0.45,
-        filter: 'blur(3px)',
+        opacity: RECEDE_OPACITY,
+        filter: `blur(${RECEDE_BLUR}px)`,
       }}
     >
       <div className="grid grid-cols-3" style={{ gap, width: boardW }}>
