@@ -230,6 +230,24 @@ group (never the last one), no confirm. Double-clicking a card's label renames
 it (inline, Enter or blur commits). Adding, deleting and renaming ride the
 undo stack; one undo removes a copied or restored group again.
 
+**The receded board is the finger path.** Press it and drag sideways and the
+board goes with the finger 1:1 (a ~6px slop keeps a click a click, and a
+mostly-vertical drag is handed straight back untouched); the neighbouring
+group's board slides in from the far edge, in the same clip, drawn by the same
+cell previews at the same size, so the two boards pass as one plane. Letting go
+snaps to the board the release is nearest (past half a page of travel) or is
+heading for (a flick over the dock's `FLICK_VELOCITY` always carries one page),
+which is `lib/boardPager`'s rules reusing `lib/dockPhysics`: the same fling
+threshold, the same snap picker, and the dock's rubber band at 0.3x for the
+first and last group, whose edges have no board behind them, so the board leans
+and springs back. A release that lands on a neighbour switches the open group
+through `switchGrid` (navigation, no undo step, the row above), and the strip's
+ring leans onto that card as soon as the drag passes the halfway point. The
+settle is 200ms of `--ease-out`; `prefers-reduced-motion` makes it instant,
+while the drag itself stays 1:1, because user-driven motion is not decoration.
+A click on the board (under the slop) does nothing, and Esc or the backdrop put
+the board home again mid-gesture.
+
 The store keeps the open group's cells in `workspaces`, so every pane and board
 action, and every reader of "the board", still works on the board in view, and
 keeps the other groups' boards in `parkedBoards` (by group id); opening a group
