@@ -486,4 +486,9 @@ export const zhHans: Record<string, string> = {
   'Sharing failed, use Download all instead': '分享失败，请改用「全部下载」',
   'Shuffle': '打乱',
   'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '这会移除九宫格中的所有照片，版式和图库会保留。此操作无法撤销。',
+
+  'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '这会移除九宫格中的所有照片，版式和图库会保留。此操作无法撤销。',
+
+  // Rotation (detent dial: shared by pane photos, board stickers and labels later)
+  'Fine rotation, 1° steps': '精细旋转，每档 1°',
 }
