@@ -484,4 +484,9 @@ export const zhHant: Record<string, string> = {
   'Sharing failed, use Download all instead': '分享失敗，請改用「全部下載」',
   'Shuffle': '打亂',
   'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '這會移除九宮格中的所有照片，版式和圖庫會保留。此操作無法復原。',
+
+  'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '這會移除九宮格中的所有照片，版式和圖庫會保留。此操作無法復原。',
+
+  // Rotation (detent dial: shared by pane photos, board stickers and labels later)
+  'Fine rotation, 1° steps': '精細旋轉，每檔 1°',
 }
