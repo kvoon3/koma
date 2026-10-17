@@ -159,22 +159,22 @@ interface State {
 }
 
 /**
- * The slices undo / redo restores. Deliberately not the photo library (undo
- * never imports or destroys a photo, so a pane it restores always still has
- * its source), nor the selection, the dock or any other visual setting: those
- * are not board mutations, and snapshotting them would let one undo reach back
- * past an unrelated settings change.
+ * The slices undo / redo restores, in one list: `UndoSnapshot` is this tuple's
+ * shape and `UNDOABLE_PATCH_KEYS` is derived from it, so a slice added here
+ * cannot be forgotten by the snapshot, the restore or the generic `patch()`
+ * (the hand-maintained patch-key list had drifted: it missed the groups, so
+ * `patch({ grids })` skipped its undo step).
+ *
+ * Deliberately not the photo library (undo never imports or destroys a photo,
+ * so a pane it restores always still has its source), nor the selection, the
+ * dock or any other visual setting: those are not board mutations, and
+ * snapshotting them would let one undo reach back past an unrelated settings
+ * change.
  */
-export interface UndoSnapshot {
-  workspaces: Workspace[]
-  activeId: string
-  grids: GridGroup[]
-  activeGridId: string
-  parkedBoards: Record<string, ParkedBoard<Workspace>>
-  bg: string
-  bgGradient: string | null
-  bgImage: BgImage | null
-}
+const UNDO_SLICES = ['workspaces', 'activeId', 'grids', 'activeGridId', 'parkedBoards', 'bg', 'bgGradient', 'bgImage'] as const satisfies readonly (keyof State)[]
+
+/** The board state one undo / redo step restores (see `UNDO_SLICES`). */
+export type UndoSnapshot = Pick<State, (typeof UNDO_SLICES)[number]>
 
 export const GAP = 0
 export const GRID_GAP = 10
@@ -311,18 +311,16 @@ function mapActive(s: State, fn: (w: Workspace) => Workspace): Workspace[] {
   return s.workspaces.map(w => (w.id === s.activeId ? fn(w) : w))
 }
 
-/** The undoable slices of `s` as one shallow snapshot (see UndoSnapshot). */
+/**
+ * The undoable slices of `s` as one shallow snapshot (see UndoSnapshot): a
+ * shallow copy of exactly `UNDO_SLICES`, so a slice added to that list is in
+ * the snapshot without a second edit.
+ */
 function snapshotOf(s: State): UndoSnapshot {
-  return {
-    workspaces: s.workspaces,
-    activeId: s.activeId,
-    grids: s.grids,
-    activeGridId: s.activeGridId,
-    parkedBoards: s.parkedBoards,
-    bg: s.bg,
-    bgGradient: s.bgGradient,
-    bgImage: s.bgImage,
-  }
+  const snap: UndoSnapshot = {} as UndoSnapshot
+  for (const key of UNDO_SLICES)
+    Object.assign(snap, { [key]: s[key] })
+  return snap
 }
 
 /**
@@ -336,16 +334,7 @@ function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
   const keep = snap.workspaces.some(w => w.id === s.activeId)
     ? s.activeId
     : snap.workspaces.some(w => w.id === snap.activeId) ? snap.activeId : snap.workspaces[0].id
-  return {
-    workspaces: snap.workspaces,
-    activeId: keep,
-    grids: snap.grids,
-    activeGridId: snap.activeGridId,
-    parkedBoards: snap.parkedBoards,
-    bg: snap.bg,
-    bgGradient: snap.bgGradient,
-    bgImage: snap.bgImage,
-  }
+  return { ...snap, activeId: keep }
 }
 
 /**
@@ -353,8 +342,14 @@ function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
  * a patch touching one of them is a board / background mutation and commits
  * like any other action, while the rest (gap, radius, dims, cutout jobs, …)
  * stays outside the history.
+ *
+ * Taken from `UNDO_SLICES` (never by hand) so the two cannot drift. The open
+ * workspace and the open group are in the snapshot too, but they are
+ * navigation: `patch({ activeId })` must not commit, or entering a cell would
+ * push an undo step (see `enter` in WorkspaceGrid).
  */
-const UNDOABLE_PATCH_KEYS = ['workspaces', 'bg', 'bgGradient', 'bgImage'] as const
+const NAVIGATION_SLICES = ['activeId', 'activeGridId'] as const
+const UNDOABLE_PATCH_KEYS = UNDO_SLICES.filter(k => !(NAVIGATION_SLICES as readonly string[]).includes(k))
 
 let labelEditSeq = 0
 
