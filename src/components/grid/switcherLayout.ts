@@ -29,6 +29,15 @@ export const RECEDE_OPACITY = 0.6
  */
 export const RECEDE_BLUR = 2
 
+/**
+ * How much larger the open group's card stands. The strip's metrics resize
+ * around it: see `switcherMetrics` (the ring must fit inside the strip).
+ */
+export const CARD_SCALE = 1.08
+
+/** The selection ring around that card: a 2px outline at 1px offset. */
+export const CARD_RING = 3
+
 /** A board's cells, as the pager and the cards read them. */
 export type BoardCells = { id: string, root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
 
@@ -40,12 +49,24 @@ export const CARD_GAP = 2
 
 /** Switcher strip geometry: air above it, its own height, card sizes. */
 export function switcherMetrics(stageH: number) {
-  const stripH = Math.max(96, Math.round(stageH * 0.125))
+  const baseH = Math.max(96, Math.round(stageH * 0.125))
   const stripTop = Math.max(8, Math.round(stageH * 0.09))
-  // The cards sit on the strip's fill with 6px of air above and below; nothing
-  // is written under a card any more, so the thumbnail takes the whole height.
-  const cardH = Math.max(36, stripH - 12)
+  // Nothing is written under a card any more, so the thumbnail takes the whole
+  // height, less the air the ring needs.
+  const cardH = Math.max(36, baseH - 16)
   const cardW = Math.max(56, Math.round(cardH * 1.6))
+  /**
+   * Air above and below a card, which has to hold the enlarged card's ring.
+   * The cards sit in an `overflow-x` scroll box, and a scroll box has no
+   * visible overflow on the other axis (`overflow-y` computes to `auto`): it
+   * clips at its padding box, and the strip clips at the same edge. With 6px
+   * of air the ring's top and bottom edges fell outside that clip and the
+   * selection read as two vertical rails down the strip's full height. Three
+   * of the air's pixels stay empty, so the ring never fuses with the strip's
+   * own hairline.
+   */
+  const air = Math.ceil(((CARD_SCALE - 1) * cardH) / 2 + CARD_RING) + 3
+  const stripH = Math.max(baseH, cardH + 2 + air * 2)
   return { stripH, stripTop, cardH, cardW }
 }
 
