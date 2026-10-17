@@ -486,6 +486,6 @@ export const zhHant: Record<string, string> = {
   'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '這會移除九宮格中的所有照片，版式和圖庫會保留。此操作無法復原。',
   // Workspaces (the board groups, switched from the Mission Control-style switcher)
   'Add a group': '新增群組',
-  'Rename': '重新命名',
+  'Open group {name}': '開啟群組 {name}',
   'Delete group?': '刪除群組？',
 }
