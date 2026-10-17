@@ -11,8 +11,8 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - AI one-click background removal for collage photos
 - Mobile headerbar layout on small screens
 - Undo/redo: snapshot history, ⌘Z / ⇧⌘Z, gesture coalescing (Wave 1)
-- Export seams fixed by flush opaque drawing; the crossfade blend is retired end-to-end, settings included (Wave 1)
 - "Rectangle export keeps the square size" closed as cannot-reproduce; the size contract is pinned by tests. Note: the grid snapshot intentionally exports square cells.
+- Export seam: Safari-only (not reproducible in Chromium). The flush-draw fix was reverted; the crossfade workaround stays until the Safari root cause is found.
 - Vite devtools (`@vitejs/devtools`, dev-only) (Wave 1)
 
 ## Wave 2: drawer / panel UX
