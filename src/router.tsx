@@ -240,6 +240,23 @@ function isTypingTarget(e: KeyboardEvent) {
   return t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable
 }
 
+/**
+ * Undo / redo of the board: ⌘Z, ⇧⌘Z (and Ctrl+Y). A text field keeps its own
+ * native undo, so typing inside a label stays the field's. Returns true when
+ * the key was a history step.
+ */
+function handleHistoryKey(e: KeyboardEvent, s: StoreState): boolean {
+  const k = e.key.toLowerCase()
+  if ((k !== 'z' && k !== 'y') || isTypingTarget(e))
+    return false
+  e.preventDefault()
+  if (k === 'z' && !e.shiftKey)
+    s.undo()
+  else
+    s.redo()
+  return true
+}
+
 // v/s/x/d/r act on the focused pane. Same precondition gate as the dock
 // (`bindAction`): no live focused pane (or no photo, for d) → no-op.
 function paneKeyActions(s: StoreState): Record<'v' | 's' | 'x' | 'd' | 'r', Action> {
@@ -471,6 +488,8 @@ function RootLayout() {
       if (e.defaultPrevented || exportItems)
         return
       if (e.metaKey || e.ctrlKey) {
+        if (handleHistoryKey(e, useStore.getState()))
+          return
         if (e.key.toLowerCase() === 'e') {
           e.preventDefault()
           exportHotkey()

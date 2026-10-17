@@ -26,15 +26,19 @@ export const zhHant: Record<string, string> = {
   'Switch to light theme': '切換到淺色主題',
   'Switch to dark theme': '切換到深色主題',
 
-  // FloatActions (back / reset under the top bar)
+  // FloatActions (back / undo / redo / reset under the top bar)
+  'Undo': '復原',
+  'Redo': '重做',
+  'Undo · ⌘Z': '復原 · ⌘Z',
+  'Redo · ⌘⇧Z': '重做 · ⌘⇧Z',
   'Reset this workspace': '重設這個工作區',
   'Reset this workspace?': '重設這個工作區？',
-  'This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.': '這會清空位置 {n} 的窗格佈局與照片擺放。照片會保留在素材庫內，且無法復原。',
+  'This clears the pane layout and photo placement of space {n}. Photos stay in the library.': '這會清空位置 {n} 的窗格佈局與照片擺放。照片會保留在素材庫內。',
   'Reset': '重設',
   'Workspace reset': '工作區已重設',
   'Reset all workspaces': '重設所有工作區',
   'Reset all workspaces?': '重設所有工作區？',
-  'This clears the pane layout and photo placement of all workspaces. Photos stay in the library. This cannot be undone.': '這會清空全部工作區的窗格佈局與照片擺放。照片會保留在素材庫內，且無法復原。',
+  'This clears the pane layout and photo placement of all workspaces. Photos stay in the library.': '這會清空全部工作區的窗格佈局與照片擺放。照片會保留在素材庫內。',
   'Reset all': '全部重設',
   'All workspaces reset': '所有工作區已重設',
 
@@ -345,6 +349,8 @@ export const zhHant: Record<string, string> = {
   'Settings panel (font mirror)': '設定面板（字體鏡像）',
   'Toggle the 3×3 workspace grid / back': '在 3×3 工作區總覽與編輯之間切換',
   'Export the collage (renders, then opens the preview dialog)': '匯出拼貼（先算圖，再開啟匯出預覽）',
+  'Undo / redo the board: panes, photos, stickers, labels, canvas and background (Ctrl+Z / Ctrl+Y on Windows and Linux)': '復原 / 重做畫板：窗格、照片、貼紙、文字、畫布比例與背景（Windows 與 Linux 上是 Ctrl+Z / Ctrl+Y）',
+  'Undo / redo buttons floating at the top right': '在畫板的歷史裡前後移動，九宮格總覽與編輯畫面都能用：歷史涵蓋所有工作區。沒有可復原的步驟時按鈕會變灰',
   'Export crop params (ImageMagick command)': '匯出裁切參數（ImageMagick 指令）',
   'This help': '本說明',
   'Open the highlighted grid cell (grid view only)': '開啟高亮的那一格（僅總覽畫面）',

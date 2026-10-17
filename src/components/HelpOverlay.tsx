@@ -16,6 +16,7 @@ const KEYS: [string, string][] = [
   [',', 'Settings panel (font mirror)'],
   ['G', 'Toggle the 3×3 workspace grid / back'],
   ['⌘E', 'Export the collage (renders, then opens the preview dialog)'],
+  ['⌘Z / ⇧⌘Z', 'Undo / redo the board: panes, photos, stickers, labels, canvas and background (Ctrl+Z / Ctrl+Y on Windows and Linux)'],
   ['C', 'Export crop params (ImageMagick command)'],
   ['?', 'This help'],
   ['Enter', 'Open the highlighted grid cell (grid view only)'],
@@ -24,6 +25,7 @@ const KEYS: [string, string][] = [
 
 const MOUSE: [string, string][] = [
   ['Back button floating at the top left', 'Back to the 3×3 workspace grid (edit view only)'],
+  ['Undo / redo buttons floating at the top right', 'Step back and forward through the board\'s changes, from the grid overview or inside a workspace alike: the history covers every workspace. Both grey out when there is nothing to step to'],
   ['Reset button floating at the top right', 'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library'],
   ['Snapshot chip above the 3×3 grid', 'Render the whole overview as one image (grid_all) first, then every non-empty cell as its own image named in posting order (grid_01_of_09 …), and open them together in the export preview: save or share each one, or Share all to land the set in Photos in that order'],
   ['Split chip in the top row (between Back and Reset)', 'Split the focused pane top/bottom or left/right; hovering any pane (focused or not) fades the same chip in at its top center, so a pane can always be split on the spot. The top-row copy is only there below lg (a large screen has the pane chip to aim at), and below the sm breakpoint it is the only copy left, a touch screen having no hover to fade the other one in'],
