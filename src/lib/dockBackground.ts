@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { DockBg, ToolsDockMode } from '../store'
+import type { DockBg } from '../store'
 
 /**
  * Can `backdrop-filter: url(#svg)` actually refract? Only Chromium renders
@@ -22,22 +22,21 @@ export const DOCK_GLASS_CLS: Record<DockBg, string> = {
 }
 
 /**
- * Pure: dock sheet class + inline style for a background, opacity (0–100,
- * drives `--glass-opacity`) and mode. Tint is the drawer color.
+ * Pure: dock sheet class + inline style for a background and opacity (0–100,
+ * drives `--glass-opacity`). Tint is the drawer color. The sheet has no
+ * chrome-less state any more (every display holds tools), so the tint is full
+ * at rest and only the drag gesture (`--dock-drag-fade`) moves it.
  */
-export function dockSurface(bg: DockBg, opacity: number, mode: ToolsDockMode): { className: string, style: CSSProperties } {
+export function dockSurface(bg: DockBg, opacity: number): { className: string, style: CSSProperties } {
   const o = Math.min(100, Math.max(0, Math.round(Number.isFinite(opacity) ? opacity : 0)))
-  // --dock-fade scales the tint (via --glass-fade, index.css): 0 collapsed
-  // (chrome-less; border/shadow/blur are dropped in CSS), 1 open. While
-  // dragging, ToolsDock writes --dock-drag-fade from the gesture instead.
-  const style = { '--glass-tint': 'var(--drawerBg)', '--glass-opacity': `${o}%`, '--dock-fade': mode === 'collapsed' ? 0 : 1 } as CSSProperties
+  const style = { '--glass-tint': 'var(--drawerBg)', '--glass-opacity': `${o}%` } as CSSProperties
   return { className: DOCK_GLASS_CLS[bg], style }
 }
 
 /**
  * Pure: background fade during a drag. Visible tools height above the handle
- * is `snapPoint - handleH - movementY` (movement is +down); 0 at collapsed,
- * linear up to 1 at the row snap, held at 1 beyond (expanded).
+ * is `snapPoint - handleH - movementY` (movement is +down); 0 with no tools
+ * showing, linear up to 1 at the tool row, held at 1 beyond (expanded).
  */
 export function dockDragFade(snapPoint: number, movementY: number, rowH: number, handleH: number): number {
   if (!Number.isFinite(rowH) || rowH <= 0)

@@ -18,8 +18,10 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 7', () => {
-    expect(SETTINGS_VERSION).toBe(8)
+  // Pinned on purpose: zustand persist skips `migrate` when the saved version
+  // equals this one, so every behavior change that needs a migration owes a bump.
+  test('version is 9', () => {
+    expect(SETTINGS_VERSION).toBe(9)
   })
   test('v1 → v2 adds dock defaults and starts in row', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toMatchObject({
@@ -68,7 +70,25 @@ describe('migrateSettings v5', () => {
   test('v5 → v6 resets the saved dock mode to row once', () => {
     expect(migrateSettings({ toolsDockMode: 'collapsed' }, 5).toolsDockMode).toBe('row')
     expect(migrateSettings({ toolsDockMode: 'expanded' }, 5).toolsDockMode).toBe('row')
-    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('collapsed')
+  })
+})
+
+describe('migrateSettings dock rework (collapsed removed)', () => {
+  // NOTE: the mapping above only runs because SETTINGS_VERSION was bumped to 9.
+  // zustand persist skips `migrate` entirely when the saved version equals the
+  // current one, so a same-version save holding 'collapsed' would sail through
+  // unmigrated. If you ever remove the bump, you reintroduce that bug.
+  test('a saved post-v6 collapsed becomes the icon-only row', () => {
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('icons')
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 8).toolsDockMode).toBe('icons')
+  })
+  test('the other displays survive untouched', () => {
+    expect(migrateSettings({ toolsDockMode: 'icons' }, 8).toolsDockMode).toBe('icons')
+    expect(migrateSettings({ toolsDockMode: 'row' }, 8).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'expanded' }, 8).toolsDockMode).toBe('expanded')
+  })
+  test('an unknown mode still falls back to the labelled row', () => {
+    expect(migrateSettings({ toolsDockMode: 'hidden' }, 8).toolsDockMode).toBe('row')
   })
 })
 

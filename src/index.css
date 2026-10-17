@@ -550,8 +550,7 @@ html[data-theme-fade]::view-transition-new(root) {
 /*
  * Dock legibility over photos (Settings → Dock background): the see-through
  * styles keep the handle and tools readable on light and dark photos with a
- * soft halo in the theme's own panel color. Collapsed, the sheet is
- * chrome-less and the ruler icon carries its own shadow + halo.
+ * soft halo in the theme's own panel color.
  */
 .tools-dock [data-dock-bg]:not([data-dock-bg='solid']) :is(button, [role='button']) {
   text-shadow: 0 0 3px var(--drawerBg), 0 0 1px var(--drawerBg);
@@ -559,8 +558,18 @@ html[data-theme-fade]::view-transition-new(root) {
 .tools-dock [data-dock-bg]:not([data-dock-bg='solid']) :is(button, [role='button']) svg {
   filter: drop-shadow(0 0 1.5px var(--drawerBg));
 }
-.tools-dock [data-dock-mode='collapsed'] > button:first-child svg {
-  filter: drop-shadow(0 0 1.5px var(--drawerBg)) drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
+
+/*
+ * Text-selected dock (below lg, where the label's floating toolbar gives way to
+ * the dock): the text tools are the only thing that can act on the selection,
+ * so the sheet drops the canvas and grid entries for as long as a label is
+ * selected instead of mixing them into the row. The label tools themselves are
+ * `display: contents` (BoardLabel.tsx), so their buttons are flex items of the
+ * sheet's own row / wrapped container and keep the dock's geometry; long rows
+ * scroll like every other tool row.
+ */
+.tools-dock [data-dock-context]:has(> [data-label-dock]) > :not([data-label-dock]) {
+  display: none;
 }
 
 /*
@@ -626,24 +635,29 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 /*
- * Dock: tint follows --dock-fade (mode) at rest and --dock-drag-fade (the
- * gesture) while swiping. Collapsed at rest is chrome-less.
+ * Dock: the tint is full at rest (every display holds tools) and follows
+ * --dock-drag-fade, the visible tools height, while the sheet is swiped.
  */
 .dock-surface {
-  --glass-fade: var(--dock-fade, 1);
+  --glass-fade: 1;
 }
 .dock-surface[data-swiping] {
-  --glass-fade: var(--dock-drag-fade, var(--dock-fade, 1));
-}
-.tools-dock .dock-surface[data-dock-mode='collapsed']:not([data-swiping]) {
-  border-top-color: transparent;
-  background-image: none;
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  --glass-fade: var(--dock-drag-fade, 1);
 }
 @media (prefers-reduced-motion: reduce) {
   .dock-surface {
     transition-duration: 0s;
   }
+}
+
+/*
+ * Dock measurement pass (see ToolsDock.measure): it forces each display mode to
+ * read the snap heights, so the captions must resolve to their final size and
+ * not to a fade in flight. The pass is synchronous, so nothing paints with
+ * these transitions off.
+ */
+[data-dock-measuring] *,
+[data-dock-measuring] *::before,
+[data-dock-measuring] *::after {
+  transition: none !important;
 }
