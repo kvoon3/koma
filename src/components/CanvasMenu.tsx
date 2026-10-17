@@ -135,7 +135,7 @@ export function CanvasMenu({ children }: { children: ReactElement }) {
       <ConfirmDialog
         open={resetAsk}
         title={t('Reset this workspace?')}
-        description={t('This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.', { n: pos })}
+        description={t('This clears the pane layout and photo placement of space {n}. Photos stay in the library.', { n: pos })}
         confirmLabel={t('Reset')}
         danger
         onClose={() => setResetAsk(false)}

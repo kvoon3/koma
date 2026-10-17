@@ -1,6 +1,6 @@
 import type { Workspace } from '../store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowLeft, RotateCcw } from 'lucide'
+import { ArrowLeft, Redo2, RotateCcw, Undo2 } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { useT } from '../lib/i18n'
@@ -16,9 +16,9 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
 
 /**
  * Floating page chrome just under the top bar: back-to-grid on the left
- * (edit view only) and
- * reset-workspace on the right (both views: the active workspace in the
- * editor, all nine from the grid overview). Floating keeps the top bar to
+ * (edit view only) and, on the right, undo / redo of the board (both views:
+ * the history is app-global) ahead of reset-workspace (the active workspace in
+ * the editor, all nine from the grid overview). Floating keeps the top bar to
  * menus and export; the buttons hover over the stage / grid instead of taking
  * layout space, and sit below the drawers (z-44) so an open drawer covers
  * them. Below lg the focused pane's split lives in the tools dock (Stage).
@@ -28,6 +28,8 @@ export function FloatActions() {
   const grid = useRouterState({ select: s => s.location.pathname === '/' })
   const t = useT()
   const [resetAsk, setResetAsk] = useState(false)
+  const canUndo = useStore(s => s.history.past.length > 0)
+  const canRedo = useStore(s => s.history.future.length > 0)
 
   // 1-based grid position of the active workspace: it names the reset target
   // in the confirm (the grid itself carries no active-cell marker).
@@ -76,26 +78,57 @@ export function FloatActions() {
         />
       )}
 
-      <Tip
-        label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
-        trigger={(
-          <button
-            className={`${btnCls} absolute right-2.5 top-2.5`}
-            aria-label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
-            disabled={!resettable}
-            onClick={() => setResetAsk(true)}
-          >
-            <MorphIcon icon={RotateCcw} size={15} strokeWidth={1.75} />
-          </button>
-        )}
-      />
+      {/* Right cluster: undo / redo of the board, then reset last at the corner. */}
+      <div className="pointer-events-none absolute right-2.5 top-2.5 flex gap-1.5">
+        <Tip
+          label={t('Undo · ⌘Z')}
+          trigger={(
+            <button
+              className={btnCls}
+              aria-label={t('Undo')}
+              disabled={!canUndo}
+              onClick={() => useStore.getState().undo()}
+            >
+              <MorphIcon icon={Undo2} size={15} strokeWidth={1.75} />
+            </button>
+          )}
+        />
+
+        <Tip
+          label={t('Redo · ⌘⇧Z')}
+          trigger={(
+            <button
+              className={btnCls}
+              aria-label={t('Redo')}
+              disabled={!canRedo}
+              onClick={() => useStore.getState().redo()}
+            >
+              <MorphIcon icon={Redo2} size={15} strokeWidth={1.75} />
+            </button>
+          )}
+        />
+
+        <Tip
+          label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
+          trigger={(
+            <button
+              className={btnCls}
+              aria-label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
+              disabled={!resettable}
+              onClick={() => setResetAsk(true)}
+            >
+              <MorphIcon icon={RotateCcw} size={15} strokeWidth={1.75} />
+            </button>
+          )}
+        />
+      </div>
 
       <ConfirmDialog
         open={resetAsk}
         title={grid ? t('Reset all workspaces?') : t('Reset this workspace?')}
         description={grid
-          ? t('This clears the pane layout and photo placement of all workspaces. Photos stay in the library. This cannot be undone.')
-          : t('This clears the pane layout and photo placement of space {n}. Photos stay in the library. This cannot be undone.', { n: pos })}
+          ? t('This clears the pane layout and photo placement of all workspaces. Photos stay in the library.')
+          : t('This clears the pane layout and photo placement of space {n}. Photos stay in the library.', { n: pos })}
         confirmLabel={grid ? t('Reset all') : t('Reset')}
         danger
         onClose={() => setResetAsk(false)}
