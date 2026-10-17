@@ -494,4 +494,9 @@ export const zhHant: Record<string, string> = {
   'Rename': '重新命名',
   'Delete group?': '刪除群組？',
   'This removes the group and its nine collages. Undo brings them back.': '這會刪除該群組及其中的九個拼貼，可以用復原恢復。',
+
+  'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '這會移除九宮格中的所有照片，版式和圖庫會保留。此操作無法復原。',
+
+  // Rotation (detent dial: shared by pane photos, board stickers and labels later)
+  'Fine rotation, 1° steps': '精細旋轉，每檔 1°',
 }
