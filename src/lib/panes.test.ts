@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import type { Node } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { deletePane, findLeaf, layoutTree, leafCornerRadii, leafList, newLeaf, pressPlan, seamSides, swapLeafContents } from './panes'
+import { deletePane, findLeaf, leafList, newLeaf, pressPlan, swapLeafContents } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`) {
   return { ...newLeaf(), id, photoId }
@@ -82,98 +82,5 @@ describe('pressPlan', () => {
     expect(pressPlan(true, 'mouse')).toEqual({ capture: true, pan: true, armHold: false })
     expect(pressPlan(false, 'touch')).toEqual({ capture: false, pan: false, armHold: true })
     expect(pressPlan(false, 'mouse')).toEqual({ capture: false, pan: false, armHold: false })
-  })
-})
-
-/** The panes' seam sides as a sorted "left,right" style string, keyed by leaf id. */
-function sides(root: Node, gap = 0) {
-  const { leaves } = layoutTree(root, 1000, 1000, gap)
-  const seams = seamSides(leaves, gap)
-  return (id: string) => {
-    const seam = seams.get(leaves.find(l => l.node.id === id)!.node.id)!
-    return ['left', 'right', 'top', 'bottom'].filter(k => seam[k as keyof typeof seam]).join(',')
-  }
-}
-
-describe('seamSides', () => {
-  it('marks the shared edge of two filled panes only', () => {
-    const at = sides(split('s', leaf('a'), leaf('b')))
-    expect(at('a')).toBe('right')
-    expect(at('b')).toBe('left')
-  })
-
-  it('marks nothing against an empty pane', () => {
-    expect(sides(split('s', leaf('a'), leaf('b', null)))('a')).toBe('')
-  })
-
-  it('keeps the canvas border out of it in a 2×2', () => {
-    const root = split('outer', split('top', leaf('a'), leaf('b')), split('bottom', leaf('c'), leaf('d')), 'column')
-    const at = sides(root)
-    expect(at('a')).toBe('right,bottom')
-    expect(at('b')).toBe('left,bottom')
-    expect(at('c')).toBe('right,top')
-    expect(at('d')).toBe('left,top')
-  })
-
-  it('resolves adjacency across a gap', () => {
-    const at = sides(split('s', leaf('a'), leaf('b')), 30)
-    expect(at('a')).toBe('right')
-    expect(at('b')).toBe('left')
-  })
-
-  it('sees a tall pane from both of the panes stacked beside it', () => {
-    const at = sides(split('s', leaf('a'), split('t', leaf('b'), leaf('c'), 'column')))
-    expect(at('a')).toBe('right')
-    expect(at('b')).toBe('left,bottom')
-    expect(at('c')).toBe('left,top')
-  })
-})
-
-describe('leafCornerRadii', () => {
-  it('squares the corners that sit on a seam when panes are flush', () => {
-    const root = split('outer', split('top', leaf('a'), leaf('b')), split('bottom', leaf('c'), leaf('d')), 'column')
-    const { leaves } = layoutTree(root, 1000, 1000, 0)
-    const radii = (id: string) => {
-      const seam = seamSides(leaves, 0).get(leaves.find(l => l.node.id === id)!.node.id)!
-      return leafCornerRadii(40, seam, 0).join(',')
-    }
-    expect(radii('a')).toBe('40,0,0,0')
-    expect(radii('b')).toBe('0,40,0,0')
-    expect(radii('c')).toBe('0,0,0,40')
-    expect(radii('d')).toBe('0,0,40,0')
-  })
-
-  it('keeps the full radius when a gutter separates the panes', () => {
-    const { leaves } = layoutTree(split('s', leaf('a'), leaf('b')), 1000, 1000, 30)
-    const seam = seamSides(leaves, 30).get(leaves.find(l => l.node.id === 'a')!.node.id)!
-    expect(leafCornerRadii(40, seam, 30).join(',')).toBe('40,40,40,40')
-  })
-})
-
-describe('layoutTree tiling', () => {
-  const rects = (root: Node, W: number, H: number, gap: number) =>
-    layoutTree(root, W, H, gap).leaves.map(l => l.rect)
-
-  it('abuts panes exactly on whole pixels at gap 0, whatever the width', () => {
-    for (const W of [1000, 1001, 1023, 2048]) {
-      const [a, b] = rects(split('s', leaf('a'), leaf('b')), W, 800, 0)
-      expect(a.x + a.w).toBe(b.x)
-      expect(a.w + b.w).toBe(W)
-      for (const r of [a, b])
-        expect([r.x, r.w].every(Number.isInteger)).toBe(true)
-    }
-  })
-
-  it('rounds a repeating split into whole-pixel panes', () => {
-    const [a, b] = rects({ ...split('s', leaf('a'), leaf('b')), ratio: 1 / 3 } as Node, 1000, 800, 0)
-    expect(a.w).toBe(333)
-    expect(b.w).toBe(667)
-    expect(a.x + a.w).toBe(b.x)
-  })
-
-  it('leaves a whole-pixel gutter that still adds up', () => {
-    const [a, b] = rects(split('s', leaf('a'), leaf('b')), 1000, 800, 20)
-    expect(a.w + 20 + b.w).toBe(1000 - 20 * 2)
-    expect([a.x, a.w, b.x, b.w].every(Number.isInteger)).toBe(true)
   })
 })

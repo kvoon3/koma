@@ -66,6 +66,9 @@ export const zhHant: Record<string, string> = {
   'Photo gap': '照片間距',
   'Grid gap': '九宮格間距',
   'Photo radius': '照片圓角',
+  'Blend width': '融合寬度',
+  'Blend strength': '融合強度',
+  'Photo crossfade': '照片交叉淡化',
   'Pane border': '窗格外框',
   'Font mirror': '字體鏡像',
 

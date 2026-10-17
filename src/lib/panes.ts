@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 export interface Rect {
   x: number
   y: number
@@ -439,9 +441,8 @@ function markSides(sides: SeamSides, ra: Rect, rb: Rect, tol: number) {
 
 /**
  * Seam edges per leaf: an edge counts when another leaf WITH a photo sits
- *  beside it across the gap (flush at gap=0). Seams tell the corner radii and
- *  the pane border which edges a neighbor shares, never an empty pane or the
- *  canvas border.
+ *  beside it across the gap (flush at gap=0). Feathers only run between
+ *  photos, never against empty panes or the canvas border.
  */
 export function seamSides(
   leaves: { node: Leaf, rect: Rect }[],
@@ -459,6 +460,45 @@ export function seamSides(
     }
   }
   return out
+}
+
+/** Feather width for a pane, clamped so opposed fades never eat the whole cell. */
+export function seamFadeWidth(fade: number, rect: Rect) {
+  return Math.max(0, Math.min(fade, rect.w / 2, rect.h / 2))
+}
+
+/**
+ * Fade px used for crossfade overlap. Strength scales intensity; gap>0
+ * disables overlap so intentional gutters keep solid gap fill.
+ */
+export function blendFadePx(fade: number, strength: number, gap: number) {
+  if (gap > 0 || fade <= 0 || strength <= 0)
+    return 0
+  return fade * Math.min(1, Math.max(0, strength / 100))
+}
+
+/**
+ * Grow a layout rect into each photo-photo seam by half the fade so neighbors
+ * overlap; opposing masks then crossfade sharp photos in that band.
+ */
+export function expandRectForBlend(rect: Rect, seam: SeamSides | undefined, fadePx: number): Rect {
+  if (!seam || fadePx <= 0)
+    return rect
+  const g = seamFadeWidth(fadePx, rect) / 2
+  let { x, y, w, h } = rect
+  if (seam.left) {
+    x -= g
+    w += g
+  }
+  if (seam.right)
+    w += g
+  if (seam.top) {
+    y -= g
+    h += g
+  }
+  if (seam.bottom)
+    h += g
+  return { x, y, w, h }
 }
 
 /** Per-corner radii in CSS / canvas order: top-left, top-right, bottom-right, bottom-left. */
@@ -487,6 +527,31 @@ export function leafCornerRadii(
 
 export function cornerRadiiCss(radii: CornerRadii): string {
   return `${radii[0]}px ${radii[1]}px ${radii[2]}px ${radii[3]}px`
+}
+
+/** CSS mask feathering a pane's seam edges; undefined when nothing fades. */
+export function seamMaskStyle(seam: SeamSides | undefined, w: number): CSSProperties | undefined {
+  if (!seam || w <= 0)
+    return undefined
+  const solid = '#000'
+  const parts: string[] = []
+  if (seam.left)
+    parts.push(`linear-gradient(to right, transparent, ${solid} ${w}px)`)
+  if (seam.right)
+    parts.push(`linear-gradient(to left, transparent, ${solid} ${w}px)`)
+  if (seam.top)
+    parts.push(`linear-gradient(to bottom, transparent, ${solid} ${w}px)`)
+  if (seam.bottom)
+    parts.push(`linear-gradient(to top, transparent, ${solid} ${w}px)`)
+  if (!parts.length)
+    return undefined
+  const image = parts.join(', ')
+  return {
+    maskImage: image,
+    WebkitMaskImage: image,
+    maskComposite: 'intersect',
+    WebkitMaskComposite: 'source-in',
+  }
 }
 
 export function ratioFromPointer(
