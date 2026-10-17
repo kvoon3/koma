@@ -1,5 +1,5 @@
 import { Popover } from '@base-ui/react/popover'
-import { FlipHorizontal2, FlipVertical2, RotateCcwSquare, RotateCw, RotateCwSquare } from 'lucide'
+import { FlipHorizontal2, FlipVertical2, Gauge, RotateCcwSquare, RotateCwSquare } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { degToRad, radToDeg, wrapDeg } from '../lib/detent'
 import { useT } from '../lib/i18n'
@@ -53,7 +53,13 @@ export function PaneRotateTool({ hidden = false }: { hidden?: boolean }) {
         aria-label={t('Rotate or flip this photo')}
         data-dock-tool={t('Rotate')}
       >
-        <MorphIcon icon={RotateCw} size={22} strokeWidth={1.5} />
+        {/*
+         * `Gauge`, not a circular arrow: next to Reset (`RotateCcw`) two
+         * mirrored arrows read as one glyph. An arch and a needle say "dial"
+         * (this popover is the detent dial) and share no ring or arrowhead
+         * with Reset, so the pair tells apart at 22px.
+         */}
+        <MorphIcon icon={Gauge} size={22} strokeWidth={1.5} />
         <span className={toolsLabelCls}>{t('Rotate')}</span>
       </Popover.Trigger>
       <Popover.Portal>
