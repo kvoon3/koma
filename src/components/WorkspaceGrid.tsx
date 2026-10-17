@@ -1,4 +1,5 @@
 import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { ReactNode, PointerEvent as ReactPointerEvent } from 'react'
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, MouseSensor, pointerWithin, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
@@ -7,10 +8,12 @@ import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
 import { Camera, LayoutDashboard, LayoutGrid, LoaderCircle, Plus, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
+import { animate, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
+import { PAGER_SLOP, PAGER_SNAP_MS, pagerOffset, pagerRestOffset, pagerStep, pagerTravel } from '../lib/boardPager'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { fontById } from '../lib/fonts'
 import { cellRatioValue, gridCellBox } from '../lib/gridTools'
@@ -41,6 +44,16 @@ const STAGE_PAD = 48
 
 /** Air the stage keeps above and below a board. */
 const STAGE_PAD_Y = 12
+
+/**
+ * How far the board recedes behind the switcher (an app shrinking down). The
+ * pager needs it because the board pans inside this scale: its own translate
+ * is divided by it so the board still tracks the finger 1:1 on screen.
+ */
+const RECEDE_SCALE = 0.65
+
+/** `--ease-out` as JS: the pager's settle uses the same curve as the CSS. */
+const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1]
 
 /**
  * The chrome the dock keeps at the bottom of the stage on this route: its 28px
@@ -344,6 +357,12 @@ function dirForKey(k: string): NavDir | null {
 
 const DELETE_ZONE_ID = '__delete__'
 
+/** Hand a captured pointer back, if this element still has it. */
+function releaseCapture(el: HTMLElement, pointerId: number) {
+  if (el.hasPointerCapture(pointerId))
+    el.releasePointerCapture(pointerId)
+}
+
 /**
  * The delete strip is hit by the pointer itself (it sits outside the grid, so
  * closestCenter would never pick it, and must not steal near-top drops);
@@ -395,6 +414,48 @@ export function WorkspaceGrid() {
    */
   const [boardNamed, setBoardNamed] = useState(false)
 
+  // ---- Board pager (the receded board dragged sideways) --------------------
+  /**
+   * The receded board is a pager, macOS Spaces style: a press-and-drag on it
+   * slides the board with the finger and brings the neighbouring group's board
+   * in from the far edge, one page per group. `pagerX` is the board's offset in
+   * screen px; the drag writes it straight (no render per frame, only the
+   * ring's lean is state) and `lib/boardPager` supplies the dock's rules: the
+   * snap, the fling and the rubber band at the ends of the row. Landing on a
+   * neighbour is `switchGrid` (navigation, no undo step), the same door the
+   * strip knocks on, so ring and board always agree.
+   */
+  const pagerX = useMotionValue(0)
+  /** The card the strip's ring leans onto mid-drag (null = the open group). */
+  const [ringId, setRingId] = useState<string | null>(null)
+  const ringRef = useRef<string | null>(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
+  const pagerRef = useRef<HTMLDivElement | null>(null)
+  const pagerTrackRef = useRef<HTMLDivElement | null>(null)
+  const pagerGeomRef = useRef({ travel: 0 })
+  // The press's origin (x0/y0, the 1:1 reference) and its last sample (x/t,
+  // for the release speed).
+  const pagerDragRef = useRef<null | { id: number, x0: number, y0: number, x: number, y: number, t: number, v: number, axis: 'x' | null }>(null)
+  const pagerSnapRef = useRef<null | { stop: () => void }>(null)
+  const pagerSettlingRef = useRef(false)
+
+  // The offset reaches two elements that React does not style, so a drag costs
+  // no render: the board (inside the column's recede scale, hence the divide;
+  // on screen it still tracks the finger 1:1) and the neighbour boards' track.
+  useEffect(() => {
+    const apply = (v: number) => {
+      if (boardRef.current)
+        boardRef.current.style.transform = v ? `translateX(${v / RECEDE_SCALE}px)` : ''
+      if (pagerTrackRef.current)
+        pagerTrackRef.current.style.transform = v ? `translateX(${v}px)` : ''
+    }
+    apply(pagerX.get())
+    const off = pagerX.on('change', apply)
+    return () => {
+      off()
+    }
+  }, [pagerX])
+
   /**
    * Open the switcher over the board, or leave it, zooming back into
    * `gridId`'s workspace first when given (switching groups is navigation, no
@@ -404,6 +465,20 @@ export function WorkspaceGrid() {
    */
   const morphSwitcher = useCallback((open: boolean, gridId?: string) => {
     const apply = () => {
+      if (!open) {
+        // Leaving drops the gesture with the mode: the board must never be
+        // left parked a page over (Esc mid-drag, a backdrop click, a card).
+        pagerDragRef.current = null
+        pagerSettlingRef.current = false
+        pagerSnapRef.current?.stop()
+        pagerSnapRef.current = null
+        if (pagerX.get() !== 0)
+          pagerX.jump(0)
+        if (ringRef.current !== null) {
+          ringRef.current = null
+          setRingId(null)
+        }
+      }
       if (!open && gridId && gridId !== useStore.getState().activeGridId)
         useStore.getState().switchGrid(gridId)
       setSwitcher(open)
@@ -425,7 +500,7 @@ export function WorkspaceGrid() {
       if (!open)
         setBoardNamed(false)
     }).catch(() => {})
-  }, [])
+  }, [pagerX])
 
   // Enter a workspace: set activeId before navigating so the stage renders the
   // right workspace inside the same view-transition commit (the route wrapper
@@ -438,6 +513,7 @@ export function WorkspaceGrid() {
 
   const grids = useStore(s => s.grids)
   const activeGridId = useStore(s => s.activeGridId)
+  const parkedBoards = useStore(s => s.parkedBoards)
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
@@ -563,6 +639,172 @@ export function WorkspaceGrid() {
   const openGroup = grids.find(g => g.id === activeGridId)
   const { stripTop, stripH, cardW, cardH } = switcherMetrics(wrapSize.h)
 
+  // Where the gesture surface sits, and how far one page of travel is: measured
+  // off the receded board itself, so the surface and the neighbour boards land
+  // exactly on it. The board's own pan is subtracted, because a switch
+  // re-measures while the board is still a page over.
+  useLayoutEffect(() => {
+    const surface = pagerRef.current
+    const board = boardRef.current
+    const stage = wrapRef.current
+    if (!switcher || !surface || !board || !stage)
+      return
+    const s = stage.getBoundingClientRect()
+    const b = board.getBoundingClientRect()
+    const travel = pagerTravel(b.width)
+    surface.style.left = `${b.left - s.left - pagerX.get()}px`
+    surface.style.top = `${b.top - s.top}px`
+    surface.style.width = `${b.width}px`
+    surface.style.height = `${b.height}px`
+    surface.style.setProperty('--pager-travel', `${travel}px`)
+    pagerGeomRef.current.travel = travel
+  }, [switcher, wrapRef, wrapSize.w, wrapSize.h, cell, box.h, gridGap, workspaces.length, grids.length, activeGridId, pagerX])
+
+  const activeIdx = grids.findIndex(g => g.id === activeGridId)
+  const hasPrev = activeIdx > 0
+  const hasNext = activeIdx >= 0 && activeIdx < grids.length - 1
+  const boardOf = (id: string) => (id === activeGridId ? workspaces : parkedBoards[id]?.workspaces ?? [])
+
+  const leanTo = (id: string | null) => {
+    if (ringRef.current === id)
+      return
+    ringRef.current = id
+    setRingId(id)
+  }
+
+  /**
+   * Let the board go: the dock's page rules pick the board it lands on, the
+   * ring settles on that card, and the switch itself waits until the board has
+   * landed, so the board the finger let go of is the one that stays.
+   */
+  const settlePager = (velocity: number) => {
+    const { travel } = pagerGeomRef.current
+    const step = pagerStep(pagerX.get(), velocity, travel, hasPrev, hasNext)
+    const targetId = step === 0 ? null : grids[activeIdx + step]?.id ?? null
+    const rest = pagerRestOffset(targetId ? step : 0, travel)
+    leanTo(targetId)
+    pagerSettlingRef.current = true
+    const land = () => {
+      pagerSettlingRef.current = false
+      // The board that landed is the store's open group now: swap it in while
+      // the pan still holds the board it replaces off the edge, then let the
+      // pan go in the same frame, so neither board jumps.
+      // eslint-disable-next-line react/dom-no-flush-sync -- the swap and the pan reset must paint together
+      flushSync(() => {
+        leanTo(null)
+        if (targetId)
+          useStore.getState().switchGrid(targetId)
+      })
+      pagerX.jump(0)
+    }
+    if (prefersReducedMotion()) {
+      pagerX.jump(rest)
+      land()
+      return
+    }
+    const anim = animate(pagerX, rest, { duration: PAGER_SNAP_MS / 1000, ease: EASE_OUT })
+    pagerSnapRef.current = anim
+    void anim.then(() => {
+      if (pagerSnapRef.current !== anim)
+        return
+      pagerSnapRef.current = null
+      land()
+    })
+  }
+
+  const onPagerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    // A settling board owns the pager until it lands (200ms): a second press
+    // mid-settle would fight the animation.
+    if (e.button !== 0 || pagerSettlingRef.current)
+      return
+    pagerDragRef.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: e.timeStamp, v: 0, axis: null }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const onPagerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = pagerDragRef.current
+    if (!d || d.id !== e.pointerId)
+      return
+    const dx = e.clientX - d.x0
+    const dy = e.clientY - d.y0
+    if (d.axis === null) {
+      // Under the slop the press is still a click; a mostly-vertical one is
+      // not ours (nothing to hijack), so it is handed straight back.
+      if (Math.abs(dx) < PAGER_SLOP && Math.abs(dy) < PAGER_SLOP)
+        return
+      if (Math.abs(dx) <= Math.abs(dy)) {
+        pagerDragRef.current = null
+        releaseCapture(e.currentTarget, e.pointerId)
+        return
+      }
+      d.axis = 'x'
+    }
+    // Release speed: the slope of the samples, so a flick reads as a flick.
+    const dt = e.timeStamp - d.t
+    if (dt > 0) {
+      const v = ((e.clientX - d.x) / dt) * 1000
+      d.v = d.v === 0 ? v : d.v * 0.6 + v * 0.4
+      d.x = e.clientX
+      d.t = e.timeStamp
+    }
+    const { travel } = pagerGeomRef.current
+    const shown = pagerOffset(dx, travel, hasPrev, hasNext)
+    pagerX.set(shown)
+    // The ring leans with the board: past the half the neighbour's card wears
+    // it, so the strip says where a release here would land.
+    const lean = shown >= travel / 2 ? -1 : shown <= -travel / 2 ? 1 : 0
+    leanTo(lean === 0 ? null : grids[activeIdx + lean]?.id ?? null)
+  }
+
+  const onPagerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = pagerDragRef.current
+    if (!d || d.id !== e.pointerId)
+      return
+    pagerDragRef.current = null
+    releaseCapture(e.currentTarget, e.pointerId)
+    // A click, or a vertical gesture: nothing moved, nothing switches.
+    if (d.axis !== 'x')
+      return
+    // A held release has no momentum left (and a cancelled one never had it).
+    settlePager(e.type === 'pointercancel' || e.timeStamp - d.t > 80 ? 0 : d.v)
+  }
+
+  /**
+   * The gesture surface over the receded board: above the dim, under the strip,
+   * so a press on the board is a pager drag while a click there does nothing
+   * (it used to fall through to the dim and leave the switcher).
+   */
+  const pager = (
+    <div
+      ref={pagerRef}
+      data-board-pager=""
+      className="absolute touch-pan-y select-none overflow-hidden overscroll-x-contain"
+      onPointerDown={onPagerDown}
+      onPointerMove={onPagerMove}
+      onPointerUp={onPagerUp}
+      onPointerCancel={onPagerUp}
+      // A capture lost mid-gesture (the element going away, the OS taking the
+      // pointer) is still a release: put the board home rather than leave it
+      // a page over. After a normal release the drag is already gone.
+      onLostPointerCapture={() => {
+        if (!pagerDragRef.current)
+          return
+        pagerDragRef.current = null
+        settlePager(0)
+      }}
+      onDragStart={e => e.preventDefault()}
+    >
+      <div ref={pagerTrackRef} className="absolute inset-0">
+        {hasPrev && (
+          <PagerBoard side="prev" board={boardOf(grids[activeIdx - 1]!.id)} cell={cell} box={box} gap={gridGap} boardW={boardW} photoById={photoById} transparent={transparent} />
+        )}
+        {hasNext && (
+          <PagerBoard side="next" board={boardOf(grids[activeIdx + 1]!.id)} cell={cell} box={box} gap={gridGap} boardW={boardW} photoById={photoById} transparent={transparent} />
+        )}
+      </div>
+    </div>
+  )
+
   return (
     <div
       ref={wrapRef}
@@ -596,7 +838,7 @@ export function WorkspaceGrid() {
                 width: boardW,
                 gap: CAPTION_GAP,
                 viewTransitionName: boardNamed ? 'ws-board' : undefined,
-                transform: switcher ? 'scale(0.65)' : undefined,
+                transform: switcher ? `scale(${RECEDE_SCALE})` : undefined,
                 opacity: switcher ? 0.45 : 1,
                 filter: switcher ? 'blur(3px)' : undefined,
                 pointerEvents: switcher ? 'none' : undefined,
@@ -647,6 +889,7 @@ export function WorkspaceGrid() {
                 </div>
               </div>
               <div
+                ref={boardRef}
                 data-board=""
                 className="grid grid-cols-3"
                 style={{ gap: gridGap, width: boardW }}
@@ -692,10 +935,13 @@ export function WorkspaceGrid() {
           stripH={stripH}
           cardW={cardW}
           cardH={cardH}
+          ringId={ringId}
           photoById={photoById}
           transparent={transparent}
           onPick={id => morphSwitcher(false, id ?? undefined)}
-        />
+        >
+          {pager}
+        </WorkspaceSwitcher>
       )}
 
       {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage;
@@ -719,17 +965,25 @@ export function WorkspaceGrid() {
  * follows), clicking a card zooms back into it, and the backdrop or Esc
  * returns to the overview as it was. Enter/exit morph via the ws-board view
  * transition; this component is only what sits above the receding board.
+ *
+ * `ringId` is the card the ring leans on while a pager drag is under way (the
+ * neighbour a release there would land on); `children` is the board pager's
+ * gesture surface, which has to sit above the dim and below the strip.
  */
-function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, photoById, transparent, onPick }: {
+function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, ringId, photoById, transparent, onPick, children }: {
   /** The strip's box within the stage, from `switcherMetrics`. */
   stripTop: number
   stripH: number
   cardW: number
   cardH: number
+  /** The card wearing the ring, when a drag leans onto it (null = the open group's). */
+  ringId: string | null
   photoById: Map<string, Photo>
   transparent: boolean
   /** null = leave without switching; a group id = zoom back into that board. */
   onPick: (gridId: string | null) => void
+  /** The pager surface: over the dim, under the strip. */
+  children?: ReactNode
 }) {
   const t = useT()
   const grids = useStore(s => s.grids)
@@ -809,6 +1063,8 @@ function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, photoById, transpar
           way back to the overview as it was. */}
       <div className="absolute inset-0 bg-overlay-dim" onClick={() => onPick(null)} />
 
+      {children}
+
       <div
         data-switcher-strip=""
         className="absolute inset-x-0 flex items-stretch gap-1 overflow-hidden border-y border-line bg-panel-2/75 px-2 shadow-pop backdrop-blur-xl backdrop-saturate-150"
@@ -823,6 +1079,7 @@ function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, photoById, transpar
         >
           {grids.map((g) => {
             const active = g.id === activeGridId
+            const ringed = g.id === (ringId ?? activeGridId)
             const board = boardOfGroup(g.id)
             return (
               <div
@@ -835,13 +1092,14 @@ function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, photoById, transpar
                 }}
                 data-switcher-card=""
                 data-card-active={active || undefined}
+                data-card-ring={ringed || undefined}
                 className="group/card relative flex shrink-0 snap-center flex-col items-center gap-0.5"
                 style={{ width: cardW }}
               >
                 <button
                   data-card-face=""
                   className={`relative block cursor-pointer overflow-hidden border bg-pane-bg shadow-pop outline-0 transition-[scale,outline-color] duration-(--dur-fast) focus-visible:outline-2 focus-visible:outline-sel ${
-                    active
+                    ringed
                       ? ' border-line-strong scale-[1.08] outline-2 outline-offset-1 outline-sel'
                       : ' border-line outline-2 outline-offset-1 outline-transparent hover:not-focus-visible:outline-line-strong'
                   }`}
@@ -974,13 +1232,74 @@ function AddCell({ cell, cellH }: { cell: number, cellH: number }) {
       title={t('Add a workspace')}
       onClick={() => useStore.getState().addWorkspace()}
     >
+      <AddSlotFrame cell={cell} cellH={cellH} />
+    </button>
+  )
+}
+
+/**
+ * The grid's last slot as drawn: the dashed frame and its +. Shared by the live
+ * + cell and the inert copy a pager board shows, so both boards are the same
+ * shape.
+ */
+function AddSlotFrame({ cell, cellH }: { cell: number, cellH: number }) {
+  return (
+    <>
       {/* The dashed frame is drawn, not a CSS border: an SVG rect inset by
           half its stroke keeps all four edges inside the box at any offset. */}
       <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full overflow-visible text-line-strong">
         <rect x="0.5" y="0.5" width={cell - 1} height={cellH - 1} fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" shapeRendering="crispEdges" />
       </svg>
       <MorphIcon icon={Plus} size={26} strokeWidth={1.75} />
-    </button>
+    </>
+  )
+}
+
+/**
+ * A neighbouring group's board on the pager: the same 3×3 the receded board
+ * draws (the grid's own cell previews, at the same cell size and gap), shrunk
+ * by the recede scale and dimmed / blurred to match it, so the two boards slide
+ * past each other as one plane. It sits a page to its side of the live board
+ * (`--pager-travel`, from the measured board) and is read-only.
+ */
+function PagerBoard({ side, board, cell, box, gap, boardW, photoById, transparent }: {
+  side: 'prev' | 'next'
+  board: { id: string, root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
+  cell: number
+  box: { w: number, h: number }
+  gap: number
+  boardW: number
+  photoById: Map<string, Photo>
+  transparent: boolean
+}) {
+  // The board pans inside the column's scale, so the page is measured in
+  // screen px while the content is laid out at full size.
+  const offset = side === 'prev' ? 'calc(var(--pager-travel, 0px) * -1)' : 'var(--pager-travel, 0px)'
+  return (
+    <div
+      data-pager-board={side}
+      aria-hidden
+      className="pointer-events-none absolute top-0 left-0 origin-top-left"
+      style={{
+        width: boardW,
+        transform: `translateX(${offset}) scale(${RECEDE_SCALE})`,
+        opacity: 0.45,
+        filter: 'blur(3px)',
+      }}
+    >
+      <div className="grid grid-cols-3" style={{ gap, width: boardW }}>
+        {board.map(ws => (
+          <div key={ws.id} className="relative overflow-hidden bg-panel-2" style={{ width: cell, height: box.h }}>
+            <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
+          </div>
+        ))}
+        {board.length < MAX_WORKSPACES && (
+          <span className="relative grid place-items-center text-dim" style={{ width: cell, height: box.h }}>
+            <AddSlotFrame cell={cell} cellH={box.h} />
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
