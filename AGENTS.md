@@ -13,7 +13,7 @@ Features ship as lanes: one lane = one worktree + one branch (`waveN/<lane>`) + 
 
 - **Agent roles**: code agents run on the `deepseek-flash` template; judgment, review and anything visual run on the `judge` template (glm-5.3-flash, vision input enabled via `modelOverrides` in models.json). Always pass `agent_type` explicitly; a generic subagent inherits the parent model.
 - **Briefs** are self-contained (subagents see no parent conversation): file pointers, constraints, lanes to stay out of, and acceptance criteria written as measurable checks.
-- **Gates, exit codes only** — never pipe gate commands into `tail` (the pipe masks the failure exit): `npx tsc --noEmit`; `npx vite build`; `bun test src`; `bun run lint`. All must exit 0 on the committed tree.
+- **Gates, exit codes only**: never pipe gate commands into `tail` (the pipe masks the failure exit), and never chain them with `;` (the chain continues past a failure). Run `npx tsc --noEmit`; `npx vite build`; `bun test src`; `bun run lint` and require exit 0 from each, on the committed tree.
 - **Interaction claims need browser measurements** (element rects across a gesture, per-frame samples), not adjectives. Playwright-core from a worktree's node_modules plus the cached Chromium works; seed app state via `window.__collage`.
 - **Vision acceptance for UI changes**: before pushing, screenshot the changed views at 375×812 (mobile is the bar) and the desktop width, then have a `judge` agent review the PNGs against the intended design. Fix and re-shoot until confirmed.
 - **Locale keys** go into BOTH `zh-Hans.ts` and `zh-Hant.ts` under a per-lane comment section (union-friendly); the eslint i18n-coverage rule and `src/lib/i18nDrift.test.ts` enforce both directions.
