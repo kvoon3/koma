@@ -272,8 +272,6 @@ export const zhHant: Record<string, string> = {
   'Replace': '換照片',
   'Text': '文字',
   'Tools': '工具',
-  'Show tools': '展開工具面板',
-  'Hide tools': '收起工具面板',
   'Drag to change canvas aspect · double-click to reset': '拖曳改變畫布比例 · 雙擊重設',
   'Make': '製作貼圖',
   'Make a sticker from text or an image': '用文字或圖片製作貼圖',
@@ -398,7 +396,7 @@ export const zhHant: Record<string, string> = {
   '"Make" in the tools panel': '工具面板裡的「製作貼圖」',
   'Open the sticker maker: type text or pick an image, remove its background with a local AI model, pick a die-cut outline and finish, and insert the result onto that pane as a sticker': '開啟貼圖製作：輸入文字或挑選一張圖片，用本機 AI 模型去背，挑好模切描邊後完成，將結果以貼圖形式插入該窗格',
   '"Text" in the tools panel': '工具面板裡的「文字」',
-  'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, the corner to resize, the bottom-left arrow to rotate (Shift snaps to 15°), the chip below it to reset the angle, double-click to edit, click away or Esc to deselect': '為焦點窗格新增文字標籤（預設黑底白字）；點選後會選取並固定其工具列（字體挑選器 + 黑 / 白切換，離線時改用系統字體）；拖曳移動，角上縮放，左下角箭頭旋轉（按住 Shift 以 15° 吸附），下方按鈕可重設角度，雙擊編輯，點選別處或按 Esc 取消選取',
+  'Add a text label to the focused pane (white on black by default) and start editing: click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, the corner to resize, the bottom-left arrow to rotate (Shift snaps to 15°), the chip below it to reset the angle, double-click to edit, click away or Esc to deselect. Below lg the label tools move into the bottom sheet, which then shows them alone (font, text and background color, opacity, icon, invert, delete)': '為焦點窗格新增文字標籤（預設黑底白字）並直接進入編輯：點選後會選取並固定其工具列（字體挑選器 + 黑 / 白切換，離線時改用系統字體）；拖曳移動，角上縮放，左下角箭頭旋轉（按住 Shift 以 15° 吸附），下方按鈕可重設角度，雙擊編輯，點選別處或按 Esc 取消選取。視窗窄於 lg 時文字工具會移到下方面板，此時面板只顯示它們（字體、文字顏色、背景顏色、不透明度、圖示、反色、刪除）',
   'Close': '關閉',
 
   // ClearConfirm
@@ -504,4 +502,9 @@ export const zhHant: Record<string, string> = {
   'Rotate right 90°': '向右旋轉 90°',
   'Flip horizontally': '水平翻轉',
   'Flip vertically': '垂直翻轉',
+
+  // Dock rework
+  'Collapse tools': '收起工具標籤',
+  'Canvas ratio': '畫布比例',
+  'Square (1:1)': '正方形（1:1）',
 }

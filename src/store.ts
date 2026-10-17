@@ -67,8 +67,12 @@ export interface PaneClip {
   label: PaneLabel | null
 }
 
-/** Bottom tools sheet snap: hidden / one scrolling row / wrapped multi-row. */
-export type ToolsDockMode = 'collapsed' | 'row' | 'expanded'
+/**
+ * Bottom tools sheet display: icon-only single row / icon + label single row /
+ * wrapped multi-row. There is no put-away state: the sheet is always on
+ * screen, the smallest display only drops the labels (see toolsDockMode.ts).
+ */
+export type ToolsDockMode = 'icons' | 'row' | 'expanded'
 export type DockBg = 'solid' | 'frosted' | 'liquid'
 
 interface State {
@@ -123,8 +127,8 @@ interface State {
   /** Dock background opacity, 0–100 (%). */
   dockOpacity: number
   /**
-   * Bottom tools sheet snap state. Persisted; starts collapsed. Drag
-   * the handle or tap it to move between collapsed / row / expanded.
+   * Bottom tools sheet display. Persisted; starts in the labelled row. Drag
+   * the sheet or tap the handle to move between icons / row / expanded.
    */
   toolsDockMode: ToolsDockMode
   /**
@@ -182,7 +186,9 @@ export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
 export const SETTINGS_VERSION = 8
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
-const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
+const DOCK_MODES: readonly ToolsDockMode[] = ['icons', 'row', 'expanded']
+/** The dropped icon-minimized display, still found in saved settings. */
+const LEGACY_DOCK_COLLAPSED = 'collapsed'
 
 /** Persisted-settings migration (zustand `persist`); pure for unit tests. */
 export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
@@ -210,8 +216,15 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
     p.dockBg = DOCK_BG
   const op = Number(p.dockOpacity)
   p.dockOpacity = Number.isFinite(op) && p.dockOpacity != null ? Math.min(100, Math.max(0, op)) : DOCK_OPACITY
-  // v3: the temporary handle-icon toggle is gone (ruler is fixed).
+  // v3: the temporary handle-icon toggle is gone (the handle icon follows
+  // the next tap; see toolsDockMode.ts).
   delete p.dockHandleIcon
+  // v9: the icon-minimized state is gone. A save that still holds it lands on
+  // the icon-only row, the nearest display that survived (the drawer cannot
+  // be put away any more). Nothing else in the saved state moves, so this
+  // needs no version bump: the rename is idempotent on every load.
+  if (p.toolsDockMode === LEGACY_DOCK_COLLAPSED)
+    p.toolsDockMode = 'icons'
   if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
     p.toolsDockMode = TOOLS_DOCK_MODE
   // v8: whole-collage background layers over the gap fill; off for old saves.
@@ -222,6 +235,9 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
   return p
 }
 export const MIN_PANE_PX = 56
+/** Canvas ratio bounds: the narrowest and widest a split can be shaped to. */
+export const MIN_CANVAS_RATIO = 0.12
+export const MAX_CANVAS_RATIO = 8
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
 
@@ -1076,7 +1092,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
-        canvasRatio: Math.min(8, Math.max(0.12, ratio)),
+        canvasRatio: Math.min(MAX_CANVAS_RATIO, Math.max(MIN_CANVAS_RATIO, ratio)),
         canvasFill: Math.min(1, Math.max(0.15, fill)),
       })),
     }))
