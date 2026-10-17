@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import {
+  assistDeg,
   degToRad,
   detentTicks,
   dialDegAt,
@@ -9,7 +10,7 @@ import {
   HARD_STEP_DEG,
   nudgeDeg,
   radToDeg,
-  snapDetent,
+  settleDeg,
   snapFine,
   SOFT_STEP_DEG,
   wrapDeg,
@@ -17,21 +18,26 @@ import {
 import { useT } from '../../lib/i18n'
 
 /**
- * The app's one rotation control: a detent dial, snapping on click-through
- * ticks, for anything that turns. Every rotation UI adopts it (a pane's photo
- * now; board stickers and labels when they migrate), so it takes a value and
- * reports a value and knows nothing about the store, the pane tree or what is
- * being turned.
+ * The app's one rotation control: a stepless dial, with detents felt as
+ * magnetism, for anything that turns. Every rotation UI adopts it (a pane's
+ * photo now; board stickers and labels when they migrate), so it takes a value
+ * and reports a value and knows nothing about the store, the pane tree or what
+ * is being turned.
  *
  * The dial is a full turn, -180° … 180°:
- * - a detent drag clicks through the 15° ticks (`SOFT_STEP_DEG`) and holds the
- *   90° ones (`HARD_STEP_DEG`) across a wider magnetic band, so upright and
- *   sideways are easy to land on;
- * - holding Alt (or the `1°` toggle) switches to the fine path, 1° steps between
- *   the ticks;
+ * - a drag is continuous: the knob tracks the pointer and the value stored is
+ *   the pointer's exact angle (23.7° stays 23.7°), not a lattice point;
+ * - the ticks are a feel, not a grid (`assistDeg`): inside ±4° of a 15° tick the
+ *   angle leans toward it (a suggestion), inside ±10° of a 90° tick it leans
+ *   harder (upright and sideways hold), and at the band's edge the lean is gone,
+ *   so a continuing drag always walks past the tick;
+ * - letting go settles (`settleDeg`): within 2.5° of a hard tick the angle folds
+ *   onto it exactly; anywhere else it keeps the angle the hand stopped at;
  * - the reading is the zero button (tap it, or double-click the track, or press
  *   Home / 0), and the arrow keys walk the dial by a tick (Shift = 90°,
- *   Alt = 1°).
+ *   Alt = 1°), so the keyboard stays quantized;
+ * - the `1°` toggle keeps a quantized drag (whole degrees, no magnetism) for
+ *   anyone who wants an integer angle; holding Alt does the same mid-drag.
  *
  * Values are radians, wrapped to (-π, π] like every stored angle in the app.
  */
@@ -57,10 +63,15 @@ const btnCls = 'box-border flex h-[22px] cursor-pointer items-center justify-cen
 
 export function RotationControl({ value, onChange, label, disabled = false, className = '' }: RotationControlProps) {
   const t = useT()
-  /** The fine path: 1° steps instead of the 15° detents. Alt engages it mid-drag. */
+  /** The quantized path: whole degrees instead of the stepless drag. Alt engages it mid-drag. */
   const [fine, setFine] = useState(false)
   const trackRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<number | null>(null)
+  /**
+   * The last angle a drag emitted: release settles from it, not from the prop,
+   * which may still be a render behind the final pointermove.
+   */
+  const lastDegRef = useRef<number | null>(null)
   /**
    * Which end of the track the pointer is on. A half turn folds onto one
    * orientation (+180), so the knob has to remember which end of the dial the
@@ -73,11 +84,12 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
 
   const emit = useCallback((nextDeg: number) => {
     const w = wrapDeg(nextDeg)
+    lastDegRef.current = w
     if (w !== deg)
       onChange(degToRad(w))
   }, [deg, onChange])
 
-  /** Pointer x → the angle the dial lands on (detent or fine, per `fine`/Alt). */
+  /** Pointer x → the angle it reads at (stepless, with the detents' lean). */
   const angleAt = useCallback((clientX: number, alt: boolean) => {
     const box = trackRef.current?.getBoundingClientRect()
     if (!box || box.width <= 0)
@@ -85,7 +97,7 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
     const ratio = (clientX - box.left) / box.width
     leftHalfRef.current = ratio < 0.5
     const raw = dialDegAt(ratio)
-    return alt || fine ? snapFine(raw) : snapDetent(raw)
+    return alt || fine ? snapFine(raw) : assistDeg(raw)
   }, [fine])
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -107,7 +119,27 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
       emit(next)
   }
 
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+  /** Release, and let a hard tick take the angle if the hand stopped on it. */
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current !== e.pointerId)
+      return
+    dragRef.current = null
+    if (e.currentTarget.hasPointerCapture(e.pointerId))
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    const last = lastDegRef.current
+    if (last != null) {
+      // Settle even when the prop has not caught up with the final move: the
+      // capture must land, and a no-op value is dropped by the store.
+      const settled = settleDeg(last)
+      if (settled !== last) {
+        lastDegRef.current = settled
+        onChange(degToRad(settled))
+      }
+    }
+  }
+
+  /** The gesture was taken away (e.g. the OS scrolled): keep the angle, no settle. */
+  const onPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
     if (dragRef.current !== e.pointerId)
       return
     dragRef.current = null
@@ -170,7 +202,7 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
         aria-label={label}
         aria-valuemin={-180}
         aria-valuemax={180}
-        aria-valuenow={deg}
+        aria-valuenow={Math.round(deg * 10) / 10}
         aria-valuetext={formatDeg(deg)}
         aria-orientation="horizontal"
         aria-disabled={disabled || undefined}
@@ -180,8 +212,8 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
         style={{ height: TRACK_H }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onDoubleClick={() => !disabled && onChange(0)}
         onKeyDown={onKeyDown}
       >
@@ -196,7 +228,7 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
             style={{ left: `${dialPercent(tick.deg)}%`, height: tick.hard ? TICK_HARD : TICK_SOFT }}
           />
         ))}
-        {/* The knob: one square grip on the accent, riding the ticks. */}
+        {/* The knob: one square grip on the accent, riding the angle exactly. */}
         <span
           aria-hidden
           className="absolute top-1/2 z-1 block h-3.5 w-[3px] -translate-x-1/2 -translate-y-1/2 bg-accent"
