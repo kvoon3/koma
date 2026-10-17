@@ -499,4 +499,13 @@ export const zhHant: Record<string, string> = {
   'Icon': '圖示',
   'Invert': '對調',
   'Square (1:1)': '正方形（1:1）',
+  // Dual grid (two 9-grid groups, compared side by side)
+  'Compare': '對比',
+  'Exit compare': '結束對比',
+  'First group': '左邊群組',
+  'Second group': '右邊群組',
+  'Add a group': '新增群組',
+  'Rename': '重新命名',
+  'Delete group?': '刪除群組？',
+  'This removes the group and its nine collages. Undo brings them back.': '這會刪除該群組及其中的九個拼貼，可以用復原恢復。',
 }

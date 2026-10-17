@@ -501,4 +501,13 @@ export const zhHans: Record<string, string> = {
   'Icon': '图标',
   'Invert': '对调',
   'Square (1:1)': '正方形（1:1）',
+  // Dual grid (two 9-grid groups, compared side by side)
+  'Compare': '对比',
+  'Exit compare': '退出对比',
+  'First group': '左边分组',
+  'Second group': '右边分组',
+  'Add a group': '新增分组',
+  'Rename': '重命名',
+  'Delete group?': '删除分组？',
+  'This removes the group and its nine collages. Undo brings them back.': '这会删除该分组及其中的九个拼图，可以用撤销恢复。',
 }
