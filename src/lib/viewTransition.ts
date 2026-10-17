@@ -50,6 +50,7 @@ export function runPaneMorph(removed: readonly string[], apply: () => void) {
     return
   }
   const run = ++paneMorphRun
+  const gone = new Set(removed)
   const before = new Map<string, HTMLElement>()
   // The old snapshot has to carry the names and roles, so set them before
   // the capture.
@@ -57,7 +58,7 @@ export function runPaneMorph(removed: readonly string[], apply: () => void) {
     const id = el.dataset.paneId!
     before.set(id, el)
     el.style.viewTransitionName = `pane-${id}`
-    el.style.viewTransitionClass = removed.includes(id) ? 'pane-out' : 'pane-move'
+    el.style.viewTransitionClass = gone.has(id) ? 'pane-out' : 'pane-move'
   }
   document.documentElement.dataset.paneMorph = ''
   const vt = document.startViewTransition(() => {
