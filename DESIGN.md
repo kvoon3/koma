@@ -218,10 +218,12 @@ other below Tailwind's `sm` (a phone), where two three-column boards would leave
 naming the board the pair shows first; board B is the neighbour, and a swap
 flips the two (the open board following A). Each board wears a caption row of
 its own: an `A`/`B` mark, the group's name as a compact picker, and, on the
-left of the pair, the exit chip. A comparison thus has two named subjects, and
-each board picks its own group. Side by side the boards keep a 48px gutter with
-a full swap chip centred in it; stacked, that chip rides board B's caption,
-which sits in the ≥24px gap between the two boards.
+left of the pair, the exit chip (an × paired with its "Exit compare" label,
+so it never reads as removing a board). A comparison thus has two named
+subjects, and each board picks its own group. Side by side the boards keep a
+48px gutter with a full swap chip centred in it; stacked, a wide swap pill is
+centred on the band between the two boards (board A's column anchors it, so
+the band costs the pair no height).
 
 Every board draws all nine slots: the ones past a board's last cell stay drawn
 as flat quiet squares (a hairline over the near-canvas fill, no glyph, no “New
