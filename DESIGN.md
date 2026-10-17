@@ -214,10 +214,13 @@ size, empty slots quiet squares), nothing written under it (the cards are
 nameless, and the numbers they used to carry said no more than the pictures
 did). The open group's card wears the 2px blue selection ring (the `--sel`
 token; the app's own accent is monochrome) and stands slightly larger than its
-siblings. The board behind recedes: it scales to 65%, dims to 45% and blurs,
-an app-shrinking feel, and its empty cells drop their glyph and caption there
-(quiet squares: at 65% and blurred, nine "New collage" hints are placeholder
-noise), while the full overview keeps both.
+siblings. The board behind recedes: it scales to 65%, dims to 60% and blurs
+2px, an app-shrinking feel, and its empty cells drop their glyph and caption
+there (quiet squares: at 65% and blurred, nine "New collage" hints are
+placeholder noise), while the full overview keeps both. Those quiet squares
+keep a 2px `--dim` hairline: on a fresh session's all-empty board they are the
+only thing drawn, and the hairline has to survive the dim and the blur for the
+board to still read as a board.
 
 Entry and exit are navigation, not a route: the flip rides a view transition
 (the board column carries the `ws-board` transition name from before the open
