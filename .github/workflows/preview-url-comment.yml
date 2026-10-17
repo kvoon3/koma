@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Compute preview URL and upsert sticky comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const MARKER = '<!-- koma-preview-url -->'
