@@ -495,5 +495,8 @@ export const zhHant: Record<string, string> = {
   // Dock rework
   'Collapse tools': '收起工具標籤',
   'Canvas ratio': '畫布比例',
+  'Opacity': '不透明度',
+  'Icon': '圖示',
+  'Invert': '對調',
   'Square (1:1)': '正方形（1:1）',
 }
