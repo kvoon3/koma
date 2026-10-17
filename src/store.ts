@@ -25,6 +25,7 @@ import {
   placement,
 
   removeLeaf,
+  rotationOf,
   setSplitRatioIn,
   splitLeaf,
   stickerToBoard,
@@ -57,6 +58,10 @@ export interface PaneClip {
   zoom: number
   cx: number
   cy: number
+  /** Framing that travels with the photo: its turn and its mirrors. */
+  rot?: number
+  flipX?: boolean
+  flipY?: boolean
   stickers: Sticker[]
   label: PaneLabel | null
 }
@@ -546,6 +551,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       zoom: src.zoom,
       cx: src.cx,
       cy: src.cy,
+      rot: src.rot,
+      flipX: src.flipX,
+      flipY: src.flipY,
       stickers: [],
       label: null,
     })
@@ -567,6 +575,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           zoom: 1,
           cx: 0.5,
           cy: 0.5,
+          rot: 0,
+          flipX: false,
+          flipY: false,
           stickers: [],
           label: null,
         }),
@@ -585,6 +596,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           zoom: leaf.zoom,
           cx: leaf.cx,
           cy: leaf.cy,
+          rot: leaf.rot,
+          flipX: leaf.flipX,
+          flipY: leaf.flipY,
           stickers: [],
           label: null,
         },
@@ -605,6 +619,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           zoom: clip.zoom,
           cx: clip.cx,
           cy: clip.cy,
+          rot: clip.rot ?? 0,
+          flipX: clip.flipX ?? false,
+          flipY: clip.flipY ?? false,
           stickers: [],
           label: null,
         }),
@@ -706,7 +723,16 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
-        root: updateLeafIn(w.root, paneId, { photoId: null, zoom: 1, cx: 0.5, cy: 0.5, stickers: [] }),
+        root: updateLeafIn(w.root, paneId, {
+          photoId: null,
+          zoom: 1,
+          cx: 0.5,
+          cy: 0.5,
+          rot: 0,
+          flipX: false,
+          flipY: false,
+          stickers: [],
+        }),
       })),
     }))
   },
@@ -733,6 +759,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           zoom: 1,
           cx: 0.5,
           cy: 0.5,
+          rot: 0,
+          flipX: false,
+          flipY: false,
           stickers: [],
         }),
         focusId: paneId,
@@ -759,6 +788,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         zoom: 1,
         cx: 0.5,
         cy: 0.5,
+        rot: 0,
+        flipX: false,
+        flipY: false,
         stickers: [],
       })
       focusId = leaf.id
@@ -773,6 +805,45 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   updateLeaf: (paneId, patch) => {
     commit(`updateLeaf:${paneId}`)
     set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) }))
+  },
+
+  /**
+   * The drawer's rotation dial streams angles: one gesture is one undo step
+   * (tag `rotatePane:<id>`, coalesced like a sticker's rotation handle). The
+   * angle is wrapped, so a full turn comes back as the 0° it looks like.
+   */
+  rotatePane: (paneId, rot) => {
+    const leaf = findLeaf(activeWs(get()).root, paneId)
+    if (!leaf)
+      return
+    const next = wrapAngle(rot)
+    if (next === rotationOf(leaf))
+      return
+    commit(`rotatePane:${paneId}`)
+    set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { rot: next }) })) }))
+  },
+
+  /** Mirror a pane's photo on one axis; one tap, one undo step. */
+  flipPane: (paneId, axis) => {
+    const leaf = findLeaf(activeWs(get()).root, paneId)
+    if (!leaf)
+      return
+    const patch: Partial<Leaf> = axis === 'x' ? { flipX: !leaf.flipX } : { flipY: !leaf.flipY }
+    commit()
+    set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) }))
+  },
+
+  /** Back upright and unflipped in one step (the dial's 0 / double-click). */
+  resetPaneRotation: (paneId) => {
+    const leaf = findLeaf(activeWs(get()).root, paneId)
+    if (!leaf)
+      return
+    if (!rotationOf(leaf) && !leaf.flipX && !leaf.flipY)
+      return
+    commit()
+    set(s => ({
+      workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { rot: 0, flipX: false, flipY: false }) })),
+    }))
   },
 
   focus: paneId => set(s => ({
@@ -1182,6 +1253,12 @@ interface Actions {
   /** Swap two panes' contents: photo, view, stickers and label. */
   swapPhotos: (a: string, b: string) => void
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
+  /** Turn a pane's photo (radians, wrapped); a drag streams and coalesces. */
+  rotatePane: (paneId: string, rot: number) => void
+  /** Mirror a pane's photo on one axis. */
+  flipPane: (paneId: string, axis: 'x' | 'y') => void
+  /** Back upright and unflipped in one step. */
+  resetPaneRotation: (paneId: string) => void
   focus: (paneId: string) => void
   focusNeighbor: (dir: FocusDir) => void
   selectLabel: (labelId: string | null) => void

@@ -14,7 +14,7 @@ start                press V              focus right half (L), press S
 
 ```ts
 type Node = Leaf | Split
-interface Leaf { type: 'leaf', id, photoId, zoom, cx, cy, stickers: Sticker[], label: PaneLabel | null }
+interface Leaf { type: 'leaf', id, photoId, zoom, cx, cy, rot?, flipX?, flipY?, stickers: Sticker[], label: PaneLabel | null } // rot: radians, absent = upright; flips: absent = not mirrored
 interface Split { type: 'split', id, dir: 'row' | 'column', ratio, a: Node, b: Node }
 interface Sticker { id, photoId, x, y, s, rot } // rot: radians, 0 when absent (old saves)
 interface PaneLabel { text, font, theme: 'dark' | 'light', x, y, size, rot } // x/y: pane-normalized center; size: ‰ of short edge; theme: dark = white on black (default); rot: same rule as Sticker
@@ -50,6 +50,7 @@ rows.
 | Press and hold a Live Photo pane | Play its paired video (LIVE badge); release to stop; export uses the still |
 | "Sticker" in the tools panel | Pick an image and pin it onto the focused pane's photo (e.g. to cover faces); click to select; handles stay pinned like labels (drag to move, corner to scale, bottom-left arrow to rotate, bottom-center chip to reset the angle, × to delete) |
 | "Make" in the tools panel | Open the sticker maker: type text or pick an image on one shared stage (the empty image stage is the pick target; after a pick it shows the live die-cut preview, and while the local U²-Netᵖ cutout runs it frosts the raw pick with model-load progress or a cutting-out pulse), tune the outline and finish below the stage, then insert the rendered PNG onto that pane as a sticker. The PNG is cropped to the artwork's visible pixels, so the box the pane places, selects, resizes and exports is the sticker itself rather than the source frame and its padding |
+| "Rotate" in the tools panel | Turn or mirror the focused pane's photo, on the shared detent dial (`components/ui/RotationControl.tsx`): 15° soft ticks, 90° ticks that hold across a wider band, a fine 1° path (Alt or the `1°` toggle), a degree readout, 0 button and double-click to reset, plus ±90° quarter turns and the two flips. An upright pane keeps the plain img; a turned one rides a layer inside the photo clip, so the pane box, radius, feather and stickers never turn with it. One gesture is one undo step (`rotatePane:<id>`) |
 | "Text" in the tools panel | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there, and it stays upright however the label is turned), drag to move, corner handle to resize, bottom-left arrow to rotate, bottom-center chip to reset the angle, double-click to edit, click away or Esc to deselect |
 | × at pane top right | Close the pane (hidden while only one pane exists; shown while the pane is focused) |
 
@@ -353,7 +354,14 @@ resolution, including on panes with no photo at all. Rotation rides the same
 rule: both boxes turn about their center (`rotate()` in the preview,
 `ctx.rotate()` in the exporter), the angle is stored in radians and wrapped to
 (-π, π], and a rotated sticker's resize handle anchors on the rotated opposite
-corner, so it still scales along the diagonal the user sees.
+corner, so it still scales along the diagonal the user sees. A pane's photo is
+framed the same way: `paneTransform()` (lib/panes) turns it about the pane
+center, flips it and grows it by `rotationCoverScale()` so a turn never leaves
+empty corners (√2 at 45° on a square), and both sides read that one result, the
+preview as `rotate() scale()` on a layer inside the clip and the exporter as
+`ctx.rotate`/`ctx.scale` inside the pane clip. The seam feather stays in pane
+space on both: the preview masks the clip wrapper, the exporter feathers a
+pane-sized scratch after turning.
 
 Key invariant:
 

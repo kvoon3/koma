@@ -1,6 +1,6 @@
 import type { BgImage } from './collageBg'
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
-import type { CornerRadii, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
+import type { CornerRadii, Leaf, Node, PaneLabel, PaneTransform, Rect, SeamSides, Sticker } from './panes'
 import { isTransparentBg } from '../store'
 import { mapSeq } from './async'
 import { paintCollageBg } from './collageBg'
@@ -8,7 +8,7 @@ import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fo
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, labelIconNode, loadLabelIcon } from './labelIcons'
-import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, labelRect, layoutTree, leafCornerRadii, leafList, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
+import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, labelRect, layoutTree, leafCornerRadii, leafList, paneTransform, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -143,23 +143,43 @@ function prepare(opts: ExportOptions, W: number, H: number): Prepared {
 }
 
 /**
- * Draw one photo with feathered seam edges: painted into a scratch canvas,
- *  alpha-masked per seam edge with successive destination-in gradient fills
- *  (each fill multiplies the alpha, so edges combine), then stamped into the
- *  pane rect. The caller's roundRect clip still rounds the corners.
+ * Turn `ctx` the way the pane's photo is framed: about `center`, scaled by the
+ * flip signs and the cover factor (`paneTransform`). An upright, unflipped pane
+ * passes identity values, which compose to no change at all.
  */
-function drawFadedPhoto(
+function applyPaneTurn(ctx: CanvasRenderingContext2D, center: { x: number, y: number }, t: PaneTransform) {
+  ctx.translate(center.x, center.y)
+  ctx.rotate(t.rot)
+  ctx.scale(t.scaleX, t.scaleY)
+  ctx.translate(-center.x, -center.y)
+}
+
+/**
+ * Draw one placed photo into its pane: turned and mirrored as the pane frames
+ * it, feathered along the seam edges when it has any.
+ *
+ * The feather belongs to the PANE, not the photo, so a framed photo is first
+ * painted (turned) into a pane-sized scratch, the seam gradients then mask that
+ * scratch in pane space, and the result is stamped into the pane rect. That is
+ * the preview's order too: the masks ride the clip wrapper and the turn rides a
+ * layer inside it. The caller's roundRect clip still rounds the corners.
+ */
+function drawPanePhoto(
   ctx: CanvasRenderingContext2D,
   src: CanvasImageSource,
   p: { x: number, y: number, w: number, h: number },
   rect: Rect,
-  seam: SeamSides,
+  leaf: Leaf,
+  seam: SeamSides | undefined,
   fade: number,
 ) {
-  const solid = 'rgba(0,0,0,1)'
-  const fw = seamFadeWidth(fade, rect)
-  if (fw <= 0) {
+  const turn = paneTransform(rect, leaf)
+  const fw = seam ? seamFadeWidth(fade, rect) : 0
+  if (!seam || fw <= 0) {
+    ctx.save()
+    applyPaneTurn(ctx, { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 }, turn)
     ctx.drawImage(src, p.x, p.y, p.w, p.h)
+    ctx.restore()
     return
   }
   const cw = Math.max(1, Math.ceil(rect.w))
@@ -169,8 +189,13 @@ function drawFadedPhoto(
   scratch.height = ch
   const sc = scratch.getContext('2d')!
   sc.imageSmoothingQuality = 'high'
+  // The scratch is the pane box shifted by -rect.x/-rect.y, so the pane center
+  // sits at half its size: turning there turns about the same point the
+  // unfeathered path and the preview turn about.
+  applyPaneTurn(sc, { x: rect.w / 2, y: rect.h / 2 }, turn)
   sc.drawImage(src, p.x - rect.x, p.y - rect.y, p.w, p.h)
   sc.globalCompositeOperation = 'destination-in'
+  const solid = 'rgba(0,0,0,1)'
   const fadeFill = (g: CanvasGradient) => {
     sc.fillStyle = g
     sc.fillRect(0, 0, cw, ch)
@@ -252,6 +277,9 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
     const full = src.get(photo)
     if (!full)
       continue
+    // Deliberately untransformed: the backdrop is the blurred field behind the
+    // panes, and the preview's own backdrop layer (Stage.tsx) does not turn
+    // either. One of the two turning alone would put them out of step.
     const p = placement(layout, leaf, photo.trueW, photo.trueH)
     ctx.save()
     ctx.filter = `blur(${R}px)`
@@ -278,10 +306,7 @@ function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: Ex
     ctx.save()
     roundRect(ctx, rect.x, rect.y, rect.w, rect.h, leafCornerRadii(prep.radius, seam, prep.gap))
     ctx.clip()
-    if (seam && (seam.left || seam.right || seam.top || seam.bottom))
-      drawFadedPhoto(ctx, full.src, p, rect, seam, prep.fade)
-    else
-      ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
+    drawPanePhoto(ctx, full.src, p, rect, leaf, seam, prep.fade)
     ctx.restore()
   }
   if (prep.crossfade && prep.fade > 0)
@@ -585,10 +610,7 @@ function drawLiveCell(
   ctx.save()
   roundRect(ctx, rect.x, rect.y, rect.w, rect.h, leafCornerRadii(prep.radius, seam, prep.gap))
   ctx.clip()
-  if (seam && (seam.left || seam.right || seam.top || seam.bottom))
-    drawFadedPhoto(ctx, v, p, rect, seam, prep.fade)
-  else
-    ctx.drawImage(v, p.x, p.y, p.w, p.h)
+  drawPanePhoto(ctx, v, p, rect, leaf, seam, prep.fade)
   ctx.restore()
 }
 
@@ -716,6 +738,9 @@ export function buildCropReport(opts: ExportOptions): string {
   lines.push('# Save as crop.sh and run it in the photos directory to batch-crop the same framing')
   lines.push('')
 
+  // The framing (pan / zoom) is reported as it is stored. A rotated or flipped
+  // pane's visible crop is that frame turned, which a `magick -crop` line cannot
+  // express, so a framed pane's row is the crop before its turn.
   prep.cells.forEach(({ leaf, layout, photo }, i) => {
     const p = placement(layout, leaf, photo.trueW, photo.trueH)
     let sx = Math.round((layout.x - p.x) / p.scale)
