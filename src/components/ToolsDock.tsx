@@ -207,6 +207,12 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     if (!el)
       return
     const maxExp = Math.round(window.innerHeight * MAX_EXP_VH)
+    // The temporary restyle below (full width + wrap) shrinks the row's content
+    // to the viewport, and the browser then clamps the row's native scrollLeft
+    // to 0. Remember it so the position survives every measure (a popover
+    // opening adds nodes, which re-runs this).
+    const scroller = el.parentElement
+    const scrollLeft = scroller?.scrollLeft ?? 0
     // What the row looks like is the sheet's display mode (the icon-only row
     // drops the captions in CSS), so the two row heights are measured with the
     // mode forced: a hidden, synchronous pass, nothing paints in between.
@@ -244,6 +250,11 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     el.style.width = prevW
     el.style.maxWidth = prevMax
     el.style.visibility = prevVis
+    // Styles are back and nothing has painted since the clamp: put the row
+    // where the user left it, so tapping a tool does not scroll the row (and
+    // its popover's anchor) away.
+    if (scroller && scroller.scrollLeft !== scrollLeft)
+      scroller.scrollLeft = scrollLeft
     setRowH(row)
     setIconH(iconRow)
     setExpH(Math.max(row, exp))
