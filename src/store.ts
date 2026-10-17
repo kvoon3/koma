@@ -79,13 +79,6 @@ interface State {
   bgGradient: string | null
   /** Whole-collage background photo over `bg` (see lib/collageBg). */
   bgImage: BgImage | null
-  edgeFade: number
-  edgeFadeStrength: number
-  /**
-   * Opt-in photo crossfade (overlap + opposing masks + plus-lighter).
-   * Off by default: Safari regresses when this is the default blend path.
-   */
-  blendCrossfade: boolean
   paneBorder: boolean
   longSide: number
   format: 'image/jpeg' | 'image/png'
@@ -149,16 +142,13 @@ export const GAP = 0
 export const GRID_GAP = 10
 export const RADIUS = 0
 export const BG = '#000000'
-export const EDGE_FADE = 60
-export const EDGE_FADE_STRENGTH = 100
-export const BLEND_CROSSFADE = true
 export const PANE_BORDER = false
 
 export const DOCK_BG: DockBg = 'solid'
 export const DOCK_OPACITY = 60
 export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
 
-export const SETTINGS_VERSION = 8
+export const SETTINGS_VERSION = 9
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
 const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
@@ -166,8 +156,11 @@ const DOCK_MODES: readonly ToolsDockMode[] = ['collapsed', 'row', 'expanded']
 /** Persisted-settings migration (zustand `persist`); pure for unit tests. */
 export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
   const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
-  if (version < 1)
-    p.blendCrossfade = BLEND_CROSSFADE
+  // v9: the seam blend (feather width/strength, crossfade) is gone; pane
+  // edges are crisp, so a saved value has nothing left to drive.
+  delete p.edgeFade
+  delete p.edgeFadeStrength
+  delete p.blendCrossfade
   // v2: dock background + opacity + handle icon, and the dock mode is now
   // persisted (see v6 for the default). Sanitize either way.
   if (version < 2)
@@ -292,9 +285,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   bg: BG,
   bgGradient: null,
   bgImage: null,
-  edgeFade: EDGE_FADE,
-  edgeFadeStrength: EDGE_FADE_STRENGTH,
-  blendCrossfade: BLEND_CROSSFADE,
   paneBorder: PANE_BORDER,
   longSide: 2048,
   format: 'image/jpeg',
@@ -847,9 +837,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       bg: BG,
       bgGradient: null,
       bgImage: null,
-      edgeFade: EDGE_FADE,
-      edgeFadeStrength: EDGE_FADE_STRENGTH,
-      blendCrossfade: BLEND_CROSSFADE,
       paneBorder: PANE_BORDER,
       dockBg: DOCK_BG,
       dockOpacity: DOCK_OPACITY,
@@ -1008,11 +995,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // Visual settings survive reloads; the rest of the state (workspaces,
   // photos) stays session-only.
   name: 'collage:settings',
-  // v1: crossfade became the default blend. v0 always persisted
-  // `blendCrossfade: false` (the old default) even if never touched, so it
-  // cannot be told apart from an explicit choice: reset it to the new default.
   version: SETTINGS_VERSION,
-  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default. v6: dock mode reset to row. v7: gridCellRatio.
+  // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default. v6: dock mode reset to row. v7: gridCellRatio. v9: drop the seam blend settings.
   migrate: migrateSettings,
   partialize: state => ({
     gap: state.gap,
@@ -1021,9 +1005,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     bg: state.bg,
     bgGradient: state.bgGradient,
     bgImage: state.bgImage,
-    edgeFade: state.edgeFade,
-    edgeFadeStrength: state.edgeFadeStrength,
-    blendCrossfade: state.blendCrossfade,
     paneBorder: state.paneBorder,
     dockBg: state.dockBg,
     gridCellRatio: state.gridCellRatio,
@@ -1051,7 +1032,6 @@ export interface Derived {
   dividers: Divider[]
   gap: number
   radius: number
-  fade: number
   unit: number
 }
 
@@ -1078,7 +1058,6 @@ export function computeLayout(
   availH: number,
   gapValue: number,
   radiusValue: number,
-  fadeValue: number,
 ): Derived {
   const fit = fitCanvas(canvasRatio, availW, availH)
   const W = Math.max(80, Math.round(fit.W * canvasFill))
@@ -1086,7 +1065,7 @@ export function computeLayout(
   const u = Math.min(W, H) / 1000
   const gap = gapValue * u
   const l = layoutTree(root, W, H, gap)
-  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, fade: fadeValue * u, unit: u }
+  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, unit: u }
 }
 
 function liftLeafStickers(
@@ -1138,7 +1117,7 @@ export function migrateWorkspaceInserts(
   if (!leafList(ws.root).some(l => l.stickers.length > 0 || l.label))
     return stickers === ws.stickers && labels === ws.labels ? ws : { ...ws, stickers, labels }
   const photoById = new Map(photos.map(p => [p.id, p]))
-  const derived = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, availW, availH, 0, 0, 0)
+  const derived = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, availW, availH, 0, 0)
   const board = { w: derived.W, h: derived.H }
   const lifted: Sticker[] = [...stickers]
   const liftedLabels: PaneLabel[] = [...labels]

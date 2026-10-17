@@ -68,9 +68,6 @@ export const zhHans: Record<string, string> = {
   'Photo gap': '照片间隙',
   'Grid gap': '九宫格间隙',
   'Photo radius': '照片圆角',
-  'Blend width': '融合宽度',
-  'Blend strength': '融合浓度',
-  'Photo crossfade': '照片交叉淡化',
   'Pane border': '面板描边',
   'Font mirror': '字体镜像',
 

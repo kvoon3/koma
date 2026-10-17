@@ -43,16 +43,13 @@ type BgKind = 'solid' | 'gradient' | 'image'
 
 /**
  * The one canvas-appearance Tools entry on the collage stage: Border.
- * Opens a panel with gap, fill, radius, pane border, crossfade, blend, reset.
+ * Opens a panel with gap, fill, radius, pane border, reset.
  * Grid gap is enabled on the grid route only (see GridDockTool).
  */
 export function AppearanceDockTools() {
   const [open, setOpen] = useState(false)
   const gap = useStore(s => s.gap)
   const radius = useStore(s => s.radius)
-  const edgeFade = useStore(s => s.edgeFade)
-  const edgeFadeStrength = useStore(s => s.edgeFadeStrength)
-  const blendCrossfade = useStore(s => s.blendCrossfade)
   const paneBorder = useStore(s => s.paneBorder)
   const bg = useStore(s => s.bg)
   const bgGradient = useStore(s => s.bgGradient)
@@ -242,19 +239,6 @@ export function AppearanceDockTools() {
                   <Switch.Thumb className={toggleThumb} />
                 </Switch.Root>
               </div>
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Photo crossfade')}</span>
-                <Switch.Root
-                  className={toggle}
-                  aria-label={t('Photo crossfade')}
-                  checked={blendCrossfade}
-                  onCheckedChange={checked => patch({ blendCrossfade: checked })}
-                >
-                  <Switch.Thumb className={toggleThumb} />
-                </Switch.Root>
-              </div>
-              <RangeField label={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} value={edgeFade} onChange={v => patch({ edgeFade: v })} />
-              <RangeField label={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} value={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
             </section>
           </Popover.Popup>
         </Popover.Positioner>

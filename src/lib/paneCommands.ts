@@ -36,7 +36,7 @@ export function pickStickersForPane(_paneId: string) {
 export function addLabelToPane(paneId: string) {
   const s = useStore.getState()
   const ws = activeWs(s)
-  const view = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, 1000, 1000, 0, 0, 0)
+  const view = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, 1000, 1000, 0, 0)
   const cell = view.leaves.find(l => l.node.id === paneId)?.rect
   const x = cell ? (cell.x + cell.w / 2) / view.W : 0.5
   const y = cell ? (cell.y + cell.h / 2) / view.H : 0.5
@@ -52,7 +52,7 @@ export function addLabelToPane(paneId: string) {
 function paneCell(paneId: string) {
   const s = useStore.getState()
   const ws = activeWs(s)
-  const view = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, 1000, 1000, 0, 0, 0)
+  const view = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, 1000, 1000, 0, 0)
   const hit = view.leaves.find(l => l.node.id === paneId)
   return hit ? { leaf: hit.node, rect: hit.rect } : null
 }
