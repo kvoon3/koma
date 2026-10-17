@@ -43,6 +43,39 @@ export function dockTransition(mode: ToolsDockMode, event: DockEvent, cap: DockC
   }
 }
 
+/**
+ * The live sheet height (px, handle included) at which the display switches
+ * between two adjacent snap heights: the midpoint, so the crossing sits exactly
+ * where a nearest-snap release would have landed.
+ */
+export function dockModeMidpoint(lower: number, upper: number): number {
+  return (lower + upper) / 2
+}
+
+/**
+ * The display whose band a live sheet height falls in, given the modes
+ * `dockModes(cap)` allows (tap-cycle order: icons, row, expanded) and their
+ * snap heights in the same order. Crossing the midpoint between two adjacent
+ * heights is the switch, so a drag morphs the content as the pointer crosses
+ * it and the release only settles the position.
+ *
+ * Only `order`'s own modes are reachable: a two-mode dock has one threshold and
+ * can never land on the missing `expanded`. A height exactly on a midpoint has
+ * not crossed it yet, which is `pickSnap`'s tie-break too, so a release at the
+ * threshold lands on the display the crossing already chose.
+ */
+export function dockModeAtHeight(
+  order: readonly ToolsDockMode[],
+  heights: readonly number[],
+  liveH: number,
+): ToolsDockMode {
+  for (let i = 1; i < order.length; i++) {
+    if (liveH <= dockModeMidpoint(heights[i - 1]!, heights[i]!))
+      return order[i - 1]!
+  }
+  return order[order.length - 1]!
+}
+
 export type DockHandleIntent = 'expand' | 'collapse'
 
 /** What the next tap does, derived from the transition: drives icon + label. */
