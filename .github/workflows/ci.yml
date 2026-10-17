@@ -1,0 +1,44 @@
+# Lint, type-check, build and test every PR, and `main` on every push.
+#
+# `bun run lint` is also where the i18n coverage check lives (see
+# scripts/i18n-coverage.mjs): a `t('…')` with no translation, or a dictionary
+# entry that no call site passes, fails the run here instead of shipping.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancels the in-flight run for the same PR (or branch, on push) as soon as a
+# new commit arrives, so only the latest commit is checked.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # The lockfile pins every version that matters; the runtime just has
+          # to be new enough for Vite 8 and for `bun test`.
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Lint (incl. i18n coverage)
+        run: bun run lint
+
+      - name: Type-check and build
+        run: bun run build
+
+      - name: Test
+        run: bun test src
