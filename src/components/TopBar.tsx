@@ -375,6 +375,8 @@ export function TopBar({
       paneClip: null,
       stickerMakerFor: null,
     })
+    // A board opened from a file has nothing behind it to undo back into.
+    useStore.getState().resetHistory()
     setOpenDoc(null)
     say(t('Workspace opened'))
     void navigate({ to: '/' })

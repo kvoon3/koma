@@ -1,6 +1,7 @@
 import type { BgImage } from './lib/collageBg'
 import type { CutoutMap } from './lib/cutout'
 import type { GridCellRatio } from './lib/gridTools'
+import type { History } from './lib/history'
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { SessionMeta } from './lib/sessionStore'
@@ -8,6 +9,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { clearTreePhotos, GRID_CELL_RATIO, isGridCellRatio, shuffleFilled } from './lib/gridTools'
 import { looksHeic, probeHeic, warmHeicDecoder } from './lib/heic'
+import { emptyHistory, record, redoStep, undoStep } from './lib/history'
 import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
 import {
@@ -121,6 +123,26 @@ interface State {
   cutouts: CutoutMap
   /** The one running pane cutout, for the pane's progress overlay. Session-only. */
   cutoutJob: { paneId: string, phase: 'loading' | 'processing', progress?: number } | null
+  /**
+   * Undo / redo over the workspace board (see `lib/history`), app-global and
+   * session-only: never persisted, and a reload forgets it.
+   */
+  history: History<UndoSnapshot>
+}
+
+/**
+ * The slices undo / redo restores. Deliberately not the photo library (undo
+ * never imports or destroys a photo, so a pane it restores always still has
+ * its source), nor the selection, the dock or any other visual setting: those
+ * are not board mutations, and snapshotting them would let one undo reach back
+ * past an unrelated settings change.
+ */
+export interface UndoSnapshot {
+  workspaces: Workspace[]
+  activeId: string
+  bg: string
+  bgGradient: string | null
+  bgImage: BgImage | null
 }
 
 export const GAP = 0
@@ -210,6 +232,44 @@ function mapActive(s: State, fn: (w: Workspace) => Workspace): Workspace[] {
   return s.workspaces.map(w => (w.id === s.activeId ? fn(w) : w))
 }
 
+/** The undoable slices of `s` as one shallow snapshot (see UndoSnapshot). */
+function snapshotOf(s: State): UndoSnapshot {
+  return {
+    workspaces: s.workspaces,
+    activeId: s.activeId,
+    bg: s.bg,
+    bgGradient: s.bgGradient,
+    bgImage: s.bgImage,
+  }
+}
+
+/**
+ * A snapshot's slices as a state patch. The active workspace only moves when
+ * the snapshot no longer holds it (undo of a workspace add / remove, or of a
+ * reset that kept the slot): undoing a pane action must never yank the view to
+ * another slot.
+ */
+function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
+  const keep = snap.workspaces.some(w => w.id === s.activeId)
+    ? s.activeId
+    : snap.workspaces.some(w => w.id === snap.activeId) ? snap.activeId : snap.workspaces[0].id
+  return {
+    workspaces: snap.workspaces,
+    activeId: keep,
+    bg: snap.bg,
+    bgGradient: snap.bgGradient,
+    bgImage: snap.bgImage,
+  }
+}
+
+/**
+ * The state keys a generic `patch()` may carry that are part of a snapshot:
+ * a patch touching one of them is a board / background mutation and commits
+ * like any other action, while the rest (gap, radius, dims, cutout jobs, …)
+ * stays outside the history.
+ */
+const UNDOABLE_PATCH_KEYS = ['workspaces', 'bg', 'bgGradient', 'bgImage'] as const
+
 let labelEditSeq = 0
 
 /** Clear selection-type state on any workspace / view switch. */
@@ -248,6 +308,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   dockOpacity: DOCK_OPACITY,
   paneClip: null,
   stickerMakerFor: null,
+  history: emptyHistory(),
 
   addPhotos: (files, autoFill = true) => {
     const { images, videos } = splitLiveFiles(files)
@@ -309,6 +370,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     for (const p of added)
       void probeDims(p)
 
+    // The library itself is not undoable (an undo never drops imported files:
+    // the snapshot leaves `photos` alone), but the auto-fill it triggers is,
+    // through `autoFill`'s own commit.
     if (autoFill && leafList(activeWs(get()).root).every(l => !l.photoId))
       get().autoFill()
     return added
@@ -332,6 +396,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       cutouts: {},
       // The background photo is gone with the library.
       bgImage: null,
+      // The photos it wiped cannot come back: the saved session and the image
+      // caches are gone with them, so no snapshot can restore this state.
+      history: emptyHistory(),
     }))
   },
 
@@ -339,11 +406,15 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * Reset one workspace to a fresh blank canvas, keeping its id and grid
    * slot (the photos fall back to the library; everything else is untouched).
    */
-  resetWorkspace: id =>
+  resetWorkspace: (id) => {
+    if (!get().workspaces.some(w => w.id === id))
+      return
+    commit()
     set(s => ({
       workspaces: resetSlot(s.workspaces, id, newWorkspace),
       ...clearedSelection,
-    })),
+    }))
+  },
 
   /** Append a blank workspace (the grid's + cell); no-op at nine. */
   addWorkspace: () => {
@@ -351,6 +422,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = addSlot(before, newWorkspace)
     if (next === before)
       return null
+    commit()
     set({ workspaces: next })
     return next[next.length - 1].id
   },
@@ -359,34 +431,49 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * Remove a workspace from the grid (drag-to-delete); the others close up.
    * The last one is reset in place instead, so there is always a workspace.
    */
-  removeWorkspace: id =>
-    set((s) => {
-      const next = removeSlot(s.workspaces, id, newWorkspace)
-      if (next === s.workspaces)
-        return {}
-      return { workspaces: next, activeId: activeAfterRemove(s.workspaces, next, s.activeId), ...clearedSelection }
-    }),
+  removeWorkspace: (id) => {
+    const s = get()
+    const next = removeSlot(s.workspaces, id, newWorkspace)
+    if (next === s.workspaces)
+      return
+    commit()
+    set({ workspaces: next, activeId: activeAfterRemove(s.workspaces, next, s.activeId), ...clearedSelection })
+  },
 
   /**
    * Reset every workspace to a fresh blank canvas, keeping their ids and
    * grid slots (photos fall back to the library; the board itself stays).
    */
   /** Grid Shuffle: randomly reorder the workspaces that hold photos; empty slots stay. */
-  shuffleWorkspaces: (rng?: () => number) =>
-    set(s => ({ workspaces: shuffleFilled(s.workspaces, w => leafList(w.root).some(l => l.photoId), rng) })),
+  shuffleWorkspaces: (rng?: () => number) => {
+    const workspaces = get().workspaces
+    // Fewer than two filled cells has nothing to shuffle: no undo entry either.
+    if (workspaces.filter(w => leafList(w.root).some(l => l.photoId)).length < 2)
+      return
+    commit()
+    set({ workspaces: shuffleFilled(workspaces, w => leafList(w.root).some(l => l.photoId), rng) })
+  },
 
   /** Grid Clear: drop every photo (panes and board stickers) from all workspaces; layouts stay. */
-  clearGridPhotos: () =>
-    set(s => ({
-      workspaces: s.workspaces.map(w => ({ ...w, root: clearTreePhotos(w.root), stickers: [] })),
+  clearGridPhotos: () => {
+    const s = get()
+    const any = s.workspaces.some(w => (w.stickers?.length ?? 0) > 0 || leafList(w.root).some(l => l.photoId))
+    if (!any)
+      return
+    commit()
+    set(st => ({
+      workspaces: st.workspaces.map(w => ({ ...w, root: clearTreePhotos(w.root), stickers: [] })),
       ...clearedSelection,
-    })),
+    }))
+  },
 
-  resetAllWorkspaces: () =>
+  resetAllWorkspaces: () => {
+    commit()
     set(s => ({
       workspaces: s.workspaces.map(w => ({ ...newWorkspace(), id: w.id })),
       ...clearedSelection,
-    })),
+    }))
+  },
 
   /** Restore a session saved by `lib/sessionStore` (refresh-safe autosave). */
   hydrate: (session) => {
@@ -409,6 +496,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       labelEditReq: null,
       paneClip: null,
       stickerMakerFor: null,
+      // A restored session is a new starting point, not an edit of the old one.
+      history: emptyHistory(),
     })
     // Re-probe photos whose header scan never finished before the page
     // closed (trueW/trueH drive export placement and the crop report).
@@ -434,6 +523,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const leaves = leafList(next)
     const created = leaves.find(l => !leafList(ws.root).some(o => o.id === l.id))
     const focusId = created?.id ?? ws.focusId
+    commit()
     runPaneMorph([], () =>
       set({ workspaces: mapActive(s, w => ({ ...w, root: next, focusId })) }))
   },
@@ -459,12 +549,16 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       stickers: [],
       label: null,
     })
+    commit()
     runPaneMorph([], () =>
       set({ workspaces: mapActive(s, w => ({ ...w, root, focusId: created.id })) }))
   },
 
   /** Empty one pane back to a blank half of the canvas (label and stickers included). */
-  resetPane: paneId =>
+  resetPane: (paneId) => {
+    if (!findLeaf(activeWs(get()).root, paneId))
+      return
+    commit()
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -477,7 +571,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           label: null,
         }),
       })),
-    })),
+    }))
+  },
 
   copyPane: paneId =>
     set((s) => {
@@ -496,26 +591,27 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       }
     }),
 
-  pastePane: paneId =>
-    set((s) => {
-      const clip = s.paneClip
-      if (!clip)
-        return {}
-      return {
-        workspaces: mapActive(s, w => ({
-          ...w,
-          root: updateLeafIn(w.root, paneId, {
-            photoId: clip.photoId,
-            zoom: clip.zoom,
-            cx: clip.cx,
-            cy: clip.cy,
-            stickers: [],
-            label: null,
-          }),
-          focusId: paneId,
-        })),
-      }
-    }),
+  pastePane: (paneId) => {
+    const s = get()
+    const clip = s.paneClip
+    if (!clip || !findLeaf(activeWs(s).root, paneId))
+      return
+    commit()
+    set(st => ({
+      workspaces: mapActive(st, w => ({
+        ...w,
+        root: updateLeafIn(w.root, paneId, {
+          photoId: clip.photoId,
+          zoom: clip.zoom,
+          cx: clip.cx,
+          cy: clip.cy,
+          stickers: [],
+          label: null,
+        }),
+        focusId: paneId,
+      })),
+    }))
+  },
 
   closeOtherPanes: (paneId) => {
     const s = get()
@@ -529,6 +625,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (!root)
       return
     const next = root
+    commit()
     runPaneMorph(others.map(l => l.id), () =>
       set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId: paneId })),
@@ -549,6 +646,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = root
     const leaves = leafList(next)
     const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    commit()
     runPaneMorph(empty.map(l => l.id), () =>
       set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
@@ -566,6 +664,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return
     const leaves = leafList(next)
     const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    commit()
     runPaneMorph([paneId], () =>
       set({
         workspaces: mapActive(s, w => ({
@@ -584,6 +683,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return
     const leaves = leafList(next)
     const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    commit()
     runPaneMorph([paneId], () =>
       set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
@@ -591,27 +691,40 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       }))
   },
 
-  resizeSplit: (splitId, ratio) =>
+  /** Dragging a divider streams ratios: one gesture is one undo step. */
+  resizeSplit: (splitId, ratio) => {
+    commit(`resizeSplit:${splitId}`)
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, root: setSplitRatioIn(w.root, splitId, ratio) })),
-    })),
+    }))
+  },
 
-  removePhoto: paneId =>
+  removePhoto: (paneId) => {
+    if (!findLeaf(activeWs(get()).root, paneId))
+      return
+    commit()
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
         root: updateLeafIn(w.root, paneId, { photoId: null, zoom: 1, cx: 0.5, cy: 0.5, stickers: [] }),
       })),
-    })),
+    }))
+  },
 
-  swapPhotos: (a, b) =>
-    set((s) => {
-      const ws = activeWs(s)
-      const root = swapLeafContents(ws.root, a, b)
-      return root === ws.root ? {} : { workspaces: mapActive(s, w => ({ ...w, root })) }
-    }),
+  swapPhotos: (a, b) => {
+    const s = get()
+    const ws = activeWs(s)
+    const root = swapLeafContents(ws.root, a, b)
+    if (root === ws.root)
+      return
+    commit()
+    set(st => ({ workspaces: mapActive(st, w => ({ ...w, root })) }))
+  },
 
-  assign: (paneId, photoId) =>
+  assign: (paneId, photoId) => {
+    if (!findLeaf(activeWs(get()).root, paneId))
+      return
+    commit()
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -624,40 +737,43 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         }),
         focusId: paneId,
       })),
-    })),
+    }))
+  },
 
   /**
    * Place a batch of photos into the active workspace's empty panes, in layout
    * order (leafList), pairing them with the ids in selection order. Photos past
    * the last empty pane are dropped; the focus follows the last pane filled.
    */
-  assignMany: photoIds =>
-    set((s) => {
-      if (!photoIds.length)
-        return {}
-      const ws = activeWs(s)
-      let next = ws.root
-      let focusId = ws.focusId
-      let k = 0
-      for (const leaf of leafList(ws.root)) {
-        if (leaf.photoId || k >= photoIds.length)
-          continue
-        next = updateLeafIn(next, leaf.id, {
-          photoId: photoIds[k++],
-          zoom: 1,
-          cx: 0.5,
-          cy: 0.5,
-          stickers: [],
-        })
-        focusId = leaf.id
-      }
-      if (next === ws.root)
-        return {}
-      return { workspaces: mapActive(s, w => (w.id === ws.id ? { ...w, root: next, focusId } : w)) }
-    }),
+  assignMany: (photoIds) => {
+    const s = get()
+    const ws = activeWs(s)
+    let next = ws.root
+    let focusId = ws.focusId
+    let k = 0
+    for (const leaf of leafList(ws.root)) {
+      if (leaf.photoId || k >= photoIds.length)
+        continue
+      next = updateLeafIn(next, leaf.id, {
+        photoId: photoIds[k++],
+        zoom: 1,
+        cx: 0.5,
+        cy: 0.5,
+        stickers: [],
+      })
+      focusId = leaf.id
+    }
+    if (next === ws.root)
+      return
+    commit()
+    set(st => ({ workspaces: mapActive(st, w => (w.id === ws.id ? { ...w, root: next, focusId } : w)) }))
+  },
 
-  updateLeaf: (paneId, patch) =>
-    set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) })),
+  /** Panning and zooming a pane streams patches: one gesture is one undo step. */
+  updateLeaf: (paneId, patch) => {
+    commit(`updateLeaf:${paneId}`)
+    set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) }))
+  },
 
   focus: paneId => set(s => ({
     workspaces: mapActive(s, w => ({ ...w, focusId: paneId })),
@@ -688,23 +804,37 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   requestLabelEdit: labelId => set({ labelEditReq: { labelId, seq: ++labelEditSeq } }),
   setToolsDockMode: mode => set({ toolsDockMode: mode }),
 
-  autoFill: () =>
-    set((s) => {
-      if (!s.photos.length)
-        return {}
-      let k = 0
-      const ws = activeWs(s)
-      let next = ws.root
-      for (const leaf of leafList(ws.root)) {
-        if (leaf.photoId)
-          continue
-        const p = s.photos[k++ % s.photos.length]
-        next = updateLeafIn(next, leaf.id, { photoId: p.id, zoom: 1, cx: 0.5, cy: 0.5 })
-      }
-      return { workspaces: mapActive(s, w => (w.id === ws.id ? { ...w, root: next } : w)) }
-    }),
+  autoFill: () => {
+    const s = get()
+    if (!s.photos.length)
+      return
+    let k = 0
+    const ws = activeWs(s)
+    let next = ws.root
+    for (const leaf of leafList(ws.root)) {
+      if (leaf.photoId)
+        continue
+      const p = s.photos[k++ % s.photos.length]
+      next = updateLeafIn(next, leaf.id, { photoId: p.id, zoom: 1, cx: 0.5, cy: 0.5 })
+    }
+    if (next === ws.root)
+      return
+    commit()
+    set(st => ({ workspaces: mapActive(st, w => (w.id === ws.id ? { ...w, root: next } : w)) }))
+  },
 
-  patch: p => set(p),
+  /**
+   * A generic patch. Only the keys a snapshot carries (the board and its
+   * background) make it an undoable mutation; navigation (`activeId`), the
+   * dock, cutout jobs and the visual settings stay out of the history. The tag
+   * keeps a colour picked by dragging the swatch a single undo step.
+   */
+  patch: (p) => {
+    const undoable = Object.keys(p).filter(k => (UNDOABLE_PATCH_KEYS as readonly string[]).includes(k))
+    if (undoable.length)
+      commit(`patch:${undoable.sort().join(',')}`)
+    set(p)
+  },
 
   // The settings drawer's Reset: every visual knob back to its default. The
   // font mirror is not in the store (it lives in lib/fonts), so the drawer
@@ -725,50 +855,58 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       dockOpacity: DOCK_OPACITY,
     }),
 
-  setCanvasSize: (ratio, fill) =>
+  /** Dragging the canvas handle streams sizes: one gesture is one undo step. */
+  setCanvasSize: (ratio, fill) => {
+    commit('setCanvasSize')
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
         canvasRatio: Math.min(8, Math.max(0.12, ratio)),
         canvasFill: Math.min(1, Math.max(0.15, fill)),
       })),
-    })),
+    }))
+  },
 
   /** Clear selection-type state on any workspace / view switch. */
   clearSelection: () => set({ ...clearedSelection }),
 
   /** Insert-shift reorder: remove `id` from its slot and splice it at `to`. */
-  moveWorkspace: (id, to) =>
-    set((s) => {
-      const from = s.workspaces.findIndex(w => w.id === id)
-      if (from === -1 || to < 0 || to >= Math.min(s.workspaces.length, MAX_WORKSPACES) || from === to)
-        return {}
-      const next = [...s.workspaces]
-      const [ws] = next.splice(from, 1)
-      next.splice(to, 0, ws)
-      return { workspaces: next }
-    }),
+  moveWorkspace: (id, to) => {
+    const s = get()
+    const from = s.workspaces.findIndex(w => w.id === id)
+    if (from === -1 || to < 0 || to >= Math.min(s.workspaces.length, MAX_WORKSPACES) || from === to)
+      return
+    const next = [...s.workspaces]
+    const [ws] = next.splice(from, 1)
+    next.splice(to, 0, ws)
+    commit()
+    set({ workspaces: next })
+  },
 
-  addSticker: (photoId, x = 0.5, y = 0.5) =>
-    set((s) => {
-      const st: Sticker = { id: uid('t'), photoId, x, y, s: 0.2, rot: 0 }
-      return {
-        workspaces: mapActive(s, w => ({
-          ...w,
-          stickers: [...(w.stickers ?? []), st],
-        })),
-      }
-    }),
+  addSticker: (photoId, x = 0.5, y = 0.5) => {
+    commit()
+    set(s => ({
+      workspaces: mapActive(s, w => ({
+        ...w,
+        stickers: [...(w.stickers ?? []), { id: uid('t'), photoId, x, y, s: 0.2, rot: 0 } satisfies Sticker],
+      })),
+    }))
+  },
 
-  moveSticker: (stickerId, x, y) =>
+  /** Dragging a sticker streams positions: one gesture is one undo step. */
+  moveSticker: (stickerId, x, y) => {
+    commit(`moveSticker:${stickerId}`)
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
         stickers: (w.stickers ?? []).map(st => (st.id === stickerId ? { ...st, x, y } : st)),
       })),
-    })),
+    }))
+  },
 
-  scaleSticker: (stickerId, sVal) =>
+  /** The scale handle streams sizes: one gesture is one undo step. */
+  scaleSticker: (stickerId, sVal) => {
+    commit(`scaleSticker:${stickerId}`)
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -776,9 +914,12 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           ? { ...st, s: Math.min(1.5, Math.max(0.02, sVal)) }
           : st)),
       })),
-    })),
+    }))
+  },
 
-  rotateSticker: (stickerId, rot) =>
+  /** The rotation handle and its slider stream angles: one gesture is one undo step. */
+  rotateSticker: (stickerId, rot) => {
+    commit(`rotateSticker:${stickerId}`)
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -786,19 +927,25 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           ? { ...st, rot: wrapAngle(rot) }
           : st)),
       })),
-    })),
+    }))
+  },
 
-  removeSticker: stickerId =>
+  removeSticker: (stickerId) => {
+    if (!get().workspaces.some(w => (w.stickers ?? []).some(st => st.id === stickerId)))
+      return
+    commit()
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
         stickers: (w.stickers ?? []).filter(t => t.id !== stickerId),
       })),
       stickerSel: s.stickerSel?.stickerId === stickerId ? null : s.stickerSel,
-    })),
+    }))
+  },
 
   addLabel: (x = 0.5, y = 0.5) => {
     const label = newLabel(x, y)
+    commit()
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, labels: [...(w.labels ?? []), label] })),
       labelSel: label.id,
@@ -807,7 +954,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     return label.id
   },
 
-  setLabel: (labelId, patch) =>
+  /** Dragging a label (or typing into it) streams patches: one gesture is one undo step. */
+  setLabel: (labelId, patch) => {
+    commit(`setLabel:${labelId}`)
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -822,13 +971,39 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           return label
         }),
       })),
-    })),
+    }))
+  },
 
-  removeLabel: labelId =>
+  removeLabel: (labelId) => {
+    if (!get().workspaces.some(w => (w.labels ?? []).some(l => l.id === labelId)))
+      return
+    commit()
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, labels: (w.labels ?? []).filter(l => l.id !== labelId) })),
       labelSel: s.labelSel === labelId ? null : s.labelSel,
-    })),
+    }))
+  },
+
+  /** Step back one board mutation (session-only; see lib/history). */
+  undo: () =>
+    set((s) => {
+      const step = undoStep(s.history, snapshotOf(s))
+      if (!step)
+        return {}
+      return { ...restoreSnapshot(s, step.snapshot), history: step.history }
+    }),
+
+  /** Step forward again after an undo; cleared by the next new action. */
+  redo: () =>
+    set((s) => {
+      const step = redoStep(s.history, snapshotOf(s))
+      if (!step)
+        return {}
+      return { ...restoreSnapshot(s, step.snapshot), history: step.history }
+    }),
+
+  /** Forget the stacks: a replaced board (session hydrate, opened file) starts clean. */
+  resetHistory: () => set({ history: emptyHistory() }),
 }), {
   // Visual settings survive reloads; the rest of the state (workspaces,
   // photos) stays session-only.
@@ -856,6 +1031,16 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     toolsDockMode: state.toolsDockMode,
   }),
 }))
+
+/**
+ * Capture the undoable slices before an action mutates them. Every mutating
+ * action calls this *after* its own no-op guard, so an action that changes
+ * nothing never pushes an entry. `tag` collapses a gesture's stream of
+ * mutations into the single step undo returns to (see lib/history).
+ */
+function commit(tag: string | null = null): void {
+  useStore.setState(s => ({ history: record(s.history, snapshotOf(s), Date.now(), tag) }))
+}
 
 export const photoMap = (photos: Photo[]) => new Map(photos.map(p => [p.id, p]))
 
@@ -1005,6 +1190,11 @@ interface Actions {
   setToolsDockMode: (mode: ToolsDockMode) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
+  /** Step back / forward over the board's mutations (see lib/history). */
+  undo: () => void
+  redo: () => void
+  /** Drop both stacks: a replaced board has nothing earlier to return to. */
+  resetHistory: () => void
   resetSettings: () => void
   setCanvasSize: (ratio: number, fill: number) => void
   clearSelection: () => void
