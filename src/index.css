@@ -649,3 +649,15 @@ html[data-theme-fade]::view-transition-new(root) {
     transition-duration: 0s;
   }
 }
+
+/*
+ * Dock measurement pass (see ToolsDock.measure): it forces each display mode to
+ * read the snap heights, so the captions must resolve to their final size and
+ * not to a fade in flight. The pass is synchronous, so nothing paints with
+ * these transitions off.
+ */
+[data-dock-measuring] *,
+[data-dock-measuring] *::before,
+[data-dock-measuring] *::after {
+  transition: none !important;
+}
