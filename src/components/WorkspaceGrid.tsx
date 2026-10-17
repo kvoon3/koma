@@ -78,6 +78,20 @@ const COMPARE_STACK_QUERY = '(max-width: 639.98px)'
 /** The floating-chip idiom shared with FloatActions (back / reset). */
 const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
 
+/**
+ * The compare view's swap chip, stacked: the same bordered pill as the other
+ * chips, sized to the 24px band it sits in (`COMPARE_STACK_GAP`) and no taller,
+ * so it can never spill onto either board (the coarse-pointer 38px size would).
+ * 48 wide, the gutter it mirrors when the boards stand side by side.
+ */
+const swapBandCls = 'grid h-6 w-12 cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent'
+
+/**
+ * The compare view's exit chip: the × paired with its label, so it reads as
+ * "leave the comparison", the view's own action, and never as "remove board A".
+ */
+const exitCompareCls = 'flex h-[30px] shrink-0 cursor-pointer items-center gap-1 rounded-none border border-float-line bg-float-bg px-2 text-[12px] font-semibold text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:h-[38px]'
+
 /** A group chip: the bar's button idiom, lit when its board is the open one. */
 const groupChipCls = 'h-9 min-w-9 shrink-0 cursor-pointer border border-float-line bg-float-bg px-2.5 text-sm font-semibold text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent'
 
@@ -883,9 +897,11 @@ function GroupBar({ litId, onOpen }: { litId: string, onOpen: (id: string) => vo
  * The compare view: two boards, side by side on a wide screen and stacked on a
  * small one, each drawn by the same cell preview the grid uses. Every board
  * carries a caption (its group's name, as a picker) so the pair has two named
- * subjects, and draws all nine slots: an empty one is a flat quiet square.
- * Read-only otherwise (no drag, no + cell, no delete strip); a cell still opens
- * its own editor, in its own group.
+ * subjects, and draws all nine slots: an empty one is a flat quiet square. The
+ * exit chip leads board A's caption as a × and its label, and the swap chip sits
+ * centred in the gutter between the boards, or, stacked, in the band between
+ * them. Read-only otherwise (no drag, no + cell, no delete strip); a cell still
+ * opens its own editor, in its own group.
  */
 function CompareBoards({ sides, stacked, cell, box, boardW, gridGap, photoById, transparent, onEnter, onPick, onSwap, onExit }: {
   sides: { group: GridGroup, board: Workspace[] }[]
@@ -904,12 +920,17 @@ function CompareBoards({ sides, stacked, cell, box, boardW, gridGap, photoById, 
 }) {
   const t = useT()
   const grids = useStore(s => s.grids)
-  const swap = (
+  /** The swap chip, at the size of the band it sits in (`side` = the gutter). */
+  const swapChip = (where: 'side' | 'stack') => (
     <Tip
       label={t('Swap sides')}
       trigger={(
-        <button className={snapBtnCls} aria-label={t('Swap sides')} onClick={onSwap}>
-          <MorphIcon icon={ArrowRightLeft} size={16} strokeWidth={1.75} />
+        <button
+          className={where === 'side' ? snapBtnCls : swapBandCls}
+          aria-label={t('Swap sides')}
+          onClick={onSwap}
+        >
+          <MorphIcon icon={ArrowRightLeft} size={where === 'side' ? 16 : 15} strokeWidth={1.75} />
         </button>
       )}
     />
@@ -924,27 +945,23 @@ function CompareBoards({ sides, stacked, cell, box, boardW, gridGap, photoById, 
         <Fragment key={group.id}>
           {/* Side by side, the swap chip sits in the gutter's own column between
               the boards, centred on them: a real control, not the hairline glyph
-              it was. Stacked, it rides board B's caption instead. */}
+              it was. */}
           {!stacked && i === 1 && (
             <div className="flex flex-none items-center justify-center" style={{ width: COMPARE_GUTTER }}>
-              {swap}
+              {swapChip('side')}
             </div>
           )}
           <div
             data-board-side={i === 0 ? 'a' : 'b'}
-            className="flex flex-col items-center"
+            className="relative flex flex-col items-center"
             style={{ width: boardW, gap: CAPTION_GAP }}
           >
             <div data-board-caption="" className="flex w-full items-center gap-1.5" style={{ height: CAPTION_H }}>
               {i === 0 && (
-                <Tip
-                  label={t('Exit compare')}
-                  trigger={(
-                    <button className={snapBtnCls} aria-label={t('Exit compare')} onClick={onExit}>
-                      <MorphIcon icon={X} size={15} strokeWidth={1.75} />
-                    </button>
-                  )}
-                />
+                <button className={exitCompareCls} aria-label={t('Exit compare')} onClick={onExit}>
+                  <MorphIcon icon={X} size={13} strokeWidth={2} />
+                  <span>{t('Exit compare')}</span>
+                </button>
               )}
               <span aria-hidden className="flex-none text-[11px] font-semibold tracking-wide text-faint">
                 {i === 0 ? 'A' : 'B'}
@@ -956,7 +973,6 @@ function CompareBoards({ sides, stacked, cell, box, boardW, gridGap, photoById, 
                 onChange={id => onPick(i === 0 ? 'a' : 'b', id)}
               />
               <span className="flex-1" />
-              {stacked && i === 1 && swap}
             </div>
             <div data-board="" className="grid grid-cols-3" style={{ gap: gridGap, width: boardW }}>
               {board.map(ws => (
@@ -982,6 +998,15 @@ function CompareBoards({ sides, stacked, cell, box, boardW, gridGap, photoById, 
                 />
               ))}
             </div>
+            {/* Stacked, the swap chip sits centred in the 24px band between
+                board A's grid and board B's caption row: the gutter's mirror,
+                the same control, never a corner button on a caption. It is
+                absolute, so the band costs the pair no height. */}
+            {stacked && i === 0 && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2">
+                {swapChip('stack')}
+              </div>
+            )}
           </div>
         </Fragment>
       ))}
@@ -997,8 +1022,11 @@ function GroupPicker({ groups, value, label, onChange }: {
   onChange: (id: string) => void
 }) {
   return (
-    <span className="relative flex items-center">
-      <select className={groupSelectCls} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
+    // `min-w-0` on both: the picker is the caption row's only compressible
+    // item, so a long group name gives way to the exit chip and the swap
+    // instead of pushing the row past the board's width.
+    <span className="relative flex min-w-0 items-center">
+      <select className={`${groupSelectCls} min-w-0`} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
         {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
       </select>
       <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} className="pointer-events-none absolute right-2 text-dim" />
