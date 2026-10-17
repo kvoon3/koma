@@ -1,4 +1,5 @@
 import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
+import type { FlipBox } from '../lib/dockFlip'
 import type { DockSwapPlan } from '../lib/dockSwap'
 import type { ToolsDockMode } from '../store'
 import { Popover } from '@base-ui/react/popover'
@@ -9,6 +10,7 @@ import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, u
 import { createPortal } from 'react-dom'
 import { flipCanvasRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO } from '../lib/canvasCommands'
 import { dockDragFade, dockSurface } from '../lib/dockBackground'
+import { DOCK_FLIP_EASE_CSS, DOCK_FLIP_S, isBoxVisible, parseTranslate, planFlipItem, shiftFlipBox } from '../lib/dockFlip'
 import { dampOffset, dragOwner, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
@@ -57,6 +59,90 @@ const ratioItemCls = `${menuItemCls} disabled:cursor-default disabled:opacity-35
 
 /** A ratio is square when it sits within a hair of 1 (float drift from a flip). */
 const isSquare = (ratio: number | null) => ratio != null && Math.abs(ratio - SQUARE_RATIO) < 0.005
+
+/** A tool's on-screen box before a display flip (see `captureFlipFrom`). */
+interface FlipFrom {
+  box: FlipBox
+  /** The in-flight FLIP translate the box already carries. */
+  translate: { x: number, y: number }
+  visible: boolean
+}
+
+/** What an interrupted FLIP was showing when the flip committed (see `detachFlip`). */
+interface FlipDetach {
+  translate: { x: number, y: number }
+  opacity: number
+}
+
+const flipBox = (r: DOMRect): FlipBox => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom })
+
+/**
+ * Drop every in-flight flip (interrupt, reduced motion, unmount). Both halves
+ * are raw WAAPI with `fill: 'none'`, so a cancel reverts the tool to its CSS
+ * without touching the DOM's inline style.
+ */
+function stopFlips(anims: Map<HTMLElement, FlipAnims>) {
+  for (const a of anims.values()) {
+    a.move?.cancel()
+    a.fade?.cancel()
+  }
+  anims.clear()
+}
+
+/** A tool's in-flight flip: the glide and the fade. */
+interface FlipAnims {
+  move: Animation | null
+  fade: Animation | null
+}
+
+/**
+ * One tool across a flip: glide it from the box it was showing to its new one,
+ * and fade it up when the flip uncovered it (or interrupted a fade already in
+ * flight). `seen` is what the tool showed at the commit; `base` is its resting
+ * opacity: the disabled tools sit below 1, and the fade has to land there.
+ *
+ * Both halves are raw WAAPI (`fill: 'none'`), not Motion's `animate` like the
+ * reorder flip below. Flips interrupt each other mid-glide, and Motion keeps a
+ * per-element set of motion values whose async keyframe resolution can commit a
+ * stale transform between the cancel and the next start (a tool left parked off
+ * its box). A plain animation has no such state: cancel reverts to the CSS,
+ * and with no fill no inline style is left to out-rank the disabled opacity
+ * (Motion writes its final value inline, an inline `opacity: 1` would).
+ */
+function flipTool(h: HTMLElement, input: {
+  from: FlipFrom
+  seen: FlipDetach | undefined
+  to: FlipBox
+  view: FlipBox
+  base: number
+}): FlipAnims | null {
+  const { from, seen, to, view, base } = input
+  // The last painted box: the captured one plus however far a flip that was
+  // still running when this commit landed has travelled since the capture.
+  const start = shiftFlipBox(
+    from.box,
+    (seen?.translate.x ?? 0) - from.translate.x,
+    (seen?.translate.y ?? 0) - from.translate.y,
+  )
+  const plan = planFlipItem({ from: start, to, view })
+  const moving = plan.x !== 0 || plan.y !== 0
+  // A fade still running when the commit landed resumes from where it is; a
+  // fresh uncover starts at 0, so the tool is never one frame at full strength.
+  const current = seen?.opacity ?? base
+  const midFade = current < base - 0.001
+  const fade = plan.visible && (plan.enter || midFade)
+  if (!moving && !fade)
+    return null
+  const timing = { duration: DOCK_FLIP_S * 1000, easing: DOCK_FLIP_EASE_CSS, fill: 'none' } as const
+  return {
+    move: moving
+      ? h.animate([{ transform: `translate(${plan.x}px, ${plan.y}px)` }, { transform: 'translate(0px, 0px)' }], timing)
+      : null,
+    fade: fade
+      ? h.animate([{ opacity: String(plan.enter && !midFade ? 0 : current) }, { opacity: String(base) }], timing)
+      : null,
+  }
+}
 
 interface DockSlot { hidden: boolean, contextKey: string }
 interface DockCtx {
@@ -212,6 +298,148 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const draggingRef = useRef(false)
   /** A `measure()` skipped mid-drag, re-run when the drag settles. */
   const measureDirtyRef = useRef(false)
+  /** The committed capacity and stored display, read by `measure`'s cap-flip guess. */
+  const fitsRef = useRef(fitsOneRow)
+  const storedModeRef = useRef(storedMode)
+  useLayoutEffect(() => {
+    fitsRef.current = fitsOneRow
+    storedModeRef.current = storedMode
+  })
+  /** The fade viewport the tools row (or the expanded list) scrolls in. */
+  const rowScroller = useCallback(() => innerRef.current?.parentElement ?? null, [])
+
+  /**
+   * The clip the tools are seen through: the row scrolls in it horizontally,
+   * the wrapped list vertically. A tool outside it is not on screen even
+   * though it has a layout box.
+   */
+  const toolsView = useCallback((): FlipBox | null => {
+    const r = rowScroller()?.getBoundingClientRect()
+    return r ? flipBox(r) : null
+  }, [rowScroller])
+
+  /** In-flight display-flip animations, keyed by tool button. */
+  const flipAnimsRef = useRef(new Map<HTMLElement, FlipAnims>())
+  /** Boxes captured just before the flip being committed (see `captureFlipFrom`). */
+  const flipFromRef = useRef<Map<HTMLElement, FlipFrom> | null>(null)
+  /** Bumped per flip so a stale animation's cleanup cannot touch a newer one. */
+  const flipRunRef = useRef(0)
+  /**
+   * Snapshot every tool's on-screen box just before a display flip (see
+   * `playFlip`). The box is the visual one, transform included, so an
+   * interrupted flip resumes from what the user is looking at, not its target.
+   */
+  const captureFlipFrom = useCallback(() => {
+    const el = innerRef.current
+    const view = toolsView()
+    if (!el || !view)
+      return
+    const from = new Map<HTMLElement, FlipFrom>()
+    for (const child of el.children) {
+      const h = child as HTMLElement
+      const box = flipBox(h.getBoundingClientRect())
+      const translate = parseTranslate(getComputedStyle(h).transform)
+      from.set(h, { box, translate, visible: isBoxVisible(box, view) })
+    }
+    flipFromRef.current = from
+  }, [toolsView])
+  /**
+   * Stop a flip that is still running and read what it was showing, so the next
+   * one can start there. Clears the transforms too: the rect math below (the
+   * row anchor) must see final layout boxes, never a mid-animation one.
+   */
+  const detachFlip = useCallback((): Map<HTMLElement, FlipDetach> => {
+    const carry = new Map<HTMLElement, FlipDetach>()
+    const el = innerRef.current
+    flipRunRef.current++
+    if (el) {
+      for (const child of el.children) {
+        const h = child as HTMLElement
+        const cs = getComputedStyle(h)
+        carry.set(h, { translate: parseTranslate(cs.transform), opacity: Number(cs.opacity) })
+      }
+    }
+    stopFlips(flipAnimsRef.current)
+    if (el) {
+      for (const child of el.children) {
+        const h = child as HTMLElement
+        h.style.transform = ''
+        h.style.opacity = ''
+      }
+    }
+    return carry
+  }, [])
+  /** Put every tool back at rest: no flip transform, no inline opacity. */
+  const settleFlip = useCallback(() => {
+    flipRunRef.current++
+    stopFlips(flipAnimsRef.current)
+    const el = innerRef.current
+    if (!el)
+      return
+    for (const child of el.children) {
+      const h = child as HTMLElement
+      h.style.transform = ''
+      h.style.opacity = ''
+    }
+  }, [])
+  /**
+   * FLIP the tools into the display that just committed: each button starts on
+   * the box it was showing (a transform) and glides to its new one, and a tool
+   * the flip uncovers fades in as it arrives. Called after `restoreRowAnchor`,
+   * so the target boxes already include the restored row scroll. Reduced motion
+   * skips it: the commit is the end state.
+   */
+  const playFlip = useCallback((carry: Map<HTMLElement, FlipDetach>) => {
+    const el = innerRef.current
+    const from = flipFromRef.current
+    flipFromRef.current = null
+    const view = toolsView()
+    if (!el || !from || !view || reduceRef.current) {
+      settleFlip()
+      return
+    }
+    const run = flipRunRef.current
+    // Read the targets and resting opacities first: no animation starts (a
+    // style write) until every rect is known, so one layout pass does it all.
+    const targets = [...el.children].map(child => ({
+      h: child as HTMLElement,
+      to: flipBox(child.getBoundingClientRect()),
+      // After `detachFlip` the computed opacity is the resting one again: the
+      // disabled tools sit below 1 and the fade must land there (see flipTool).
+      base: Number(getComputedStyle(child).opacity),
+    }))
+    for (const { h, to, base } of targets) {
+      const was = from.get(h)
+      if (!was)
+        continue
+      const anims = flipTool(h, { from: was, seen: carry.get(h), to, view, base })
+      if (!anims)
+        continue
+      flipAnimsRef.current.set(h, anims)
+      const done = () => {
+        if (flipRunRef.current === run)
+          flipAnimsRef.current.delete(h)
+      }
+      if (anims.move)
+        anims.move.onfinish = done
+      if (anims.fade)
+        anims.fade.onfinish = done
+    }
+  }, [settleFlip, toolsView])
+
+  /** The display on screen, readable from a pointer handler mid-gesture. */
+  const modeRef = useRef(mode)
+  useLayoutEffect(() => {
+    modeRef.current = mode
+  }, [mode])
+
+  // Reduced motion: a flip is instant, and a glide still in flight when it is
+  // switched on stops where it is (the commit is the final layout).
+  useLayoutEffect(() => {
+    if (reduce)
+      settleFlip()
+  }, [reduce, settleFlip])
+
   const measure = useCallback(() => {
     const el = innerRef.current
     if (!el)
@@ -289,17 +517,21 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     setExpH(Math.max(row, exp))
     // Empty slot (between routes) keeps the last capacity: no snap churn. The
     // ratio tool is not route content, so it does not count as content.
-    if (el.querySelector(':scope > :not([data-dock-ratio])'))
-      setFitsOneRow(rowW <= panelW)
-  }, [])
+    if (el.querySelector(':scope > :not([data-dock-ratio])')) {
+      const nextFits = rowW <= panelW
+      // A capacity change can clamp the display (expanded → row once the tools
+      // fit one row). That is not a gesture, so the boxes are captured here,
+      // before the state lands, and the commit gets the same FLIP a flip does.
+      if (nextFits !== fitsRef.current && clampDockMode(storedModeRef.current, { fitsOneRow: nextFits }) !== modeRef.current)
+        captureFlipFrom()
+      setFitsOneRow(nextFits)
+    }
+  }, [captureFlipFrom])
 
   const attachInner = useCallback((el: HTMLDivElement | null) => {
     innerRef.current = el
     setInner(el)
   }, [setInner])
-
-  /** The fade viewport the tools row (or the expanded list) scrolls in. */
-  const rowScroller = useCallback(() => innerRef.current?.parentElement ?? null, [])
 
   // A flip swaps every caption, so the row's content width changes and the
   // browser clamps scrollLeft on the next layout. Remember the tool at the
@@ -314,11 +546,14 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       return
     const left = scroller.getBoundingClientRect().left
     for (const child of el.children) {
+      // Subtract an in-flight flip's translate: the anchor is a layout offset,
+      // and a tool interrupted mid-glide still reports its transform here.
+      const t = parseTranslate(getComputedStyle(child).transform)
       const r = child.getBoundingClientRect()
-      if (r.right > left + 1) {
+      if (r.right - t.x > left + 1) {
         // Screen offset: the row's scroll position at save time is not part of
         // it, so a clamp in between (the wrapped list cannot scroll) is undone.
-        anchorRef.current = { el: child as HTMLElement, dx: r.left - left }
+        anchorRef.current = { el: child as HTMLElement, dx: r.left - t.x - left }
         return
       }
     }
@@ -336,11 +571,6 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       scroller.scrollLeft += want
   }, [rowScroller])
 
-  /** The display on screen, readable from a pointer handler mid-gesture. */
-  const modeRef = useRef(mode)
-  useLayoutEffect(() => {
-    modeRef.current = mode
-  }, [mode])
   /**
    * Show a display (drag crossing, release snap, tap, Escape). Setting the
    * display already on screen is a no-op, so a drag may call it every frame.
@@ -348,14 +578,22 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const flipMode = useCallback((next: ToolsDockMode) => {
     if (next === modeRef.current)
       return
+    // The display is about to change: remember the boxes the tools show now
+    // (`playFlip`) and the tool at the row's left edge (`saveRowAnchor`).
+    if (!reduceRef.current)
+      captureFlipFrom()
     modeRef.current = next
     saveRowAnchor()
     setMode(next)
-  }, [saveRowAnchor, setMode])
-  // Commits before paint, so the row never paints at the clamped position.
+  }, [captureFlipFrom, saveRowAnchor, setMode])
+  // Commits before paint, so the row never paints at the clamped position, and
+  // ordered so the FLIP's rect math is final: detach any in-flight transform,
+  // restore the anchor's scroll, then glide the captured boxes to the new ones.
   useLayoutEffect(() => {
+    const carry = detachFlip()
     restoreRowAnchor()
-  }, [mode, restoreRowAnchor])
+    playFlip(carry)
+  }, [mode, detachFlip, restoreRowAnchor, playFlip])
 
   // Not on `mode`: the pass forces both display modes itself, so its reads do
   // not depend on the one on screen, and re-running it on a flip would resolve
@@ -505,8 +743,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       ro.disconnect()
       window.removeEventListener('resize', onResize)
       settleSwap()
+      settleFlip()
     }
-  }, [measure])
+  }, [measure, settleFlip])
 
   const surface = dockSurface(dockBg, dockOpacity)
 
