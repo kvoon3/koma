@@ -213,6 +213,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     // opening adds nodes, which re-runs this).
     const scroller = el.parentElement
     const scrollLeft = scroller?.scrollLeft ?? 0
+    // The expanded list scrolls vertically and suffers the same clamp when the
+    // measured wrap changes the list's height (a short screen, e.g. 390×500).
+    const scrollTop = scroller?.scrollTop ?? 0
     // What the row looks like is the sheet's display mode (the icon-only row
     // drops the captions in CSS), so the two row heights are measured with the
     // mode forced: a hidden, synchronous pass, nothing paints in between.
@@ -255,6 +258,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     // its popover's anchor) away.
     if (scroller && scroller.scrollLeft !== scrollLeft)
       scroller.scrollLeft = scrollLeft
+    if (scroller && scroller.scrollTop !== scrollTop)
+      scroller.scrollTop = scrollTop
     setRowH(row)
     setIconH(iconRow)
     setExpH(Math.max(row, exp))
