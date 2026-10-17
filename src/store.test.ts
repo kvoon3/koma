@@ -5,6 +5,8 @@ import { mulberry32 } from './lib/gridTools'
 import { emptyHistory, HISTORY_LIMIT } from './lib/history'
 import { leafList, rotationOf } from './lib/panes'
 import { DEFAULT_WORKSPACES, MAX_GRIDS } from './lib/workspaces'
+import { leafList } from './lib/panes'
+import { MAX_GRIDS } from './lib/workspaces'
 
 // The board's mutations run inside `runPaneMorph`, which falls back to a
 // synchronous change when the browser has no View Transition API. A bare
@@ -405,26 +407,49 @@ describe('pane rotation and flips', () => {
 })
 
 describe('grid groups (dual 9-grid)', () => {
+describe('grid groups (boards switched from the workspace switcher)', () => {
   const state = () => useStore.getState()
 
-  test('a second group opens with its own board and parks the first', () => {
+  test('a new group copies the open board: same photos, fresh ids, one undo step', () => {
     const firstId = state().activeGridId
     state().split(ws().focusId, 'row')
-    const twoPane = ws().root
+    state().assign(ws().focusId, 'photo-a')
+    const before = ws()
+    const beforeLeaves = leaves()
+    beforeLeaves[0]!.stickers.push({ id: 'st1', photoId: 'photo-a', x: 0.5, y: 0.5, s: 0.2 })
+    beforeLeaves[1]!.label = { id: 'lab1', text: 'L', font: '', theme: 'dark', x: 0.5, y: 0.5, size: 42, rot: 0 }
 
     const added = state().addGrid()
     expect(added).not.toBeNull()
     expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
     expect(state().activeGridId).toBe(added!)
-    // A fresh board of its own: the split stayed behind in group 1.
-    expect(state().workspaces).toHaveLength(DEFAULT_WORKSPACES)
-    expect(leaves()).toHaveLength(1)
+    // split + assign + the copy-carrying add: one step each.
+    expect(state().history.past).toHaveLength(3)
 
-    state().switchGrid(firstId)
+    // The copy mirrors the board cell for cell, but nothing the store
+    // addresses by id is shared.
+    const copy = state().workspaces
+    expect(copy).toHaveLength(state().parkedBoards[firstId]!.workspaces.length)
+    const copyLeaves = leafList(copy[0]!.root)
+    expect(copyLeaves).toHaveLength(beforeLeaves.length)
+    expect(copyLeaves.map(l => l.photoId)).toEqual(beforeLeaves.map(l => l.photoId))
+    const copyIds = new Set(copy.map(w => w.id))
+    for (const w of state().parkedBoards[firstId]!.workspaces)
+      expect(copyIds.has(w.id)).toBe(false)
+    expect(copyLeaves.map(l => l.id)).not.toEqual(beforeLeaves.map(l => l.id))
+    expect(copyLeaves[0]!.stickers.map(s => s.id)).not.toEqual(['st1'])
+    expect(copyLeaves[1]!.label!.id).not.toBe('lab1')
+    // The open board moved to the copy; the original parked whole.
+    expect(state().parkedBoards[firstId]!.workspaces[0]!.root).toBe(before.root)
+
+    // One undo removes the copied group and reopens the board it copied.
+    state().undo()
+    expect(state().grids).toHaveLength(1)
     expect(state().activeGridId).toBe(firstId)
-    expect(ws().root).toBe(twoPane)
-    // The group it left kept its cells instead of sharing 1's.
-    expect(state().parkedBoards[added!]!.workspaces.some(w => w.root === twoPane)).toBe(false)
+    expect(state().parkedBoards).toEqual({})
+    state().redo()
+    expect(state().grids).toHaveLength(2)
+    expect(state().activeGridId).toBe(added!)
   })
 
   test('switching groups is navigation: it pushes no undo entry', () => {
