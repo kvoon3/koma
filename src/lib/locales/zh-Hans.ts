@@ -489,6 +489,7 @@ export const zhHans: Record<string, string> = {
   // Dual grid (two 9-grid groups, compared side by side or stacked)
   'Compare': '对比',
   'Exit compare': '退出对比',
+  'Swap sides': '交换两侧',
   // First / second, not left / right: on a phone the two boards stack.
   'First group': '第一个分组',
   'Second group': '第二个分组',
