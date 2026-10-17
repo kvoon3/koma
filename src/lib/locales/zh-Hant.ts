@@ -507,8 +507,8 @@ export const zhHant: Record<string, string> = {
   // First / second, not left / right: on a phone the two boards stack.
   'First group': '第一個群組',
   'Second group': '第二個群組',
+  // Workspaces (the board groups, switched from the Mission Control-style switcher)
   'Add a group': '新增群組',
   'Rename': '重新命名',
   'Delete group?': '刪除群組？',
-  'This removes the group and its nine collages. Undo brings them back.': '這會刪除該群組及其中的九個拼貼，可以用復原恢復。',
 }
