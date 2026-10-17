@@ -503,6 +503,7 @@ export const zhHant: Record<string, string> = {
   // Dual grid (two 9-grid groups, compared side by side or stacked)
   'Compare': '對比',
   'Exit compare': '結束對比',
+  'Swap sides': '交換兩側',
   // First / second, not left / right: on a phone the two boards stack.
   'First group': '第一個群組',
   'Second group': '第二個群組',
