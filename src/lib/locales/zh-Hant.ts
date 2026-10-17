@@ -509,6 +509,6 @@ export const zhHant: Record<string, string> = {
   'Second group': '第二個群組',
   // Workspaces (the board groups, switched from the Mission Control-style switcher)
   'Add a group': '新增群組',
-  'Rename': '重新命名',
+  'Open group {name}': '開啟群組 {name}',
   'Delete group?': '刪除群組？',
 }

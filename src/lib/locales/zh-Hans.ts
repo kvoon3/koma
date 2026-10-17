@@ -511,6 +511,6 @@ export const zhHans: Record<string, string> = {
   'Second group': '第二个分组',
   // Workspaces (the board groups, switched from the Mission Control-style switcher)
   'Add a group': '新增分组',
-  'Rename': '重命名',
+  'Open group {name}': '打开分组 {name}',
   'Delete group?': '删除分组？',
 }
