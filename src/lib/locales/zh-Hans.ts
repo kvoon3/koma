@@ -486,4 +486,13 @@ export const zhHans: Record<string, string> = {
   'Sharing failed, use Download all instead': '分享失败，请改用「全部下载」',
   'Shuffle': '打乱',
   'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '这会移除九宫格中的所有照片，版式和图库会保留。此操作无法撤销。',
+  // Dual grid (two 9-grid groups, compared side by side)
+  'Compare': '对比',
+  'Exit compare': '退出对比',
+  'First group': '左边分组',
+  'Second group': '右边分组',
+  'Add a group': '新增分组',
+  'Rename': '重命名',
+  'Delete group?': '删除分组？',
+  'This removes the group and its nine collages. Undo brings them back.': '这会删除该分组及其中的九个拼图，可以用撤销恢复。',
 }
