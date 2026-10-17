@@ -1,9 +1,9 @@
 /**
  * Pure rules for the workspace grid (the overview): how many cells each board
  * holds, how adding, removing and restoring them behave, and how the boards
- * themselves (grid groups: two 3×3 grids, compared 1 vs 2) are added,
- * renamed, removed and compared. Generic over the workspace shape so they test
- * without the store.
+ * themselves (grid groups, switched from the workspace switcher) are added,
+ * renamed and removed. Generic over the workspace shape so they test without
+ * the store.
  */
 
 /** A board never drops below one cell: the editor always needs a workspace. */
@@ -65,9 +65,9 @@ export function activeAfterRemove<T extends { id: string }>(before: T[], after: 
 }
 
 /**
- * A board is one group of nine cells. The overview keeps a handful of them so
- * two arrangements can be built and compared side by side; past four the
- * group bar stops earning its row.
+ * A board is one group of nine cells. The overview keeps a handful of them,
+ * switched from the workspace switcher; past four the switcher strip stops
+ * earning its row.
  */
 export const MAX_GRIDS = 4
 /** One board always stays: the app needs somewhere to edit. */
@@ -146,16 +146,6 @@ export function renameGroup(groups: GridGroup[], id: string, name: string): Grid
   if (!clean || !groups.some(g => g.id === id && g.name !== clean))
     return groups
   return groups.map(g => (g.id === id ? { ...g, name: clean } : g))
-}
-
-/**
- * The two groups a compare view shows: the picks that still exist, else the
- * first two. Null while the board holds fewer than two groups.
- */
-export function comparePair(groups: readonly GridGroup[], a: string | null, b: string | null): [GridGroup, GridGroup] | null {
-  const first = groups.find(g => g.id === a) ?? groups[0]
-  const second = first ? groups.find(g => g.id === b && g.id !== first.id) ?? groups.find(g => g.id !== first.id) : undefined
-  return first && second ? [first, second] : null
 }
 
 /** One group as a session wrote it, before the ids and names are checked. */
