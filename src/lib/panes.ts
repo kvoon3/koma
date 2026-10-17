@@ -91,6 +91,16 @@ export interface Leaf {
   cx: number
   cy: number
   /**
+   * Pane photo rotation in radians, wrapped to (-π, π]; absent means upright
+   * (see `rotationOf`). The dial in the tools drawer sets it; preview and
+   * export both draw it through `paneTransform`.
+   */
+  rot?: number
+  /** Mirror the pane's photo left/right; absent means not flipped. */
+  flipX?: boolean
+  /** Mirror the pane's photo top/bottom; absent means not flipped. */
+  flipY?: boolean
+  /**
    * Legacy per-pane stickers. New inserts live on `Workspace.stickers` (board
    * space). Kept so session / `.koma.json` files migrate without data loss.
    */
@@ -316,7 +326,8 @@ export function deletePane(root: Node, paneId: string): Node {
 
 /**
  * A pane carry dropped on another pane swaps what the two hold: photo and its
- * placement; per-pane stickers and labels are cleared on both (as before).
+ * placement (pan, zoom, turn and mirrors); per-pane stickers and labels are
+ * cleared on both (as before).
  * Either side may be empty, so an empty pane dropped on a photo pane pulls
  * the photo over and leaves the target empty. Two empty panes, the same pane
  * or an unknown id leave the root untouched.
@@ -326,7 +337,17 @@ export function swapLeafContents(root: Node, a: string, b: string): Node {
   const lb = findLeaf(root, b)
   if (!la || !lb || a === b || (!la.photoId && !lb.photoId))
     return root
-  const take = (l: Leaf): Partial<Leaf> => ({ photoId: l.photoId, zoom: l.zoom, cx: l.cx, cy: l.cy, stickers: [], label: null })
+  const take = (l: Leaf): Partial<Leaf> => ({
+    photoId: l.photoId,
+    zoom: l.zoom,
+    cx: l.cx,
+    cy: l.cy,
+    rot: l.rot,
+    flipX: l.flipX,
+    flipY: l.flipY,
+    stickers: [],
+    label: null,
+  })
   return updateLeafIn(updateLeafIn(root, a, take(lb)), b, take(la))
 }
 
@@ -597,6 +618,63 @@ export function clampLeaf(leaf: Leaf, cell: Rect, iw: number, ih: number): Leaf 
     cx: Math.min(1 - hx, Math.max(hx, leaf.cx)),
     cy: Math.min(1 - hy, Math.max(hy, leaf.cy)),
   }
+}
+
+/** Which way a pane's photo is mirrored (absent means neither). */
+export const paneFlipped = (leaf: { flipX?: boolean, flipY?: boolean }) => ({ x: !!leaf.flipX, y: !!leaf.flipY })
+
+/** The pane-photo transform preview and export share: flip, cover-scale, then turn. */
+export interface PaneTransform {
+  /** Rotation in radians, wrapped to (-π, π]. */
+  rot: number
+  /** Extra zoom that keeps a rotated photo covering its cell (≥ 1). */
+  cover: number
+  /** Multipliers on the placed photo, the flip signs included. */
+  scaleX: number
+  scaleY: number
+}
+
+/**
+ * How much the placed photo must grow so a turn leaves no empty corners: under
+ * the rotation the cell's pre-image is a diamond whose bounding box is
+ * (w·|cos| + h·|sin|) × (w·|sin| + h·|cos|), and the photo already covers the
+ * cell, so it has to cover that box too. 45° on a square gives √2, the tight
+ * answer for that case.
+ */
+export function rotationCoverScale(rot: number, w: number, h: number): number {
+  if (w <= 0 || h <= 0)
+    return 1
+  const c = Math.abs(Math.cos(rot))
+  const s = Math.abs(Math.sin(rot))
+  return Math.max(1, c + (h * s) / w, c + (w * s) / h)
+}
+
+/**
+ * The transform a pane's photo is drawn with, about the center of `cell` (the
+ * box the photo is clipped into, i.e. the pane): flip and cover-scale first,
+ * then the turn. The preview spells it as CSS (`paneTransformCss`), the exporter
+ * as canvas calls, both from this one result, so the two cannot drift.
+ */
+export function paneTransform(
+  cell: { w: number, h: number },
+  leaf: { rot?: number, flipX?: boolean, flipY?: boolean },
+): PaneTransform {
+  const rot = wrapAngle(rotationOf(leaf))
+  const cover = rotationCoverScale(rot, cell.w, cell.h)
+  const flip = paneFlipped(leaf)
+  return { rot, cover, scaleX: (flip.x ? -1 : 1) * cover, scaleY: (flip.y ? -1 : 1) * cover }
+}
+
+/** Does this transform do anything? An upright, unflipped pane skips the layer. */
+export const isPaneTransformed = (t: PaneTransform) => t.rot !== 0 || t.scaleX !== 1 || t.scaleY !== 1
+
+/**
+ * `paneTransform` as the CSS a layer covering the pane box draws with. The
+ * layer's origin is its center (the pane's center), so the turn is about the
+ * middle of the pane just as `ctx.rotate` is in the exporter.
+ */
+export function paneTransformCss(t: PaneTransform): string {
+  return `rotate(${t.rot}rad) scale(${t.scaleX}, ${t.scaleY})`
 }
 
 /**
