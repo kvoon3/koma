@@ -22,7 +22,9 @@ function walk(dir: string) {
 walk('src')
 
 const sources = files.map(f => readFileSync(f, 'utf8'))
-const haystack = sources.join('\n')
+/** The dictionaries are searched for keys too, so they must not count as usage of their own entries. */
+const appSources = files.filter(f => !f.replaceAll('\\', '/').includes('/lib/locales/'))
+const haystack = appSources.map(f => readFileSync(f, 'utf8')).join('\n')
 
 /** Every locale dictionary the i18n module ships with. */
 const locales: Record<string, Record<string, string>> = {}
