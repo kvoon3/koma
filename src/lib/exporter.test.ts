@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, it } from 'bun:test'
-import { computeExportSize, exportGap, gridCellPx, outputSizeFor } from './exporter'
+import { computeExportSize, gridCellPx, outputSizeFor } from './exporter'
 
 describe('computeExportSize', () => {
   it('keeps the long side for a landscape canvas', () => {
@@ -33,28 +33,6 @@ describe('outputSizeFor', () => {
   it('is the canvas ratio applied to the long side', () => {
     expect(outputSizeFor(2048, 4 / 3)).toEqual({ W: 2048, H: 1536 })
     expect(outputSizeFor(2048, 3 / 4)).toEqual({ W: 1536, H: 2048 })
-  })
-})
-
-describe('exportGap', () => {
-  it('is zero at gap 0, so flush panes stay flush', () => {
-    expect(exportGap(0, 2048, 1365)).toBe(0)
-  })
-
-  it('scales from the short edge (the same unit as radius and labels)', () => {
-    // 6/1000 of the 1365px short edge.
-    expect(exportGap(6, 2048, 1365)).toBe(8)
-    expect(exportGap(60, 1024, 1024)).toBe(61)
-  })
-
-  it('is always a whole number of pixels', () => {
-    for (const [w, h] of [[2048, 1365], [1001, 999], [1500, 1500], [1171, 2048]]) {
-      for (const setting of [1, 3, 7, 13, 60, 120]) {
-        const gap = exportGap(setting, w, h)
-        expect(Number.isInteger(gap)).toBe(true)
-        expect(gap).toBeGreaterThanOrEqual(0)
-      }
-    }
   })
 })
 

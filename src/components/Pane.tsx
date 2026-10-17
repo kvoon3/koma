@@ -10,7 +10,7 @@ import { usePreview } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { pickPhotoForPane } from '../lib/paneCommands'
-import { clampLeaf, cornerRadiiCss, leafCornerRadii, photoNorm, placement, pressPlan } from '../lib/panes'
+import { clampLeaf, cornerRadiiCss, leafCornerRadii, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -47,7 +47,9 @@ function PanePhotoContent({
   place,
   rect,
   photoId,
+  mask,
   radius,
+  crossfade,
   onPick,
   carried,
 }: {
@@ -55,7 +57,9 @@ function PanePhotoContent({
   place: ReturnType<typeof placement> | null
   rect: Rect
   photoId: string | null
+  mask?: React.CSSProperties
   radius: number | string
+  crossfade?: boolean
   onPick: () => void
   /** The photo is being carried as the swap/Move ghost: dim the original. */
   carried: boolean
@@ -63,14 +67,18 @@ function PanePhotoContent({
   const t = useT()
   return preview && place
     ? (
-        // The clip wrapper spans the pane box (the placed img itself overflows
-        // it). It clips too, which is what the swap transition names
-        // (tagSwapClip). Carried: fade, don't hide, so the ghost reads as
-        // lifted from here.
+        // The mask wrapper spans the pane box, so the feather gradients line
+        // up with the pane edges (the placed img itself overflows the pane).
+        // It clips too, which is what the swap transition names (tagSwapClip).
+        // Carried: fade, don't hide, so the ghost reads as lifted from here.
         <div
           data-photo-clip=""
           className={`absolute inset-0 overflow-hidden transition-opacity duration-(--dur-surface) ${carried ? ' opacity-25' : ''}`}
-          style={{ borderRadius: radius }}
+          style={{
+            ...mask,
+            borderRadius: radius,
+            mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
+          }}
         >
           <img
             src={preview.url}
@@ -394,11 +402,16 @@ function PaneOutline({
 
 interface Props {
   leaf: Leaf
-  /** The pane's box in canvas px. */
+  /** Visual box (expanded into seams when crossfade is on). */
   rect: Rect
+  /** Pre-overlap layout cell for photo placement; defaults to `rect`. */
+  layoutRect?: Rect
+  /** When true, seam masks use plus-lighter compositing. */
+  crossfade?: boolean
   radius: number
   gap: number
   bordered: boolean
+  fade: number
   seam?: SeamSides
   unit: number
   photo: Photo | null
@@ -412,11 +425,13 @@ interface Props {
 }
 
 /* The Live Photo video layer plus its play badge, drawn together because they
-   share the pane's box and playback flag. */
+   share the pane's mask and playback flag. */
 function PaneLivePhoto({
   photo,
   place,
   rect,
+  mask,
+  crossfade,
   live,
   videoRef,
   onToggle,
@@ -424,6 +439,8 @@ function PaneLivePhoto({
   photo: Photo | null
   place: { x: number, y: number, w: number, h: number }
   rect: Rect
+  mask?: React.CSSProperties
+  crossfade?: boolean
   live: boolean
   videoRef: React.RefObject<HTMLVideoElement | null>
   onToggle: () => void
@@ -446,7 +463,13 @@ function PaneLivePhoto({
     return null
   return (
     <>
-      <div className="absolute inset-0">
+      <div
+        className="absolute inset-0"
+        style={{
+          ...mask,
+          mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
+        }}
+      >
         {/* The peek plays muted: the export's own recording is silent too (a
             canvas capture carries no audio), and a silent layer is allowed to
             start without waiting on the browser's audio permission. */}
@@ -1351,9 +1374,12 @@ function usePaneDrop({
 function PaneImpl({
   leaf,
   rect,
+  layoutRect,
+  crossfade,
   radius,
   gap,
   bordered,
+  fade,
   seam,
   unit: _unit,
   photo,
@@ -1379,7 +1405,9 @@ function PaneImpl({
 
   const iw = preview?.w ?? 0
   const ih = preview?.h ?? 0
-  const place = iw && ih ? placement(rect, leaf, iw, ih) : null
+  // Placement stays on the layout cell so enabling crossfade does not reframe the photo.
+  const cell: Rect = layoutRect ?? rect
+  const place = iw && ih ? placement(cell, leaf, iw, ih) : null
 
   const toCanvas = useCallback(
     (clientX: number, clientY: number) => {
@@ -1391,7 +1419,7 @@ function PaneImpl({
     [rect.x, rect.y],
   )
 
-  const { local, commit, zoomAbout } = usePaneViewport({ leaf, cell: rect, iw, ih, elRef, onUpdate })
+  const { local, commit, zoomAbout } = usePaneViewport({ leaf, cell, iw, ih, elRef, onUpdate })
   const {
     swapAt,
     moving,
@@ -1410,7 +1438,7 @@ function PaneImpl({
     moveGhostTo,
     dropMoveAt,
     cancelMove,
-  } = usePaneGestures({ leaf, cell: rect, iw, ih, photo, elRef, onFocus, exitToGrid, local, commit, zoomAbout })
+  } = usePaneGestures({ leaf, cell, iw, ih, photo, elRef, onFocus, exitToGrid, local, commit, zoomAbout })
 
   // A drop on a pane that already holds a photo asks what the image should
   // become; `at` is the drop point in pane-normalized coords for stickers.
@@ -1423,6 +1451,9 @@ function PaneImpl({
     setDropChoice,
   })
 
+  // Feather the photo's seam edges (and the Live Photo video that replaces
+  // it visually); stickers/labels stay sharp above it.
+  const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
   const radiusCss = cornerRadiiCss(leafCornerRadii(radius, seam, gap))
 
   // The carried photo rides the pointer at roughly its pane size (capped).
@@ -1456,6 +1487,8 @@ function PaneImpl({
         place={place}
         rect={rect}
         photoId={leaf.photoId}
+        mask={photoMask}
+        crossfade={crossfade}
         radius={radiusCss}
         onPick={pickForPane}
         carried={!!swapAt}
@@ -1466,6 +1499,8 @@ function PaneImpl({
           photo={photo}
           place={place}
           rect={rect}
+          mask={photoMask}
+          crossfade={crossfade}
           live={live}
           videoRef={liveVideoRef}
           onToggle={toggleLivePin}
