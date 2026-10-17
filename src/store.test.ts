@@ -333,6 +333,18 @@ describe('pane rotation and flips', () => {
     expect(focusLeaf().flipY).toBe(true)
   })
 
+  test('a stepless angle is kept as set, not folded onto a lattice', () => {
+    const id = focusLeaf().id
+    if (!focusLeaf().photoId)
+      useStore.getState().assign(id, 'ph-1')
+    useStore.setState({ history: emptyHistory() })
+    // The dial's drag is continuous: 23.7° is a value, not a rounding of 15/30.
+    useStore.getState().rotatePane(id, degToRad(23.7))
+    expect(radToDeg(rotationOf(focusLeaf()))).toBeCloseTo(23.7, 12)
+    useStore.getState().rotatePane(id, degToRad(-46.3))
+    expect(radToDeg(rotationOf(focusLeaf()))).toBeCloseTo(-46.3, 12)
+  })
+
   test('the angle is wrapped, so a full turn reads as upright', () => {
     const id = focusLeaf().id
     useStore.getState().rotatePane(id, degToRad(370))
