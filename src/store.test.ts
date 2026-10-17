@@ -414,16 +414,16 @@ describe('grid groups (dual 9-grid)', () => {
 
     const added = state().addGrid()
     expect(added).not.toBeNull()
-    expect(state().grids.map(g => g.name)).toEqual(['A', 'B'])
+    expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
     expect(state().activeGridId).toBe(added!)
-    // A fresh board of its own: the split stayed behind in group A.
+    // A fresh board of its own: the split stayed behind in group 1.
     expect(state().workspaces).toHaveLength(DEFAULT_WORKSPACES)
     expect(leaves()).toHaveLength(1)
 
     state().switchGrid(firstId)
     expect(state().activeGridId).toBe(firstId)
     expect(ws().root).toBe(twoPane)
-    // The group it left kept its cells instead of sharing A's.
+    // The group it left kept its cells instead of sharing 1's.
     expect(state().parkedBoards[added!]!.workspaces.some(w => w.root === twoPane)).toBe(false)
   })
 
@@ -440,12 +440,12 @@ describe('grid groups (dual 9-grid)', () => {
     const firstId = state().activeGridId
     const added = state().addGrid()!
     expect(state().history.past).toHaveLength(1)
-    state().renameGrid(added, 'Variant B')
-    expect(state().grids.map(g => g.name)).toEqual(['A', 'Variant B'])
+    state().renameGrid(added, 'Variant 2')
+    expect(state().grids.map(g => g.name)).toEqual(['1', 'Variant 2'])
     expect(state().history.past).toHaveLength(2)
 
     state().undo()
-    expect(state().grids.map(g => g.name)).toEqual(['A', 'B'])
+    expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
     // Undoing the add takes the group and its board away, and the view with it.
     state().undo()
     expect(state().grids).toHaveLength(1)
@@ -499,7 +499,7 @@ describe('grid groups (dual 9-grid)', () => {
     expect(state().history.past).toHaveLength(MAX_GRIDS - 1)
   })
 
-  test('a legacy session (one board, no groups) hydrates as group A', () => {
+  test('a legacy session (one board, no groups) hydrates as group 1', () => {
     const saved = Array.from({ length: 3 }, (_, i) => ({ ...state().workspaces[0]!, id: `legacy${i}` }))
     saved[1] = { ...saved[1]!, root: { ...saved[1]!.root, id: 'pane-1' } as typeof saved[1]['root'] }
     state().hydrate({
@@ -516,7 +516,7 @@ describe('grid groups (dual 9-grid)', () => {
       photos: [],
     })
     expect(state().grids).toHaveLength(1)
-    expect(state().grids[0]!.name).toBe('A')
+    expect(state().grids[0]!.name).toBe('1')
     expect(state().workspaces.map(w => w.id)).toEqual(['legacy0', 'legacy1', 'legacy2'])
     expect(state().activeId).toBe('legacy1')
     expect(state().parkedBoards).toEqual({})
