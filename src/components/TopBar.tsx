@@ -6,7 +6,7 @@ import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
@@ -302,22 +302,25 @@ export function TopBar({
    * window's pointer instead and hit-test the triggers marked `data-bar-trigger`
    * through that backdrop, so the hand-over runs in both directions.
    */
+  // The handler only has to *use* the latest hand-over; re-subscribing the
+  // window listener whenever `handOver` changes identity (it closes over the
+  // open menu) buys nothing.
+  const onBarPointerMove = useEffectEvent((e: globalThis.MouseEvent) => {
+    for (const el of document.querySelectorAll<HTMLElement>('[data-bar-trigger]')) {
+      const r = el.getBoundingClientRect()
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+        handOver(el.dataset.barTrigger as HeaderMenuId | 'settings')
+        return
+      }
+    }
+  })
+
   useEffect(() => {
     if (openMenu == null && !settingsOpen)
       return
-    const triggers = [...document.querySelectorAll<HTMLElement>('[data-bar-trigger]')]
-    const onMove = (e: globalThis.MouseEvent) => {
-      for (const el of triggers) {
-        const r = el.getBoundingClientRect()
-        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-          handOver(el.dataset.barTrigger as HeaderMenuId | 'settings')
-          return
-        }
-      }
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [openMenu, settingsOpen, handOver])
+    window.addEventListener('mousemove', onBarPointerMove)
+    return () => window.removeEventListener('mousemove', onBarPointerMove)
+  }, [openMenu, settingsOpen])
 
   const photos = useStore(s => s.photos.length)
   const root = useStore(s => activeWs(s).root)
