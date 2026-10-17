@@ -84,6 +84,10 @@ export default defineConfig(({ mode }) => {
   const single = mode === 'single'
   return {
     base: './',
+    // Vite DevTools dock (`@vitejs/devtools`, requires Vite 8.3+): the
+    // `apply: 'serve'` keeps it strictly on the dev server, so neither
+    // `vite build` nor `build:single` output is touched.
+    devtools: { apply: 'serve' },
     plugins: [
       react(),
       tailwindcss(),
