@@ -12,6 +12,23 @@ import type { Node, PaneLabel, Sticker } from '../../lib/panes'
  */
 export const RECEDE_SCALE = 0.65
 
+/**
+ * How far it dims while receded. It used to sit at 0.45, where an all-empty
+ * board (a fresh session: nine quiet squares on an equally pale stage) dimmed
+ * into the backdrop and the switcher read as an empty gray screen. At 0.6 with
+ * the hairline the quiet cells wear, the 3×3 stays legible; the 40% dim layer
+ * over the whole stage is still what sets the board behind the strip, so the
+ * recede reads as a recede and not as an un-dimmed board.
+ */
+export const RECEDE_OPACITY = 0.6
+
+/**
+ * How much it blurs. 3px smeared the empty cells' hairlines away entirely
+ * (measured: 1/255 between line and fill); 2px keeps the structure and still
+ * reads as the board behind glass.
+ */
+export const RECEDE_BLUR = 2
+
 /** A board's cells, as the pager and the cards read them. */
 export type BoardCells = { id: string, root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
 

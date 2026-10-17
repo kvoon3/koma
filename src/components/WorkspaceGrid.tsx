@@ -18,7 +18,7 @@ import { isTransparentBg, useStore } from '../store'
 import { DeleteZone } from './DeleteZone'
 import { BoardCaption } from './grid/BoardCaption'
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
-import { RECEDE_SCALE, switcherMetrics } from './grid/switcherLayout'
+import { RECEDE_BLUR, RECEDE_OPACITY, RECEDE_SCALE, switcherMetrics } from './grid/switcherLayout'
 import { useBoardPager } from './grid/useBoardPager'
 import { useGridKeyboard } from './grid/useGridKeyboard'
 import { DELETE_ZONE_ID, useGridReorder } from './grid/useGridReorder'
@@ -275,8 +275,8 @@ export function WorkspaceGrid() {
                 gap: CAPTION_GAP,
                 viewTransitionName: boardNamed ? 'ws-board' : undefined,
                 transform: switcher ? `scale(${RECEDE_SCALE})` : undefined,
-                opacity: switcher ? 0.45 : 1,
-                filter: switcher ? 'blur(3px)' : undefined,
+                opacity: switcher ? RECEDE_OPACITY : 1,
+                filter: switcher ? `blur(${RECEDE_BLUR}px)` : undefined,
                 pointerEvents: switcher ? 'none' : undefined,
               }}
             >
