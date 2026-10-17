@@ -500,10 +500,12 @@ export const zhHant: Record<string, string> = {
   'Invert': '對調',
   'Square (1:1)': '正方形（1:1）',
   // Dual grid (two 9-grid groups, compared side by side)
+  // Dual grid (two 9-grid groups, compared side by side or stacked)
   'Compare': '對比',
   'Exit compare': '結束對比',
-  'First group': '左邊群組',
-  'Second group': '右邊群組',
+  // First / second, not left / right: on a phone the two boards stack.
+  'First group': '第一個群組',
+  'Second group': '第二個群組',
   'Add a group': '新增群組',
   'Rename': '重新命名',
   'Delete group?': '刪除群組？',
