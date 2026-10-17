@@ -1,4 +1,5 @@
 import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
+import type { DockSwapPlan } from '../lib/dockSwap'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, ChevronUp, Ratio, RotateCw, Square } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -8,6 +9,7 @@ import { createPortal } from 'react-dom'
 import { flipCanvasRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO } from '../lib/canvasCommands'
 import { dockDragFade, dockSurface } from '../lib/dockBackground'
 import { dampOffset, dragOwner, pickSnap } from '../lib/dockPhysics'
+import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
 import { liquidGlassRef } from '../lib/liquidGlass'
 import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
@@ -296,6 +298,96 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       }
     }
     snapshot()
+
+    // List swap (see lib/dockSwap). Every swap point (a route portaling a
+    // different tool set in, the label tools mounting, focus adding a tool)
+    // lands as a direct-child change of `el`: the outgoing list is ghosted
+    // above the live one and both slide rightward.
+    const scrollerOf = () => el.parentElement
+    /** The container's children before this batch ('' = nothing to swap with). */
+    let prevHtml = el.innerHTML
+    /** The whole scroller before this batch: classes and inline fade mask included. */
+    let prevScroller = scrollerOf()?.innerHTML ?? ''
+    let swapAt = Number.NEGATIVE_INFINITY
+    let swapRun = 0
+    let swapAnim: ReturnType<typeof animate> | null = null
+    let ghostEl: HTMLElement | null = null
+    /** Drop the ghost and put the live row back at rest (also the unmount hook). */
+    const settleSwap = () => {
+      swapAnim?.stop()
+      swapAnim = null
+      ghostEl?.remove()
+      ghostEl = null
+      const scroller = scrollerOf()
+      if (scroller) {
+        scroller.style.transform = ''
+        scroller.style.opacity = ''
+      }
+    }
+    /** Incoming list slides in from the right, outgoing slides out to the right. */
+    const playSwap = (plan: DockSwapPlan) => {
+      const scroller = scrollerOf()
+      const host = scroller?.parentElement
+      if (!scroller || !host)
+        return
+      settleSwap()
+      const run = ++swapRun
+      const done = () => {
+        if (run === swapRun)
+          settleSwap()
+      }
+      if (plan.ghost && prevScroller) {
+        const ghost = scroller.cloneNode(false) as HTMLElement
+        ghost.innerHTML = prevScroller
+        ghost.setAttribute('data-dock-swap-ghost', '')
+        ghost.setAttribute('aria-hidden', 'true')
+        ghost.setAttribute('inert', '')
+        // The snapshot repeats the live list's ids (popover anchors,
+        // aria-controls): drop them so the real buttons keep them.
+        for (const n of ghost.querySelectorAll<HTMLElement>('[id]')) n.removeAttribute('id')
+        Object.assign(ghost.style, {
+          position: 'absolute',
+          inset: '0',
+          margin: '0',
+          pointerEvents: 'none',
+          willChange: 'transform, opacity',
+        })
+        host.append(ghost)
+        // After insertion, or the box has no scroll range yet to clamp to.
+        ghost.scrollLeft = scroller.scrollLeft
+        ghost.scrollTop = scroller.scrollTop
+        ghostEl = ghost
+      }
+      if (plan.enter) {
+        swapAnim = animate(scroller, { x: [DOCK_SWAP_PX, 0], opacity: [0, 1] }, { duration: DOCK_SWAP_S, ease: DOCK_SWAP_EASE })
+        void swapAnim.then(done)
+      }
+      if (ghostEl)
+        void animate(ghostEl, { x: [0, DOCK_SWAP_PX], opacity: [1, 0] }, { duration: DOCK_SWAP_S, ease: DOCK_SWAP_EASE }).then(done)
+    }
+
+    /**
+     * Only the container's own children are the tool list: a button's internals
+     * (icon morphs, captions) must not read as a swap.
+     */
+    const maybeSwap = (records: MutationRecord[]) => {
+      const swapped = records.some(r => r.type === 'childList' && r.target === el
+        && [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === Node.ELEMENT_NODE))
+      if (swapped) {
+        const plan = planDockSwap({
+          hadContent: prevHtml !== '',
+          midSwap: performance.now() - swapAt < DOCK_SWAP_PAIR_MS,
+          reduce: !!reduceRef.current,
+        })
+        if (plan.ghost || plan.enter) {
+          swapAt = performance.now()
+          playSwap(plan)
+        }
+      }
+      prevHtml = el.innerHTML
+      prevScroller = scrollerOf()?.innerHTML ?? ''
+    }
+
     const mo = new MutationObserver((records) => {
       const reorder = records.some(r => r.type === 'attributes' && r.target.parentElement === el)
       if (reorder && !reduceRef.current) {
@@ -308,6 +400,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             animate(h, { x: [dx, 0], y: [dy, 0] }, SPRING)
         }
       }
+      maybeSwap(records)
       snapshot()
       measure()
     })
@@ -327,6 +420,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       mo.disconnect()
       ro.disconnect()
       window.removeEventListener('resize', onResize)
+      settleSwap()
     }
   }, [measure])
 
@@ -521,7 +615,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             >
               <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
             </button>
-            <div className="flex min-h-0 flex-1 flex-col outline-0">
+            {/* Relative host for the swap's exit ghost (see playSwap). */}
+            <div className="relative flex min-h-0 flex-1 flex-col outline-0">
               <div
                 ref={scrollRef}
                 style={wrap ? scrollFadeStyle : scrollFadeStyleX}
