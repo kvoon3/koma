@@ -28,6 +28,11 @@ const LOCALES = join(SRC, 'lib', 'locales')
 /** Every locale file lives here, and nothing else does. */
 const LOCALE_DIR = '/lib/locales/'
 
+/** The selectors the rule reports through: one per way a key is written down. */
+const DICTIONARY_ENTRY = 'ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ObjectExpression > Property'
+const T_CALL = 'CallExpression[callee.name="t"]'
+const T_ELEMENT = 'JSXOpeningElement[name.name="T"]'
+
 function walk(dir) {
   const files = []
   for (const entry of readdirSync(dir)) {
@@ -87,9 +92,26 @@ function checkDeadKey(context, node) {
     context.report({ node, messageId: 'dead' })
 }
 
+/** The locales whose dictionary does not define `key`. */
+function absentIn(key) {
+  return [...dictionaries.keys()].filter(name => !dictionaries.get(name).has(key))
+}
+
+/**
+ * Report an entry some other dictionary lacks. Keys reached through a table
+ * (`t(label)` over the font names) have no call site to check, so the
+ * dictionaries have to agree with each other instead.
+ */
+function checkParity(context, node) {
+  const key = literalString(node.key)
+  const absent = key == null ? [] : absentIn(key)
+  if (absent.length)
+    context.report({ node, messageId: 'untranslated', data: { locales: absent.join(', ') } })
+}
+
 /** Report a key that at least one dictionary cannot translate. */
 function checkTranslated(context, node, key) {
-  const absent = [...dictionaries.keys()].filter(name => !dictionaries.get(name).has(key))
+  const absent = absentIn(key)
   if (absent.length)
     context.report({ node, messageId: 'missing', data: { locales: absent.join(', ') } })
 }
@@ -104,6 +126,7 @@ export const i18nCoverage = {
     messages: {
       missing: 'No dictionary has this key, so it renders in English (missing from {{locales}}).',
       dead: 'No `t()` call passes this key, so the translation is dead weight. Use it or delete it.',
+      untranslated: 'This key is not in {{locales}}, so it falls back to English there.',
     },
   },
   create(context) {
@@ -111,7 +134,10 @@ export const i18nCoverage = {
 
     if (filename.includes(LOCALE_DIR)) {
       const visitor = {}
-      visitor['ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ObjectExpression > Property'] = node => checkDeadKey(context, node)
+      visitor[DICTIONARY_ENTRY] = (node) => {
+        checkDeadKey(context, node)
+        checkParity(context, node)
+      }
       return visitor
     }
 
@@ -120,12 +146,12 @@ export const i18nCoverage = {
       return {}
 
     const visitor = {}
-    visitor['CallExpression[callee.name="t"]'] = (node) => {
+    visitor[T_CALL] = (node) => {
       const key = literalString(node.arguments[0])
       if (key != null)
         checkTranslated(context, node, key)
     }
-    visitor['JSXOpeningElement[name.name="T"]'] = (node) => {
+    visitor[T_ELEMENT] = (node) => {
       const attr = node.attributes.find(a => a.type === 'JSXAttribute' && a.name.name === 'k')
       const key = literalString(attr?.value)
       if (key != null)
