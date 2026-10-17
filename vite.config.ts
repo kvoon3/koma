@@ -1,5 +1,7 @@
 import type { Plugin } from 'vite'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -12,18 +14,48 @@ function isRfc1918(host: string) {
   return /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
 }
 
+const require = createRequire(import.meta.url)
+
+/** Install dir of a package: resolve its entry, then walk up to the owning package.json. */
+function packageDir(id: string, from?: string) {
+  const resolve = from ? createRequire(join(from, 'package.json')).resolve : require.resolve
+  let dir = dirname(resolve(id))
+  while (!existsSync(join(dir, 'package.json'))) {
+    const parent = dirname(dir)
+    if (parent === dir)
+      throw new Error(`[koma] cannot find the install dir of ${id}`)
+    dir = parent
+  }
+  return dir
+}
+
+const transformersDir = packageDir('@huggingface/transformers')
+/**
+ * onnxruntime-web is not a dependency of ours: it ships inside the
+ * transformers.js graph, and both the wasm glue and the binary must be the
+ * exact build that the bundled `transformers.min.js` was compiled against. So
+ * it resolves from transformers' scope, not from ours: a copy hoisted to our
+ * root would be a different build and would break inference at runtime.
+ */
+const ortDir = packageDir('onnxruntime-web', transformersDir)
+
 /**
  * Self-host the transformers.js runtime and the onnxruntime wasm it loads, so
  * background removal does not depend on cdn.jsdelivr.net being reachable.
  */
 const VENDOR_FILES: Record<string, string> = {
-  'transformers.min.js': 'node_modules/@huggingface/transformers/dist/transformers.min.js',
-  'ort-wasm-simd-threaded.mjs': 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
-  'ort-wasm-simd-threaded.wasm': 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+  'transformers.min.js': join(transformersDir, 'dist/transformers.min.js'),
+  'ort-wasm-simd-threaded.mjs': join(ortDir, 'dist/ort-wasm-simd-threaded.mjs'),
+  'ort-wasm-simd-threaded.wasm': join(ortDir, 'dist/ort-wasm-simd-threaded.wasm'),
 }
 
 function vendorRuntime(): Plugin {
-  const read = (name: string) => readFileSync(fileURLToPath(new URL(VENDOR_FILES[name], import.meta.url)))
+  const read = (name: string) => {
+    const path = VENDOR_FILES[name]
+    if (!existsSync(path))
+      throw new Error(`[koma] missing ${name} at ${path}: the vendor runtime moved, update VENDOR_FILES`)
+    return readFileSync(path)
+  }
   return {
     name: 'koma:vendor-runtime',
     configureServer(server) {
