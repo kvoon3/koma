@@ -167,7 +167,12 @@ export const DOCK_BG: DockBg = 'solid'
 export const DOCK_OPACITY = 60
 export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
 
-export const SETTINGS_VERSION = 8
+/**
+ * v9: the icon-minimized 'collapsed' dock display is gone. The bump itself
+ * is the fix: zustand persist only runs `migrate` when the saved version
+ * differs, so an unchanged version would let a saved 'collapsed' through.
+ */
+export const SETTINGS_VERSION = 9
 
 const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
 const DOCK_MODES: readonly ToolsDockMode[] = ['icons', 'row', 'expanded']
@@ -205,8 +210,8 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
   delete p.dockHandleIcon
   // v9: the icon-minimized state is gone. A save that still holds it lands on
   // the icon-only row, the nearest display that survived (the drawer cannot
-  // be put away any more). Nothing else in the saved state moves, so this
-  // needs no version bump: the rename is idempotent on every load.
+  // be put away any more). Unconditional so any older version migrating up
+  // is corrected regardless of where it was saved.
   if (p.toolsDockMode === LEGACY_DOCK_COLLAPSED)
     p.toolsDockMode = 'icons'
   if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
