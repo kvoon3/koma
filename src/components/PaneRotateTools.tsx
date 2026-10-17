@@ -57,7 +57,13 @@ export function PaneRotateTool({ hidden = false }: { hidden?: boolean }) {
         <span className={toolsLabelCls}>{t('Rotate')}</span>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} className="z-[260] select-none outline-0">
+        {/*
+         * `sticky`: this trigger ends the dock's single-row scroller, and opening
+         * the popover re-measures the drawer (a hidden pass that collapses the
+         * row), clamping that row's scroll to 0. The anchor then lands past the
+         * viewport edge, so the popup needs to be shifted back into view.
+         */}
+        <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} sticky className="z-[260] select-none outline-0">
           <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[272px] p-2 text-txt`}>
             <RotationControl
               label={t('Rotation')}
