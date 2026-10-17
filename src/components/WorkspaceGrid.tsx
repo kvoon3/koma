@@ -903,7 +903,7 @@ function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, photoById, transpar
                   : (
                       <span
                         data-card-name=""
-                        className="max-w-full cursor-default truncate px-1 text-[11px] font-medium text-dim"
+                        className="max-w-full cursor-default truncate px-1 text-xs font-medium text-txt"
                         style={{ height: 16, lineHeight: '16px' }}
                         title={t('Rename')}
                         onDoubleClick={() => {
