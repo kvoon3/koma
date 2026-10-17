@@ -18,8 +18,10 @@ describe('migrateSettings', () => {
 })
 
 describe('migrateSettings v2 (dock)', () => {
-  test('version is 7', () => {
-    expect(SETTINGS_VERSION).toBe(8)
+  // Pinned on purpose: zustand persist skips `migrate` when the saved version
+  // equals this one, so every behavior change that needs a migration owes a bump.
+  test('version is 9', () => {
+    expect(SETTINGS_VERSION).toBe(9)
   })
   test('v1 → v2 adds dock defaults and starts in row', () => {
     expect(migrateSettings({ gap: 2, blendCrossfade: false }, 1)).toMatchObject({
