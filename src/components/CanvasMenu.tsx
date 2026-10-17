@@ -3,6 +3,7 @@ import { ContextMenu } from '@base-ui/react/context-menu'
 import { CircleHelp, Download, FileText, FolderPlus, Grid2x2Plus, ImagePlus, LayoutGrid, Ratio, RotateCcw, RotateCw, Settings } from 'lucide'
 import { useRef, useState } from 'react'
 import { useAppCommands } from '../lib/appCommands'
+import { flipCanvasRatio, matchCanvasToFirstPhoto } from '../lib/canvasCommands'
 import { pickImageFiles, pickImageFolder } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
@@ -40,20 +41,6 @@ export function CanvasMenu({ children }: { children: ReactElement }) {
   const addFiles = (files: File[]) => {
     const created = useStore.getState().addPhotos(files)
     say(created.length ? t('Added {n} photos', { n: created.length }) : t('No image files found'))
-  }
-
-  const matchFirstPhoto = () => {
-    const s = useStore.getState()
-    const first = s.photos.find(p => p.trueW > 0)
-    if (first)
-      s.setCanvasSize(first.trueW / first.trueH, activeWs(s).canvasFill)
-  }
-
-  const flipCanvas = () => {
-    const s = useStore.getState()
-    const ratio = activeWs(s).canvasRatio
-    if (ratio)
-      s.setCanvasSize(1 / ratio, activeWs(s).canvasFill)
   }
 
   const doReset = () => {
@@ -94,11 +81,11 @@ export function CanvasMenu({ children }: { children: ReactElement }) {
                 <MenuItem
                   icon={Ratio}
                   disabled={!photos.some(p => p.trueW > 0)}
-                  onClick={matchFirstPhoto}
+                  onClick={() => matchCanvasToFirstPhoto()}
                 >
                   {t('Match the canvas to the first photo')}
                 </MenuItem>
-                <MenuItem icon={RotateCw} disabled={canvasRatio == null} onClick={flipCanvas}>
+                <MenuItem icon={RotateCw} disabled={canvasRatio == null} onClick={() => flipCanvasRatio()}>
                   {t('Flip canvas orientation')}
                 </MenuItem>
               </MenuGroup>

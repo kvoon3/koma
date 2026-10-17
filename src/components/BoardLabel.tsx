@@ -727,7 +727,7 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
   const icon = labelIconNode(lab.icon)
   const pop = { openTool, setOpenTool }
   return (
-    <div className="flex items-center gap-0.5 px-1.5 py-1" data-label-dock="">
+    <div className="flex w-full items-center justify-center gap-0.5 px-1.5 py-1" data-label-dock="">
       <DockPopover id="font" {...pop} label={t('Label font')} trigger={<MorphIcon icon={TypeIcon} size={18} strokeWidth={1.75} />}>
         <div className="-mx-2 -my-2 max-h-[min(30dvh,240px)] w-[200px] overflow-y-auto py-1">
           {FONT_CATS.map((cat) => {
