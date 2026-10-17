@@ -206,14 +206,17 @@ is what keeps the third row of cells off the dock instead of under it.
 A board is a group of nine, and the app keeps up to four of them (`MAX_GRIDS`)
 as alternate arrangements of the same shoot. The **Workspace chip** on the
 board's caption row opens a Mission Control-style switcher over the overview:
-a frosted, full-width strip near the top of the stage (~12% of its height,
+a frosted, full-width strip near the top of the stage (~13% of its height,
 `backdrop-blur` over a translucent panel fill) holds one card per group: a
 16:10 thumbnail of its board (every cell the grid's own preview at thumbnail
 size, empty slots quiet squares), nothing written under it (the cards are
 nameless, and the numbers they used to carry said no more than the pictures
 did). The open group's card wears the 2px blue selection ring (the `--sel`
 token; the app's own accent is monochrome) and stands slightly larger than its
-siblings. The board behind recedes: it scales to 65%, dims to 60% and blurs
+siblings; the strip's air is sized to hold that larger card's ring, because the
+card row is an `overflow-x` scroll box (it clips on both axes) and a ring with
+no room for its top and bottom edges reads as two vertical rails.
+The board behind recedes: it scales to 65%, dims to 60% and blurs
 2px, an app-shrinking feel, and its empty cells drop their glyph and caption
 there (quiet squares: at 65% and blurred, nine "New collage" hints are
 placeholder noise), while the full overview keeps both. Those quiet squares
