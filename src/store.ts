@@ -5,6 +5,7 @@ import type { History } from './lib/history'
 import type { Photo } from './lib/imageStore'
 import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { SessionMeta } from './lib/sessionStore'
+import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { clearTreePhotos, GRID_CELL_RATIO, isGridCellRatio, shuffleFilled } from './lib/gridTools'
@@ -36,7 +37,7 @@ import {
 } from './lib/panes'
 import { clearSession } from './lib/sessionStore'
 import { runPaneMorph } from './lib/viewTransition'
-import { activeAfterRemove, addSlot, DEFAULT_WORKSPACES, MAX_WORKSPACES, normalizeSlots, removeSlot, resetSlot } from './lib/workspaces'
+import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
 
 /** One of the grid's collage workspaces (1–9 of them). Array order is the grid order. */
 export interface Workspace {
@@ -67,8 +68,20 @@ export type DockBg = 'solid' | 'frosted' | 'liquid'
 
 interface State {
   photos: Photo[]
+  /** The open group's nine cells (every board action works on these). */
   workspaces: Workspace[]
   activeId: string
+  /**
+   * The board groups, in bar order (see `lib/workspaces`): two of them can be
+   * compared side by side. The open group's cells are `workspaces`; the other
+   * groups' boards sit in `parkedBoards`, so nothing but the group actions has
+   * to know groups exist.
+   */
+  grids: GridGroup[]
+  /** The group the grid overview and the editor work on. */
+  activeGridId: string
+  /** Boards of the groups that are not open, by group id. */
+  parkedBoards: Record<string, ParkedBoard<Workspace>>
   /** The workspace the G key / center button returns to (tracked by id, not position). */
   gap: number
   /** Space between the nine overview cells, in px (grid view only). */
@@ -140,6 +153,9 @@ interface State {
 export interface UndoSnapshot {
   workspaces: Workspace[]
   activeId: string
+  grids: GridGroup[]
+  activeGridId: string
+  parkedBoards: Record<string, ParkedBoard<Workspace>>
   bg: string
   bgGradient: string | null
   bgImage: BgImage | null
@@ -221,10 +237,23 @@ function initialWorkspaces(): Workspace[] {
 }
 
 const bootWorkspaces = initialWorkspaces()
+/** The one group a fresh board starts with: group A. */
+const bootGridId = uid('g')
 
 /** Active workspace (never null: activeId always matches a workspace). */
 export function activeWs(s: State): Workspace {
   return s.workspaces.find(w => w.id === s.activeId) ?? s.workspaces[0]
+}
+
+/** A stable empty board: a selector must not hand back a fresh array. */
+const NO_BOARD: Workspace[] = []
+
+/**
+ * A group's board, open or parked. The compare view reads both sides through
+ * this, so it never has to know which one the editor is pointed at.
+ */
+export function boardOf(s: State, gridId: string): Workspace[] {
+  return gridId === s.activeGridId ? s.workspaces : s.parkedBoards[gridId]?.workspaces ?? NO_BOARD
 }
 
 /** Map over the active workspace, keeping the array order. */
@@ -237,6 +266,9 @@ function snapshotOf(s: State): UndoSnapshot {
   return {
     workspaces: s.workspaces,
     activeId: s.activeId,
+    grids: s.grids,
+    activeGridId: s.activeGridId,
+    parkedBoards: s.parkedBoards,
     bg: s.bg,
     bgGradient: s.bgGradient,
     bgImage: s.bgImage,
@@ -247,7 +279,8 @@ function snapshotOf(s: State): UndoSnapshot {
  * A snapshot's slices as a state patch. The active workspace only moves when
  * the snapshot no longer holds it (undo of a workspace add / remove, or of a
  * reset that kept the slot): undoing a pane action must never yank the view to
- * another slot.
+ * another slot. The same holds for the open group: undoing a group add or
+ * delete re-parks the board it removed, so the two always travel together.
  */
 function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
   const keep = snap.workspaces.some(w => w.id === s.activeId)
@@ -256,6 +289,9 @@ function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
   return {
     workspaces: snap.workspaces,
     activeId: keep,
+    grids: snap.grids,
+    activeGridId: snap.activeGridId,
+    parkedBoards: snap.parkedBoards,
     bg: snap.bg,
     bgGradient: snap.bgGradient,
     bgImage: snap.bgImage,
@@ -286,6 +322,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   cutoutJob: null,
   workspaces: bootWorkspaces,
   activeId: bootWorkspaces[0].id,
+  grids: [{ id: bootGridId, name: 'A' }],
+  activeGridId: bootGridId,
+  parkedBoards: {},
   gap: GAP,
   gridGap: GRID_GAP,
   radius: RADIUS,
@@ -384,9 +423,14 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set(s => ({
       photos: [],
       // Reset every workspace to a fresh blank canvas, keeping each id and its
-      // grid slot: `activeId` and `mapActive` key off those ids, so handing out
-      // new ones would leave every later pane action pointed at nothing.
+      // grid slot: `activeId` and `mapActive` key off those ids, so new ones
+      // would leave every later pane action pointed at nothing. Every group is
+      // wiped, not just the open one: the photos are gone everywhere.
       workspaces: s.workspaces.map(w => ({ ...newWorkspace(), id: w.id })),
+      parkedBoards: Object.fromEntries(Object.entries(s.parkedBoards).map(([id, b]) => [
+        id,
+        { ...b, workspaces: b.workspaces.map(w => ({ ...newWorkspace(), id: w.id })) },
+      ])),
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,
@@ -440,6 +484,91 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set({ workspaces: next, activeId: activeAfterRemove(s.workspaces, next, s.activeId), ...clearedSelection })
   },
 
+  // ---- grid groups (dual 9-grid: two boards side by side) ------------------
+
+  /**
+   * Add a board group and open it (the group bar's +): the open board parks and
+   * a fresh nine takes its place. Null at the cap.
+   */
+  addGrid: (name) => {
+    const s = get()
+    if (s.grids.length >= MAX_GRIDS)
+      return null
+    const group: GridGroup = { id: uid('g'), name: name?.trim() || nextGridName(s.grids) }
+    const next = addGroup(s.grids, () => group)
+    if (next === s.grids)
+      return null
+    const workspaces = initialWorkspaces()
+    commit()
+    set({
+      grids: next,
+      activeGridId: group.id,
+      workspaces,
+      activeId: workspaces[0].id,
+      parkedBoards: { ...s.parkedBoards, [s.activeGridId]: { workspaces: s.workspaces, activeId: s.activeId } },
+      ...clearedSelection,
+    })
+    return group.id
+  },
+
+  /**
+   * Delete a group and its board; the last group stays. Deleting the open one
+   * opens its left-hand neighbour (else its right), so the editor is never left
+   * pointing at a board that no longer exists.
+   */
+  removeGrid: (id) => {
+    const s = get()
+    const next = removeGroup(s.grids, id)
+    if (next === s.grids)
+      return
+    const parkedBoards = { ...s.parkedBoards }
+    let { workspaces, activeId, activeGridId } = s
+    if (id === s.activeGridId) {
+      const left = next[Math.max(0, s.grids.findIndex(g => g.id === id) - 1)]
+      const parked = parkedBoards[left.id] ?? { workspaces: initialWorkspaces(), activeId: '' }
+      delete parkedBoards[left.id]
+      workspaces = parked.workspaces
+      activeId = workspaces.some(w => w.id === parked.activeId) ? parked.activeId : workspaces[0].id
+      activeGridId = left.id
+    }
+    else {
+      delete parkedBoards[id]
+    }
+    commit()
+    set({ grids: next, parkedBoards, activeGridId, workspaces, activeId, ...clearedSelection })
+  },
+
+  /** Rename a group (undoable, like any other change to the board). */
+  renameGrid: (id, name) => {
+    const next = renameGroup(get().grids, id, name)
+    if (next === get().grids)
+      return
+    commit()
+    set({ grids: next })
+  },
+
+  /**
+   * Open another group's board. Navigation, not a board mutation (like
+   * `patch({ activeId })`): it pushes no undo entry, and the group it leaves
+   * keeps its cells and the cell it was last on.
+   */
+  switchGrid: (id) => {
+    const s = get()
+    const target = id === s.activeGridId ? null : s.parkedBoards[id]
+    if (!target)
+      return
+    const parkedBoards = { ...s.parkedBoards }
+    delete parkedBoards[id]
+    parkedBoards[s.activeGridId] = { workspaces: s.workspaces, activeId: s.activeId }
+    set({
+      activeGridId: id,
+      parkedBoards,
+      workspaces: target.workspaces,
+      activeId: target.workspaces.some(w => w.id === target.activeId) ? target.activeId : target.workspaces[0].id,
+      ...clearedSelection,
+    })
+  },
+
   /**
    * Reset every workspace to a fresh blank canvas, keeping their ids and
    * grid slots (photos fall back to the library; the board itself stays).
@@ -477,16 +606,31 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   /** Restore a session saved by `lib/sessionStore` (refresh-safe autosave). */
   hydrate: (session) => {
-    // Saves from the fixed nine-slot board load whole; anything out of the
-    // 1–9 range is brought within it (see normalizeSlots).
-    const workspaces = normalizeWorkspaces(session.meta.workspaces).map(w =>
-      migrateWorkspaceInserts(w, session.photos),
+    // Each group's board is brought within 1–9 cells (see normalizeSlots), and
+    // a session saved before groups becomes one group holding the board it
+    // saved (see normalizeGrids). Legacy pane stickers / labels land on the
+    // board on the way in, as they always have.
+    const hydrated = normalizeGrids<Workspace>(
+      {
+        grids: session.meta.grids,
+        workspaces: session.meta.workspaces,
+        activeGridId: session.meta.activeGridId,
+        activeId: session.meta.activeId,
+      },
+      newWorkspace,
+      () => uid('g'),
     )
-    const activeId = workspaces.some(w => w.id === session.meta.activeId) ? session.meta.activeId : workspaces[0].id
+    const lift = (list: Workspace[]) => list.map(w => migrateWorkspaceInserts(w, session.photos))
+    const parkedBoards: Record<string, ParkedBoard<Workspace>> = {}
+    for (const [id, board] of Object.entries(hydrated.parked))
+      parkedBoards[id] = { workspaces: lift(board.workspaces), activeId: board.activeId }
     set({
       ...session.meta,
-      workspaces,
-      activeId,
+      grids: hydrated.grids,
+      activeGridId: hydrated.activeGridId,
+      parkedBoards,
+      workspaces: lift(hydrated.workspaces),
+      activeId: hydrated.activeId,
       photos: session.photos,
       // Sessions saved before one-tap cutout have no map.
       cutouts: session.meta.cutouts ?? {},
@@ -1168,6 +1312,12 @@ interface Actions {
   /** Returns the new workspace's id, or null when the board is full. */
   addWorkspace: () => string | null
   removeWorkspace: (id: string) => void
+  /** Returns the new group's id, or null at the group cap. */
+  addGrid: (name?: string) => string | null
+  removeGrid: (id: string) => void
+  renameGrid: (id: string, name: string) => void
+  /** Open a group's board (navigation: pushes no undo entry). */
+  switchGrid: (id: string) => void
   shuffleWorkspaces: (rng?: () => number) => void
   clearGridPhotos: () => void
   resetAllWorkspaces: () => void
