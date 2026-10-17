@@ -33,7 +33,8 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Camera chip above the 3×3 grid (grid view) | Snapshot the whole board as one image and open it in the export preview: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
+| Workspace chip on the board's caption row (grid view), or a pull down on the board | Open the Mission Control-style switcher over the receding board: one card per group (the open one ringed and enlarged, nothing written under it), + copies the open board into a new group, × deletes a group (never the last). Drag the receded board sideways to switch, click a card to pick its group; a pull up on it, Esc or the backdrop leaves. The strip browses only (it scrolls and snaps, it never switches). Adding and deleting are undoable; switching is navigation |
+| Camera chip on the board's caption row (grid view) | Snapshot the whole board as one image and open it in the export preview: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
 | Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint the hover copy is dropped instead, a touch screen having no hover to fade it in, so the page-row chip is what a phone keeps |
 | Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools. Open by default, and only the handle on its top edge moves it: a focus change never does, and collapsed it rests behind the footer with only the handle showing. Replace / Sticker / Make / Text act on the focused pane, so the panel exists only while a pane is focused and holds a photo: with no focus at all, or a focused pane that holds no photo, the panel and its handle are put away entirely (the empty pane itself is the picker instead). The buttons keep their 80px width and the row scrolls sideways when the screen is too narrow to hold them, the end that still hides tools fading out as it goes: nothing fades while the row fits its panel or sits flush against an end |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
@@ -184,11 +185,99 @@ same `stickerRect()`/label math as the editor) into the cell, an empty one wears
 the same near-canvas fill as an empty pane, its content a collage-layout glyph
 over “New collage” in the neutral gray, with no button of its own (the whole
 cell is the click target). `Grid gap` (Appearance tab) spaces the nine cells.
-A camera chip floats above the grid as part of the same centered group (the
-only chrome the overview has, and the layout reserves room for it while sizing
-the cells). It renders the whole board as **one image** (`renderGridSnapshot`)
-and opens it in the export preview: the same cover-fit cells at export scale,
-the grid gap scaled with the board, empty cells left blank.
+The board carries a caption row of its own: the workspace and snapshot chips,
+centred over the board (groups render nameless, so there is nothing to name on
+the left, and the pair would have been shoved off-centre by a name). The two
+board chips thus sit on the board they act on instead of floating over it. The
+workspace chip opens the
+switcher (below); the snapshot chip renders the whole
+board as **one image** (`renderGridSnapshot`) and opens it in the export preview:
+the same cover-fit cells at export scale, the grid gap scaled with the board,
+empty cells left blank.
+
+The stage sizes every board against chrome it must not grow under: the board's
+caption row, and the tools dock's sheet
+(`DOCK_CHROME_H`, an overlay that covers the stage's floor). A single board is
+bounded by width on a wide screen and by that budget on a short one; the budget
+is what keeps the third row of cells off the dock instead of under it.
+
+## Grid groups (workspaces, switched Mission Control-style)
+
+A board is a group of nine, and the app keeps up to four of them (`MAX_GRIDS`)
+as alternate arrangements of the same shoot. The **Workspace chip** on the
+board's caption row opens a Mission Control-style switcher over the overview:
+a frosted, full-width strip near the top of the stage (~13% of its height,
+`backdrop-blur` over a translucent panel fill) holds one card per group: a
+16:10 thumbnail of its board (every cell the grid's own preview at thumbnail
+size, empty slots quiet squares), nothing written under it (the cards are
+nameless, and the numbers they used to carry said no more than the pictures
+did). The open group's card wears the 2px blue selection ring (the `--sel`
+token; the app's own accent is monochrome) and stands slightly larger than its
+siblings; the strip's air is sized to hold that larger card's ring, because the
+card row is an `overflow-x` scroll box (it clips on both axes) and a ring with
+no room for its top and bottom edges reads as two vertical rails.
+The board behind recedes: it scales to 65%, dims to 60% and blurs
+2px, an app-shrinking feel, and its empty cells drop their glyph and caption
+there (quiet squares: at 65% and blurred, nine "New collage" hints are
+placeholder noise), while the full overview keeps both. Those quiet squares
+keep a 2px `--dim` hairline: on a fresh session's all-empty board they are the
+only thing drawn, and the hairline has to survive the dim and the blur for the
+board to still read as a board.
+
+Entry and exit are navigation, not a route: the flip rides a view transition
+(the board column carries the `ws-board` transition name from before the open
+snapshot until the close one has painted, so the browser morphs the full board
+into the receded one and back; the strip drops in and lifts out as its own
+`ws-strip` pair). Entry has a second door beside the chip: a downward pull
+anywhere on the board area (a vertical axis lock past a small slop, then 70px,
+so a tap, a short drag and a sideways drag all stay put). A card click zooms
+back into that workspace (a neighbour first switches the open group,
+navigation, no undo step), and the backdrop, Esc or a pull up on the receded
+board returns to the overview as it was. The strip is **browsing only**: it
+scrolls sideways (scroll-snap on the cards, free scroll, on open the open
+group's card is centred) and never switches the group, so the ring always
+marks the open one and the board pager is the one way to change it.
+The bare `+` at the strip's right edge (a 44px lane on a coarse pointer)
+adds a group that **copies the open board** (photos shared through the library,
+every pane / sticker / label id fresh, see `cloneNode`) and opens it; the × on
+a card's corner deletes that group (never the last one), no confirm. Adding and
+deleting ride the undo stack; one undo removes a copied or restored group
+again. A group's name stays in the model (and in the session file) for
+compatibility, but nothing renders or edits it any more.
+
+**The receded board is the finger path.** Press it and drag sideways and the
+board goes with the finger 1:1 (a ~6px slop keeps a click a click, and the
+axis is locked once past it: sideways is the pager, upward is the exit); the neighbouring
+group's board slides in from the far edge, in the same clip, drawn by the same
+cell previews at the same size, so the two boards pass as one plane. Letting go
+snaps to the board the release is nearest (past half a page of travel) or is
+heading for (a flick over the dock's `FLICK_VELOCITY` always carries one page),
+which is `lib/boardPager`'s rules reusing `lib/dockPhysics`: the same fling
+threshold, the same snap picker, and the dock's rubber band at 0.3x for the
+first and last group, whose edges have no board behind them, so the board leans
+and springs back. A release that lands on a neighbour switches the open group
+through `switchGrid` (navigation, no undo step, the row above), and the strip's
+ring leans onto that card as soon as the drag passes the halfway point (the one
+thing the strip and the board still do together). The
+settle is 200ms of `--ease-out`; `prefers-reduced-motion` makes it instant,
+while the drag itself stays 1:1, because user-driven motion is not decoration.
+A drag that is upward instead of sideways is the way out: 70px up and the
+switcher closes, the mirror of the pull down that opened it, on the same axis
+lock so neither gesture steals the other early. A click on the board (under the
+slop) does nothing, and Esc or the backdrop put the board home again
+mid-gesture.
+
+The store keeps the open group's cells in `workspaces`, so every pane and board
+action, and every reader of "the board", still works on the board in view, and
+keeps the other groups' boards in `parkedBoards` (by group id); opening a group
+swaps the two. Adding and deleting a group (and renaming it, when something
+calls `renameGrid`) are board mutations and ride the undo stack
+(`lib/history`), exactly like an added workspace; switching
+is navigation and pushes nothing, like `patch({ activeId })`. The session saves
+one entry per group (`grids`: id, name, cells, its last active cell) beside the
+open board's `workspaces`, so a session written before groups loads as group 1
+with every cell intact, and a build from before groups still reads the board it
+saved.
 
 ## Export preview (`components/ExportDialog.tsx`)
 

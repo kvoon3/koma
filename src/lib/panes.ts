@@ -135,6 +135,24 @@ export function newLeaf(): Leaf {
   }
 }
 
+/**
+ * A deep copy of a pane tree with a fresh id on every node, sticker and
+ * label: photos are library-wide (`photoId` copies as-is), everything the
+ * store addresses by id must not collide with the original. Used when a new
+ * grid group copies the open board (store.addGrid).
+ */
+export function cloneNode(node: Node): Node {
+  if (node.type === 'leaf') {
+    return {
+      ...node,
+      id: uid('p'),
+      stickers: node.stickers.map(st => ({ ...st, id: uid('s') })),
+      label: node.label ? { ...node.label, id: uid('l') } : null,
+    }
+  }
+  return { ...node, id: uid('s'), a: cloneNode(node.a), b: cloneNode(node.b) }
+}
+
 export const DEFAULT_LABEL_SIZE = 42
 
 export function newLabel(x = 0.5, y = 0.5): PaneLabel {

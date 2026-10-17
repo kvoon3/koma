@@ -1,293 +1,73 @@
-import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { CollisionDetection } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
-import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
-import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, MouseSensor, pointerWithin, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
+import type { Node } from '../lib/panes'
+import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, pointerWithin, useDroppable } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Camera, LayoutDashboard, LoaderCircle, Plus } from 'lucide'
-import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, usePreview } from '../hooks'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useElementSize } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
 import { GRID_CELL_MAX } from '../lib/exporter'
-import { fontById } from '../lib/fonts'
 import { cellRatioValue, gridCellBox } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
-import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
-import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
+import { leafList } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
-import { gridStep, MAX_WORKSPACES } from '../lib/workspaces'
+import { MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
-import { LabelIconGlyph } from './BoardLabel'
 import { DeleteZone } from './DeleteZone'
-import { DockToolset, SeamBackdrop } from './Stage'
+import { BoardCaption } from './grid/BoardCaption'
+import { AddSlotFrame, CellBody } from './grid/CellPreview'
+import { RECEDE_BLUR, RECEDE_OPACITY, RECEDE_SCALE, switcherMetrics } from './grid/switcherLayout'
+import { useBoardPager } from './grid/useBoardPager'
+import { useGridKeyboard } from './grid/useGridKeyboard'
+import { DELETE_ZONE_ID, useGridReorder } from './grid/useGridReorder'
+import { usePullDown } from './grid/usePullDown'
+import { useSwitcherMorph } from './grid/useSwitcherMorph'
+import { PagerSurface, WorkspaceSwitcher } from './grid/WorkspaceSwitcher'
+import { DockToolset } from './Stage'
 import { ToolsDock } from './ToolsDock'
-import { Tip } from './ui/tip'
 
-// Virtual canvas short side for preview layout math. Any value works; the
-// tree layout is resolution-independent, only the ratio matters.
-const PV = 400
+/** A board's caption row: the overview's two chips, centred. */
+const CAPTION_H = 30
+
+/** Air under a caption row, over its board. */
+const CAPTION_GAP = 8
+
+/** Side air the stage keeps around a board (both sides together). */
+const STAGE_PAD = 48
+
+/** Air the stage keeps above and below a board. */
+const STAGE_PAD_Y = 12
 
 /**
- * Height the snapshot chip above the grid asks for (chip + gap), reserved
- * while sizing the cells so the board group stays inside the stage.
+ * The chrome the dock keeps at the bottom of the stage on this route: its 28px
+ * handle over the tools row (70px) over the status bar (31–44px, `--statusH`).
+ * The dock is an overlay, so every board has to be sized above it: without the
+ * reserve the third row of cells ends up under the sheet.
  */
-const SNAP_ROW_H = 50
+const DOCK_CHROME_H = 144
 
-/** The floating-chip idiom shared with FloatActions (back / reset). */
-const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
-
-/** One board sticker in a workspace preview (canvas-normalized, scaled by k). */
-function PreviewSticker({ st, board, k, photoById }: {
-  st: Sticker
-  board: { w: number, h: number }
-  k: number
-  photoById: Map<string, Photo>
-}) {
-  const photo = photoById.get(st.photoId)
-  const preview = usePreview(photo ?? null)
-  if (!photo?.trueW || !photo?.trueH || !preview)
-    return null
-  const r = boardStickerRect(board, st, photo.trueW / photo.trueH)
-  return (
-    <img
-      src={preview.url}
-      alt=""
-      draggable={false}
-      className="pointer-events-none absolute max-w-none"
-      style={{
-        left: r.x * k,
-        top: r.y * k,
-        width: r.w * k,
-        height: r.h * k,
-        transform: rotationCss(st),
-      }}
-    />
-  )
+/**
+ * The 3×3 slot the board gets, and the smallest cell it may use, inside the
+ * stage: above the dock (which overlays the stage's floor) and under its own
+ * caption row.
+ */
+function boardSlot(body: { w: number, h: number }): { w: number, h: number, min: number } {
+  const height = Math.max(1, body.h - CAPTION_H - CAPTION_GAP)
+  return { w: body.w - STAGE_PAD, h: height, min: 60 }
 }
 
-/** Photo placement + draw box for a preview leaf (crossfade expands the cell). */
-function previewLeafPlace(leaf: Leaf, layout: Rect, cell: Rect, iw: number, ih: number, crossfade: boolean) {
-  if (!iw || !ih)
-    return null
-  return crossfade
-    ? placement(layout, leaf, iw, ih)
-    : placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
+/** The cell size for the stage, from the slot its board gets (`boardSlot`). */
+function stageCellBox(body: { w: number, h: number }, gap: number, ratio: number): { cell: number, box: { w: number, h: number } } {
+  const slot = boardSlot(body)
+  const fit = gridCellBox({ w: slot.w, h: Math.max(1, slot.h) }, gap, ratio, GRID_CELL_MAX, slot.min)
+  // Centering an odd leftover put every cell on a half pixel, where 1px
+  // edges snap unevenly (the + cell's dashed right edge vanished). One px
+  // less flips the board's parity, so the cells land on whole pixels.
+  const cell = fit.w > 60 && (slot.w - (fit.w * 3 + gap * 2)) % 2 !== 0 ? fit.w - 1 : fit.w
+  return { cell, box: { w: cell, h: cell === fit.w ? fit.h : Math.max(1, Math.round(cell / ratio)) } }
 }
-
-/** One leaf of a workspace preview: the photo, panned/zoomed like the editor. */
-function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: {
-  leaf: Leaf
-  rect: Rect
-  /** Virtual→cell scale factor. */
-  k: number
-  /** Cell-normalized unit (short side / 1000), for radius scaling. */
-  unit: number
-  /** Blend feather width in cell px (0 turns the fade off). */
-  fade: number
-  seam?: SeamSides
-  crossfade: boolean
-  photoById: Map<string, Photo>
-}) {
-  const photo = leaf.photoId ? photoById.get(leaf.photoId) : undefined
-  const preview = usePreview(photo ?? null)
-  const radius = useStore(s => s.radius)
-  const layout: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
-  const cell = crossfade && leaf.photoId ? expandRectForBlend(layout, seam, fade) : layout
-  const style: React.CSSProperties = {
-    left: cell.x,
-    top: cell.y,
-    width: cell.w,
-    height: cell.h,
-    borderRadius: cornerRadiiCss(leafCornerRadii(radius * unit, seam, 0)),
-  }
-  const place = previewLeafPlace(leaf, layout, cell, preview?.w ?? 0, preview?.h ?? 0, crossfade)
-  const mask = leaf.photoId ? seamMaskStyle(seam, seamFadeWidth(fade, crossfade ? layout : cell)) : undefined
-  const imgTx = place
-    ? (crossfade
-        ? `translate(${place.x - cell.x}px, ${place.y - cell.y}px) scale(${place.scale})`
-        : `translate(${place.x}px, ${place.y}px) scale(${place.scale})`)
-    : ''
-  return (
-    <div className={`absolute overflow-hidden ${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`} style={style}>
-      {preview && place
-        ? (
-            <div
-              className="absolute inset-0"
-              style={{
-                ...mask,
-                mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
-              }}
-            >
-              <img
-                src={preview.url}
-                alt=""
-                draggable={false}
-                className="block max-w-none"
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  transformOrigin: '0 0',
-                  transform: imgTx,
-                }}
-              />
-            </div>
-          )
-        : null}
-    </div>
-  )
-}
-
-/** Read-only live preview of a workspace's full collage in a square cell. */
-function CellPreview({ root, canvasRatio, box, photoById, stickers = [], labels = [] }: {
-  root: Node
-  canvasRatio: number | null
-  box: { w: number, h: number }
-  photoById: Map<string, Photo>
-  stickers?: Sticker[]
-  labels?: PaneLabel[]
-}) {
-  const bg = useStore(s => s.bg)
-  const edgeFade = useStore(s => s.edgeFade)
-  const fadeStrength = useStore(s => s.edgeFadeStrength)
-  const blendCrossfade = useStore(s => s.blendCrossfade)
-  const VW = PV
-  const VH = Math.round(PV / (canvasRatio ?? 1.5))
-  const view = useMemo(() => layoutTree(root, VW, VH, 0), [root, VW, VH])
-  // Cover-fit: scale the workspace's own aspect up so it fills the whole
-  // square cell, centered; the overflow is cropped away (Moments style).
-  const k = Math.max(box.w / VW, box.h / VH)
-  // Center the oversized preview box: negative offsets + half overflow.
-  const pw = VW * k
-  const ph = VH * k
-  // Font/radius unit follows the canvas short edge, like the editor.
-  const unit = (Math.min(VW, VH) / 1000) * k
-  const fade = blendCrossfade
-    ? blendFadePx(edgeFade * unit, fadeStrength, 0)
-    : edgeFade * unit
-  const seams = useMemo(() => seamSides(view.leaves, 0), [view])
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        className={`absolute top-1/2 left-1/2 ${isTransparentBg(bg) ? ' stage-clear' : ''}`}
-        style={{
-          width: pw,
-          height: ph,
-          transform: 'translate(-50%, -50%)',
-          background: isTransparentBg(bg) ? undefined : bg,
-        }}
-      >
-        {fade > 0 && !blendCrossfade && (
-          <SeamBackdrop
-            leaves={view.leaves.map(({ node, rect }) => ({
-              node,
-              rect: { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k },
-            }))}
-            photoById={photoById}
-            radius={Math.max(unit * 40, fade)}
-            opacity={fadeStrength / 100}
-          />
-        )}
-        {view.leaves.map(({ node, rect }) => (
-          <PreviewLeaf
-            key={node.id}
-            leaf={node}
-            rect={rect}
-            k={k}
-            unit={unit}
-            fade={fade}
-            seam={seams.get(node.id)}
-            crossfade={blendCrossfade}
-            photoById={photoById}
-          />
-        ))}
-        {stickers.map(st => (
-          <PreviewSticker
-            key={st.id}
-            st={st}
-            board={{ w: VW, h: VH }}
-            k={k}
-            photoById={photoById}
-          />
-        ))}
-        {labels.filter(lab => lab.text.trim()).map(lab => (
-          <span
-            key={lab.id}
-            className="absolute whitespace-pre leading-[normal]"
-            style={{
-              left: `${lab.x * 100}%`,
-              top: `${lab.y * 100}%`,
-              transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
-              fontSize: lab.size * unit,
-              fontFamily: fontById(lab.font).cssStack,
-              background: labelPaint(lab).fill,
-              color: labelPaint(lab).fg,
-              padding: '0.22em 0.38em',
-              display: 'flex',
-              alignItems: 'center',
-              gap: `${LABEL_ICON_GAP_EM}em`,
-            }}
-          >
-            {labelIconNode(lab.icon) && <LabelIconGlyph node={labelIconNode(lab.icon)!} />}
-            {lab.text}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/** The cell's visible body, shared by the in-grid cell and the drag overlay. */
-function CellBody({ ws, box, photoById, transparent, dimmed }: {
-  ws: { root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }
-  box: { w: number, h: number }
-  photoById: Map<string, Photo>
-  transparent: boolean
-  dimmed: boolean
-}) {
-  const t = useT()
-  const filled = leafList(ws.root).some(l => l.photoId)
-  return (
-    <div className={`absolute inset-0 transition-opacity duration-(--dur-surface) ${dimmed ? ' opacity-25' : ''}`}>
-      {filled
-        ? (
-            <div className={`absolute inset-0 ${transparent ? ' stage-clear' : ''}`}>
-              <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} stickers={ws.stickers ?? []} labels={ws.labels ?? []} />
-            </div>
-          )
-        : (
-            // The empty pane's hint, worn by the cell: near-canvas fill, and
-            // the glyph over the label centered in the neutral gray. No
-            // button of its own: the cell is the button.
-            <span className="absolute inset-0 grid place-items-center bg-pane-bg bg-pane-empty">
-              <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
-                <MorphIcon icon={LayoutDashboard} size={22} strokeWidth={1.75} />
-                {t('New collage')}
-              </span>
-            </span>
-          )}
-    </div>
-  )
-}
-
-type NavDir = 'left' | 'right' | 'up' | 'down'
-
-/** vim keys and arrows → a grid navigation direction, null for anything else. */
-function dirForKey(k: string): NavDir | null {
-  if (k === 'h' || k === 'H' || k === 'ArrowLeft')
-    return 'left'
-  if (k === 'l' || k === 'L' || k === 'ArrowRight')
-    return 'right'
-  if (k === 'k' || k === 'K' || k === 'ArrowUp')
-    return 'up'
-  if (k === 'j' || k === 'J' || k === 'ArrowDown')
-    return 'down'
-  return null
-}
-
-const DELETE_ZONE_ID = '__delete__'
 
 /**
  * The delete strip is hit by the pointer itself (it sits outside the grid, so
@@ -308,6 +88,15 @@ const deleteFirst: CollisionDetection = (args) => {
  * to insert-shift reorder (dnd-kit sortable grid: the dragged cell follows
  * the pointer as an overlay while the rest make room live), arrows/hjkl/Tab
  * + Enter to navigate by keyboard. Pure navigation view, no photo tools.
+ *
+ * Boards come in groups (`lib/workspaces`): the Workspace chip (or a pull down
+ * on the board) opens the Mission Control-style switcher over the receding
+ * board: a frosted strip of one card per group, where + copies the open board
+ * into a new group, × deletes one, and a click zooms back into the picked
+ * workspace. A pull up on the receded board, Esc or the dim leaves it again.
+ * The pieces live next door: the cell previews and the switcher's own surface
+ * in `grid/CellPreview` and `grid/WorkspaceSwitcher`, the board pager's
+ * physics and gestures in `grid/useBoardPager`.
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
@@ -315,12 +104,68 @@ export function WorkspaceGrid() {
   const photos = useStore(s => s.photos)
   const bg = useStore(s => s.bg)
   const gridGap = useStore(s => s.gridGap)
+  const gridCellRatio = useStore(s => s.gridCellRatio)
   const moveWorkspace = useStore(s => s.moveWorkspace)
+  const grids = useStore(s => s.grids)
+  const activeGridId = useStore(s => s.activeGridId)
+  const parkedBoards = useStore(s => s.parkedBoards)
   const navigate = useNavigate()
   const t = useT()
   const { exportGridCells, busy } = useAppCommands()
   /** Local to the camera chip: the app-wide `busy` also spins during an export. */
   const [snapBusy, setSnapBusy] = useState(false)
+  /** The switcher's mode and its morph (its own hook, `grid/useSwitcherMorph`). */
+  const { switcher, boardNamed, morphSwitcher, resetRef: resetPagerRef } = useSwitcherMorph()
+
+  const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
+  const transparent = isTransparentBg(bg)
+  // Anything to snapshot? Empty cells render blank, so an all-empty board is
+  // not worth a render (the chip is disabled instead).
+  const anyFilled = useMemo(() => workspaces.some(w => leafList(w.root).some(l => l.photoId)), [workspaces])
+
+  // ---- Geometry ------------------------------------------------------------
+  const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
+  // The dock is an overlay, so the board is sized and centered above it. The
+  // reserve holds while the switcher is open (the dock is put away there), so
+  // the receded board stays exactly where the zoom-out left it.
+  const dockReserve = DOCK_CHROME_H
+  const body = {
+    w: wrapSize.w,
+    h: Math.max(1, wrapSize.h - STAGE_PAD_Y * 2 - dockReserve),
+  }
+  const { cell, box } = stageCellBox(body, gridGap, cellRatioValue(gridCellRatio))
+  const boardW = cell * 3 + gridGap * 2
+  const { stripTop, stripH, cardW, cardH } = switcherMetrics(wrapSize.h)
+  const activeIdx = grids.findIndex(g => g.id === activeGridId)
+  const boardRef = useRef<HTMLDivElement | null>(null)
+
+  /** The cells of the group at `index` in the row (the live board included). */
+  const boardOf = (index: number) => {
+    const id = grids[index]?.id
+    if (!id)
+      return []
+    return id === activeGridId ? workspaces : parkedBoards[id]?.workspaces ?? []
+  }
+
+  // ---- Board pager (the receded board dragged sideways, pulled up) ---------
+  const pager = useBoardPager({
+    open: switcher,
+    stageRef: wrapRef,
+    boardRef,
+    stageW: wrapSize.w,
+    stageH: wrapSize.h,
+    cell,
+    boxH: box.h,
+    gap: gridGap,
+    cellCount: workspaces.length,
+    gridIds: grids.map(g => g.id),
+    activeIdx,
+    onExit: () => morphSwitcher(false),
+  })
+  useEffect(
+    () => { resetPagerRef.current = pager.reset },
+    [pager.reset, resetPagerRef],
+  )
 
   // Enter a workspace: set activeId before navigating so the stage renders the
   // right workspace inside the same view-transition commit (the route wrapper
@@ -331,182 +176,178 @@ export function WorkspaceGrid() {
     void navigate({ to: '/w/$wsId', params: { wsId: id }, viewTransition: viewTransitionOption() })
   }, [navigate])
 
-  const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
-  const transparent = isTransparentBg(bg)
-  // Anything to snapshot? Empty cells render blank, so an all-empty board is
-  // not worth a render (the chip is disabled instead).
-  const anyFilled = useMemo(() => workspaces.some(w => leafList(w.root).some(l => l.photoId)), [workspaces])
-
   // ---- Keyboard highlight (grid navigation) --------------------------------
-  const [hl, setHl] = useState(() => {
-    const i = workspaces.findIndex(w => w.id === activeId)
-    return i === -1 ? 0 : i
+  const hl = useGridKeyboard({ workspaces, activeId, switcherOpen: switcher, enter })
+
+  // Esc leaves the switcher (the other exits are a card click, the backdrop and
+  // a pull up on the board); nothing else here re-subscribes with it.
+  const onSwitcherKey = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key !== 'Escape')
+      return
+    const t = e.target as HTMLElement
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+      return
+    e.preventDefault()
+    morphSwitcher(false)
   })
-  const hlRef = useRef(hl)
-  useEffect(
-    () => { hlRef.current = hl },
-    [hl],
-  )
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement
-      if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
-        return
-      const k = e.key
-      // A dialog (settings drawer, library, help) owns Tab, the arrows and
-      // Enter while it is open, so its own controls stay reachable.
-      if (t.closest('[role="dialog"]'))
-        return
-      const dirKey = dirForKey(k)
-      if (dirKey) {
-        e.preventDefault()
-        setHl(gridStep(hlRef.current, dirKey, useStore.getState().workspaces.length))
-        return
-      }
-      if (k === 'Tab') {
-        e.preventDefault()
-        setHl(gridStep(hlRef.current, 'next', useStore.getState().workspaces.length))
-        return
-      }
-      if (k === 'Enter') {
-        e.preventDefault()
-        const ws = useStore.getState().workspaces[hlRef.current]
-        if (ws)
-          enter(ws.id)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [enter])
+    if (!switcher)
+      return
+    window.addEventListener('keydown', onSwitcherKey)
+    return () => window.removeEventListener('keydown', onSwitcherKey)
+  }, [switcher])
 
   // ---- Drag-to-reorder (dnd-kit, insert-shift) -----------------------------
-  // PointerSensor with a distance threshold keeps plain clicks for entering
-  // a workspace; once a drag activates, the dragged cell rides a DragOverlay
-  // that tracks the pointer 1:1 while the remaining cells translate to make
-  // room (rectSortingStrategy), and the drop commits via moveWorkspace.
-  const [dragId, setDragId] = useState<string | null>(null)
-  // Mouse drags after 5px; touch is a long press, like the stage carry. The
-  // TouchSensor adds the non-passive touchmove iOS Safari needs, so the
-  // browser can't claim the touch (pointercancel) before the drag arms.
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
-  )
-  // Suppress the click that follows a finished drag; it must not enter.
-  const dragEndedAtRef = useRef(0)
-
-  const ids = useMemo(() => workspaces.map(w => w.id), [workspaces])
-  const draggedWs = dragId ? workspaces.find(w => w.id === dragId) : null
-
-  const onDragStart = (e: DragStartEvent) => setDragId(String(e.active.id))
-
-  const onDragEnd = ({ active, over }: DragEndEvent) => {
-    setDragId(null)
-    dragEndedAtRef.current = Date.now()
-    if (over?.id === DELETE_ZONE_ID) {
-      navigator.vibrate?.(10)
-      useStore.getState().removeWorkspace(String(active.id))
-      return
-    }
-    if (!over || active.id === over.id)
-      return
-    const arr = useStore.getState().workspaces
-    const from = arr.findIndex(w => w.id === active.id)
-    const to = arr.findIndex(w => w.id === over.id)
-    if (from !== -1 && to !== -1)
-      moveWorkspace(arr[from].id, to)
+  const reorder = useGridReorder({ workspaces, moveWorkspace })
+  /** The click that follows a finished drag must not enter. */
+  const enterAfterDrag = (id: string) => {
+    if (Date.now() - reorder.dragEndedAtRef.current > 120)
+      enter(id)
   }
 
-  const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const gridCellRatio = useStore(s => s.gridCellRatio)
-  const fitBox = gridCellBox({ w: wrapSize.w - 48, h: wrapSize.h - 48 - SNAP_ROW_H }, gridGap, cellRatioValue(gridCellRatio), GRID_CELL_MAX)
-  // Centering an odd leftover put every cell on a half pixel, where 1px
-  // edges snap unevenly (the + cell's dashed right edge vanished). One px
-  // less flips the board's parity, so the cells land on whole pixels.
-  const cell = fitBox.w > 60 && (wrapSize.w - (fitBox.w * 3 + gridGap * 2)) % 2 !== 0 ? fitBox.w - 1 : fitBox.w
-  const box = { w: cell, h: cell === fitBox.w ? fitBox.h : Math.max(1, Math.round(cell / cellRatioValue(gridCellRatio))) }
+  // ---- Pull-down (the overview's way into the switcher) --------------------
+  const pull = usePullDown({
+    enabled: !switcher,
+    onOpen: () => morphSwitcher(true),
+    isSuppressed: () => reorder.dragIdRef.current !== null,
+  })
+
+  /**
+   * The gesture surface over the receded board: above the dim, under the strip,
+   * so a press on the board is a pager drag (or a pull up out of the switcher)
+   * while a click there does nothing (it used to fall through to the dim and
+   * leave the switcher).
+   */
+  const surface = (
+    <PagerSurface
+      surfaceRef={pager.surfaceRef}
+      trackRef={pager.trackRef}
+      prevBoard={pager.hasPrev ? boardOf(activeIdx - 1) : undefined}
+      nextBoard={pager.hasNext ? boardOf(activeIdx + 1) : undefined}
+      cell={cell}
+      box={box}
+      gap={gridGap}
+      boardW={boardW}
+      photoById={photoById}
+      transparent={transparent}
+      {...pager.handlers}
+    />
+  )
 
   return (
-    <div ref={wrapRef} className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={deleteFirst}
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => {
-          setDragId(null)
-          dragEndedAtRef.current = Date.now()
-        }}
+    <div
+      ref={wrapRef}
+      className="stage-checker absolute inset-0 flex touch-none flex-col overflow-hidden"
+    >
+      {/* The board area: the stage's own air and everything the board column
+          draws, minus the dock (a sibling, so a pull on the sheet never lands
+          here). Pulled down it opens the switcher. */}
+      <div
+        data-board-stage=""
+        className="relative flex min-h-0 flex-1 items-center justify-center"
+        style={{ paddingTop: STAGE_PAD_Y, paddingBottom: STAGE_PAD_Y + dockReserve }}
+        onPointerDown={pull.onPullDown}
+        onPointerMove={pull.onPullMove}
+        onPointerUp={pull.onPullEnd}
+        onPointerCancel={pull.onPullEnd}
       >
-        <GridDeleteZone active={!!dragId} label={t('Drop here to delete')} />
-        <SortableContext items={ids} strategy={rectSortingStrategy}>
-          {/* The snapshot chip sits above the grid, as part of the same group:
-              it takes layout space, so the centered board never grows past
-              the stage or clips the chip. */}
-          <div className="flex flex-col items-center gap-3">
-            <Tip
-              label={t('Snapshot: each cell plus the whole grid')}
-              trigger={(
-                <button
-                  className={snapBtnCls}
-                  aria-label={t('Snapshot: each cell plus the whole grid')}
-                  disabled={!anyFilled || busy || snapBusy}
-                  onClick={() => {
-                    setSnapBusy(true)
-                    void exportGridCells().finally(() => setSnapBusy(false))
-                  }}
-                >
-                  <MorphIcon
-                    icon={snapBusy ? LoaderCircle : Camera}
-                    size={15}
-                    strokeWidth={1.75}
-                    className={snapBusy ? 'animate-spin [animation-duration:900ms]' : undefined}
-                  />
-                </button>
-              )}
-            />
+        <DndContext
+          sensors={reorder.sensors}
+          collisionDetection={deleteFirst}
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+          onDragStart={reorder.onDragStart}
+          onDragEnd={reorder.onDragEnd}
+          onDragCancel={reorder.onDragCancel}
+        >
+          <GridDeleteZone active={!!reorder.dragId} label={t('Drop here to delete')} />
+          <SortableContext items={reorder.ids} strategy={rectSortingStrategy}>
+            {/* The board's caption row (the workspace and snapshot chips,
+                centred: groups render nameless) and the grid below it, one
+                column of the board's width. While the switcher is open the
+                whole column recedes (scaled down, dimmed, blurred, inert)
+                behind the frosted strip, morphing there as the ws-board
+                group. */}
             <div
-              className="grid grid-cols-3"
-              style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}
+              className="flex flex-col items-center"
+              style={{
+                width: boardW,
+                gap: CAPTION_GAP,
+                viewTransitionName: boardNamed ? 'ws-board' : undefined,
+                transform: switcher ? `scale(${RECEDE_SCALE})` : undefined,
+                opacity: switcher ? RECEDE_OPACITY : 1,
+                filter: switcher ? `blur(${RECEDE_BLUR}px)` : undefined,
+                pointerEvents: switcher ? 'none' : undefined,
+              }}
             >
-              {workspaces.map((ws, i) => (
-                <SortableCell
-                  key={ws.id}
-                  ws={ws}
-                  cell={cell}
-                  box={box}
-                  photoById={photoById}
-                  transparent={transparent}
-                  highlighted={hl === i}
-                  onEnter={(id) => {
-                    if (Date.now() - dragEndedAtRef.current > 120)
-                      enter(id)
-                  }}
-                />
-              ))}
-              {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
+              <BoardCaption
+                width={boardW}
+                height={CAPTION_H}
+                snapshotDisabled={!anyFilled || busy || snapBusy}
+                snapshotBusy={snapBusy}
+                onOpenSwitcher={() => morphSwitcher(true)}
+                onSnapshot={() => {
+                  setSnapBusy(true)
+                  void exportGridCells().finally(() => setSnapBusy(false))
+                }}
+              />
+              <div
+                ref={boardRef}
+                data-board=""
+                className="grid grid-cols-3"
+                style={{ gap: gridGap, width: boardW }}
+              >
+                {workspaces.map((ws, i) => (
+                  <SortableCell
+                    key={ws.id}
+                    ws={ws}
+                    cell={cell}
+                    box={box}
+                    photoById={photoById}
+                    transparent={transparent}
+                    highlighted={hl === i}
+                    quiet={switcher}
+                    onEnter={enterAfterDrag}
+                  />
+                ))}
+                {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
+              </div>
             </div>
-          </div>
-        </SortableContext>
+          </SortableContext>
 
-        <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
-          {draggedWs
-            ? (
-                <div
-                  className="relative cursor-grabbing overflow-hidden bg-panel-2 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
-                  style={{ width: cell, height: box.h }}
-                >
-                  <CellBody ws={draggedWs} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
-                </div>
-              )
-            : null}
-        </DragOverlay>
-      </DndContext>
+          <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
+            {reorder.draggedWs
+              ? (
+                  <div
+                    className="relative cursor-grabbing overflow-hidden bg-panel-2 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+                    style={{ width: cell, height: box.h }}
+                  >
+                    <CellBody ws={reorder.draggedWs} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
+                  </div>
+                )
+              : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
 
-      {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage. */}
-      <ToolsDock hidden={false} contextKey="grid">
+      {switcher && (
+        <WorkspaceSwitcher
+          stripTop={stripTop}
+          stripH={stripH}
+          cardW={cardW}
+          cardH={cardH}
+          ringId={pager.ringId}
+          photoById={photoById}
+          transparent={transparent}
+          onPick={id => morphSwitcher(false, id ?? undefined)}
+        >
+          {surface}
+        </WorkspaceSwitcher>
+      )}
+
+      {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage;
+          put away while the switcher holds the stage. */}
+      <ToolsDock hidden={switcher} contextKey="grid">
         <DockToolset route="grid" />
       </ToolsDock>
     </div>
@@ -530,23 +371,20 @@ function AddCell({ cell, cellH }: { cell: number, cellH: number }) {
       title={t('Add a workspace')}
       onClick={() => useStore.getState().addWorkspace()}
     >
-      {/* The dashed frame is drawn, not a CSS border: an SVG rect inset by
-          half its stroke keeps all four edges inside the box at any offset. */}
-      <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full overflow-visible text-line-strong">
-        <rect x="0.5" y="0.5" width={cell - 1} height={cellH - 1} fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" shapeRendering="crispEdges" />
-      </svg>
-      <MorphIcon icon={Plus} size={26} strokeWidth={1.75} />
+      <AddSlotFrame cell={cell} cellH={cellH} />
     </button>
   )
 }
 
-function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEnter }: {
+function SortableCell({ ws, cell, box, photoById, transparent, highlighted, quiet, onEnter }: {
   ws: { id: string, root: Node, canvasRatio: number | null }
   cell: number
   box: { w: number, h: number }
   photoById: Map<string, Photo>
   transparent: boolean
   highlighted: boolean
+  /** Empty cell as a bare square: the receded board behind the switcher. */
+  quiet: boolean
   onEnter: (id: string) => void
 }) {
   const t = useT()
@@ -557,6 +395,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      data-cell=""
       className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,scale,opacity,outline-color] duration-(--dur-surface) active:scale-[0.97] ${
         highlighted ? ' outline-2 outline-txt -outline-offset-2' : ''
       }`}
@@ -570,7 +409,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, onEn
       onClick={() => onEnter(ws.id)}
       title={filled ? t('Edit this workspace') : t('Start a new collage here')}
     >
-      <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={isDragging} />
+      <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={isDragging} quiet={quiet} />
     </button>
   )
 }
