@@ -8,13 +8,18 @@ import type { SessionMeta } from './lib/sessionStore'
 import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { clearTreePhotos, GRID_CELL_RATIO, isGridCellRatio, shuffleFilled } from './lib/gridTools'
+import {
+  clearTreePhotos,
+  GRID_CELL_RATIO,
+  isGridCellRatio,
+  shuffleFilled,
+} from './lib/gridTools'
 import { looksHeic, probeHeic, warmHeicDecoder } from './lib/heic'
 import { emptyHistory, record, redoStep, undoStep } from './lib/history'
 import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
 import { baseKey, splitLiveFiles } from './lib/livephoto'
 import {
-
+  cloneNode,
   deletePane,
   findLeaf,
   layoutTree,
@@ -81,8 +86,9 @@ interface State {
   workspaces: Workspace[]
   activeId: string
   /**
-   * The board groups, in bar order (see `lib/workspaces`): two of them can be
-   * compared side by side. The open group's cells are `workspaces`; the other
+   * The board groups, in switcher order (see `lib/workspaces`): the overview
+   * holds a handful of arrangements, switched from the workspace switcher.
+   * The open group's cells are `workspaces`; the other
    * groups' boards sit in `parkedBoards`, so nothing but the group actions has
    * to know groups exist.
    */
@@ -253,6 +259,24 @@ function newWorkspace(): Workspace {
   return { id: uid('w'), root, focusId: root.id, canvasRatio: null, canvasFill: 1, stickers: [], labels: [] }
 }
 
+/**
+ * A deep copy of one workspace with a fresh id on everything the store
+ * addresses (workspace, panes, board stickers, labels); photos are shared
+ * through the library, so `photoId` copies as-is. Used when a new grid group
+ * copies the open board.
+ */
+function cloneWorkspace(ws: Workspace): Workspace {
+  const root = cloneNode(ws.root)
+  return {
+    ...ws,
+    id: uid('w'),
+    root,
+    focusId: leafList(root)[0]!.id,
+    stickers: (ws.stickers ?? []).map(st => ({ ...st, id: uid('s') })),
+    labels: (ws.labels ?? []).map(lab => ({ ...lab, id: uid('l') })),
+  }
+}
+
 /** Bring a loaded board within the grid's 1–9 cells (see normalizeSlots). */
 export function normalizeWorkspaces(list: Workspace[] | null | undefined): Workspace[] {
   return normalizeSlots(list, newWorkspace)
@@ -275,8 +299,8 @@ export function activeWs(s: State): Workspace {
 const NO_BOARD: Workspace[] = []
 
 /**
- * A group's board, open or parked. The compare view reads both sides through
- * this, so it never has to know which one the editor is pointed at.
+ * A group's board, open or parked. The workspace switcher reads every card
+ * through this, so it never has to know which one the editor is pointed at.
  */
 export function boardOf(s: State, gridId: string): Workspace[] {
   return gridId === s.activeGridId ? s.workspaces : s.parkedBoards[gridId]?.workspaces ?? NO_BOARD
@@ -510,11 +534,13 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set({ workspaces: next, activeId: activeAfterRemove(s.workspaces, next, s.activeId), ...clearedSelection })
   },
 
-  // ---- grid groups (dual 9-grid: two boards side by side) ------------------
+  // ---- grid groups (boards switched from the workspace switcher) ----------
 
   /**
-   * Add a board group and open it (the group bar's +): the open board parks and
-   * a fresh nine takes its place. Null at the cap.
+   * Add a board group and open it (the switcher's +): the new board is a deep
+   * copy of the open group's board. Photos are shared through the library
+   * (`photoId` copies as-is) while every pane, sticker and label gets a fresh
+   * id (see `cloneNode`). The open board parks. Null at the cap.
    */
   addGrid: (name) => {
     const s = get()
@@ -524,13 +550,13 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = addGroup(s.grids, () => group)
     if (next === s.grids)
       return null
-    const workspaces = initialWorkspaces()
+    const workspaces = s.workspaces.map(cloneWorkspace)
     commit()
     set({
       grids: next,
       activeGridId: group.id,
       workspaces,
-      activeId: workspaces[0].id,
+      activeId: workspaces[0]!.id,
       parkedBoards: { ...s.parkedBoards, [s.activeGridId]: { workspaces: s.workspaces, activeId: s.activeId } },
       ...clearedSelection,
     })
