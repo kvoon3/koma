@@ -2,6 +2,7 @@ import antfu, { parserPlain } from '@antfu/eslint-config'
 import { plugin as shadcn } from '@shadcn/lint'
 import tsParser from '@typescript-eslint/parser'
 import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect'
+import { i18nCoverage } from './scripts/i18n-coverage.mjs'
 
 // Ban comments written in Chinese (CJK ideographs).
 const noChineseComment = {
@@ -35,10 +36,11 @@ export default antfu({
 }, {
   name: 'local/no-chinese-comment',
   plugins: {
-    local: { rules: { 'no-chinese-comment': noChineseComment } },
+    local: { rules: { 'no-chinese-comment': noChineseComment, 'i18n-coverage': i18nCoverage } },
   },
   rules: {
     'local/no-chinese-comment': 'error',
+    'local/i18n-coverage': 'error',
   },
 }, {
   // espree-scoped .js/.mjs files break unused-imports/no-unused-vars (it delegates to

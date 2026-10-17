@@ -14,7 +14,6 @@
     "build:desktop": "mygo build",
     "lint": "eslint .",
     "test": "bun test src",
-    "check:i18n": "bun scripts/check-i18n.ts",
     "lint:fix": "eslint . --fix",
     "up": "taze major -Ii",
     "prepare": "simple-git-hooks",
