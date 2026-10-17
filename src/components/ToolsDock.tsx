@@ -1,5 +1,6 @@
 import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
 import type { DockSwapPlan } from '../lib/dockSwap'
+import type { ToolsDockMode } from '../store'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, ChevronUp, Ratio, RotateCw, Square } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -12,7 +13,7 @@ import { dampOffset, dragOwner, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
 import { liquidGlassRef } from '../lib/liquidGlass'
-import { clampDockMode, dockHandleIntent, dockModes, dockTransition } from '../lib/toolsDockMode'
+import { clampDockMode, dockHandleIntent, dockModeAtHeight, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, useStore } from '../store'
 import { Footer } from './Footer'
@@ -21,10 +22,13 @@ import { dockBtnStateCls, dockBtnSurfaceCls, dockPopupMotionCls, menuItemCls, me
 /**
  * The dock's tool button and its caption. Both follow the sheet's display mode
  * (`data-dock-mode` on the sheet, `group/dock`): in the icon-only row the
- * caption drops and the button narrows to its icon, so the tools hold one row.
+ * caption folds away and the button narrows to its icon, so the tools hold one
+ * row. The caption fades and collapses over --dur-fast rather than dropping, so
+ * a display flip during a drag (DockSheet switches live, see
+ * lib/toolsDockMode) reads as a morph; reduced motion swaps it in one frame.
  */
 export const toolsBtnCls = `${dockBtnSurfaceCls} disabled:order-1 data-disabled:order-1 flex w-[80px] shrink-0 flex-col items-center justify-center gap-1.5 whitespace-nowrap px-2 py-3 group-data-[dock-mode=icons]/dock:w-[54px] group-data-[dock-mode=icons]/dock:gap-0 group-data-[dock-mode=icons]/dock:py-2.5`
-export const toolsLabelCls = 'text-[11.5px] font-semibold text-txt group-data-[dock-mode=icons]/dock:hidden'
+export const toolsLabelCls = 'max-h-[2em] overflow-hidden text-[11.5px] font-semibold text-txt transition-[opacity,max-height] duration-(--dur-fast) ease-(--ease-out) group-data-[dock-mode=icons]/dock:max-h-0 group-data-[dock-mode=icons]/dock:opacity-0 motion-reduce:duration-0'
 
 /** Handle chrome height. Keep in sync with `handleCls` h-[]. */
 const HANDLE_H = 28
@@ -204,10 +208,22 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   useLayoutEffect(() => {
     reduceRef.current = reduce
   })
+  /** A drag owns the sheet: no restyle pass may run under it (see `measure`). */
+  const draggingRef = useRef(false)
+  /** A `measure()` skipped mid-drag, re-run when the drag settles. */
+  const measureDirtyRef = useRef(false)
   const measure = useCallback(() => {
     const el = innerRef.current
     if (!el)
       return
+    // The mode's heights are already known while a drag is in flight, and the
+    // pass below restyles the content (forced display modes, full width) under
+    // the live transform: defer it to the release instead of fighting the
+    // gesture, then measure once against whatever the drag left behind.
+    if (draggingRef.current) {
+      measureDirtyRef.current = true
+      return
+    }
     const maxExp = Math.round(window.innerHeight * MAX_EXP_VH)
     // The temporary restyle below (full width + wrap) shrinks the row's content
     // to the viewport, and the browser then clamps the row's native scrollLeft
@@ -223,6 +239,11 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     // mode forced: a hidden, synchronous pass, nothing paints in between.
     const sheet = el.closest<HTMLElement>('[data-dock-mode]')
     const prevMode = sheet?.getAttribute('data-dock-mode')
+    // The forced passes must read final sizes: a caption still fading (or about
+    // to) would report a transitioned height as the mode's height. Transitions
+    // off for the synchronous pass, restored with the styles below; nothing
+    // paints in between.
+    sheet?.setAttribute('data-dock-measuring', '')
     const prevWrap = el.style.flexWrap
     const prevW = el.style.width
     const prevMax = el.style.maxWidth
@@ -255,6 +276,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     el.style.width = prevW
     el.style.maxWidth = prevMax
     el.style.visibility = prevVis
+    sheet?.removeAttribute('data-dock-measuring')
     // Styles are back and nothing has painted since the clamp: put the row
     // where the user left it, so tapping a tool does not scroll the row (and
     // its popover's anchor) away.
@@ -276,9 +298,71 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     setInner(el)
   }, [setInner])
 
+  /** The fade viewport the tools row (or the expanded list) scrolls in. */
+  const rowScroller = useCallback(() => innerRef.current?.parentElement ?? null, [])
+
+  // A flip swaps every caption, so the row's content width changes and the
+  // browser clamps scrollLeft on the next layout. Remember the tool at the
+  // row's left edge and put it back after the flip (kept across an expanded
+  // flip, which cannot scroll).
+  const anchorRef = useRef<{ el: HTMLElement, dx: number } | null>(null)
+  /** Snapshot the leading tool; skipped where the row does not scroll. */
+  const saveRowAnchor = useCallback(() => {
+    const el = innerRef.current
+    const scroller = rowScroller()
+    if (!el || !scroller || scroller.scrollWidth <= scroller.clientWidth + 1)
+      return
+    const left = scroller.getBoundingClientRect().left
+    for (const child of el.children) {
+      const r = child.getBoundingClientRect()
+      if (r.right > left + 1) {
+        // Screen offset: the row's scroll position at save time is not part of
+        // it, so a clamp in between (the wrapped list cannot scroll) is undone.
+        anchorRef.current = { el: child as HTMLElement, dx: r.left - left }
+        return
+      }
+    }
+  }, [rowScroller])
+  /** Re-scroll so the anchored tool sits `dx` into the row's left edge again. */
+  const restoreRowAnchor = useCallback(() => {
+    const anchor = anchorRef.current
+    const scroller = rowScroller()
+    if (!anchor || !scroller || !anchor.el.isConnected || scroller.scrollWidth <= scroller.clientWidth + 1)
+      return
+    const left = scroller.getBoundingClientRect().left
+    const want = anchor.el.getBoundingClientRect().left - left - anchor.dx
+    anchorRef.current = null
+    if (Math.abs(want) >= 1)
+      scroller.scrollLeft += want
+  }, [rowScroller])
+
+  /** The display on screen, readable from a pointer handler mid-gesture. */
+  const modeRef = useRef(mode)
+  useLayoutEffect(() => {
+    modeRef.current = mode
+  }, [mode])
+  /**
+   * Show a display (drag crossing, release snap, tap, Escape). Setting the
+   * display already on screen is a no-op, so a drag may call it every frame.
+   */
+  const flipMode = useCallback((next: ToolsDockMode) => {
+    if (next === modeRef.current)
+      return
+    modeRef.current = next
+    saveRowAnchor()
+    setMode(next)
+  }, [saveRowAnchor, setMode])
+  // Commits before paint, so the row never paints at the clamped position.
+  useLayoutEffect(() => {
+    restoreRowAnchor()
+  }, [mode, restoreRowAnchor])
+
+  // Not on `mode`: the pass forces both display modes itself, so its reads do
+  // not depend on the one on screen, and re-running it on a flip would resolve
+  // the caption fade it measures through (see `data-dock-measuring`).
   useLayoutEffect(() => {
     measure()
-  }, [measure, contextKey, mode])
+  }, [measure, contextKey])
 
   // Portaled route content changes without re-rendering this sheet:
   // observe DOM + size instead of depending on `children`.
@@ -446,9 +530,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     list: { scrollTop: number, clientHeight: number, scrollHeight: number } | null
   }>(null)
   const suppressClickRef = useRef(false)
-  const geomRef = useRef({ toolsMaxH, rowH, offsets, offset })
+  const geomRef = useRef({ toolsMaxH, rowH, order, heights: snapPoints, offsets, offset })
   useLayoutEffect(() => {
-    geomRef.current = { toolsMaxH, rowH, offsets, offset }
+    geomRef.current = { toolsMaxH, rowH, order, heights: snapPoints, offsets, offset }
   })
 
   // Settle on mode / geometry change. Content-driven geometry (route switch,
@@ -533,11 +617,19 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       d.active = true
       d.start = y.get()
       y.stop()
+      draggingRef.current = true
       e.currentTarget.setPointerCapture(e.pointerId)
       e.currentTarget.setAttribute('data-swiping', '')
     }
-    const { offsets: offs } = geomRef.current
-    y.set(dampOffset(d.start + dy, Math.min(...offs), Math.max(...offs)))
+    const { offsets: offs, toolsMaxH: maxH, order: modes, heights } = geomRef.current
+    const next = dampOffset(d.start + dy, Math.min(...offs), Math.max(...offs))
+    y.set(next)
+    // The content morphs as the pointer crosses a mode midpoint, so the release
+    // only settles the position (see lib/toolsDockMode.dockModeAtHeight). One
+    // state update per crossing, never per frame. The geometry the transform
+    // is written against does not depend on the display, so the crossing
+    // cannot jump it.
+    flipMode(dockModeAtHeight(modes, heights, maxH - next))
   }
   const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = dragRef.current
@@ -551,8 +643,18 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     e.currentTarget.removeAttribute('data-swiping')
     if (e.currentTarget.hasPointerCapture(e.pointerId))
       e.currentTarget.releasePointerCapture(e.pointerId)
+    draggingRef.current = false
+    // Whatever the drag deferred (a route swap, a precondition flip): the sheet
+    // is at rest now, so the pass can run against it.
+    if (measureDirtyRef.current) {
+      measureDirtyRef.current = false
+      measure()
+    }
     const { offsets: offs, offset: cur } = geomRef.current
     const velocity = e.type === 'pointercancel' ? 0 : y.getVelocity()
+    // The crossing already chose the display for a settled release, so `next`
+    // is `mode` and only the position moves; a flick still shifts one display,
+    // which is the drawer's existing fling rule (lib/dockPhysics.pickSnap).
     const idx = pickSnap(offs, y.get(), velocity, Math.max(0, order.indexOf(mode)))
     const next = dockTransition(mode, { type: 'snap', mode: order[idx]! }, cap)
     if (next === mode) {
@@ -560,7 +662,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     }
     else {
       pendingVelRef.current = velocity
-      setMode(next)
+      flipMode(next)
     }
   }
 
@@ -601,7 +703,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             }}
             onKeyDown={(e) => {
               if (e.key === 'Escape')
-                setMode(dockTransition(mode, { type: 'dismiss' }, cap))
+                flipMode(dockTransition(mode, { type: 'dismiss' }, cap))
             }}
             className={`dock-surface group/dock relative box-border flex w-full flex-col ${surface.className} pointer-events-auto overflow-hidden rounded-none border-0 border-t border-solid outline-0 transition-[background-color,border-color,box-shadow,backdrop-filter,--glass-fade] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform`}
           >
@@ -611,7 +713,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
               title={handleLabel}
               aria-label={handleLabel}
               aria-expanded={mode !== 'icons'}
-              onClick={() => setMode(dockTransition(mode, { type: 'tap' }, cap))}
+              onClick={() => flipMode(dockTransition(mode, { type: 'tap' }, cap))}
             >
               <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
             </button>
