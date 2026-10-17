@@ -1,6 +1,40 @@
 /// <reference types="bun" />
 import { describe, expect, it } from 'bun:test'
-import { exportGap, gridCellPx } from './exporter'
+import { computeExportSize, exportGap, gridCellPx, outputSizeFor } from './exporter'
+
+describe('computeExportSize', () => {
+  it('keeps the long side for a landscape canvas', () => {
+    // 2048 / 1.75 = 1170.28…
+    expect(computeExportSize({ ratio: 1.75, longSide: 2048 } as never)).toEqual({ W: 2048, H: 1170 })
+  })
+
+  it('keeps the long side for a portrait canvas', () => {
+    expect(computeExportSize({ ratio: 0.5718, longSide: 2048 } as never)).toEqual({ W: 1171, H: 2048 })
+  })
+
+  it('is square at ratio 1', () => {
+    expect(computeExportSize({ ratio: 1, longSide: 2048 } as never)).toEqual({ W: 2048, H: 2048 })
+  })
+
+  it('rounds the derived side to whole pixels', () => {
+    // 2048 / 1.5 = 1365.33…
+    expect(computeExportSize({ ratio: 1.5, longSide: 2048 } as never)).toEqual({ W: 2048, H: 1365 })
+    // 2048 * 0.618 = 1265.66…
+    expect(computeExportSize({ ratio: 0.618, longSide: 2048 } as never)).toEqual({ W: 1266, H: 2048 })
+  })
+
+  it('follows the long side setting', () => {
+    expect(computeExportSize({ ratio: 2, longSide: 1500 } as never)).toEqual({ W: 1500, H: 750 })
+    expect(computeExportSize({ ratio: 0.5, longSide: 1500 } as never)).toEqual({ W: 750, H: 1500 })
+  })
+})
+
+describe('outputSizeFor', () => {
+  it('is the canvas ratio applied to the long side', () => {
+    expect(outputSizeFor(2048, 4 / 3)).toEqual({ W: 2048, H: 1536 })
+    expect(outputSizeFor(2048, 3 / 4)).toEqual({ W: 1536, H: 2048 })
+  })
+})
 
 describe('exportGap', () => {
   it('is zero at gap 0, so flush panes stay flush', () => {
