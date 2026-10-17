@@ -25,6 +25,47 @@ export const FLICK_VELOCITY = 400
 /** Seconds of momentum projected forward when choosing the snap. */
 const PROJECT_S = 0.2
 
+/** The scrolled box a press landed in, if the press landed in one. */
+export interface DragSurface {
+  /** The press landed in the horizontally scrolled tools row. */
+  horizontal: boolean
+  /** The press landed in the expanded list; its scroll state, when it scrolls at all. */
+  list: { scrollTop: number, clientHeight: number, scrollHeight: number } | null
+}
+
+/**
+ * Who owns a press-and-move inside the drawer: the scroller the press landed
+ * on, or the drawer, which follows the pointer vertically. The whole sheet is
+ * drag surface, so tool buttons are as good a grab as the handle; only a
+ * scroller that can still move in the drag's direction keeps the gesture.
+ *
+ * - A horizontal gesture in the tools row scrolls the row (the drawer has no
+ *   horizontal snap).
+ * - A vertical gesture in the expanded list scrolls the list while the list
+ *   can still move that way, and hands over to the drawer at its edge, so the
+ *   two never fight over the same drag.
+ * - Everywhere else (the handle, the tool buttons, a single-row dock) the
+ *   drawer takes the gesture.
+ */
+export function dragOwner(surface: DragSurface, dx: number, dy: number): 'drawer' | 'scroller' {
+  if (surface.horizontal && Math.abs(dx) > Math.abs(dy))
+    return 'scroller'
+  const list = surface.list
+  if (!list)
+    return 'drawer'
+  const max = Math.max(0, list.scrollHeight - list.clientHeight)
+  if (max <= 0)
+    return 'drawer'
+  const top = Math.min(max, Math.max(0, Number.isFinite(list.scrollTop) ? list.scrollTop : 0))
+  // Dragging down reveals earlier content: the list can only follow while it
+  // is scrolled away from its top; dragging up, while it is short of its end.
+  if (dy > 0)
+    return top > 0 ? 'scroller' : 'drawer'
+  if (dy < 0)
+    return top < max ? 'scroller' : 'drawer'
+  return 'drawer'
+}
+
 /**
  * Snap to land on after release: the snap nearest the position projected by
  * the release velocity (position + velocity). A fast flick moves at least

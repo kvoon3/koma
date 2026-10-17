@@ -274,8 +274,6 @@ export const zhHans: Record<string, string> = {
   'Replace': '换照片',
   'Text': '文字',
   'Tools': '工具',
-  'Show tools': '拉起工具面板',
-  'Hide tools': '收起工具面板',
   'Drag to change canvas aspect · double-click to reset': '拖动改变画布比例 · 双击恢复',
   'Make': '制作贴图',
   'Make a sticker from text or an image': '用文字或图片制作贴图',
@@ -400,7 +398,7 @@ export const zhHans: Record<string, string> = {
   '"Make" in the tools panel': '工具面板里的「制作贴图」',
   'Open the sticker maker: type text or pick an image, remove its background with a local AI model, pick a die-cut outline and finish, and insert the result onto that pane as a sticker': '打开贴图制作：输入文字或选一张图片，用本地 AI 模型去掉背景，挑好模切描边后完成，把结果作为贴图插到该窗格上',
   '"Text" in the tools panel': '工具面板里的「文字」',
-  'Add a text label to the focused pane (white on black by default); click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, the corner to resize, the bottom-left arrow to rotate (Shift snaps to 15°), the chip below it to reset the angle, double-click to edit, click away or Esc to deselect': '给聚焦窗格添加文字（默认黑底白字）；点击可选中并固定它的工具栏（字体选择器 + 黑 / 白切换，离线时回退到系统字体）；拖动移动，角上缩放，左下角箭头旋转（按住 Shift 以 15° 吸附），下方按钮重置角度，双击编辑，点击别处或按 Esc 取消选中',
+  'Add a text label to the focused pane (white on black by default) and start editing: click it to select and pin its toolbar (font picker + black/white toggle, falls back to system fonts offline), drag to move, the corner to resize, the bottom-left arrow to rotate (Shift snaps to 15°), the chip below it to reset the angle, double-click to edit, click away or Esc to deselect. Below lg the label tools move into the bottom sheet, which then shows them alone (font, text and background color, opacity, icon, invert, delete)': '给聚焦窗格添加文字（默认黑底白字）并直接进入编辑：点击可选中并固定它的工具栏（字体选择器 + 黑 / 白切换，离线时回退到系统字体）；拖动移动，角上缩放，左下角箭头旋转（按住 Shift 以 15° 吸附），下方按钮重置角度，双击编辑，点击别处或按 Esc 取消选中。窄于 lg 时文字工具会移到底部面板，这时面板只显示它们（字体、文字颜色、背景颜色、不透明度、图标、反色、删除）',
   'Close': '关闭',
 
   // ClearConfirm
@@ -486,4 +484,9 @@ export const zhHans: Record<string, string> = {
   'Sharing failed, use Download all instead': '分享失败，请改用「全部下载」',
   'Shuffle': '打乱',
   'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '这会移除九宫格中的所有照片，版式和图库会保留。此操作无法撤销。',
+
+  // Dock rework
+  'Collapse tools': '收起工具标签',
+  'Canvas ratio': '画布比例',
+  'Square (1:1)': '正方形（1:1）',
 }

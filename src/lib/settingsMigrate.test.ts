@@ -68,7 +68,21 @@ describe('migrateSettings v5', () => {
   test('v5 → v6 resets the saved dock mode to row once', () => {
     expect(migrateSettings({ toolsDockMode: 'collapsed' }, 5).toolsDockMode).toBe('row')
     expect(migrateSettings({ toolsDockMode: 'expanded' }, 5).toolsDockMode).toBe('row')
-    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('collapsed')
+  })
+})
+
+describe('migrateSettings dock rework (collapsed removed)', () => {
+  test('a saved post-v6 collapsed becomes the icon-only row', () => {
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('icons')
+    expect(migrateSettings({ toolsDockMode: 'collapsed' }, 8).toolsDockMode).toBe('icons')
+  })
+  test('the other displays survive untouched', () => {
+    expect(migrateSettings({ toolsDockMode: 'icons' }, 8).toolsDockMode).toBe('icons')
+    expect(migrateSettings({ toolsDockMode: 'row' }, 8).toolsDockMode).toBe('row')
+    expect(migrateSettings({ toolsDockMode: 'expanded' }, 8).toolsDockMode).toBe('expanded')
+  })
+  test('an unknown mode still falls back to the labelled row', () => {
+    expect(migrateSettings({ toolsDockMode: 'hidden' }, 8).toolsDockMode).toBe('row')
   })
 })
 
