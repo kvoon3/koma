@@ -1,7 +1,7 @@
 /**
  * Pure rules for the workspace grid (the overview): how many cells each board
  * holds, how adding, removing and restoring them behave, and how the boards
- * themselves (grid groups: two 3×3 grids side by side, A vs B) are added,
+ * themselves (grid groups: two 3×3 grids, compared 1 vs 2) are added,
  * renamed, removed and compared. Generic over the workspace shape so they test
  * without the store.
  */
@@ -73,7 +73,7 @@ export const MAX_GRIDS = 4
 /** One board always stays: the app needs somewhere to edit. */
 export const MIN_GRIDS = 1
 /** Default group names, in add order (the user renames them). */
-export const GRID_NAMES = ['A', 'B', 'C', 'D'] as const
+export const GRID_NAMES = ['1', '2', '3', '4'] as const
 
 /** A board's identity in the group bar: its id and the name the chip shows. */
 export interface GridGroup {
@@ -121,10 +121,10 @@ export interface GridsState<T> {
   parked: Record<string, ParkedBoard<T>>
 }
 
-/** The next default name: the first letter the bar has not taken. */
+/** The next default name: the first number the bar has not taken. */
 export function nextGridName(groups: readonly GridGroup[]): string {
   const used = new Set(groups.map(g => g.name))
-  return GRID_NAMES.find(name => !used.has(name)) ?? `G${groups.length + 1}`
+  return GRID_NAMES.find(name => !used.has(name)) ?? String(groups.length + 1)
 }
 
 /** Append a group; a full bar is returned untouched. */
@@ -195,7 +195,7 @@ function savedEntries<T extends { id: string }>(saved: SavedGrids<T>, newGridId:
  * default name, and each board is within 1–9 cells (see normalizeSlots).
  *
  * A session saved before groups held exactly one board and no group list: that
- * board becomes group A, so a refresh after this change lands on the board the
+ * board becomes group 1, so a refresh after this change lands on the board the
  * user left, with every cell intact.
  */
 export function normalizeGrids<T extends { id: string }>(
