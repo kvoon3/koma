@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, it } from 'bun:test'
-import { activeAfterRemove, addSlot, DEFAULT_WORKSPACES, gridStep, MAX_WORKSPACES, normalizeSlots, removeSlot, resetSlot } from './workspaces'
+import { activeAfterRemove, addGroup, addSlot, comparePair, DEFAULT_WORKSPACES, gridStep, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './workspaces'
 
 let n = 0
 const fresh = () => ({ id: `new${++n}`, v: 0 })
@@ -88,5 +88,121 @@ describe('gridStep', () => {
   })
   it('stays put on a single cell', () => {
     expect(gridStep(0, 'right', 1)).toBe(0)
+  })
+})
+
+/** Groups of the group bar, as the store holds them. */
+const groups = (...names: string[]) => names.map((name, i) => ({ id: `g${i}`, name }))
+
+describe('the group bar', () => {
+  it('names a new group with the first free letter', () => {
+    expect(nextGridName([])).toBe('A')
+    expect(nextGridName(groups('A', 'B'))).toBe('C')
+    // A renamed group frees its letter for the next one.
+    expect(nextGridName(groups('Cover', 'B'))).toBe('A')
+  })
+
+  it('appends up to the cap and no further', () => {
+    let bar = groups('A')
+    for (let i = 0; i < MAX_GRIDS + 2; i++)
+      bar = addGroup(bar, () => ({ id: `new${i}`, name: nextGridName(bar) }))
+    expect(bar).toHaveLength(MAX_GRIDS)
+    expect(bar.map(g => g.name)).toEqual(['A', 'B', 'C', 'D'])
+  })
+
+  it('removes a group but never the last one', () => {
+    expect(removeGroup(groups('A', 'B', 'C'), 'g1').map(g => g.name)).toEqual(['A', 'C'])
+    const only = groups('A')
+    expect(removeGroup(only, 'g0')).toBe(only)
+    const pair = groups('A', 'B')
+    expect(removeGroup(pair, 'nope')).toBe(pair)
+  })
+
+  it('renames a group, refusing blank names', () => {
+    expect(renameGroup(groups('A', 'B'), 'g1', ' Variant B ')).toEqual([{ id: 'g0', name: 'A' }, { id: 'g1', name: 'Variant B' }])
+    const bar = groups('A', 'B')
+    expect(renameGroup(bar, 'g1', '   ')).toBe(bar)
+    expect(renameGroup(bar, 'g1', 'B')).toBe(bar)
+  })
+})
+
+describe('comparePair', () => {
+  const bar = groups('A', 'B', 'C')
+
+  it('defaults to the first two groups', () => {
+    expect(comparePair(bar, null, null)?.map(g => g.name)).toEqual(['A', 'B'])
+  })
+
+  it('keeps the picks that still exist', () => {
+    expect(comparePair(bar, 'g2', 'g0')?.map(g => g.name)).toEqual(['C', 'A'])
+    // A pick whose group is gone falls back to the first other board.
+    expect(comparePair(bar, 'gone', 'g2')?.map(g => g.name)).toEqual(['A', 'C'])
+  })
+
+  it('never shows the same board twice', () => {
+    expect(comparePair(bar, 'g1', 'g1')?.map(g => g.name)).toEqual(['B', 'A'])
+  })
+
+  it('has nothing to compare with one group', () => {
+    expect(comparePair(groups('A'), null, null)).toBeNull()
+    expect(comparePair([], null, null)).toBeNull()
+  })
+})
+
+describe('normalizeGrids (session migration)', () => {
+  const newGridId = () => `fresh${++n}`
+  const makeGrid = (k: number) => Array.from({ length: k }, (_, i) => ({ id: `w${i}`, v: i + 1 }))
+
+  it('hydrates a legacy single-group session as one group', () => {
+    const saved = makeGrid(9)
+    const out = normalizeGrids({ workspaces: saved, activeId: 'w4' }, fresh, newGridId)
+    expect(out.grids).toHaveLength(1)
+    expect(out.grids[0].name).toBe('A')
+    expect(out.workspaces).toEqual(saved)
+    expect(out.activeId).toBe('w4')
+    // One group means nothing is parked.
+    expect(out.parked).toEqual({})
+    expect(out.activeGridId).toBe(out.grids[0].id)
+  })
+
+  it('hydrates a legacy session without cells as a default board', () => {
+    const out = normalizeGrids({ activeId: 'nope' }, fresh, newGridId)
+    expect(out.workspaces).toHaveLength(DEFAULT_WORKSPACES)
+    expect(out.activeId).toBe(out.workspaces[0].id)
+  })
+
+  it('hydrates groups: the saved open one keeps the view, the rest park', () => {
+    const out = normalizeGrids({
+      grids: [
+        { id: 'gA', name: 'Cover A', workspaces: makeGrid(3), activeId: 'w2' },
+        { id: 'gB', name: 'Cover B', workspaces: makeGrid(4), activeId: 'w1' },
+      ],
+      activeGridId: 'gB',
+      activeId: 'w1',
+    }, fresh, newGridId)
+    expect(out.grids).toEqual([{ id: 'gA', name: 'Cover A' }, { id: 'gB', name: 'Cover B' }])
+    expect(out.activeGridId).toBe('gB')
+    expect(out.workspaces.map(w => w.id)).toEqual(['w0', 'w1', 'w2', 'w3'])
+    expect(out.activeId).toBe('w1')
+    expect(out.parked.gA).toEqual({ workspaces: makeGrid(3), activeId: 'w2' })
+    expect(out.parked.gB).toBeUndefined()
+  })
+
+  it('opens the first group when the saved one is gone, and drops extra groups', () => {
+    const out = normalizeGrids({
+      grids: [
+        { id: 'gA', name: 'A', workspaces: makeGrid(2), activeId: '' },
+        { id: 'gB', name: 'B', workspaces: makeGrid(2), activeId: '' },
+        { id: 'gC', name: 'C', workspaces: makeGrid(2), activeId: '' },
+        { id: 'gD', name: 'D', workspaces: makeGrid(2), activeId: '' },
+        { id: 'gE', name: 'E', workspaces: makeGrid(2), activeId: '' },
+      ],
+      activeGridId: 'gone',
+    }, fresh, newGridId)
+    expect(out.grids.map(g => g.id)).toEqual(['gA', 'gB', 'gC', 'gD'])
+    expect(out.activeGridId).toBe('gA')
+    // A board's cell falls back to its first when the saved one is unknown.
+    expect(out.activeId).toBe('w0')
+    expect(Object.keys(out.parked).sort()).toEqual(['gB', 'gC', 'gD'])
   })
 })

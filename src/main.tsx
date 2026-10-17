@@ -2,7 +2,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { installDebugHandle } from './debug'
-import { loadSession, saveSession } from './lib/sessionStore'
+import { loadSession, saveSession, sessionMeta } from './lib/sessionStore'
 import { router } from './router'
 import { useStore } from './store'
 import './index.css'
@@ -12,22 +12,7 @@ installDebugHandle()
 /** Persist the current state. Photos are put incrementally (see sessionStore). */
 function saveNow() {
   const s = useStore.getState()
-  void saveSession(
-    {
-      workspaces: s.workspaces,
-      activeId: s.activeId,
-      gap: s.gap,
-      radius: s.radius,
-      bg: s.bg,
-      cutouts: s.cutouts,
-      bgGradient: s.bgGradient,
-      bgImage: s.bgImage,
-      longSide: s.longSide,
-      format: s.format,
-      quality: s.quality,
-    },
-    s.photos,
-  )
+  void saveSession(sessionMeta(s), s.photos)
 }
 
 async function boot() {
