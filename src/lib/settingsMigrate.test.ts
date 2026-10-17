@@ -72,6 +72,10 @@ describe('migrateSettings v5', () => {
 })
 
 describe('migrateSettings dock rework (collapsed removed)', () => {
+  // NOTE: the mapping above only runs because SETTINGS_VERSION was bumped to 9.
+  // zustand persist skips `migrate` entirely when the saved version equals the
+  // current one, so a same-version save holding 'collapsed' would sail through
+  // unmigrated. If you ever remove the bump, you reintroduce that bug.
   test('a saved post-v6 collapsed becomes the icon-only row', () => {
     expect(migrateSettings({ toolsDockMode: 'collapsed' }, 6).toolsDockMode).toBe('icons')
     expect(migrateSettings({ toolsDockMode: 'collapsed' }, 8).toolsDockMode).toBe('icons')
