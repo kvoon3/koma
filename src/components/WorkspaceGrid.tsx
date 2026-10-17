@@ -1,11 +1,13 @@
 import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Photo } from '../lib/imageStore'
 import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { GridGroup } from '../lib/workspaces'
+import type { Workspace } from '../store'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, MouseSensor, pointerWithin, TouchSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Camera, LayoutDashboard, LoaderCircle, Plus } from 'lucide'
+import { ArrowRightLeft, Camera, ChevronDown, Columns2, LayoutDashboard, LoaderCircle, Plus, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, usePreview } from '../hooks'
@@ -17,9 +19,10 @@ import { useT } from '../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../lib/labelIcons'
 import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
-import { gridStep, MAX_WORKSPACES } from '../lib/workspaces'
-import { isTransparentBg, useStore } from '../store'
+import { comparePair, gridStep, MAX_GRIDS, MAX_WORKSPACES } from '../lib/workspaces'
+import { boardOf, isTransparentBg, useStore } from '../store'
 import { LabelIconGlyph } from './BoardLabel'
+import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
 import { DockToolset, SeamBackdrop } from './Stage'
 import { ToolsDock } from './ToolsDock'
@@ -35,8 +38,20 @@ const PV = 400
  */
 const SNAP_ROW_H = 50
 
+/** Air between the two boards of the compare view. */
+const COMPARE_GAP = 28
+
+/** Room under each compare board for the group name. */
+const COMPARE_CAPTION_H = 26
+
 /** The floating-chip idiom shared with FloatActions (back / reset). */
 const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
+
+/** A group chip: the bar's button idiom, lit when its board is the open one. */
+const groupChipCls = 'h-[30px] min-w-[30px] cursor-pointer border border-float-line bg-float-bg px-2 text-[11.5px] font-semibold text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent'
+
+/** The compare header's group picker: a native select wearing the chrome tokens. */
+const groupSelectCls = 'h-[30px] cursor-pointer appearance-none border border-line-strong bg-panel-2 pr-6 pl-2 text-[11.5px] font-semibold text-txt hover:bg-chip-hover focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1'
 
 /** One board sticker in a workspace preview (canvas-normalized, scaled by k). */
 function PreviewSticker({ st, board, k, photoById }: {
@@ -274,6 +289,38 @@ function CellBody({ ws, box, photoById, transparent, dimmed }: {
 
 type NavDir = 'left' | 'right' | 'up' | 'down'
 
+/**
+ * The cell size for the stage: one board fills it, and the compare view's two
+ * boards share it (less the air between them, plus a caption row).
+ */
+function stageCellBox(stage: { w: number, h: number }, twoUp: boolean, gap: number, ratio: number): { cell: number, box: { w: number, h: number } } {
+  const slotW = twoUp ? Math.floor((stage.w - 48 - COMPARE_GAP) / 2) : stage.w - 48
+  const slotH = stage.h - 48 - SNAP_ROW_H - (twoUp ? COMPARE_CAPTION_H : 0)
+  // A single board keeps the grid's 60px floor; two of them on a phone have to
+  // go under it (down to the width the slot actually has) to stay side by side.
+  const min = twoUp ? Math.max(12, Math.floor((slotW - gap * 2) / 3)) : 60
+  const fit = gridCellBox({ w: slotW, h: slotH }, gap, ratio, GRID_CELL_MAX, min)
+  // Centering an odd leftover put every cell on a half pixel, where 1px
+  // edges snap unevenly (the + cell's dashed right edge vanished). One px
+  // less flips the board's parity, so the cells land on whole pixels.
+  const cell = fit.w > 60 && (slotW - (fit.w * 3 + gap * 2)) % 2 !== 0 ? fit.w - 1 : fit.w
+  return { cell, box: { w: cell, h: cell === fit.w ? fit.h : Math.max(1, Math.round(cell / ratio)) } }
+}
+
+/**
+ * The pair the compare view opens on: the first two groups, or a group made on
+ * the spot when there is only one (a comparison needs two boards to show).
+ */
+function comparePicks(): { a: string, b: string } | null {
+  const s = useStore.getState()
+  const ready = comparePair(s.grids, null, null)
+  if (ready)
+    return { a: ready[0].id, b: ready[1].id }
+  const from = s.activeGridId
+  const added = s.addGrid()
+  return added ? { a: from, b: added } : null
+}
+
 /** vim keys and arrows → a grid navigation direction, null for anything else. */
 function dirForKey(k: string): NavDir | null {
   if (k === 'h' || k === 'H' || k === 'ArrowLeft')
@@ -308,6 +355,10 @@ const deleteFirst: CollisionDetection = (args) => {
  * to insert-shift reorder (dnd-kit sortable grid: the dragged cell follows
  * the pointer as an overlay while the rest make room live), arrows/hjkl/Tab
  * + Enter to navigate by keyboard. Pure navigation view, no photo tools.
+ *
+ * Boards come in groups (`lib/workspaces`): the bar above the grid switches
+ * which group of nine the overview shows, and the compare chip turns the view
+ * into two of them side by side (arrangement A vs B) instead of one.
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
@@ -321,6 +372,11 @@ export function WorkspaceGrid() {
   const { exportGridCells, busy } = useAppCommands()
   /** Local to the camera chip: the app-wide `busy` also spins during an export. */
   const [snapBusy, setSnapBusy] = useState(false)
+  /**
+   * The compare view's two picks (group ids), or null for the plain grid. Held
+   * here rather than in the store: it is this view's mode, not the board's.
+   */
+  const [compare, setCompare] = useState<{ a: string, b: string } | null>(null)
 
   // Enter a workspace: set activeId before navigating so the stage renders the
   // right workspace inside the same view-transition commit (the route wrapper
@@ -330,6 +386,31 @@ export function WorkspaceGrid() {
     useStore.getState().clearSelection()
     void navigate({ to: '/w/$wsId', params: { wsId: id }, viewTransition: viewTransitionOption() })
   }, [navigate])
+
+  // A cell in the compare view belongs to a group that may not be open: open
+  // its board first (navigation, no undo entry), then enter the cell.
+  const enterIn = useCallback((gridId: string, id: string) => {
+    useStore.getState().switchGrid(gridId)
+    enter(id)
+  }, [enter])
+
+  const grids = useStore(s => s.grids)
+  // Resolved every render: a pick that no longer exists (a deleted or undone
+  // group) falls back to the first two, and fewer than two groups leave the
+  // plain grid instead of an empty comparison.
+  const pair = compare ? comparePair(grids, compare.a, compare.b) : null
+  const comparing = pair !== null
+  const left = useStore(s => (pair ? boardOf(s, pair[0].id) : null))
+  const right = useStore(s => (pair ? boardOf(s, pair[1].id) : null))
+  /** The two boards the compare view draws, or null for the plain grid. */
+  const compareSides = pair && left && right
+    ? [{ group: pair[0], board: left }, { group: pair[1], board: right }]
+    : null
+
+  const startCompare = () => setCompare(comparePicks())
+
+  const pickGroup = (slot: 'a' | 'b', id: string) =>
+    setCompare(c => (c ? { ...c, [slot]: id } : c))
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
@@ -349,6 +430,10 @@ export function WorkspaceGrid() {
   )
 
   useEffect(() => {
+    // The compare view is read-only chrome around two boards: no highlight to
+    // walk, and Enter would have to guess which side it meant.
+    if (comparing)
+      return
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
@@ -378,7 +463,7 @@ export function WorkspaceGrid() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [enter])
+  }, [enter, comparing])
 
   // ---- Drag-to-reorder (dnd-kit, insert-shift) -----------------------------
   // PointerSensor with a distance threshold keeps plain clicks for entering
@@ -420,96 +505,326 @@ export function WorkspaceGrid() {
 
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const gridCellRatio = useStore(s => s.gridCellRatio)
-  const fitBox = gridCellBox({ w: wrapSize.w - 48, h: wrapSize.h - 48 - SNAP_ROW_H }, gridGap, cellRatioValue(gridCellRatio), GRID_CELL_MAX)
-  // Centering an odd leftover put every cell on a half pixel, where 1px
-  // edges snap unevenly (the + cell's dashed right edge vanished). One px
-  // less flips the board's parity, so the cells land on whole pixels.
-  const cell = fitBox.w > 60 && (wrapSize.w - (fitBox.w * 3 + gridGap * 2)) % 2 !== 0 ? fitBox.w - 1 : fitBox.w
-  const box = { w: cell, h: cell === fitBox.w ? fitBox.h : Math.max(1, Math.round(cell / cellRatioValue(gridCellRatio))) }
+  const { cell, box } = stageCellBox(wrapSize, comparing, gridGap, cellRatioValue(gridCellRatio))
 
   return (
     <div ref={wrapRef} className="stage-checker absolute inset-0 flex touch-none items-center justify-center overflow-hidden">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={deleteFirst}
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => {
-          setDragId(null)
-          dragEndedAtRef.current = Date.now()
-        }}
-      >
-        <GridDeleteZone active={!!dragId} label={t('Drop here to delete')} />
-        <SortableContext items={ids} strategy={rectSortingStrategy}>
-          {/* The snapshot chip sits above the grid, as part of the same group:
-              it takes layout space, so the centered board never grows past
-              the stage or clips the chip. */}
-          <div className="flex flex-col items-center gap-3">
-            <Tip
-              label={t('Snapshot: each cell plus the whole grid')}
-              trigger={(
-                <button
-                  className={snapBtnCls}
-                  aria-label={t('Snapshot: each cell plus the whole grid')}
-                  disabled={!anyFilled || busy || snapBusy}
-                  onClick={() => {
-                    setSnapBusy(true)
-                    void exportGridCells().finally(() => setSnapBusy(false))
-                  }}
-                >
-                  <MorphIcon
-                    icon={snapBusy ? LoaderCircle : Camera}
-                    size={15}
-                    strokeWidth={1.75}
-                    className={snapBusy ? 'animate-spin [animation-duration:900ms]' : undefined}
-                  />
-                </button>
-              )}
+      {compareSides
+        ? (
+            <CompareBoards
+              sides={compareSides}
+              cell={cell}
+              box={box}
+              gridGap={gridGap}
+              photoById={photoById}
+              transparent={transparent}
+              onEnter={enterIn}
+              onPick={pickGroup}
+              onExit={() => setCompare(null)}
             />
-            <div
-              className="grid grid-cols-3"
-              style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}
+          )
+        : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={deleteFirst}
+              measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragCancel={() => {
+                setDragId(null)
+                dragEndedAtRef.current = Date.now()
+              }}
             >
-              {workspaces.map((ws, i) => (
-                <SortableCell
-                  key={ws.id}
-                  ws={ws}
-                  cell={cell}
-                  box={box}
-                  photoById={photoById}
-                  transparent={transparent}
-                  highlighted={hl === i}
-                  onEnter={(id) => {
-                    if (Date.now() - dragEndedAtRef.current > 120)
-                      enter(id)
-                  }}
-                />
-              ))}
-              {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
-            </div>
-          </div>
-        </SortableContext>
-
-        <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
-          {draggedWs
-            ? (
-                <div
-                  className="relative cursor-grabbing overflow-hidden bg-panel-2 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
-                  style={{ width: cell, height: box.h }}
-                >
-                  <CellBody ws={draggedWs} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
+              <GridDeleteZone active={!!dragId} label={t('Drop here to delete')} />
+              <SortableContext items={ids} strategy={rectSortingStrategy}>
+                {/* The group bar and the chips sit above the grid, as part of the
+                    same group: they take layout space, so the centered board
+                    never grows past the stage or clips the chrome. */}
+                <div className="flex flex-col items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <GroupBar />
+                    <Tip
+                      label={t('Compare')}
+                      trigger={(
+                        <button
+                          className={snapBtnCls}
+                          aria-label={t('Compare')}
+                          onClick={startCompare}
+                        >
+                          <MorphIcon icon={Columns2} size={15} strokeWidth={1.75} />
+                        </button>
+                      )}
+                    />
+                    <Tip
+                      label={t('Snapshot: each cell plus the whole grid')}
+                      trigger={(
+                        <button
+                          className={snapBtnCls}
+                          aria-label={t('Snapshot: each cell plus the whole grid')}
+                          disabled={!anyFilled || busy || snapBusy}
+                          onClick={() => {
+                            setSnapBusy(true)
+                            void exportGridCells().finally(() => setSnapBusy(false))
+                          }}
+                        >
+                          <MorphIcon
+                            icon={snapBusy ? LoaderCircle : Camera}
+                            size={15}
+                            strokeWidth={1.75}
+                            className={snapBusy ? 'animate-spin [animation-duration:900ms]' : undefined}
+                          />
+                        </button>
+                      )}
+                    />
+                  </div>
+                  <div
+                    className="grid grid-cols-3"
+                    style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}
+                  >
+                    {workspaces.map((ws, i) => (
+                      <SortableCell
+                        key={ws.id}
+                        ws={ws}
+                        cell={cell}
+                        box={box}
+                        photoById={photoById}
+                        transparent={transparent}
+                        highlighted={hl === i}
+                        onEnter={(id) => {
+                          if (Date.now() - dragEndedAtRef.current > 120)
+                            enter(id)
+                        }}
+                      />
+                    ))}
+                    {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
+                  </div>
                 </div>
-              )
-            : null}
-        </DragOverlay>
-      </DndContext>
+              </SortableContext>
+
+              <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
+                {draggedWs
+                  ? (
+                      <div
+                        className="relative cursor-grabbing overflow-hidden bg-panel-2 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
+                        style={{ width: cell, height: box.h }}
+                      >
+                        <CellBody ws={draggedWs} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
+                      </div>
+                    )
+                  : null}
+              </DragOverlay>
+            </DndContext>
+          )}
 
       {/* Grid-route-only tools: Grid gap. Same 3-snap sheet as the collage stage. */}
       <ToolsDock hidden={false} contextKey="grid">
         <DockToolset route="grid" />
       </ToolsDock>
     </div>
+  )
+}
+
+/**
+ * The grid-group bar above the board: one chip per group of nine (click to open
+ * that board, double-click to rename it, the open one carries ×), and the +
+ * that makes a new one. Opening a group is navigation and costs no undo step;
+ * adding, renaming and deleting are board mutations and are undoable.
+ */
+function GroupBar() {
+  const t = useT()
+  const grids = useStore(s => s.grids)
+  const activeGridId = useStore(s => s.activeGridId)
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  /** The group whose delete confirm is open. */
+  const [asked, setAsked] = useState<string | null>(null)
+  const submitRename = (id: string) => {
+    useStore.getState().renameGrid(id, draft)
+    setRenaming(null)
+  }
+  return (
+    <div className="flex items-center gap-1">
+      {grids.map((g) => {
+        const active = g.id === activeGridId
+        return renaming === g.id
+          ? (
+              <input
+                key={g.id}
+                autoFocus
+                value={draft}
+                aria-label={t('Rename')}
+                className={`${groupChipCls} w-20 cursor-text`}
+                onChange={e => setDraft(e.target.value)}
+                onBlur={() => submitRename(g.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    submitRename(g.id)
+                  }
+                  else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setRenaming(null)
+                  }
+                }}
+              />
+            )
+          : (
+              <button
+                key={g.id}
+                className={`${groupChipCls}${active ? ' border-accent text-txt' : ''}`}
+                title={t('Rename')}
+                onClick={() => useStore.getState().switchGrid(g.id)}
+                onDoubleClick={() => {
+                  setDraft(g.name)
+                  setRenaming(g.id)
+                }}
+              >
+                {g.name}
+              </button>
+            )
+      })}
+      {grids.length > 1 && (
+        <button
+          className={snapBtnCls}
+          title={t('Delete group?')}
+          aria-label={t('Delete group?')}
+          onClick={() => setAsked(activeGridId)}
+        >
+          <MorphIcon icon={X} size={13} strokeWidth={1.75} />
+        </button>
+      )}
+      {grids.length < MAX_GRIDS && (
+        <button
+          className={snapBtnCls}
+          title={t('Add a group')}
+          aria-label={t('Add a group')}
+          onClick={() => useStore.getState().addGrid()}
+        >
+          <MorphIcon icon={Plus} size={15} strokeWidth={1.75} />
+        </button>
+      )}
+      <ConfirmDialog
+        open={asked !== null}
+        title={t('Delete group?')}
+        description={t('This removes the group and its nine collages. Undo brings them back.')}
+        confirmLabel={t('Delete')}
+        danger
+        onClose={() => setAsked(null)}
+        onConfirm={() => {
+          if (asked)
+            useStore.getState().removeGrid(asked)
+          setAsked(null)
+        }}
+      />
+    </div>
+  )
+}
+
+/**
+ * The compare view: two boards side by side (arrangement A vs B), each drawn by
+ * the same cell preview the grid uses. Read-only otherwise (no drag, no + cell,
+ * no delete strip); a cell still opens its own editor, in its own group.
+ */
+function CompareBoards({ sides, cell, box, gridGap, photoById, transparent, onEnter, onPick, onExit }: {
+  sides: { group: GridGroup, board: Workspace[] }[]
+  cell: number
+  box: { w: number, h: number }
+  gridGap: number
+  photoById: Map<string, Photo>
+  transparent: boolean
+  onEnter: (gridId: string, id: string) => void
+  onPick: (slot: 'a' | 'b', id: string) => void
+  onExit: () => void
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <CompareHeader sides={sides} onPick={onPick} onExit={onExit} />
+      <div className="flex items-start" style={{ gap: COMPARE_GAP }}>
+        {sides.map(({ group, board }) => (
+          <div key={group.id} className="flex flex-col items-center gap-2">
+            <div className="grid grid-cols-3" style={{ gap: gridGap, width: cell * 3 + gridGap * 2 }}>
+              {board.map(ws => (
+                <CompareCell
+                  key={ws.id}
+                  ws={ws}
+                  cell={cell}
+                  box={box}
+                  photoById={photoById}
+                  transparent={transparent}
+                  onEnter={id => onEnter(group.id, id)}
+                />
+              ))}
+            </div>
+            <span className="text-[11.5px] font-semibold text-dim">{group.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** The compare view's header: which two boards, and the way back out. */
+function CompareHeader({ sides, onPick, onExit }: {
+  sides: { group: GridGroup }[]
+  onPick: (slot: 'a' | 'b', id: string) => void
+  onExit: () => void
+}) {
+  const t = useT()
+  const grids = useStore(s => s.grids)
+  return (
+    <div className="flex items-center gap-2">
+      <GroupPicker groups={grids} value={sides[0].group.id} label={t('First group')} onChange={id => onPick('a', id)} />
+      <MorphIcon icon={ArrowRightLeft} size={14} strokeWidth={1.75} className="text-dim" />
+      <GroupPicker groups={grids} value={sides[1].group.id} label={t('Second group')} onChange={id => onPick('b', id)} />
+      <Tip
+        label={t('Exit compare')}
+        trigger={(
+          <button className={snapBtnCls} aria-label={t('Exit compare')} onClick={onExit}>
+            <MorphIcon icon={X} size={15} strokeWidth={1.75} />
+          </button>
+        )}
+      />
+    </div>
+  )
+}
+
+/** One side of the compare header: a select wearing the chrome tokens. */
+function GroupPicker({ groups, value, label, onChange }: {
+  groups: GridGroup[]
+  value: string
+  label: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <span className="relative flex items-center">
+      <select className={groupSelectCls} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
+        {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+      </select>
+      <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} className="pointer-events-none absolute right-2 text-dim" />
+    </span>
+  )
+}
+
+/** A cell in the compare view: the grid's preview, minus the drag. */
+function CompareCell({ ws, cell, box, photoById, transparent, onEnter }: {
+  ws: { id: string, root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }
+  cell: number
+  box: { w: number, h: number }
+  photoById: Map<string, Photo>
+  transparent: boolean
+  onEnter: (id: string) => void
+}) {
+  const t = useT()
+  const filled = leafList(ws.root).some(l => l.photoId)
+  return (
+    <button
+      className="relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[scale] duration-(--dur-surface) active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-txt"
+      style={{ width: cell, height: box.h }}
+      onClick={() => onEnter(ws.id)}
+      title={filled ? t('Edit this workspace') : t('Start a new collage here')}
+    >
+      <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
+    </button>
   )
 }
 
