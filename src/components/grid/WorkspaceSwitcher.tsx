@@ -27,7 +27,7 @@ import { leafList } from '../../lib/panes'
 import { MAX_GRIDS, MAX_WORKSPACES } from '../../lib/workspaces'
 import { useStore } from '../../store'
 import { AddSlotFrame, CellBody, CellPreview } from './CellPreview'
-import { CARD_GAP, RECEDE_BLUR, RECEDE_OPACITY, RECEDE_SCALE, STRIP_GAP } from './switcherLayout'
+import { CARD_GAP, CARD_SCALE, RECEDE_BLUR, RECEDE_OPACITY, RECEDE_SCALE, STRIP_GAP } from './switcherLayout'
 
 /** Stable keys for the slots a board has not filled (a board holds nine). */
 const EMPTY_SLOT_KEYS = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] as const
@@ -79,6 +79,7 @@ export function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, ringId, phot
   // Every card's inner 3×3 at card size (hairline border takes 1px a side).
   const cellW = (cardW - 2 - 2 * CARD_GAP) / 3
   const cellH = (cardH - 2 - 2 * CARD_GAP) / 3
+
   // Air either side of the card row lets the first and last card centre under
   // scroll-snap; the same value is the strip's scroll padding. The port is the
   // strip less the edge padding (8px a side) and the 40px add glyph.
@@ -127,15 +128,15 @@ export function WorkspaceSwitcher({ stripTop, stripH, cardW, cardH, ringId, phot
                 data-switcher-card=""
                 data-card-active={active || undefined}
                 data-card-ring={ringed || undefined}
-                className="group/card relative flex shrink-0 snap-center items-center"
-                style={{ width: cardW }}
+                className="group/card relative flex shrink-0 snap-center items-center transition-[scale] duration-(--dur-fast)"
+                style={{ width: cardW, scale: ringed ? CARD_SCALE : 1 }}
               >
                 <button
                   type="button"
                   data-card-face=""
-                  className={`relative block cursor-pointer overflow-hidden border bg-pane-bg shadow-pop outline-0 transition-[scale,outline-color] duration-(--dur-fast) focus-visible:outline-2 focus-visible:outline-sel ${
+                  className={`relative block cursor-pointer overflow-hidden border bg-pane-bg shadow-pop outline-0 transition-[outline-color] duration-(--dur-fast) focus-visible:outline-2 focus-visible:outline-sel ${
                     ringed
-                      ? ' border-line-strong scale-[1.08] outline-2 outline-offset-1 outline-sel'
+                      ? ' border-line-strong outline-2 outline-offset-1 outline-sel'
                       : ' border-line outline-2 outline-offset-1 outline-transparent hover:not-focus-visible:outline-line-strong'
                   }`}
                   style={{ width: cardW, height: cardH }}
