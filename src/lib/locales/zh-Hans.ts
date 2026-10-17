@@ -486,11 +486,12 @@ export const zhHans: Record<string, string> = {
   'Sharing failed, use Download all instead': '分享失败，请改用「全部下载」',
   'Shuffle': '打乱',
   'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': '这会移除九宫格中的所有照片，版式和图库会保留。此操作无法撤销。',
-  // Dual grid (two 9-grid groups, compared side by side)
+  // Dual grid (two 9-grid groups, compared side by side or stacked)
   'Compare': '对比',
   'Exit compare': '退出对比',
-  'First group': '左边分组',
-  'Second group': '右边分组',
+  // First / second, not left / right: on a phone the two boards stack.
+  'First group': '第一个分组',
+  'Second group': '第二个分组',
   'Add a group': '新增分组',
   'Rename': '重命名',
   'Delete group?': '删除分组？',
