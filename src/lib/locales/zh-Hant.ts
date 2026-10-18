@@ -315,6 +315,13 @@ export const zhHant: Record<string, string> = {
   'Cutout added to the library': '去背圖已加入素材庫',
   'Background removal failed': '背景移除失敗',
 
+  // Sticker maker: stamp edge (wave3/stickers)
+  'Edge': '邊緣',
+  'Smooth': '平滑',
+  'Stamp': '郵票',
+  'Hole size': '齒孔大小',
+  'Hole spacing': '齒孔間距',
+
   // Library / LibraryDrawer
   'Live Photo': '即時照片',
   'Library is empty. Click "+ Photo" or drop photos straight into the window.': '素材庫是空的。點選「+ 照片」或直接把照片拖進視窗。',

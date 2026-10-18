@@ -22,6 +22,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+import type { Perforation } from './stickerFX'
+import { composeSilhouette, outlineRadius, parseHexColor, silhouettePadding } from './stickerFX'
+
 export type StickerSource
   = | { type: 'text', text: string, color?: string, fontFamily?: string, fontWeight?: number | string }
     | { type: 'image', src: string, name?: string }
@@ -31,6 +34,11 @@ export type StickerMaterialType = 'original' | 'holographic' | 'glitter'
 export interface StickerMakeOptions {
   outlineWidth?: number
   outlineColor?: string
+  /**
+   * Stamp perforation punched along the border's outer edge (see
+   * `lib/stickerFX`); absent or null is the plain die-cut border.
+   */
+  perforation?: Perforation | null
   maxEdge?: number
   material?: {
     type: StickerMaterialType
@@ -66,8 +74,8 @@ const DEFAULT_MAX_EDGE = 960
 
 const MAX_TEXTURE_EDGE = 2048
 const MIN_TEXTURE_EDGE = 320
+/** Default texture margin; `texturePadding` grows it for a wide outline. */
 const TEXTURE_PADDING = 144
-const VISIBLE_ALPHA_THRESHOLD = 0.1 * 255
 const CROP_MARGIN = 2
 
 const DEFAULT_MATERIAL: ResolvedMaterial = {
@@ -88,7 +96,11 @@ const HOLOGRAPHIC_NOISE_SIZE = 96
 const MATERIAL_PREVIEW_CACHE_LIMIT = 6
 const GLITTER_RANDOM_VALUES_PER_FLAKE = 5
 
-const DISTANCE_INFINITY = 1_000_000_000_000
+/** Texture margin around the artwork, so the border and holes never clip. */
+function texturePadding(outlineWidth: number, perforation: Perforation | null): number {
+  const needed = silhouettePadding(outlineRadius(outlineWidth), perforation)
+  return Math.max(TEXTURE_PADDING, needed)
+}
 
 interface HolographicNoiseCacheEntry {
   pixels: Uint8ClampedArray
@@ -150,7 +162,7 @@ function imageHasTransparency(image: HTMLImageElement): boolean {
   return false
 }
 
-async function renderTextSource(source: StickerTextSource) {
+async function renderTextSource(source: StickerTextSource, padding: number) {
   const fontFamily = source.fontFamily ?? 'Arial Rounded MT Bold, Arial Black, sans-serif'
   const fontWeight = source.fontWeight ?? 900
   let fontSize = 420
@@ -182,7 +194,6 @@ async function renderTextSource(source: StickerTextSource) {
   const lineHeight = fontSize * 1.15
   const ascent = Math.max(1, ...lineMetrics.map(m => m.actualBoundingBoxAscent || fontSize * 0.76))
   const descent = Math.max(1, ...lineMetrics.map(m => m.actualBoundingBoxDescent || fontSize * 0.2))
-  const padding = TEXTURE_PADDING
   const width = clamp(Math.ceil(Math.max(...lineMetrics.map(m => m.width)) + padding * 2), MIN_TEXTURE_EDGE, MAX_TEXTURE_EDGE)
   const contentHeight = lineHeight * (lines.length - 1) + ascent + descent
   const height = clamp(Math.ceil(contentHeight + padding * 2), MIN_TEXTURE_EDGE, 1280)
@@ -205,11 +216,10 @@ async function renderTextSource(source: StickerTextSource) {
   return canvas
 }
 
-async function renderImageSource(source: StickerImageSource) {
+async function renderImageSource(source: StickerImageSource, padding: number) {
   const image = await loadImage(source.src)
   const hasTransparency = imageHasTransparency(image)
   const aspect = clamp(image.naturalWidth / image.naturalHeight, 0.15, 8)
-  const padding = TEXTURE_PADDING
   const contentMax = Math.max(1, MAX_TEXTURE_EDGE - padding * 2)
   const contentWidth = aspect >= 1 ? contentMax : contentMax * aspect
   const contentHeight = aspect >= 1 ? contentMax / aspect : contentMax
@@ -226,137 +236,99 @@ async function renderImageSource(source: StickerImageSource) {
   return { canvas, hasTransparency }
 }
 
-function tintAlpha(source: HTMLCanvasElement, color: string) {
-  const canvas = document.createElement('canvas')
-  canvas.width = source.width
-  canvas.height = source.height
-  const context = canvas.getContext('2d')
-  if (!context)
-    throw new Error('Canvas 2D is unavailable.')
-  context.fillStyle = color
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  context.globalCompositeOperation = 'destination-in'
-  context.drawImage(source, 0, 0)
-  return canvas
-}
-
-function distanceTransform1D(
-  source: Float32Array,
-  sourceOffset: number,
-  sourceStride: number,
-  target: Float32Array,
-  targetOffset: number,
-  targetStride: number,
-  length: number,
-  parabolas: Int32Array,
-  boundaries: Float64Array,
-) {
-  let envelopeIndex = 0
-  parabolas[0] = 0
-  boundaries[0] = Number.NEGATIVE_INFINITY
-  boundaries[1] = Number.POSITIVE_INFINITY
-
-  for (let position = 1; position < length; position += 1) {
-    let previous = parabolas[envelopeIndex]
-    let intersection
-      = (source[sourceOffset + position * sourceStride] + position * position
-        - (source[sourceOffset + previous * sourceStride] + previous * previous))
-      / (2 * position - 2 * previous)
-    while (intersection <= boundaries[envelopeIndex]) {
-      envelopeIndex -= 1
-      previous = parabolas[envelopeIndex]
-      intersection
-        = (source[sourceOffset + position * sourceStride] + position * position
-          - (source[sourceOffset + previous * sourceStride] + previous * previous))
-        / (2 * position - 2 * previous)
-    }
-    envelopeIndex += 1
-    parabolas[envelopeIndex] = position
-    boundaries[envelopeIndex] = intersection
-    boundaries[envelopeIndex + 1] = Number.POSITIVE_INFINITY
-  }
-
-  envelopeIndex = 0
-  for (let position = 0; position < length; position += 1) {
-    while (boundaries[envelopeIndex + 1] < position)
-      envelopeIndex += 1
-    const nearest = parabolas[envelopeIndex]
-    const delta = position - nearest
-    target[targetOffset + position * targetStride]
-      = delta * delta + source[sourceOffset + nearest * sourceStride]
-  }
-}
-
-/** Expands an alpha silhouette with a continuous round Euclidean offset. */
-function expandAlpha(source: HTMLCanvasElement, radius: number) {
+/**
+ * The silhouette painter: the border band under the artwork, then the stamp
+ * notches cut through both. Geometry comes from `lib/stickerFX` (the one
+ * implementation of the distance field and the border), so this function is
+ * only the canvas half.
+ *
+ * The border is drawn *under* the source through `source-over`, which is what
+ * makes it part of the sticker rather than a halo: inside the band's reach the
+ * composite is opaque, so an antialiased artwork edge sits on white instead of
+ * fading into the page. The notches then cut with `destination-out`, i.e. the
+ * composed alpha is multiplied by `1 − punch`, so a hole opens through the
+ * border and, when it is wide enough, through the artwork's edge as well.
+ *
+ * The canvas grows by `silhouettePadding` on every side and the artwork is
+ * drawn back in at that offset, so the widest border (or hole) has room
+ * instead of being clipped by the texture's own edge.
+ */
+function applySilhouette(source: HTMLCanvasElement, outline: {
+  radius: number
+  color: string
+  perforation: Perforation | null
+}) {
   const width = source.width
   const height = source.height
   const sourceContext = source.getContext('2d', { willReadFrequently: true })
   if (!sourceContext)
     throw new Error('Canvas 2D is unavailable.')
-  const sourcePixels = sourceContext.getImageData(0, 0, width, height).data
-  const size = width * height
-  const seeds = new Float32Array(size)
-  const rowDistances = new Float32Array(size)
-  let hasSeed = false
+  const pixels = sourceContext.getImageData(0, 0, width, height).data
 
-  for (let pixel = 0; pixel < size; pixel += 1) {
-    const occupied = sourcePixels[pixel * 4 + 3] >= VISIBLE_ALPHA_THRESHOLD
-    seeds[pixel] = occupied ? 0 : DISTANCE_INFINITY
-    hasSeed ||= occupied
-  }
-
-  const maxLength = Math.max(width, height)
-  const parabolas = new Int32Array(maxLength)
-  const boundaries = new Float64Array(maxLength + 1)
-  if (hasSeed) {
-    for (let y = 0; y < height; y += 1) {
-      distanceTransform1D(seeds, y * width, 1, rowDistances, y * width, 1, width, parabolas, boundaries)
-    }
-    for (let x = 0; x < width; x += 1) {
-      distanceTransform1D(rowDistances, x, width, seeds, x, width, height, parabolas, boundaries)
-    }
-  }
-
+  // The field runs on the *padded* frame, not the artwork's box: the border
+  // lives outside that box, and a distance field that stops at its edge would
+  // have nothing to say about the pixels the border is made of.
+  const pad = silhouettePadding(outline.radius, outline.perforation)
   const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d')
-  if (!context)
-    throw new Error('Canvas 2D is unavailable.')
-  const mask = context.createImageData(width, height)
-  for (let pixel = 0; pixel < size; pixel += 1) {
-    const coverage = hasSeed
-      ? clamp(radius + 0.5 - Math.sqrt(seeds[pixel]), 0, 1)
-      : 0
-    const offset = pixel * 4
-    mask.data[offset] = 255
-    mask.data[offset + 1] = 255
-    mask.data[offset + 2] = 255
-    mask.data[offset + 3] = Math.round(coverage * 255)
-  }
-  context.putImageData(mask, 0, 0)
-  return canvas
-}
-
-function addOutline(source: HTMLCanvasElement, outline: { width: number, color: string }) {
-  const canvas = document.createElement('canvas')
-  canvas.width = source.width
-  canvas.height = source.height
+  canvas.width = width + pad * 2
+  canvas.height = height + pad * 2
   const context = canvas.getContext('2d', { willReadFrequently: true })
   if (!context)
     throw new Error('Canvas 2D is unavailable.')
-
-  const radius = clamp(outline.width * 2.35, 0, 112)
-  if (radius > 0.25) {
-    const expandedAlpha = expandAlpha(source, radius)
-    context.drawImage(tintAlpha(expandedAlpha, outline.color), 0, 0)
+  const frameWidth = canvas.width
+  const frameHeight = canvas.height
+  const size = frameWidth * frameHeight
+  const alpha = new Float32Array(size)
+  for (let y = 0; y < height; y += 1) {
+    const from = y * width
+    const to = (y + pad) * frameWidth + pad
+    for (let x = 0; x < width; x += 1)
+      alpha[to + x] = pixels[(from + x) * 4 + 3]! / 255
   }
-  context.drawImage(source, 0, 0)
+
+  const result = composeSilhouette(alpha, frameWidth, frameHeight, {
+    radius: outline.radius,
+    perforation: outline.perforation,
+  })
+
+  if (result.radius > 0.25 || result.centers.length) {
+    const band = context.createImageData(frameWidth, frameHeight)
+    const [red, green, blue] = parseHexColor(outline.color)
+    for (let pixel = 0; pixel < size; pixel += 1) {
+      const offset = pixel * 4
+      band.data[offset] = red
+      band.data[offset + 1] = green
+      band.data[offset + 2] = blue
+      band.data[offset + 3] = Math.round(result.coverage[pixel]! * 255)
+    }
+    context.putImageData(band, 0, 0)
+  }
+
+  context.drawImage(source, pad, pad)
+
+  if (result.centers.length) {
+    const notch = context.createImageData(frameWidth, frameHeight)
+    for (let pixel = 0; pixel < size; pixel += 1)
+      notch.data[pixel * 4 + 3] = Math.round(result.punch[pixel]! * 255)
+    context.globalCompositeOperation = 'destination-out'
+    context.drawImage(imageDataCanvas(notch), 0, 0)
+    context.globalCompositeOperation = 'source-over'
+  }
   return canvas
 }
 
-/** The inclusive alpha bounds of a pixel buffer, or null when nothing shows. */
+/** An ImageData as a drawable: the punch is painted through a canvas. */
+function imageDataCanvas(data: ImageData) {
+  const canvas = document.createElement('canvas')
+  canvas.width = data.width
+  canvas.height = data.height
+  const context = canvas.getContext('2d')
+  if (!context)
+    throw new Error('Canvas 2D is unavailable.')
+  context.putImageData(data, 0, 0)
+  return canvas
+}
+
 function visibleBounds(pixels: Uint8ClampedArray, width: number, height: number) {
   let minX = width
   let minY = height
@@ -409,12 +381,21 @@ function cropToVisible(canvas: HTMLCanvasElement) {
 
 async function prepareArtwork(
   source: StickerSource,
-  outline: { width: number, color: string },
+  outline: { width: number, color: string, perforation: Perforation | null },
 ): Promise<PreparedArtwork> {
+  const radius = outlineRadius(outline.width)
+  const padding = texturePadding(outline.width, outline.perforation)
   const rendered = source.type === 'image'
-    ? await renderImageSource(source)
-    : { canvas: await renderTextSource(source), hasTransparency: true }
-  const canvas = cropToVisible(addOutline(rendered.canvas, outline))
+    ? await renderImageSource(source, padding)
+    : { canvas: await renderTextSource(source, padding), hasTransparency: true }
+  // Crop before outlining: a cutout is mostly transparent frame, and the
+  // distance field then runs over the subject's box instead of the whole
+  // texture. The outline pass pads the canvas back out for its own reach.
+  const canvas = cropToVisible(applySilhouette(cropToVisible(rendered.canvas), {
+    radius,
+    color: outline.color,
+    perforation: outline.perforation,
+  }))
   return {
     canvas,
     width: canvas.width,
@@ -742,6 +723,7 @@ export async function makeSticker(
   const artwork = await prepareArtwork(source, {
     width: options.outlineWidth ?? DEFAULT_OUTLINE_WIDTH,
     color: options.outlineColor ?? DEFAULT_OUTLINE_COLOR,
+    perforation: options.perforation ?? null,
   })
   const originalLongEdge = Math.max(artwork.width, artwork.height)
   const previewScale = Math.min(1, (options.maxEdge ?? DEFAULT_MAX_EDGE) / originalLongEdge)
