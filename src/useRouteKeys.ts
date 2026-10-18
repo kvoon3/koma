@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useEffectEvent } from 'react'
 import { bindAction, paneContext } from './lib/actionGuard'
 import { leafList } from './lib/panes'
+import { GRID_PATH } from './lib/routes'
 import { viewTransitionOption } from './lib/viewTransition'
 import { activeWs, useStore } from './store'
 
@@ -26,7 +27,7 @@ interface KeyUi {
   setLibOpen: Dispatch<SetStateAction<boolean>>
   setSettingsOpen: Dispatch<SetStateAction<boolean>>
   setReport: Dispatch<SetStateAction<string | null>>
-  /** Back out of the editor to the grid overview (`/`). */
+  /** Back out of the editor to the grid overview (`#/grid`). */
   goGrid: () => void
 }
 
@@ -185,12 +186,13 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
  * presence; while it is up the board ignores the keyboard entirely.
  */
 export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }: {
-  /** The overview (`/`) owns different bindings than the editor. */
+  /** The overview (`#/grid`) owns different bindings than the editor. */
   grid: boolean
   /**
-   * A hub route (the sticker manager) shows no board, so every board binding
-   * (pane keys, focus, undo, export, the G toggle) is inert there: they would
-   * otherwise edit a board the user cannot see. Settings and help still open.
+   * A hub route (the launcher or one of its two libraries) shows no board, so
+   * every board binding (pane keys, focus, undo, export, the G toggle) is inert
+   * there: they would otherwise edit a board the user cannot see. Settings and
+   * help still open.
    */
   hub?: boolean
   exportOpen: boolean
@@ -242,7 +244,7 @@ export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }
         setReport,
         goGrid: () => {
           useStore.getState().clearSelection()
-          void navigate({ to: '/', viewTransition: viewTransitionOption() })
+          void navigate({ to: GRID_PATH, viewTransition: viewTransitionOption() })
         },
       }
 
@@ -261,7 +263,7 @@ export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }
         if (grid)
           void navigate({ to: '/w/$wsId', params: { wsId: s.activeId }, viewTransition: viewTransitionOption() })
         else
-          void navigate({ to: '/', viewTransition: viewTransitionOption() })
+          void navigate({ to: GRID_PATH, viewTransition: viewTransitionOption() })
         return
       }
 

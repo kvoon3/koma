@@ -10,6 +10,7 @@ import { CropDialog } from './components/CropDialog'
 import { ExportDialog } from './components/ExportDialog'
 import { FloatActions } from './components/FloatActions'
 import { HelpOverlay } from './components/HelpOverlay'
+import { Hub } from './components/Hub'
 import { LibraryDrawer } from './components/LibraryDrawer'
 import { PhotoManager } from './components/PhotoManager'
 import { Stage } from './components/Stage'
@@ -23,7 +24,9 @@ import { AppCommandsContext } from './lib/appCommands'
 import { buildCropReport } from './lib/exporter'
 import { exportOptions, renderGridCellItems, renderGridItems, renderWorkspaceItems } from './lib/exportFlow'
 import { armRun, releaseRun } from './lib/exportRun'
+import { hubKeyForPath, markHubSeen } from './lib/hubSeen'
 import { t } from './lib/i18n'
+import { GRID_PATH, HUB_PATH, isGridPath, isHubPath, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
 import { say } from './lib/toast'
 import { viewTransitionOption } from './lib/viewTransition'
 import { useStore } from './store'
@@ -34,10 +37,11 @@ import { useRouteKeys } from './useRouteKeys'
 /** The app chrome: it wraps every route and renders the active view in `<Outlet />`. */
 function RootLayout() {
   const navigate = useNavigate()
-  const grid = useRouterState({ select: s => s.location.pathname === '/' })
-  // The sticker manager is a library surface, not a board: it draws its own
-  // chrome and none of the board's floating actions belong over it.
-  const stickers = useRouterState({ select: s => s.location.pathname === '/stickers' })
+  const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
+  // A hub route (the launcher or one of its two libraries) is not a board: it
+  // draws its own chrome and none of the board's floating actions belong over it.
+  const hub = useRouterState({ select: s => isHubPath(s.location.pathname) })
+  const pathname = useRouterState({ select: s => s.location.pathname })
 
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
@@ -52,6 +56,15 @@ function RootLayout() {
   const [helpOpen, setHelpOpen] = useState(false)
 
   initTheme()
+
+  // The hub's cards say when each destination was last opened: the chrome
+  // records every visit here, whichever route the user came from (a board is a
+  // grid-making visit, the two libraries are their own).
+  useEffect(() => {
+    const key = hubKeyForPath(pathname)
+    if (key)
+      markHubSeen(key)
+  }, [pathname])
 
   // Pinch/ctrl+wheel zooms the pane under the cursor (handled there); anywhere
   // else it would zoom the whole browser page, which we never want.
@@ -128,7 +141,7 @@ function RootLayout() {
   // grid / editor maps behind it (see useRouteKeys).
   useRouteKeys({
     grid,
-    hub: stickers,
+    hub,
     exportOpen: exportItems != null,
     onExport: doExport,
     chrome: { helpOpen, libOpen, settingsOpen, report, doCrops, setHelpOpen, setLibOpen, setSettingsOpen, setReport },
@@ -152,7 +165,10 @@ function RootLayout() {
         useStore.getState().clearSelection()
         void navigate({ to: '/w/$wsId', params: { wsId: s.activeId }, viewTransition: viewTransitionOption() })
       }
-      setLibOpen(true)
+      // A hub route lists the library itself (the photo page, or the hub's
+      // own counts), so the drawer would only cover what the drop just filled.
+      if (!hub)
+        setLibOpen(true)
     }
     window.addEventListener('dragover', over)
     window.addEventListener('drop', drop)
@@ -160,7 +176,7 @@ function RootLayout() {
       window.removeEventListener('dragover', over)
       window.removeEventListener('drop', drop)
     }
-  }, [setLibOpen, grid, navigate])
+  }, [setLibOpen, grid, hub, navigate])
 
   const closeHelp = () => setHelpOpen(false)
 
@@ -193,7 +209,7 @@ function RootLayout() {
             <AppCommandsContext value={commands}>
               <Outlet />
               {/* Floating page actions (back / reset) hover over the active view. */}
-              {!stickers && <FloatActions />}
+              {!hub && <FloatActions />}
             </AppCommandsContext>
           </main>
         </ToolsDockHost>
@@ -245,7 +261,7 @@ function WorkspaceRoute() {
       useStore.getState().clearSelection()
     }
     else {
-      void navigate({ to: '/', replace: true })
+      void navigate({ to: GRID_PATH, replace: true })
     }
   }, [wsId, exists, navigate])
 
@@ -254,9 +270,20 @@ function WorkspaceRoute() {
 
 const rootRoute = createRootRoute({ component: RootLayout })
 
-const indexRoute = createRoute({
+/**
+ * The root is the hub: three destinations, one route each. The board overview
+ * the app used to open on is `#/grid`, so `/` can be the door instead of a
+ * destination, and `#/w/<id>` links keep opening the board they name.
+ */
+const hubRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  path: HUB_PATH,
+  component: Hub,
+})
+
+const gridRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: GRID_PATH,
   component: WorkspaceGrid,
 })
 
@@ -268,17 +295,17 @@ const workspaceRoute = createRoute({
 
 const photoRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/photos',
+  path: PHOTOS_PATH,
   component: PhotoManager,
 })
 
 const stickerRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/stickers',
+  path: STICKERS_PATH,
   component: StickerManager,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, workspaceRoute, photoRoute, stickerRoute])
+const routeTree = rootRoute.addChildren([hubRoute, gridRoute, workspaceRoute, photoRoute, stickerRoute])
 
 export const router = createRouter({
   routeTree,

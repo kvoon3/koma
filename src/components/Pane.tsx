@@ -12,6 +12,7 @@ import { useT } from '../lib/i18n'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
 import { pickPhotoForPane } from '../lib/paneCommands'
 import { clampLeaf, cornerRadiiCss, isPaneTransformed, leafCornerRadii, paneTransform, paneTransformCss, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
+import { GRID_PATH } from '../lib/routes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
 import { PaneMenu } from './PaneMenu'
@@ -1419,7 +1420,7 @@ function PaneImpl({
   // Exit the editor back to the grid overview, morphing the canvas into its cell.
   const exitToGrid = useCallback(() => {
     useStore.getState().clearSelection()
-    void navigate({ to: '/', viewTransition: viewTransitionOption() })
+    void navigate({ to: GRID_PATH, viewTransition: viewTransitionOption() })
   }, [navigate])
 
   const pickForPane = useCallback(() => pickPhotoForPane(leaf.id), [leaf.id])
