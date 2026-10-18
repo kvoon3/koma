@@ -4,6 +4,20 @@ export interface Photo {
   id: string
   name: string
   file: File
+  /**
+   * What kind of asset this is: a photo (the default, and every photo saved
+   * before stickers became assets of their own) or a sticker the maker
+   * produced. The two library views filter on it (see lib/stickerLibrary).
+   */
+  kind?: 'photo' | 'sticker'
+  /** Sticker folder, one level deep; absent = Unsorted. Only set on stickers. */
+  folder?: string
+  /**
+   * Deleted from the library while a placed copy still draws it: hidden from
+   * every list, kept until nothing references it, so a pane or board sticker
+   * that outlives the asset keeps rendering (see lib/stickerLibrary).
+   */
+  orphaned?: boolean
   /** Paired Live Photo video (IMG_1234.HEIC + IMG_1234.MOV), if one was dropped alongside. */
   videoFile?: File
   trueW: number
