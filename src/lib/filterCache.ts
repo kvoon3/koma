@@ -3,10 +3,12 @@
  * rendered from the same `lib/filters` pixels the exporter bakes into a
  * `filteredSource` canvas, so the two cannot drift.
  *
- * A filtered bitmap is keyed by (photo, filter, decode-size bucket): the
+ * A filtered bitmap is keyed by (photo, filter setting, decode-size bucket): the
  * filter's parameters scale with the image, so a bitmap filtered at one size
  * is not the same picture as one filtered at another, so the bucket is part of
- * the identity, not a detail. The bucket is the preview's own size capped at
+ * the identity, not a detail. The setting is the whole `filterKey` (id plus every
+ * dialled knob), so turning the mosaic's block dial renders a new bitmap and
+ * turning it back reuses the old one. The bucket is the preview's own size capped at
  * `FILTER_PREVIEW_MAX`, which keeps one filter pass inside a frame's budget
  * (a 1024² pass is 7–31ms, see `lib/filters`) even though the photo preview
  * itself tops out at 1800px.
@@ -15,9 +17,9 @@
  * the cache is an LRU: a board of nine panes with eight filters explored in the
  * dock must not pin dozens of megapixels.
  */
-import type { FilterId } from './filters'
+import type { FilterSpec, FilterValue } from './filters'
 import type { Photo, Preview } from './imageStore'
-import { applyFilter, filterSeed } from './filters'
+import { applyFilter, filterKey, filterSeed, resolveFilter } from './filters'
 import { getPreview, peekPreview } from './imageStore'
 
 /** Long edge of a filtered preview bitmap: one filter pass, one frame's worth. */
@@ -80,16 +82,16 @@ export function filteredPreviewSize(preview: { w: number, h: number }): { w: num
   return { w: Math.max(1, Math.round(preview.w * k)), h: Math.max(1, Math.round(preview.h * k)) }
 }
 
-function previewKey(photoId: string, filterId: FilterId, size: { w: number, h: number }) {
-  return `${photoId}|${filterId}|${size.w}x${size.h}`
+function previewKey(photoId: string, filter: string, size: { w: number, h: number }) {
+  return `${photoId}|${filter}|${size.w}x${size.h}`
 }
 
 /** The cached filtered preview, or null when it has not been rendered yet. */
-export function peekFilteredPreview(photoId: string, filterId: FilterId): Preview | null {
+export function peekFilteredPreview(photoId: string, filter: FilterValue | null | undefined): Preview | null {
   const base = peekPreview(photoId)
   if (!base)
     return null
-  return previews.get(previewKey(photoId, filterId, filteredPreviewSize(base)))
+  return previews.get(previewKey(photoId, filterKey(filter), filteredPreviewSize(base)))
 }
 
 function loadImage(url: string): Promise<HTMLImageElement | null> {
@@ -106,7 +108,7 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
  * pixels and hand the canvas back. `apply` is what keeps the preview identical
  * to the export: same function, same seed, same size → same bytes.
  */
-function filteredCanvas(source: CanvasImageSource, w: number, h: number, filterId: FilterId, seed: number): HTMLCanvasElement {
+function filteredCanvas(source: CanvasImageSource, w: number, h: number, filter: FilterValue, seed: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
@@ -114,7 +116,7 @@ function filteredCanvas(source: CanvasImageSource, w: number, h: number, filterI
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(source, 0, 0, w, h)
   const img = ctx.getImageData(0, 0, w, h)
-  applyFilter(img, filterId, seed)
+  applyFilter(img, filter, seed)
   ctx.putImageData(img, 0, 0)
   return canvas
 }
@@ -130,7 +132,7 @@ function canvasToUrl(canvas: HTMLCanvasElement): Promise<string> {
  * object URL. Renders once per (photo, filter, size); concurrent callers share
  * one job.
  */
-export function getFilteredPreview(photo: Photo, filterId: FilterId): Promise<Preview | null> {
+export function getFilteredPreview(photo: Photo, filter: FilterSpec): Promise<Preview | null> {
   const base = peekPreview(photo.id)
   if (!base) {
     // Nothing decoded yet: warm the plain preview, which the caller already
@@ -139,7 +141,7 @@ export function getFilteredPreview(photo: Photo, filterId: FilterId): Promise<Pr
     return Promise.resolve(null)
   }
   const size = filteredPreviewSize(base)
-  const key = previewKey(photo.id, filterId, size)
+  const key = previewKey(photo.id, filterKey(filter), size)
   const hit = previews.get(key)
   if (hit)
     return Promise.resolve(hit)
@@ -152,7 +154,7 @@ export function getFilteredPreview(photo: Photo, filterId: FilterId): Promise<Pr
       const im = await loadImage(base.url)
       if (!im)
         return null
-      const canvas = filteredCanvas(im, size.w, size.h, filterId, filterSeed(photo.id, filterId))
+      const canvas = filteredCanvas(im, size.w, size.h, filter, filterSeed(photo.id, filter.id))
       const url = await canvasToUrl(canvas)
       canvas.width = canvas.height = 0
       if (!url)
@@ -169,28 +171,30 @@ export function getFilteredPreview(photo: Photo, filterId: FilterId): Promise<Pr
   return p
 }
 
-function swatchKey(photoId: string, filterId: FilterId | null, px: number) {
-  return `${photoId}|${filterId ?? 'none'}|${px}`
+function swatchKey(photoId: string, filter: FilterValue | null, px: number) {
+  return `${photoId}|${filterKey(filter)}|${px}`
 }
 
 /** A cached swatch URL, or null when that tile has not been rendered yet. */
-export function peekFilterSwatch(photoId: string, filterId: FilterId | null, px: number): string | null {
-  return swatches.get(swatchKey(photoId, filterId, px))
+export function peekFilterSwatch(photoId: string, filter: FilterValue | null, px: number): string | null {
+  return swatches.get(swatchKey(photoId, filter, px))
 }
 
 /**
  * A dock swatch: a 1:1 loupe into the photo's *filtered* preview, centred, at
- * `px` CSS pixels (rendered at 2× for the device pixel ratio). Showing a crop
- * rather than the whole photo is what makes the texture legible: the filters
- * are resolution independent, so a photo squeezed into a 76px chip averages its
- * own grain away, while a 152px window of the same filtered bitmap shows the
- * grain, the plates and the dither at exactly the size the pane draws them.
+ * `px` CSS pixels, one bitmap pixel per CSS pixel with no shrinking. Showing a
+ * crop rather than the whole photo is what makes the texture legible: the
+ * filters are resolution independent, so a photo squeezed into a 76px chip
+ * averages its own grain away. 1:1 is what makes the dials honest: the dialled
+ * block, tile or dither cell is counted in pixels of that same bitmap, so a
+ * dial of 16 prints 16-pixel blocks in the swatch and the eye judges the
+ * granularity it is about to get (measured at 16 px, see the lane's report).
  *
  * The bitmap comes from `getFilteredPreview`, so a swatch and the pane it is
  * about to replace are the same pixels, and picking a filter is instant.
  */
-export function getFilterSwatch(photo: Photo, filterId: FilterId | null, px: number): Promise<string | null> {
-  const key = swatchKey(photo.id, filterId, px)
+export function getFilterSwatch(photo: Photo, filter: FilterValue | null, px: number): Promise<string | null> {
+  const key = swatchKey(photo.id, filter, px)
   const hit = swatches.get(key)
   if (hit)
     return Promise.resolve(hit)
@@ -203,13 +207,14 @@ export function getFilterSwatch(photo: Photo, filterId: FilterId | null, px: num
       const base = peekPreview(photo.id) ?? await getPreview(photo)
       if (!base)
         return null
-      const source = filterId ? await getFilteredPreview(photo, filterId) : base
+      const spec = resolveFilter(filter)
+      const source = spec ? await getFilteredPreview(photo, spec) : base
       if (!source)
         return null
       const im = await loadImage(source.url)
       if (!im)
         return null
-      const side = Math.min(px * 2, Math.min(im.naturalWidth, im.naturalHeight))
+      const side = Math.min(px, im.naturalWidth, im.naturalHeight)
       const sx = (im.naturalWidth - side) / 2
       const sy = (im.naturalHeight - side) / 2
       const out = document.createElement('canvas')

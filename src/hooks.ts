@@ -1,7 +1,8 @@
-import type { FilterId } from './lib/filters'
+import type { FilterValue } from './lib/filters'
 import type { Photo, Preview } from './lib/imageStore'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { getFilteredPreview, peekFilteredPreview } from './lib/filterCache'
+import { filterKey, resolveFilter } from './lib/filters'
 import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
 
 export function usePreview(photo: Photo | null): Preview | null {
@@ -47,46 +48,54 @@ export function usePreview(photo: Photo | null): Preview | null {
  * texture rather than a reload. It is only ever the *same photo's* previous
  * render; crossing photos falls back to the plain preview, never to another
  * photo's picture.
+ *
+ * The filter is a value (`FilterValue`), so the render is keyed by its whole
+ * setting (`filterKey`): turning the mosaic's block dial re-renders, and
+ * `leaf.filter`'s object identity changing on an unrelated patch does not.
  */
-export function usePanePreview(photo: Photo | null, filter: FilterId | undefined): Preview | null {
+export function usePanePreview(photo: Photo | null, filter: FilterValue | undefined): Preview | null {
   const plain = usePreview(photo)
   const id = photo?.id ?? null
   // The base preview may not be decoded yet; when it lands, the filter can run.
   const plainUrl = plain?.url ?? null
   const photoRef = useRef(photo)
+  const filterRef = useRef(filter)
   useEffect(() => {
     photoRef.current = photo
-  }, [photo])
-  const [shown, setShown] = useState<{ photoId: string, preview: Preview } | null>(() => {
-    const hit = id && filter ? peekFilteredPreview(id, filter) : null
-    return hit && id ? { photoId: id, preview: hit } : null
+    filterRef.current = filter
+  }, [photo, filter])
+  const key = filterKey(filter)
+  const [shown, setShown] = useState<{ photoId: string, key: string, preview: Preview } | null>(() => {
+    const hit = id && key !== 'none' ? peekFilteredPreview(id, filter) : null
+    return hit && id ? { photoId: id, key, preview: hit } : null
   })
 
   useEffect(() => {
     const source = photoRef.current
-    if (!id || !filter || !source) {
+    const spec = resolveFilter(filterRef.current)
+    if (!id || !spec || !source) {
       setShown(null)
       return
     }
-    const hit = peekFilteredPreview(id, filter)
+    const hit = peekFilteredPreview(id, spec)
     if (hit) {
-      setShown({ photoId: id, preview: hit })
+      setShown({ photoId: id, key, preview: hit })
       return
     }
     setShown(held => (held && held.photoId === id ? held : null))
     let alive = true
-    getFilteredPreview(source, filter).then((r) => {
+    getFilteredPreview(source, spec).then((r) => {
       if (alive && r)
-        setShown({ photoId: id, preview: r })
+        setShown({ photoId: id, key, preview: r })
     })
     return () => {
       alive = false
     }
-  }, [id, filter, plainUrl])
+  }, [id, key, plainUrl])
 
-  if (!filter)
+  if (key === 'none')
     return plain
-  return shown && shown.photoId === id ? shown.preview : plain
+  return shown && shown.photoId === id && shown.key === key ? shown.preview : plain
 }
 
 export function useThumb(photo: Photo, visible: boolean): string | null {

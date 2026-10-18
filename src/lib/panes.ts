@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { FilterId } from './filters'
+import type { FilterValue } from './filters'
 
 export interface Rect {
   x: number
@@ -155,8 +155,13 @@ export interface Leaf {
    * a photo arrives, and copies with duplicate / copy+paste / swap. Preview and
    * export both run the filter on the photo's pixels before placement and the
    * turn, so the texture is baked into the photo rather than laid over the pane.
+   *
+   * A *value*, not just an id: the pixel family carries its dialled knobs
+   * (`{ id: 'mosaic', block: 24, levels: 6 }`, see `FilterSpec`), and a bare id
+   * from a build before knobs hydrates as that filter's defaults. Undo, copy and
+   * paste treat the whole value atomically.
    */
-  filter?: FilterId
+  filter?: FilterValue
   /**
    * Legacy per-pane stickers. New inserts live on `Workspace.stickers` (board
    * space). Kept so session / `.koma.json` files migrate without data loss.

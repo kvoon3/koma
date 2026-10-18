@@ -1,11 +1,11 @@
 import type { BgImage } from './collageBg'
-import type { FilterId } from './filters'
+import type { FilterValue } from './filters'
 import type { FontMeta } from './fonts'
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
 import type { CornerRadii, Leaf, Node, PaneLabel, PaneTransform, Rect, SeamSides, Sticker } from './panes'
 import { mapSeq } from './async'
 import { isTransparentBg, paintCollageBg } from './collageBg'
-import { applyFilter, filterSeed, isFilterId } from './filters'
+import { applyFilter, filterKey, filterSeed, resolveFilter } from './filters'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
@@ -171,7 +171,7 @@ function applyPaneTurn(ctx: CanvasRenderingContext2D, center: { x: number, y: nu
  * One canvas per (photo, filter) per export run: several panes can hold the
  * same photo, and the filter is not free.
  */
-export function filteredSource(src: CanvasImageSource, w: number, h: number, filterId: FilterId, seed: number): HTMLCanvasElement {
+export function filteredSource(src: CanvasImageSource, w: number, h: number, filter: FilterValue, seed: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
@@ -179,7 +179,7 @@ export function filteredSource(src: CanvasImageSource, w: number, h: number, fil
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(src, 0, 0, w, h)
   const img = ctx.getImageData(0, 0, w, h)
-  applyFilter(img, filterId, seed)
+  applyFilter(img, filter, seed)
   ctx.putImageData(img, 0, 0)
   return canvas
 }
@@ -536,12 +536,13 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
       if (!full)
         return null
       // A saved file from a newer build may name a filter this one lacks.
-      if (!leaf.filter || !isFilterId(leaf.filter))
+      const spec = resolveFilter(leaf.filter)
+      if (!spec)
         return full.src
-      const key = `${photo.id}|${leaf.filter}`
+      const key = `${photo.id}|${filterKey(spec)}`
       let canvas = filtered.get(key)
       if (!canvas) {
-        canvas = filteredSource(full.src, full.w, full.h, leaf.filter, filterSeed(photo.id, leaf.filter))
+        canvas = filteredSource(full.src, full.w, full.h, spec, filterSeed(photo.id, spec.id))
         filtered.set(key, canvas)
       }
       return canvas
