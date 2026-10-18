@@ -9,7 +9,7 @@ import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../../lib/
 import { LayoutDashboard, Plus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo } from 'react'
-import { usePreview } from '../../hooks'
+import { usePanePreview, usePreview } from '../../hooks'
 import { fontById } from '../../lib/fonts'
 import { useT } from '../../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../../lib/labelIcons'
@@ -75,7 +75,9 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
   photoById: Map<string, Photo>
 }) {
   const photo = leaf.photoId ? photoById.get(leaf.photoId) : undefined
-  const preview = usePreview(photo ?? null)
+  // Same pixels as the editor and the export, filter included: the overview is
+  // a preview of the board, not a preview of the unfiltered photos.
+  const preview = usePanePreview(photo ?? null, leaf.filter)
   const radius = useStore(s => s.radius)
   const layout: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
   const cell = crossfade && leaf.photoId ? expandRectForBlend(layout, seam, fade) : layout

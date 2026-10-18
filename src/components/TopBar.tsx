@@ -7,6 +7,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { clearFilterCaches } from '../lib/filterCache'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
@@ -352,6 +353,9 @@ export function TopBar({
     // Same reset semantics as clearLibrary: old previews (keyed by photo id)
     // and the old autosaved session must not survive the replaced board.
     clearImageCaches()
+    // Filtered bitmaps are keyed by photo id too: a replaced library must not
+    // serve the old board's textures.
+    clearFilterCaches()
     void clearSession()
     const workspaces = normalizeWorkspaces(doc.workspaces).map(w => migrateWorkspaceInserts(w, photos))
     useStore.setState({

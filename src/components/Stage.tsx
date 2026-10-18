@@ -24,6 +24,7 @@ import { CollageBgLayer } from './CollageBgLayer'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
+import { PaneFilterTool } from './PaneFilterTools'
 import { PaneRotateTool } from './PaneRotateTools'
 import { StickerMakerDialog } from './StickerMakerDialog'
 import { toolsBtnCls, ToolsDock, toolsLabelCls } from './ToolsDock'
@@ -405,6 +406,9 @@ export function Stage() {
         {/* The detent rotation dial + flips: a sibling of the pane tools, so
             their fixed order and list stay untouched. */}
         <PaneRotateTool hidden={!!dockLabel} />
+        {/* Texture filters: also a sibling, next to the turn controls. Both
+            act on the photo a pane holds, and neither disturbs the list. */}
+        <PaneFilterTool hidden={!!dockLabel} />
       </ToolsDock>
 
       <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => openStickerMaker(null)} />
