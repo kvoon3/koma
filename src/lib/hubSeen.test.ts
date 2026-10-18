@@ -12,15 +12,15 @@ const storage = {
 }
 
 describe('which destination a route belongs to', () => {
-  test('the grid overview and every editor board are grid making', () => {
-    expect(hubKeyForPath('/grid')).toBe('grid')
+  test('the board overview (the app root) and every editor board are grid making', () => {
+    expect(hubKeyForPath('/')).toBe('grid')
     expect(hubKeyForPath('/w/w-1')).toBe('grid')
   })
 
-  test('the two library pages are their own entries, the hub is none', () => {
+  test('the two library pages are their own entries, the retained launcher is none', () => {
     expect(hubKeyForPath('/photos')).toBe('photos')
     expect(hubKeyForPath('/stickers')).toBe('stickers')
-    expect(hubKeyForPath('/')).toBeNull()
+    expect(hubKeyForPath('/legacy-index')).toBeNull()
   })
 })
 

@@ -411,13 +411,8 @@ same commit.
 ```
 
 Each card is the sticker on the transparency checkerboard (the same `stage-clear`
-read the export preview gives a PNG), its folder, a usage badge, and the four
-actions that act on the asset: erase, re-edit (only when it carries a recipe),
-move, delete. The name owns its line and the folder shares the action row; on a
-touch pointer the folder climbs onto the name's line and the four buttons grow
-into a 32px tap target with an 8px label under the glyph, because a phone has no
-tooltip to tell a scissors from a bin. Erase also wears the accent colour: it is
-an edit that saves a copy, not a delete. **Usage is derived, never stored**: every board of every group is
+read the export preview gives a PNG), its folder, a usage badge, and move /
+delete. **Usage is derived, never stored**: every board of every group is
 scanned for photo ids (pane photos, pane stickers, board stickers, plus the
 collage background), and the count is what the badge shows. Labels contribute
 nothing: their icons are catalog ids, not photos.
@@ -450,7 +445,9 @@ effects and the mask editor are the same code on both roads. The save button
 names the target ("Save to Faces"), and every opening starts from an empty
 stage so a new sticker never inherits the last one's pick.
 
-<<<<<<< HEAD
+Entry is the top bar's Photo menu (both views); the route is one of the two
+library pages, like photo management.
+
 **Erase and Re-edit: two depths of editing an existing sticker.** A saved
 sticker is the *composited* PNG (cutout, border and perforation baked in), so
 there are exactly two things the library can offer over it, and the difference
@@ -569,16 +566,11 @@ a sticker imported from a file offers Erase only.
 
 Entry is the top bar's Photo menu (both views); the route is the shape the
 future hub hangs off (grid making / photo management / sticker management).
-||||||| parent of e04fa56 (docs(design): photo management, the hub root and the new routing)
-Entry is the top bar's Photo menu (both views); the route is the shape the
-future hub hangs off (grid making / photo management / sticker management).
-=======
-Entry is the top bar's Photo menu (both views) and the hub's third card; the
-route is one of the hub's destinations (see "The hub" below).
+
 
 ## Photo management (`#/photos`)
 
-The photo library has a page of its own, the hub's second door. Photos are the
+The photo library has a page of its own, beside the sticker page. Photos are the
 `kind !== 'sticker'` assets (stickers live on their own page) and every photo
 can carry hand-typed **tags**: `Photo.tags` is the membership, many to a photo,
 and the tag list itself is session state beside the photos (`photoTags`), so an
@@ -633,32 +625,29 @@ record and the pane, the preview and the export keep drawing it; the confirm
 says so. The import door on the page adds to the library with `autoFill` off:
 a library surface does not rearrange whatever board happens to be open.
 
-## The hub (`/`)
+## The retained launcher (`#/legacy-index`)
 
-The app's root is a launcher, not a board. It offers the three destinations the
-architecture is cut along: **grid making** (`#/grid`, the 3×3 overview the app
-used to open on), **photo management** (`#/photos`) and **sticker management**
-(`#/stickers`). Each card carries the destination's icon, one line about it,
-how much is in there (workspaces filled, photos, stickers) and when it was last
-opened (a localStorage timestamp per destination, `lib/hubSeen`; the route
-change records it, so a board visit counts as grid making).
+A launcher that puts the three surfaces side by side (the board overview, photo
+management, sticker management) was drafted while the app's root was under
+review. The root went back to the 3×3 overview, and the page is kept at
+`#/legacy-index`: routable and fully working, linked from nowhere. It is not in
+any menu, no card points at it and no shortcut reaches it, so it stays out of
+the main flow; `isHubPath` keeps the board chrome inert there, as on the two
+library pages.
 
-The cards follow the workspace switcher's card idiom (hairline `line` border,
-`pane-bg` fill, `shadow-pop`, an outline ring on hover/focus) rather than
-inventing a launcher style. The top bar stays above the hub, so settings, the
-language, the theme and both library doors are one click away, and the wordmark
-became the door back to the hub from every route.
+Each card carries the surface's icon, one line about it, how much is in there
+(workspaces filled, photos, stickers) and when it was last opened (a
+localStorage timestamp per destination, `lib/hubSeen`, recorded on every route
+change, so a board visit counts as grid making). The cards follow the workspace
+switcher's card idiom (hairline `line` border, `pane-bg` fill, `shadow-pop`, an
+outline ring on hover/focus) rather than inventing a launcher style, and a
+`Retained draft` chip says what the page is.
 
-Why the overview moved instead of the hub being an overlay: `/` is what a link
-to the app lands on, and the hub is what a stranger should see first, while the
-overview is a working surface with its own gestures (drag to reorder, pull down
-for the switcher) that would fight an overlay. Moving it is one route:
-`#/w/<id>` deep links are untouched (a board still opens directly), `#/stickers`
-is where it was, and the old overview link (`#/`) now lands on the launcher,
-which is the intended change. `isGridPath` / `isHubPath` in `lib/routes` are
-what the chrome keys off, so the board's floating actions and key map stay
-inert on every hub route.
->>>>>>> e04fa56 (docs(design): photo management, the hub root and the new routing)
+`lib/routes` holds the paths and the two predicates the chrome keys off:
+`isGridPath` is the overview at `/` (pure navigation, export in batch mode) and
+`isHubPath` is "no board is drawn here" (the two libraries plus this page). The
+overview therefore keeps the board key map (`G` toggles, `Esc` backs out of the
+editor to `/`) and the floating actions, exactly as before the draft.
 
 ## Settings panel (`,` or the top-right Settings button)
 
@@ -827,25 +816,18 @@ when an actual HEIC is encountered, costing pure JPEG/PNG users nothing.
 
 ```
 src/
-  router.tsx        code-based routes: / = hub, /grid = 3×3 overview, /w/$wsId = editor, /photos and /stickers = the two libraries; hash history (single-file build must work via file://)
+  router.tsx        code-based routes: / = 3×3 overview, /w/$wsId = editor, /photos and /stickers = the two libraries, /legacy-index = the retained launcher; hash history (single-file build must work via file://)
   lib/routes.ts      the route paths + the isGridPath / isHubPath predicates the chrome keys off
-  lib/hubSeen.ts     per-destination "last opened" timestamps for the hub cards (localStorage)
+  lib/hubSeen.ts     per-destination "last opened" timestamps for the retained launcher's cards (localStorage)
   main.tsx          boot: load session → render → debounced autosave + pagehide flush
   lib/panes.ts       pane tree: split/remove/layout/placement, shared by preview and export
   lib/imageStore.ts  three-tier image assets + JPEG/HEIC header probing
   lib/heic.ts        HEIC: meta box probing + WASM decoding (heic-to)
   lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot), file download / clipboard copy, crop report export
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
-<<<<<<< HEAD
-  lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts, folder CRUD (pure)
-  lib/stickerRecipe.ts  a sticker's original + bake style (the other half of the pair is the record): build, validate, read
-||||||| parent of e04fa56 (docs(design): photo management, the hub root and the new routing)
-  lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts, folder CRUD (pure)
-=======
   lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts (shared with the photo page), folder CRUD, the retire rule (pure)
   lib/photoTags.ts   photo tags: membership, tag CRUD, rename / delete fan-out, hydrate normalization (pure)
   lib/assetNames.ts  the name cleaning, cap and case-insensitive compare folders and tags share
->>>>>>> e04fa56 (docs(design): photo management, the hub root and the new routing)
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
   lib/browser.ts     which WebView the page was opened in (WeChat's UA) + the best-effort escape from it
@@ -855,15 +837,9 @@ src/
     TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
     FloatActions.tsx floating back / split / reset buttons under the top bar
     LibraryDrawer.tsx / Library.tsx
-<<<<<<< HEAD
-    StickerManager.tsx  #/stickers: the sticker library (folder chips, usage, erase / re-edit / move / delete)
-||||||| parent of e04fa56 (docs(design): photo management, the hub root and the new routing)
-    StickerManager.tsx  #/stickers: the sticker library (folder chips, usage, move / delete)
-=======
-    Hub.tsx          #/ : the launcher's three doors (grid making / photos / stickers)
+    LegacyIndex.tsx  #/legacy-index: the retained launcher draft (linked from nowhere)
     PhotoManager.tsx #/photos: the photo library (tag chips, usage, search, detail, delete)
     StickerManager.tsx  #/stickers: the sticker library (folder chips, usage, move / delete)
->>>>>>> e04fa56 (docs(design): photo management, the hub root and the new routing)
     SettingsPanel.tsx
     HelpOverlay.tsx
     ExportDialog.tsx    the preview every export lands in: download / copy / long-press
@@ -880,13 +856,14 @@ defaults to on and persists as `collage:fontMirror`.
 
 ## Routing & persistence
 
-TanStack Router (code-based) with **hash history**: `/` is the hub (the
-launcher), `/grid` the 3×3 overview, `/w/$wsId` the editor, `/photos` photo
-management and `/stickers` sticker management; an unknown workspace id redirects
-to `/grid`. The two libraries are hub destinations rather than drawers over the
-board: each draws its own chrome (no floating board actions, and the board's key
-map is inert there), and its back chip returns wherever it was opened from. The view no longer lives
-in the store: the route is the view; the route param drives `activeId`.
+TanStack Router (code-based) with **hash history**: `/` is the 3×3 overview,
+`/w/$wsId` the editor, `/photos` photo management and `/stickers` sticker
+management; an unknown workspace id redirects to `/`. The two libraries are
+pages of their own rather than drawers over the board: each draws its own chrome
+(no floating board actions, and the board's key map is inert there), and its
+back chip returns wherever it was opened from. `#/legacy-index` holds the
+retained launcher draft (see above), reachable by URL only. The view no longer
+lives in the store: the route is the view; the route param drives `activeId`.
 Grid↔edit navigations pass `viewTransition` so the cell→canvas morph keeps
 working (disabled under prefers-reduced-motion via `viewTransitionOption()`).
 

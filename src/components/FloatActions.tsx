@@ -4,7 +4,7 @@ import { ArrowLeft, Redo2, RotateCcw, Undo2 } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { useT } from '../lib/i18n'
-import { GRID_PATH, isGridPath } from '../lib/routes'
+import { isGridPath, OVERVIEW_PATH } from '../lib/routes'
 import { say } from '../lib/toast'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { useStore } from '../store'
@@ -49,7 +49,7 @@ export function FloatActions() {
 
   const goGrid = () => {
     useStore.getState().clearSelection()
-    void navigate({ to: GRID_PATH, viewTransition: viewTransitionOption() })
+    void navigate({ to: OVERVIEW_PATH, viewTransition: viewTransitionOption() })
   }
 
   const doReset = () => {
