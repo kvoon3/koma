@@ -1,6 +1,7 @@
 import type { Workspace } from '../store'
 import type { BgImage } from './collageBg'
 import type { CutoutMap } from './cutout'
+import type { StickerRecipe } from './stickerRecipe'
 
 export interface SessionPhotoRecord {
   id: string
@@ -15,6 +16,12 @@ export interface SessionPhotoRecord {
   folder?: string
   /** Deleted asset a placed copy still draws (see lib/stickerLibrary). */
   orphaned?: boolean
+  /**
+   * How a made sticker was drawn, so it reopens in the maker (see
+   * lib/stickerRecipe). Absent on every sticker made before re-editing, and on
+   * every photo: such an asset offers Erase only.
+   */
+  recipe?: StickerRecipe
 }
 
 /** One board of nine, saved with the session (see `normalizeGrids`). */
@@ -109,16 +116,18 @@ const META_KEY = 'session'
 let dbPromise: Promise<IDBDatabase> | null = null
 /**
  * The ids written in this page session, with the signature of the record's
- * mutable fields (name, dims, kind, folder, orphaned): a File is immutable so
- * an unchanged record is never re-put, while a sticker moving between folders
- * is (the record itself is all that is written again, the File riding along as
- * a reference rather than as fresh bytes).
+ * mutable fields (name, dims, kind, folder, orphaned, and whether it carries a
+ * maker's recipe): a File is immutable so an unchanged record is never re-put,
+ * while a sticker moving between folders is (the record itself is all that is
+ * written again, the File riding along as a reference rather than as fresh
+ * bytes). The recipe's own bytes stay out of the signature: it is written once
+ * with the asset and never edited, so its presence is all that can change.
  */
 const writtenIds = new Map<string, string>()
 
-/** Everything about a record except its pixels. */
+/** Everything about a record except its pixels (and the recipe's payload). */
 function recordSignature(p: SessionPhotoRecord): string {
-  return JSON.stringify([p.name, p.trueW, p.trueH, p.kind ?? '', p.folder ?? '', p.orphaned ?? false])
+  return JSON.stringify([p.name, p.trueW, p.trueH, p.kind ?? '', p.folder ?? '', p.orphaned ?? false, p.recipe ? 1 : 0])
 }
 
 function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {
