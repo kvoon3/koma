@@ -11,6 +11,7 @@ import { ExportDialog } from './components/ExportDialog'
 import { FloatActions } from './components/FloatActions'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
+import { PhotoManager } from './components/PhotoManager'
 import { Stage } from './components/Stage'
 import { StickerManager } from './components/StickerManager'
 import ToastHost from './components/ToastHost'
@@ -265,13 +266,19 @@ const workspaceRoute = createRoute({
   component: WorkspaceRoute,
 })
 
+const photoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/photos',
+  component: PhotoManager,
+})
+
 const stickerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/stickers',
   component: StickerManager,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, workspaceRoute, stickerRoute])
+const routeTree = rootRoute.addChildren([indexRoute, workspaceRoute, photoRoute, stickerRoute])
 
 export const router = createRouter({
   routeTree,

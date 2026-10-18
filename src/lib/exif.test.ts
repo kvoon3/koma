@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, it } from 'bun:test'
-import { parseExif, readExif } from './exif'
+import { formatTakenAt, parseExif, readExif } from './exif'
 import { baseJpeg, exifJpeg, plainJpeg, truncatedExifJpeg } from './exifFixture'
 
 const near = (a: number, b: number) => Math.abs(a - b) < 0.0005
@@ -57,5 +57,24 @@ describe('readExif', () => {
 
   it('ignores non-JPEG files', async () => {
     expect(await readExif(new File([baseJpeg()], 'note.txt', { type: 'text/plain' }))).toBeNull()
+  })
+})
+
+describe('formatTakenAt', () => {
+  it('rewrites the camera colon date to a readable minute', () => {
+    expect(formatTakenAt('2024:05:01 12:34:56')).toBe('2024-05-01 12:34')
+    expect(formatTakenAt('  2020:12:31 23:59:59 ')).toBe('2020-12-31 23:59')
+  })
+
+  it('accepts the ISO-ish variants a phone writes', () => {
+    expect(formatTakenAt('2024:05:01T12:34:56')).toBe('2024-05-01 12:34')
+    expect(formatTakenAt('2024:05:01 12:34')).toBe('2024-05-01 12:34')
+  })
+
+  it('has nothing to show for a photo without one, or for a junk value', () => {
+    expect(formatTakenAt(undefined)).toBeNull()
+    expect(formatTakenAt(null)).toBeNull()
+    expect(formatTakenAt('')).toBeNull()
+    expect(formatTakenAt('May 1, 2024')).toBeNull()
   })
 })

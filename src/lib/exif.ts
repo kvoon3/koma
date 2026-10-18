@@ -93,6 +93,21 @@ export function parseExif(input: ArrayBuffer | Uint8Array): ExifData | null {
   }
 }
 
+const TAKEN_AT = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2})/
+
+/**
+ * `DateTimeOriginal` as a detail view shows it: `2024:05:01 12:34:56` becomes
+ * `2024-05-01 12:34` (the EXIF colon date is a camera convention, not an ISO
+ * one, so it is rewritten rather than handed to a Date parser). Null for
+ * anything that is not that shape.
+ */
+export function formatTakenAt(raw: string | null | undefined): string | null {
+  if (!raw)
+    return null
+  const m = TAKEN_AT.exec(raw.trim())
+  return m ? `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}` : null
+}
+
 /** Read a photo's header (the APP1 block sits in the first 256 KB). */
 export async function readExif(file: File): Promise<ExifData | null> {
   const jpeg = file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name)
