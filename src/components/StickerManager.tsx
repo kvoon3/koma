@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { useT } from '../lib/i18n'
 import { addFolder, folderOf, referenceCounts, renameFolder, stickerAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
+import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FolderPrompt } from './sticker/FolderPrompt'
@@ -66,6 +67,10 @@ export function StickerManager() {
   /** The sticker awaiting a delete confirm. */
   const [deleting, setDeleting] = useState<string | null>(null)
   const [folderAsk, setFolderAsk] = useState<string | null>(null)
+  // The chip bar scrolls sideways on a phone; its cut edge fades like the tools
+  // dock's row, so a half-seen folder name reads as "more this way" rather than
+  // as a chip clipped mid-word.
+  const chipFadeRef = useScrollFade<HTMLDivElement>('x')
 
   const stickers = useMemo(() => stickerAssetsOf(allPhotos), [allPhotos])
 
@@ -180,14 +185,23 @@ export function StickerManager() {
       </header>
 
       <div className="flex flex-none items-center gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:px-4">
-        {/* The chips scroll sideways on their own; the folder actions stay put
-            at the end of the row, so a phone never has to scroll to reach them. */}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb">
-          <FolderChip active={pick == null} label={t('All')} count={countIn(null)} onClick={() => setRawPick(null)} pick="__all" />
-          <FolderChip active={pick === ''} label={unsorted} count={countIn('')} onClick={() => setRawPick('')} pick={unsorted} />
-          {folders.map(f => (
-            <FolderChip key={f} active={pick === f} label={f} count={countIn(f)} onClick={() => setRawPick(f)} pick={f} />
-          ))}
+        {/* Chips scroll on their own; the folder actions stay put at the end of
+            the row, so a phone never scrolls to reach them. One row child only:
+            the fade hook watches the scroller and its first child, so a new
+            folder re-measures the fade itself. */}
+        <div
+          ref={chipFadeRef}
+          style={scrollFadeStyleX}
+          data-folder-chips=""
+          className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb"
+        >
+          <div className="flex w-max items-center gap-1.5">
+            <FolderChip active={pick == null} label={t('All')} count={countIn(null)} onClick={() => setRawPick(null)} pick="__all" />
+            <FolderChip active={pick === ''} label={unsorted} count={countIn('')} onClick={() => setRawPick('')} pick={unsorted} />
+            {folders.map(f => (
+              <FolderChip key={f} active={pick === f} label={f} count={countIn(f)} onClick={() => setRawPick(f)} pick={f} />
+            ))}
+          </div>
         </div>
         {/* Rename / delete act on the picked folder; All has neither and the
             default folder only groups what was never filed. */}
