@@ -15,7 +15,22 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - Export seam: Safari-only (not reproducible in Chromium). The flush-draw fix was reverted; the crossfade workaround stays until the Safari root cause is found.
 - Vite devtools (`@vitejs/devtools`, dev-only) (Wave 1)
 
-## Wave 2: drawer / panel UX
+## Shipped in Wave 2 (PRs #29/#30/#31)
+
+- Detent rotation for pane photos: reusable dial, stepless drag with detent magnetism, flips, undo-coalesced gestures
+- Tools-drawer rework: three displays with live mode-switching mid-drag, FLIP item glides, whole-drawer drag, scroll preservation, list-swap slide, edge fade
+- Workspaces: Mission Control-style switcher (pull-down in / pull-up out, 1:1 board pager, read-only strip, nameless cards), grid groups with copy-on-add, WorkspaceGrid split into components/grid/
+- Vision acceptance pipeline (judge at 375px + 1280px) recorded in AGENTS.md; i18n drift test; UNDOABLE_PATCH_KEYS derived from the snapshot
+
+## Tech-debt wave (from the architecture review, before Wave 3)
+
+- router.tsx: extract ~250 lines of export orchestration to lib/exportFlow.ts; split the keyboard map into a hook (M)
+- store.ts: split along the seams into lib/layout.ts (pure), lib/photoLibrary.ts, lib/settingsStore.ts (M)
+- exporter.ts: move isTransparentBg out of store (lib must not import the app store) (S)
+- lib/motionTokens.ts for the shared ease curve hardcoded in dockSwap/dockFlip/boardPager (S)
+- paneCommands.ts: one file one job (S)
+
+## Wave 3: content features (read-only on the exporter)
 
 - **Detent rotation common component** + pane rotation/flip (`panes.ts`, `Pane.tsx`): every later rotation UI reuses it.
 - **Dock rework** (`ToolsDock.tsx`, `toolsDockMode.ts`, `dockPhysics.ts`): whole-drawer drag gesture, fix text-insert tools display, drop the minimized state for the three display modes, ratio control when nothing is selected. One agent owns the dock.
