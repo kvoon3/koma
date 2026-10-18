@@ -726,7 +726,7 @@ describe('sticker management (a library surface, outside the board history)', ()
     hydrateWith([legacyPhoto('p1'), legacyPhoto('s1')])
     expect(state().photos.map(p => p.kind)).toEqual(['photo', 'photo'])
     expect(state().stickerFolders).toEqual([])
-    expect(state().history.past).toHaveLength(0)
+    expect(canUndo(state().history)).toBe(false)
   })
 
   test('a saved folder list hydrates, and a retired asset nothing draws is collected', () => {
@@ -745,7 +745,7 @@ describe('sticker management (a library surface, outside the board history)', ()
 
   test('folder edits push no undo entry', () => {
     hydrateWith([legacyPhoto('p1')])
-    const before = state().history.past.length
+    const before = canUndo(state().history)
     expect(state().addStickerFolder('Faces')).toBe(true)
     expect(state().addStickerFolder('faces')).toBe(false)
     expect(state().addStickerFolder('   ')).toBe(false)
@@ -753,7 +753,7 @@ describe('sticker management (a library surface, outside the board history)', ()
     expect(state().renameStickerFolder('Nope', 'Heads')).toBe(false)
     state().deleteStickerFolder('Heads')
     expect(state().stickerFolders).toEqual([])
-    expect(state().history.past).toHaveLength(before)
+    expect(canUndo(state().history)).toBe(before)
   })
 
   test('moving a sticker to a folder, and deleting an empty folder, repoints it', () => {
@@ -877,7 +877,7 @@ describe('photo management (tags, usage, delete)', () => {
 
   test('tag edits push no undo entry', () => {
     hydrateWith([photo('p1'), photo('p2')])
-    const before = state().history.past.length
+    const before = canUndo(state().history)
     expect(state().addPhotoTag('Trip')).toBe(true)
     expect(state().addPhotoTag('trip')).toBe(false)
     expect(state().addPhotoTag('  ')).toBe(false)
@@ -885,7 +885,7 @@ describe('photo management (tags, usage, delete)', () => {
     expect(state().renamePhotoTag('Nope', 'Journey')).toBe(false)
     state().deletePhotoTag('Journey')
     expect(state().photoTags).toEqual([])
-    expect(state().history.past).toHaveLength(before)
+    expect(canUndo(state().history)).toBe(before)
   })
 
   test('tagging a photo adds the tag to the list on the spot, in one spelling', () => {

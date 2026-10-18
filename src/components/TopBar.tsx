@@ -5,8 +5,6 @@ import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Images, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, History as HistoryIcon, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { clearFilterCaches } from '../lib/filterCache'
@@ -329,7 +327,6 @@ export function TopBar({
 
   // The hint counts what the drawer shows: photos, never stickers.
   const photos = useStore(s => photoAssetsOf(s.photos).length)
-  const photos = useStore(s => s.photos.length)
   const root = useStore(s => activeWs(s).root)
   const anyFilled = useStore(s =>
     s.workspaces.some(w => leafList(w.root).some(l => l.photoId)))
