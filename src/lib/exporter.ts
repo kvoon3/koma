@@ -648,7 +648,14 @@ function stickerPhotos(_vids: LiveVid[], opts: ExportOptions): Photo[] {
   return [...new Set(wanted)]
 }
 
-/** One live cell's video frame clipped into its pane; board inserts are redrawn by the frame loop. */
+/**
+ * One live cell's video frame clipped into its pane; board inserts are redrawn
+ * by the frame loop. The paused still the frame loop starts from carries the
+ * pane's texture filter; the moving video does not (`lib/filters` runs on a
+ * still's pixels, and a per-frame pass at 30fps is not worth the hit). A
+ * filtered Live Photo therefore exports as unfiltered video over a filtered
+ * board.
+ */
 function drawLiveCell(
   ctx: CanvasRenderingContext2D,
   prep: Prepared,
