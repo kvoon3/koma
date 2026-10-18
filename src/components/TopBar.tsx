@@ -5,9 +5,11 @@ import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Images, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, History as HistoryIcon, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { clearFilterCaches } from '../lib/filterCache'
+import { stepCount } from '../lib/history'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
@@ -19,6 +21,7 @@ import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, migrateWorkspaceInserts, normalizeWorkspaces, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import { ConfirmDialog } from './ConfirmDialog'
+import { HistoryPanel } from './HistoryPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
 import { buttonBase, buttonVariants } from './ui/buttonStyles'
@@ -247,6 +250,10 @@ export function TopBar({
   const [hop, setHop] = useState(0)
   /** The header dropdown holding the open panel; the settings panel keeps its own state. */
   const [openMenu, setOpenMenu] = useState<HeaderMenuId | null>(null)
+  /** The step-tree panel, opened from the workspace menu. */
+  const [historyOpen, setHistoryOpen] = useState(false)
+  /** Where the History panel hangs from: the menus' left edge. */
+  const historyAnchorRef = useRef<HTMLSpanElement | null>(null)
 
   // The panel can be opened without a pointer on the bar (the `,` shortcut,
   // the canvas menu), so a menu left open gives way to it here, at render
@@ -327,12 +334,21 @@ export function TopBar({
 
   // The hint counts what the drawer shows: photos, never stickers.
   const photos = useStore(s => photoAssetsOf(s.photos).length)
+  const photos = useStore(s => s.photos.length)
+  const steps = useStore(s => stepCount(s.history))
   const root = useStore(s => activeWs(s).root)
   const anyFilled = useStore(s =>
     s.workspaces.some(w => leafList(w.root).some(l => l.photoId)))
   const t = useT()
   const dark = useSyncExternalStore(subscribeTheme, isDarkSnapshot)
   const filled = useMemo(() => leafList(root).some(l => l.photoId), [root])
+
+  /** Open the History panel: the menu that opens it closes, as for the panel. */
+  const openHistory = () => {
+    setOpenMenu(null)
+    onSettingsOpenChange(false)
+    setHistoryOpen(true)
+  }
 
   const doSaveFile = async () => {
     setSaving(true)
@@ -394,6 +410,10 @@ export function TopBar({
   return (
     <header className="app-titlebar relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar">
       <Wordmark />
+      {/* A zero-width anchor at the menus' left edge: the History panel is
+          opened from a menu item rather than by this element, so it needs an
+          anchor that outlives the menu it was opened from. */}
+      <span ref={historyAnchorRef} aria-hidden className="w-0 self-stretch" />
       {/* The menubar is what makes a click-opened menu hand over to the next
           trigger on hover: the panel follows the open trigger. */}
       <Menubar className="flex items-stretch max-sm:gap-0">
@@ -407,6 +427,14 @@ export function TopBar({
           <Menu.Item className={itemCls} onClick={() => wsFileRef.current?.click()}>
             <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="flex text-dim" />
             {t('Open workspace file…')}
+          </Menu.Item>
+          <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
+          {/* Undo / redo walk the step tree one step at a time; this is the
+              whole tree, jumps included. App-global, so it lives in both views. */}
+          <Menu.Item className={itemCls} onClick={openHistory}>
+            <MorphIcon icon={HistoryIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
+            {t('History')}
+            <span className={hintCls}>{t('{n} steps', { n: steps })}</span>
           </Menu.Item>
         </CatMenu>
 
@@ -504,6 +532,8 @@ export function TopBar({
         filled={filled}
         dark={dark}
       />
+
+      <HistoryPanel open={historyOpen} onOpenChange={setHistoryOpen} anchor={historyAnchorRef} />
 
       <input
         ref={fileRef}
