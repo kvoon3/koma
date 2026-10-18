@@ -31,6 +31,19 @@ export interface Perforation {
   spacing: number
 }
 
+/**
+ * The stamp sliders' own unit: **stage pixels**, i.e. what the maker's stage
+ * shows at 1x. `depth` is how far one notch bites into the border (the punch
+ * disc's radius), `spacing` the distance between notch centres along the edge.
+ * `perforationToTexture` turns a design into the texture pixels the punch
+ * takes, which is what makes the slider WYSIWYG: dial 5 and the teeth are 5px
+ * deep on the stage however large the source photo is.
+ */
+export interface PerforationDesign {
+  depth: number
+  spacing: number
+}
+
 export interface SilhouetteOptions {
   /** Border width in pixels, already mapped through `outlineRadius`. */
   radius: number
@@ -63,14 +76,23 @@ export const ALPHA_SEED_THRESHOLD = 0.1
 /** Half-pixel antialias band on every threshold (`radius + 0.5 − d`). */
 export const EDGE_SOFTNESS = 0.5
 /**
- * Hole size and spacing are slider design units too, mapped by the same 2.35 as
- * the border width so the two read on one scale: a hole looks big next to a
- * thick border because both numbers come from the same unit.
+ * Stamp sliders, in stage pixels. The range is what a 220px-tall stage can
+ * carry: a 1px bite is a hairline, 16px is a full scallop, and the spacing
+ * runs from teeth that overlap (a wavy edge) to dots a hair apart.
  */
-export const PERFORATION_FACTOR = OUTLINE_RADIUS_FACTOR
+export const MIN_TOOTH_DEPTH = 1
+export const MAX_TOOTH_DEPTH = 16
+export const MIN_TOOTH_SPACING = 3
+export const MAX_TOOTH_SPACING = 40
 const DISTANCE_INFINITY = 1e20
 const MIN_PERFORATION_SPACING = 4
-const MAX_PERFORATION_SIZE = 96
+/**
+ * Texture-pixel ceiling on one notch's diameter. At the shipped stage (a
+ * ~220px-tall preview of a ~1500px texture) the scale runs about 6-8x, so a
+ * 16px slider depth asks for ~250px here; the cap keeps the padded frame and
+ * the punch loop bounded for a huge source displayed tiny.
+ */
+const MAX_PERFORATION_SIZE = 320
 
 export function clamp01(value: number): number {
   return value < 0 ? 0 : value > 1 ? 1 : value
@@ -81,13 +103,35 @@ export function outlineRadius(widthPx: number): number {
   return Math.min(MAX_OUTLINE_RADIUS, Math.max(0, raw))
 }
 
-/** Slider units → the notch geometry `composeSilhouette` takes. */
-export function perforationFromSliders(holeSize: number, holeSpacing: number): Perforation {
-  const size = Number.isFinite(holeSize) ? holeSize * PERFORATION_FACTOR : 0
-  const spacing = Number.isFinite(holeSpacing) ? holeSpacing * PERFORATION_FACTOR : 0
+function clampRange(value: number, min: number, max: number) {
+  if (!Number.isFinite(value))
+    return min
+  return Math.min(max, Math.max(min, value))
+}
+
+/** The stamp sliders' value: a bite depth and a period, both in stage pixels. */
+export function perforationFromSliders(depth: number, spacing: number): PerforationDesign {
   return {
-    size: Math.min(MAX_PERFORATION_SIZE, Math.max(0, size)),
-    spacing: Math.max(MIN_PERFORATION_SPACING, spacing),
+    depth: clampRange(depth, MIN_TOOTH_DEPTH, MAX_TOOTH_DEPTH),
+    spacing: clampRange(spacing, MIN_TOOTH_SPACING, MAX_TOOTH_SPACING),
+  }
+}
+
+/**
+ * Stage pixels → the notch geometry `composeSilhouette` takes. `scale` is
+ * texture pixels per stage pixel (the sticker's visible long edge divided by
+ * the long edge the stage shows it at), so the drawn teeth land at the size
+ * the sliders promised.
+ */
+export function perforationToTexture(design: PerforationDesign, scale: number): Perforation {
+  const ratio = Number.isFinite(scale) && scale > 0 ? scale : 1
+  const depth = clampRange(design.depth, MIN_TOOTH_DEPTH, MAX_TOOTH_DEPTH)
+  const spacing = clampRange(design.spacing, MIN_TOOTH_SPACING, MAX_TOOTH_SPACING)
+  return {
+    // The slider is the bite depth (the punch disc's radius), so a disc is two
+    // depths across: centred on the rim, half of it bites in, half opens out.
+    size: Math.min(MAX_PERFORATION_SIZE, Math.max(0, depth * 2 * ratio)),
+    spacing: Math.max(MIN_PERFORATION_SPACING, spacing * ratio),
   }
 }
 
@@ -357,11 +401,14 @@ export function composedAlpha(result: SilhouetteResult): Float32Array {
  * can reach, plus a pixel of air and one for the antialias edge. `sticker.ts`
  * draws the artwork back in, centred, on a canvas this much larger on each
  * side, which is the whole reason a thick border never runs off the texture.
+ *
+ * A notch only needs its *inward* half inside the frame: it is centred on the
+ * rim, so half of its disc lies in transparent air where cutting is a no-op.
  */
 export function silhouettePadding(radius: number, perforation?: Perforation | null): number {
   const stroke = Math.max(
     Math.max(0, radius),
-    perforation ? Math.max(0, perforation.size) : 0,
+    perforation ? Math.max(0, perforation.size) / 2 : 0,
   )
   return Math.ceil(stroke) + 2
 }

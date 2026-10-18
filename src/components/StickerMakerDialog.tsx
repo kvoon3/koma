@@ -1,5 +1,5 @@
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
-import type { Perforation } from '../lib/stickerFX'
+import type { PerforationDesign } from '../lib/stickerFX'
 import { Dialog } from '@base-ui/react/dialog'
 import { ImagePlus, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -13,7 +13,7 @@ import { removeBackground } from '../lib/bgRemoval'
 import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
 import { makeSticker } from '../lib/sticker'
-import { perforationFromSliders } from '../lib/stickerFX'
+import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
 import { say } from '../lib/toast'
 import { dataUrlToFile } from '../lib/workspaceFile'
 import { useStore } from '../store'
@@ -57,13 +57,20 @@ const MATERIALS: { value: StickerMaterialType, label: string }[] = [
 
 const OUTLINE_DEFAULT = 18
 /**
- * Stamp defaults, in the same design units as the outline width: at the
- * default border a hole is ~19px across and its neighbours ~28px apart on the
- * texture, which is the spacing a real die-cut stamp has (holes about as wide
- * as the gap between them).
+ * Stamp defaults, in stage pixels (the sliders' own unit). The bite is a little
+ * over half the default border's ~6px stage width, and the spacing leaves a
+ * ~4px tooth between bites, so the edge reads as a perforation at 1x instead of
+ * as a hairline. They are a screen measurement, not a texture one, so the same
+ * numbers read the same on a phone and on a desktop.
  */
-const HOLE_SIZE_DEFAULT = 8
-const HOLE_SPACING_DEFAULT = 12
+const TOOTH_DEPTH_DEFAULT = 4
+const TOOTH_SPACING_DEFAULT = 12
+/**
+ * The stage before anything has been rendered into it: its designed height, so
+ * the first bake of a session has a sane scale instead of falling back to 1:1.
+ * Every later bake measures the preview's real drawn size.
+ */
+const STAGE_HEIGHT_DEFAULT = 220
 /** Text stickers read as black lettering inside a white die-cut border. */
 const TEXT_COLOR_DEFAULT = '#000000'
 const OUTLINE_COLOR_DEFAULT = '#ffffff'
@@ -129,7 +136,14 @@ async function cutoutBackground(
 async function insertSticker(
   source: StickerSource | null,
   paneId: string | null,
-  style: { outlineWidth: number, outlineColor: string, material: StickerMaterialType, baseName: string, perforation: Perforation | null },
+  style: {
+    outlineWidth: number
+    outlineColor: string
+    material: StickerMaterialType
+    baseName: string
+    perforation: PerforationDesign | null
+    displayLongEdge: number
+  },
   t: (key: string) => string,
   onDone: () => void,
 ) {
@@ -139,6 +153,7 @@ async function insertSticker(
     outlineWidth: style.outlineWidth,
     outlineColor: style.outlineColor,
     perforation: style.perforation,
+    displayLongEdge: style.displayLongEdge,
     maxEdge: INSERT_MAX,
     material: { type: style.material, intensity: 1 },
   })
@@ -153,19 +168,44 @@ async function insertSticker(
 }
 
 /** Debounced live preview of the sticker the current inputs would produce. */
-function StickerPreview({ source, outlineWidth, outlineColor, material, perforation }: {
+function StickerPreview({ source, outlineWidth, outlineColor, material, perforation, displayLongEdge, onDisplaySize }: {
   source: StickerSource | null
   outlineWidth: number
   outlineColor: string
   material: StickerMaterialType
-  perforation: Perforation | null
+  perforation: PerforationDesign | null
+  displayLongEdge: number
+  onDisplaySize: (longEdge: number) => void
 }) {
   const t = useT()
+  const imageRef = useRef<HTMLImageElement | null>(null)
   const [rendered, setRendered] = useState<{ key: string, url: string } | null>(null)
   const renderKey = useMemo(
-    () => (source ? JSON.stringify([source, outlineWidth, outlineColor, material, perforation]) : ''),
-    [source, outlineWidth, outlineColor, material, perforation],
+    () => (source ? JSON.stringify([source, outlineWidth, outlineColor, material, perforation, Math.round(displayLongEdge)]) : ''),
+    [source, outlineWidth, outlineColor, material, perforation, displayLongEdge],
   )
+
+  // The stage is what the stamp sliders are measured against, so the drawn size
+  // of the preview is read back here: `object-contain` in a fixed frame makes
+  // it a function of the frame and the artwork's aspect, not of the window.
+  const drawn = rendered?.key === renderKey ? rendered?.url : null
+  useEffect(() => {
+    const image = imageRef.current
+    if (!image || !drawn)
+      return
+    const report = () => {
+      const rect = image.getBoundingClientRect()
+      const longEdge = Math.max(rect.width, rect.height)
+      if (longEdge > 0)
+        onDisplaySize(longEdge)
+    }
+    report()
+    if (typeof ResizeObserver === 'undefined')
+      return
+    const observer = new ResizeObserver(report)
+    observer.observe(image)
+    return () => observer.disconnect()
+  }, [drawn, onDisplaySize])
 
   // Live preview, debounced so typing / dragging a slider doesn't flood makeSticker.
   useEffect(() => {
@@ -173,7 +213,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
       return
     let alive = true
     const id = window.setTimeout(() => {
-      makeSticker(source, { outlineWidth, outlineColor, perforation, maxEdge: PREVIEW_MAX, material: { type: material, intensity: 1 } })
+      makeSticker(source, { outlineWidth, outlineColor, perforation, displayLongEdge, maxEdge: PREVIEW_MAX, material: { type: material, intensity: 1 } })
         .then((res) => {
           if (alive)
             setRendered({ key: renderKey, url: res.dataUrl })
@@ -187,12 +227,12 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
       alive = false
       window.clearTimeout(id)
     }
-  }, [source, outlineWidth, outlineColor, material, perforation, renderKey])
+  }, [source, outlineWidth, outlineColor, material, perforation, displayLongEdge, renderKey])
 
   const url = source && rendered?.key === renderKey ? rendered.url || null : null
   const rendering = !!source && rendered?.key !== renderKey
   if (url) {
-    return <img src={url} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
+    return <img ref={imageRef} src={url} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
   }
   return (
     <span className="text-[11.5px] text-faint">
@@ -259,6 +299,8 @@ function StickerStage({
   outlineColor,
   material,
   perforation,
+  displayLongEdge,
+  onDisplaySize,
   onPick,
   onRemoveBg,
   onRestore,
@@ -273,7 +315,9 @@ function StickerStage({
   outlineWidth: number
   outlineColor: string
   material: StickerMaterialType
-  perforation: Perforation | null
+  perforation: PerforationDesign | null
+  displayLongEdge: number
+  onDisplaySize: (longEdge: number) => void
   onPick: () => void
   onRemoveBg: () => void
   onRestore: () => void
@@ -310,7 +354,15 @@ function StickerStage({
 
   return (
     <div className={stageFrameCls}>
-      <StickerPreview source={source} outlineWidth={outlineWidth} outlineColor={outlineColor} material={material} perforation={perforation} />
+      <StickerPreview
+        source={source}
+        outlineWidth={outlineWidth}
+        outlineColor={outlineColor}
+        material={material}
+        perforation={perforation}
+        displayLongEdge={displayLongEdge}
+        onDisplaySize={onDisplaySize}
+      />
       {tab === 'image' && imageSrc && (
         <div className="absolute inset-x-0 top-0 z-[1] flex items-start justify-between gap-1.5 p-1.5">
           <div className="flex flex-wrap gap-1">
@@ -474,8 +526,9 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   const [outlineColor, setOutlineColor] = useState(OUTLINE_COLOR_DEFAULT)
   const [material, setMaterial] = useState<StickerMaterialType>('original')
   const [stamp, setStamp] = useState(false)
-  const [holeSize, setHoleSize] = useState(HOLE_SIZE_DEFAULT)
-  const [holeSpacing, setHoleSpacing] = useState(HOLE_SPACING_DEFAULT)
+  const [toothDepth, setToothDepth] = useState(TOOTH_DEPTH_DEFAULT)
+  const [toothSpacing, setToothSpacing] = useState(TOOTH_SPACING_DEFAULT)
+  const [displayLongEdge, setDisplayLongEdge] = useState(STAGE_HEIGHT_DEFAULT)
   const [editingMask, setEditingMask] = useState(false)
 
   const [inserting, setInserting] = useState(false)
@@ -489,11 +542,12 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   )
 
   const imageStage = imageStageOf(imageSrc, bgJob)
-  // The holes are punched through the same border the width slider draws, so
+  // The teeth are punched through the same border the width slider draws, so
   // the perforation is a property of the outline pass, not a second sticker.
+  // Its numbers are stage pixels; the bake converts them (see StickerPreview).
   const perforation = useMemo(
-    () => (stamp ? perforationFromSliders(holeSize, holeSpacing) : null),
-    [stamp, holeSize, holeSpacing],
+    () => (stamp ? perforationFromSliders(toothDepth, toothSpacing) : null),
+    [stamp, toothDepth, toothSpacing],
   )
 
   const insert = async () => {
@@ -503,7 +557,7 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
       : (imageName.replace(/\.[^.]+$/, '') || 'sticker')
     setInserting(true)
     try {
-      await insertSticker(source, paneId, { outlineWidth, outlineColor, material, baseName, perforation }, t, onClose)
+      await insertSticker(source, paneId, { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge }, t, onClose)
     }
     catch {
       say(t('Failed to make sticker'))
@@ -584,6 +638,8 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
                     outlineColor={outlineColor}
                     material={material}
                     perforation={perforation}
+                    displayLongEdge={displayLongEdge}
+                    onDisplaySize={setDisplayLongEdge}
                     onPick={pickImage}
                     onRemoveBg={removeBg}
                     onRestore={restoreOriginal}
@@ -605,8 +661,8 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
               />
               {stamp && (
                 <>
-                  <RangeField label={t('Hole size')} text={`${holeSize}`} min={2} max={24} value={holeSize} onChange={setHoleSize} />
-                  <RangeField label={t('Hole spacing')} text={`${holeSpacing}`} min={4} max={40} value={holeSpacing} onChange={setHoleSpacing} />
+                  <RangeField label={t('Tooth depth')} text={`${toothDepth}`} min={MIN_TOOTH_DEPTH} max={MAX_TOOTH_DEPTH} value={toothDepth} onChange={setToothDepth} />
+                  <RangeField label={t('Tooth spacing')} text={`${toothSpacing}`} min={MIN_TOOTH_SPACING} max={MAX_TOOTH_SPACING} value={toothSpacing} onChange={setToothSpacing} />
                 </>
               )}
               <SelectField

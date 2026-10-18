@@ -22,8 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import type { Perforation } from './stickerFX'
-import { composeSilhouette, outlineRadius, parseHexColor, silhouettePadding } from './stickerFX'
+import type { Perforation, PerforationDesign } from './stickerFX'
+import { composeSilhouette, outlineRadius, parseHexColor, perforationToTexture, silhouettePadding } from './stickerFX'
 
 export type StickerSource
   = | { type: 'text', text: string, color?: string, fontFamily?: string, fontWeight?: number | string }
@@ -35,10 +35,18 @@ export interface StickerMakeOptions {
   outlineWidth?: number
   outlineColor?: string
   /**
-   * Stamp perforation punched along the border's outer edge (see
-   * `lib/stickerFX`); absent or null is the plain die-cut border.
+   * Stamp perforation punched along the border's outer edge, in the sliders'
+   * own unit (stage pixels: a bite depth and a period). Absent or null is the
+   * plain die-cut border. The bake converts it with `displayLongEdge`.
    */
-  perforation?: Perforation | null
+  perforation?: PerforationDesign | null
+  /**
+   * Long edge, in CSS pixels, the result will be shown at (the maker's stage
+   * measures it). The perforation sliders read in those pixels, so this is
+   * what keeps them WYSIWYG: without it a design number is taken as texture
+   * pixels, which is only right for a 1:1 bake.
+   */
+  displayLongEdge?: number
   maxEdge?: number
   material?: {
     type: StickerMaterialType
@@ -96,10 +104,13 @@ const HOLOGRAPHIC_NOISE_SIZE = 96
 const MATERIAL_PREVIEW_CACHE_LIMIT = 6
 const GLITTER_RANDOM_VALUES_PER_FLAKE = 5
 
-/** Texture margin around the artwork, so the border and holes never clip. */
-function texturePadding(outlineWidth: number, perforation: Perforation | null): number {
-  const needed = silhouettePadding(outlineRadius(outlineWidth), perforation)
-  return Math.max(TEXTURE_PADDING, needed)
+/**
+ * Texture margin around the artwork so the render itself never clips. The
+ * outline pass pads its own frame afterwards, so only the border has to fit
+ * here (a notch's outward half is punched air either way).
+ */
+function texturePadding(outlineWidth: number): number {
+  return Math.max(TEXTURE_PADDING, silhouettePadding(outlineRadius(outlineWidth)))
 }
 
 interface HolographicNoiseCacheEntry {
@@ -381,20 +392,37 @@ function cropToVisible(canvas: HTMLCanvasElement) {
 
 async function prepareArtwork(
   source: StickerSource,
-  outline: { width: number, color: string, perforation: Perforation | null },
+  outline: {
+    width: number
+    color: string
+    perforation: PerforationDesign | null
+    displayLongEdge?: number
+  },
 ): Promise<PreparedArtwork> {
   const radius = outlineRadius(outline.width)
-  const padding = texturePadding(outline.width, outline.perforation)
+  const padding = texturePadding(outline.width)
   const rendered = source.type === 'image'
     ? await renderImageSource(source, padding)
     : { canvas: await renderTextSource(source, padding), hasTransparency: true }
   // Crop before outlining: a cutout is mostly transparent frame, and the
   // distance field then runs over the subject's box instead of the whole
   // texture. The outline pass pads the canvas back out for its own reach.
-  const canvas = cropToVisible(applySilhouette(cropToVisible(rendered.canvas), {
+  const artwork = cropToVisible(rendered.canvas)
+  // The stamp's WYSIWYG scale: the silhouette's long edge on the texture over
+  // the long edge the stage shows it at. A dilation by r grows the box by
+  // exactly r per side, so artwork + 2r is the visible long edge.
+  const visibleLongEdge = Math.max(artwork.width, artwork.height) + radius * 2
+  const displayLongEdge = outline.displayLongEdge ?? 0
+  const perforation = outline.perforation
+    ? perforationToTexture(
+        outline.perforation,
+        displayLongEdge > 0 ? visibleLongEdge / displayLongEdge : 1,
+      )
+    : null
+  const canvas = cropToVisible(applySilhouette(artwork, {
     radius,
     color: outline.color,
-    perforation: outline.perforation,
+    perforation,
   }))
   return {
     canvas,
@@ -724,6 +752,7 @@ export async function makeSticker(
     width: options.outlineWidth ?? DEFAULT_OUTLINE_WIDTH,
     color: options.outlineColor ?? DEFAULT_OUTLINE_COLOR,
     perforation: options.perforation ?? null,
+    displayLongEdge: options.displayLongEdge,
   })
   const originalLongEdge = Math.max(artwork.width, artwork.height)
   const previewScale = Math.min(1, (options.maxEdge ?? DEFAULT_MAX_EDGE) / originalLongEdge)
