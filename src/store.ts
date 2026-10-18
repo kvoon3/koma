@@ -42,6 +42,9 @@ import { migrateSettings, partializeSettings, SETTINGS_DEFAULTS, SETTINGS_VERSIO
 import { runPaneMorph } from './lib/viewTransition'
 import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
 
+// The transparent-fill test describes the collage background, so it lives with
+// it in lib/collageBg; re-exported so the app's call sites keep one import site.
+export { isTransparentBg } from './lib/collageBg'
 // The seams this file was split along are re-exported here, so every other
 // module keeps importing the store (see lib/layout, lib/photoLibrary,
 // lib/settingsStore).
@@ -65,7 +68,6 @@ export {
   SETTINGS_VERSION,
   TOOLS_DOCK_MODE,
 } from './lib/settingsStore'
-export type { DockBg, PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 
 /** One of the grid's collage workspaces (1–9 of them). Array order is the grid order. */
 export interface Workspace {
@@ -174,9 +176,7 @@ export const MAX_CANVAS_RATIO = 8
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
 
-// The transparent-fill test describes the collage background, so it lives with
-// it in lib/collageBg; re-exported so the app's call sites keep one import site.
-export { isTransparentBg } from './lib/collageBg'
+export type { DockBg, PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 
 function newWorkspace(): Workspace {
   const root = newLeaf()
