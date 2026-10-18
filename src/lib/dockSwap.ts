@@ -9,6 +9,7 @@
  * both lists move rightward over the same curve, crossing through an opacity
  * crossfade. GPU-friendly only, transform + opacity.
  */
+import { EASE_OUT } from './motionTokens'
 
 /** Travel of the slide, px. A strip of buttons, not a page: subtle. */
 export const DOCK_SWAP_PX = 24
@@ -16,8 +17,8 @@ export const DOCK_SWAP_PX = 24
 /** Duration, seconds. Between --dur-surface (160ms) and --dur-dialog (180ms). */
 export const DOCK_SWAP_S = 0.18
 
-/** --ease-out from index.css, verbatim, for this JS-driven animation. */
-export const DOCK_SWAP_EASE: [number, number, number, number] = [0.23, 1, 0.32, 1]
+/** The shared `--ease-out` token (lib/motionTokens) drives the slide. */
+export const DOCK_SWAP_EASE = EASE_OUT
 
 /**
  * A route swap reaches the dock as two mutation batches: the old route's portal

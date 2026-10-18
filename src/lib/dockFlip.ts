@@ -18,15 +18,16 @@
  * The math lives here, pure, so bun can test it without a DOM; ToolsDock owns
  * the reads and the animations.
  */
+import { EASE_OUT, EASE_OUT_CSS } from './motionTokens'
 
 /** Duration, seconds. --dur-fast (120ms) plus a hair so the fade lands with it. */
 export const DOCK_FLIP_S = 0.13
 
-/** --ease-out from index.css, verbatim, for this JS-driven animation. */
-export const DOCK_FLIP_EASE: [number, number, number, number] = [0.23, 1, 0.32, 1]
+/** The shared `--ease-out` token (lib/motionTokens) drives the glide. */
+export const DOCK_FLIP_EASE = EASE_OUT
 
 /** The same curve in the shape WAAPI (and CSS) take it. */
-export const DOCK_FLIP_EASE_CSS = `cubic-bezier(${DOCK_FLIP_EASE.join(', ')})`
+export const DOCK_FLIP_EASE_CSS = EASE_OUT_CSS
 
 /** Moves under half a pixel are layout noise, not motion. */
 export const DOCK_FLIP_MIN_PX = 0.5
