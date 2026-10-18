@@ -18,7 +18,7 @@ import {
   GRID_CELL_RATIO,
   shuffleFilled,
 } from './lib/gridTools'
-import { emptyHistory, record, redoStep, undoStep } from './lib/history'
+import { emptyHistory, jump, record, stepDown, stepUp } from './lib/history'
 import { clearImageCaches } from './lib/imageStore'
 import { migrateWorkspaceInserts } from './lib/layout'
 import {
@@ -180,8 +180,9 @@ interface State extends PersistedSettings {
   /** The one running pane cutout, for the pane's progress overlay. Session-only. */
   cutoutJob: { paneId: string, phase: 'loading' | 'processing', progress?: number } | null
   /**
-   * Undo / redo over the workspace board (see `lib/history`), app-global and
-   * session-only: never persisted, and a reload forgets it.
+   * Undo / redo over the workspace board as a tree of steps (see
+   * `lib/history`): app-global and session-only, never persisted, and a reload
+   * forgets it.
    */
   history: History<UndoSnapshot>
 }
@@ -459,7 +460,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   resetWorkspace: (id) => {
     if (!get().workspaces.some(w => w.id === id))
       return
-    commit()
+    commit('resetWorkspace')
     set(s => ({
       workspaces: resetSlot(s.workspaces, id, newWorkspace),
       ...clearedSelection,
@@ -472,7 +473,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = addSlot(before, newWorkspace)
     if (next === before)
       return null
-    commit()
+    commit('addWorkspace')
     set({ workspaces: next })
     return next[next.length - 1].id
   },
@@ -486,7 +487,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = removeSlot(s.workspaces, id, newWorkspace)
     if (next === s.workspaces)
       return
-    commit()
+    commit('removeWorkspace')
     set({ workspaces: next, activeId: activeAfterRemove(s.workspaces, next, s.activeId), ...clearedSelection })
   },
 
@@ -507,7 +508,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (next === s.grids)
       return null
     const workspaces = s.workspaces.map(cloneWorkspace)
-    commit()
+    commit('addGrid')
     set({
       grids: next,
       activeGridId: group.id,
@@ -542,7 +543,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     else {
       delete parkedBoards[id]
     }
-    commit()
+    commit('removeGrid')
     set({ grids: next, parkedBoards, activeGridId, workspaces, activeId, ...clearedSelection })
   },
 
@@ -551,7 +552,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = renameGroup(get().grids, id, name)
     if (next === get().grids)
       return
-    commit()
+    commit('renameGrid')
     set({ grids: next })
   },
 
@@ -587,7 +588,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     // Fewer than two filled cells has nothing to shuffle: no undo entry either.
     if (workspaces.filter(w => leafList(w.root).some(l => l.photoId)).length < 2)
       return
-    commit()
+    commit('shuffleWorkspaces')
     set({ workspaces: shuffleFilled(workspaces, w => leafList(w.root).some(l => l.photoId), rng) })
   },
 
@@ -597,7 +598,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const any = s.workspaces.some(w => (w.stickers?.length ?? 0) > 0 || leafList(w.root).some(l => l.photoId))
     if (!any)
       return
-    commit()
+    commit('clearGridPhotos')
     set(st => ({
       workspaces: st.workspaces.map(w => ({ ...w, root: clearTreePhotos(w.root), stickers: [] })),
       ...clearedSelection,
@@ -605,7 +606,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   },
 
   resetAllWorkspaces: () => {
-    commit()
+    commit('resetAllWorkspaces')
     set(s => ({
       workspaces: s.workspaces.map(w => ({ ...newWorkspace(), id: w.id })),
       ...clearedSelection,
@@ -691,7 +692,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const leaves = leafList(next)
     const created = leaves.find(l => !leafList(ws.root).some(o => o.id === l.id))
     const focusId = created?.id ?? ws.focusId
-    commit()
+    commit('split')
     runPaneMorph([], () =>
       set({ workspaces: mapActive(s, w => ({ ...w, root: next, focusId })) }))
   },
@@ -721,7 +722,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       stickers: [],
       label: null,
     })
-    commit()
+    commit('duplicatePane')
     runPaneMorph([], () =>
       set({ workspaces: mapActive(s, w => ({ ...w, root, focusId: created.id })) }))
   },
@@ -730,7 +731,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   resetPane: (paneId) => {
     if (!findLeaf(activeWs(get()).root, paneId))
       return
-    commit()
+    commit('resetPane')
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -776,7 +777,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const clip = s.paneClip
     if (!clip || !findLeaf(activeWs(s).root, paneId))
       return
-    commit()
+    commit('pastePane')
     set(st => ({
       workspaces: mapActive(st, w => ({
         ...w,
@@ -809,7 +810,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (!root)
       return
     const next = root
-    commit()
+    commit('closeOtherPanes')
     runPaneMorph(others.map(l => l.id), () =>
       set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId: paneId })),
@@ -830,7 +831,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = root
     const leaves = leafList(next)
     const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
-    commit()
+    commit('closeEmptyPanes')
     runPaneMorph(empty.map(l => l.id), () =>
       set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
@@ -848,7 +849,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return
     const leaves = leafList(next)
     const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
-    commit()
+    commit('closePane')
     runPaneMorph([paneId], () =>
       set({
         workspaces: mapActive(s, w => ({
@@ -867,7 +868,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return
     const leaves = leafList(next)
     const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
-    commit()
+    commit('deletePane')
     runPaneMorph([paneId], () =>
       set({
         workspaces: mapActive(s, w => ({ ...w, root: next, focusId })),
@@ -886,7 +887,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   removePhoto: (paneId) => {
     if (!findLeaf(activeWs(get()).root, paneId))
       return
-    commit()
+    commit('removePhoto')
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -911,14 +912,14 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const root = swapLeafContents(ws.root, a, b)
     if (root === ws.root)
       return
-    commit()
+    commit('swapPhotos')
     set(st => ({ workspaces: mapActive(st, w => ({ ...w, root })) }))
   },
 
   assign: (paneId, photoId) => {
     if (!findLeaf(activeWs(get()).root, paneId))
       return
-    commit()
+    commit('assign')
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -967,7 +968,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }
     if (next === ws.root)
       return
-    commit()
+    commit('assignMany')
     set(st => ({ workspaces: mapActive(st, w => (w.id === ws.id ? { ...w, root: next, focusId } : w)) }))
   },
 
@@ -999,14 +1000,15 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (!leaf)
       return
     const patch: Partial<Leaf> = axis === 'x' ? { flipX: !leaf.flipX } : { flipY: !leaf.flipY }
-    commit()
+    commit('flipPane')
     set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) }))
   },
 
   /**
-   * Set or clear a pane's texture filter: one tap, one undo step (untagged, like
-   * a flip). Clearing stores `undefined` so an untouched pane and a cleared one
-   * serialize the same, and so a session round-trip cannot resurrect it.
+   * Set or clear a pane's texture filter: one tap, one undo step (a discrete
+   * tag, so a quick second tap is a step of its own). Clearing stores
+   * `undefined` so an untouched pane and a cleared one serialize the same, and
+   * so a session round-trip cannot resurrect it.
    */
   setPaneFilter: (paneId, filter, tag) => {
     const leaf = findLeaf(activeWs(get()).root, paneId)
@@ -1025,7 +1027,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return
     if (!rotationOf(leaf) && !leaf.flipX && !leaf.flipY)
       return
-    commit()
+    commit('resetPaneRotation')
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { rot: 0, flipX: false, flipY: false }) })),
     }))
@@ -1078,7 +1080,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }
     if (next === ws.root)
       return
-    commit()
+    commit('autoFill')
     set(st => ({ workspaces: mapActive(st, w => (w.id === ws.id ? { ...w, root: next } : w)) }))
   },
 
@@ -1124,12 +1126,12 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = [...s.workspaces]
     const [ws] = next.splice(from, 1)
     next.splice(to, 0, ws)
-    commit()
+    commit('moveWorkspace')
     set({ workspaces: next })
   },
 
   addSticker: (photoId, x = 0.5, y = 0.5) => {
-    commit()
+    commit('addSticker')
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -1178,7 +1180,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   removeSticker: (stickerId) => {
     if (!get().workspaces.some(w => (w.stickers ?? []).some(st => st.id === stickerId)))
       return
-    commit()
+    commit('removeSticker')
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
@@ -1193,7 +1195,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     // in the same commit that adds it: one undo step, like a plain Text add.
     const fresh = newLabel(x, y)
     const label: PaneLabel = { ...fresh, ...init, id: fresh.id }
-    commit()
+    commit('addLabel')
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, labels: [...(w.labels ?? []), label] })),
       labelSel: label.id,
@@ -1225,7 +1227,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   removeLabel: (labelId) => {
     if (!get().workspaces.some(w => (w.labels ?? []).some(l => l.id === labelId)))
       return
-    commit()
+    commit('removeLabel')
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, labels: (w.labels ?? []).filter(l => l.id !== labelId) })),
       labelSel: s.labelSel === labelId ? null : s.labelSel,
@@ -1384,24 +1386,37 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   },
 
   /** Step back one board mutation (session-only; see lib/history). */
+  /** Step back to the parent step (session-only; see lib/history). */
   undo: () =>
     set((s) => {
-      const step = undoStep(s.history, snapshotOf(s))
+      const step = stepUp(s.history, snapshotOf(s))
       if (!step)
         return {}
       return { ...restoreSnapshot(s, step.snapshot), history: step.history }
     }),
 
-  /** Step forward again after an undo; cleared by the next new action. */
+  /** Step forward into the child visited last; the branches beside it stay. */
   redo: () =>
     set((s) => {
-      const step = redoStep(s.history, snapshotOf(s))
+      const step = stepDown(s.history, snapshotOf(s))
       if (!step)
         return {}
       return { ...restoreSnapshot(s, step.snapshot), history: step.history }
     }),
 
-  /** Forget the stacks: a replaced board (session hydrate, opened file) starts clean. */
+  /**
+   * Jump to any step of the tree (the history panel's rows): one move, so it
+   * records no step of its own, and the board it restores is the step exactly.
+   */
+  jumpTo: id =>
+    set((s) => {
+      const step = jump(s.history, id, snapshotOf(s))
+      if (!step)
+        return {}
+      return { ...restoreSnapshot(s, step.snapshot), history: step.history }
+    }),
+
+  /** Forget the tree: a replaced board (session hydrate, opened file) starts clean. */
   resetHistory: () => set({ history: emptyHistory() }),
 }), {
   // Visual settings survive reloads; the rest of the state (workspaces,
@@ -1422,8 +1437,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 /**
  * Capture the undoable slices before an action mutates them. Every mutating
  * action calls this *after* its own no-op guard, so an action that changes
- * nothing never pushes an entry. `tag` collapses a gesture's stream of
- * mutations into the single step undo returns to (see lib/history).
+ * nothing never records a step. `tag` names the step in the history panel and
+ * collapses a gesture's stream of mutations into the single step undo returns
+ * to (see lib/history).
  */
 function commit(tag: string | null = null): void {
   useStore.setState(s => ({ history: record(s.history, snapshotOf(s), Date.now(), tag) }))
@@ -1483,10 +1499,12 @@ interface Actions {
   setToolsDockMode: (mode: ToolsDockMode) => void
   autoFill: () => void
   patch: (p: Partial<State>) => void
-  /** Step back / forward over the board's mutations (see lib/history). */
+  /** Step back / forward over the board's steps (see lib/history). */
   undo: () => void
   redo: () => void
-  /** Drop both stacks: a replaced board has nothing earlier to return to. */
+  /** Move the cursor to any step of the tree (the history panel). */
+  jumpTo: (id: string) => void
+  /** Drop the tree: a replaced board has nothing earlier to return to. */
   resetHistory: () => void
   resetSettings: () => void
   setCanvasSize: (ratio: number, fill: number) => void

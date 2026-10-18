@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { degToRad, radToDeg } from './lib/detent'
 import { mulberry32 } from './lib/gridTools'
-import { emptyHistory, HISTORY_LIMIT } from './lib/history'
+import { canRedo, canUndo, emptyHistory, HISTORY_LIMIT, historyPath, stepCount } from './lib/history'
 import { leafList, rotationOf } from './lib/panes'
 import { MAX_GRIDS } from './lib/workspaces'
 
@@ -40,6 +40,11 @@ beforeEach(() => {
 
 const ws = () => activeWs(useStore.getState())
 const leaves = () => leafList(ws().root)
+const tree = () => useStore.getState().history
+/** How many steps undo can walk back through: the cursor's depth. */
+const depth = () => Math.max(0, historyPath(tree()).length - 1)
+/** How many steps a redo walks down into (the cursor's children). */
+const ahead = () => (tree().cursor == null ? 0 : tree().nodes[tree().cursor!]!.children.length)
 
 describe('undo / redo over the pane tree', () => {
   test('a split is undone back to the exact tree and redone', () => {
@@ -49,18 +54,18 @@ describe('undo / redo over the pane tree', () => {
     useStore.getState().split(ws().focusId, 'row')
     expect(leaves()).toHaveLength(2)
     const split = ws().root
-    expect(useStore.getState().history.past).toHaveLength(1)
+    expect(depth()).toBe(1)
 
     useStore.getState().undo()
     expect(leaves()).toHaveLength(1)
     // The restored tree is the very object the split started from.
     expect(ws().root).toBe(before)
-    expect(useStore.getState().history.future).toHaveLength(1)
+    expect(ahead()).toBe(1)
 
     useStore.getState().redo()
-    expect(useStore.getState().history.past).toHaveLength(1)
+    expect(depth()).toBe(1)
     expect(ws().root).toBe(split)
-    expect(useStore.getState().history.future).toHaveLength(0)
+    expect(ahead()).toBe(0)
   })
 
   test('close / duplicate / delete roundtrip too', () => {
@@ -119,7 +124,7 @@ describe('undo / redo over the pane tree', () => {
     const beforeDrag = ws().root
     for (const ratio of [0.6, 0.55, 0.5, 0.45, 0.4])
       useStore.getState().resizeSplit(split.id, ratio)
-    expect(useStore.getState().history.past).toHaveLength(2)
+    expect(depth()).toBe(2)
     useStore.getState().undo()
     expect(ws().root).toBe(beforeDrag)
   })
@@ -161,16 +166,16 @@ describe('undo / redo over the pane tree', () => {
     expect(useStore.getState().bgGradient).toBeNull()
 
     // Settings that are not part of the board never reach the history.
-    const depth = useStore.getState().history.past.length
+    const steps = depth()
     useStore.getState().patch({ gap: 40, radius: 12, activeId: ws().id })
-    expect(useStore.getState().history.past).toHaveLength(depth)
+    expect(depth()).toBe(steps)
   })
 
   test('dragging the background colour is one undo step', () => {
-    const depth = useStore.getState().history.past.length
+    const steps = depth()
     for (const bg of ['#111111', '#222222', '#333333'])
       useStore.getState().patch({ bg })
-    expect(useStore.getState().history.past).toHaveLength(depth + 1)
+    expect(depth()).toBe(steps + 1)
     useStore.getState().undo()
     expect(useStore.getState().bg).toBe(boot.bg)
   })
@@ -217,9 +222,9 @@ describe('undo / redo over the workspace grid', () => {
     useStore.getState().patch({ activeId: boot.activeId })
     useStore.getState().assign(ws().focusId, 'photo-1')
     const order = useStore.getState().workspaces
-    const depth = useStore.getState().history.past.length
+    const steps = depth()
     useStore.getState().shuffleWorkspaces(mulberry32(7))
-    expect(useStore.getState().history.past).toHaveLength(depth + 1)
+    expect(depth()).toBe(steps + 1)
     useStore.getState().undo()
     expect(useStore.getState().workspaces).toBe(order)
 
@@ -230,64 +235,106 @@ describe('undo / redo over the workspace grid', () => {
   })
 
   test('a no-op action pushes nothing', () => {
-    const depth = useStore.getState().history.past.length
+    const steps = depth()
     // Only one filled cell: shuffle has nothing to reorder.
     useStore.getState().shuffleWorkspaces(mulberry32(1))
     // Nothing to clear either.
     useStore.getState().clearGridPhotos()
     // An unknown pane has nothing to split.
     useStore.getState().split('nope', 'row')
-    expect(useStore.getState().history.past).toHaveLength(depth)
+    expect(depth()).toBe(steps)
   })
 })
 
 describe('history bounds', () => {
-  test('an empty stack makes undo and redo no-ops', () => {
+  test('an empty tree makes undo and redo no-ops', () => {
     const before = ws().root
     useStore.getState().undo()
     useStore.getState().redo()
     expect(ws().root).toBe(before)
-    expect(useStore.getState().history.past).toHaveLength(0)
-    expect(useStore.getState().history.future).toHaveLength(0)
+    expect(stepCount(tree())).toBe(0)
+    expect(canUndo(tree())).toBe(false)
+    expect(canRedo(tree())).toBe(false)
   })
 
-  test('the stack is capped, and the oldest steps are forgotten', () => {
+  test('the tree is capped: steps left behind are pruned, the cursor path is not', () => {
     const base = ws().labels.length
     for (let i = 0; i < HISTORY_LIMIT + 5; i++)
       useStore.getState().addLabel(0.1, 0.1)
-    expect(useStore.getState().history.past).toHaveLength(HISTORY_LIMIT)
     expect(ws().labels).toHaveLength(base + HISTORY_LIMIT + 5)
+    // A straight line is all cursor path, so nothing has been prunable yet.
+    expect(stepCount(tree())).toBe(HISTORY_LIMIT + 6)
 
-    // Every kept step can be undone, and no further one can.
-    for (let i = 0; i < HISTORY_LIMIT; i++)
+    // Walk back and act again: the steps behind the cursor are leaves now, and
+    // the tree trims itself back to the cap, oldest first.
+    for (let i = 0; i < HISTORY_LIMIT + 5; i++)
       useStore.getState().undo()
-    expect(useStore.getState().history.past).toHaveLength(0)
-    expect(ws().labels).toHaveLength(base + 5)
+    expect(depth()).toBe(0)
+    useStore.getState().addLabel(0.2, 0.2)
+    expect(stepCount(tree())).toBeLessThanOrEqual(HISTORY_LIMIT)
+    expect(depth()).toBe(1)
+    // The branch the cursor stands on reaches all the way back to the start.
+    const path = historyPath(tree())
+    expect(path).toHaveLength(2)
+    for (const id of path)
+      expect(tree().nodes[id]).toBeDefined()
+    // Undoing the new step lands on the state the root recorded: the board
+    // before the very first label, which the prune kept.
     useStore.getState().undo()
-    expect(ws().labels).toHaveLength(base + 5)
+    expect(ws().labels).toHaveLength(base)
   })
 
-  test('a new action drops the redo path', () => {
+  test('a new action branches instead of dropping the redo path', () => {
     useStore.getState().split(ws().focusId, 'row')
+    const twoPane = ws().root
+    const splitStep = tree().cursor!
     useStore.getState().undo()
-    expect(useStore.getState().history.future).toHaveLength(1)
+    expect(ahead()).toBe(1)
     useStore.getState().addLabel(0.2, 0.2)
-    expect(useStore.getState().history.future).toHaveLength(0)
+    // The step the undo left behind is a sibling of the new one, not a casualty.
+    const branch = tree().nodes[tree().nodes[tree().cursor!]!.parent!]!
+    expect(branch.children).toHaveLength(2)
+    expect(branch.children[0]).toBe(splitStep)
+    expect(tree().nodes[splitStep]!.label).toBe('split')
+    // Undo walks back to the branch point, redo returns into the branch it left…
+    useStore.getState().undo()
+    expect(ws().labels).toHaveLength(0)
+    expect(canRedo(tree())).toBe(true)
+    // …and the split is still one jump away.
+    useStore.getState().jumpTo(splitStep)
+    expect(ws().root).toBe(twoPane)
+  })
+
+  test('jumping to a step restores it exactly and records nothing', () => {
+    useStore.getState().split(ws().focusId, 'row')
+    const twoPane = ws().root
+    const splitStep = tree().cursor!
+    useStore.getState().addLabel(0.2, 0.2)
+    const count = stepCount(tree())
+
+    useStore.getState().jumpTo(splitStep)
+    expect(ws().root).toBe(twoPane)
+    expect(ws().labels).toHaveLength(0)
+    expect(stepCount(tree())).toBe(count)
+    expect(tree().cursor).toBe(splitStep)
+    // redo walks back down into the branch the jump left.
     useStore.getState().redo()
     expect(ws().labels).toHaveLength(1)
   })
 
-  test('resetHistory forgets both stacks', () => {
+  test('resetHistory forgets the tree', () => {
     useStore.getState().split(ws().focusId, 'row')
     useStore.getState().undo()
+    expect(ahead()).toBe(1)
     useStore.getState().resetHistory()
-    expect(useStore.getState().history.past).toHaveLength(0)
-    expect(useStore.getState().history.future).toHaveLength(0)
+    expect(stepCount(tree())).toBe(0)
+    expect(canUndo(tree())).toBe(false)
+    expect(canRedo(tree())).toBe(false)
   })
 
   test('the stacks are session-only: persist never writes them', () => {
     useStore.getState().split(ws().focusId, 'row')
-    expect(useStore.getState().history.past).toHaveLength(1)
+    expect(depth()).toBe(1)
 
     const raw = saved.get('collage:settings')
     expect(raw).toBeTruthy()
@@ -311,7 +358,7 @@ describe('pane rotation and flips', () => {
     // The dial streams a reading per pointermove.
     for (const deg of [15, 30, 45])
       useStore.getState().rotatePane(id, degToRad(deg))
-    expect(useStore.getState().history.past).toHaveLength(1)
+    expect(depth()).toBe(1)
     expect(radToDeg(rotationOf(focusLeaf()))).toBeCloseTo(45, 12)
 
     useStore.getState().undo()
@@ -330,7 +377,7 @@ describe('pane rotation and flips', () => {
     // A flip is its own action: untagged, so it breaks the coalescing window.
     useStore.getState().flipPane(id, 'y')
     useStore.getState().rotatePane(id, degToRad(30))
-    expect(useStore.getState().history.past).toHaveLength(3)
+    expect(depth()).toBe(3)
     expect(focusLeaf().flipY).toBe(true)
   })
 
@@ -353,9 +400,9 @@ describe('pane rotation and flips', () => {
     useStore.getState().rotatePane(id, Math.PI * 2)
     expect(rotationOf(focusLeaf())).toBe(0)
     // A reading that changes nothing records no step.
-    const depth = useStore.getState().history.past.length
+    const steps = depth()
     useStore.getState().rotatePane(id, 0)
-    expect(useStore.getState().history.past).toHaveLength(depth)
+    expect(depth()).toBe(steps)
   })
 
   test('resetPaneRotation clears the turn and both mirrors in one step', () => {
@@ -366,10 +413,10 @@ describe('pane rotation and flips', () => {
     useStore.getState().resetPaneRotation(id)
     expect(rotationOf(focusLeaf())).toBe(0)
     expect(focusLeaf().flipX).toBe(false)
-    const depth = useStore.getState().history.past.length
+    const steps = depth()
     // Nothing left to reset: a no-op records nothing.
     useStore.getState().resetPaneRotation(id)
-    expect(useStore.getState().history.past).toHaveLength(depth)
+    expect(depth()).toBe(steps)
   })
 
   test('framing travels with the photo: swap, copy and paste carry it', () => {
@@ -410,20 +457,20 @@ describe('pane rotation and flips', () => {
     useStore.setState({ history: emptyHistory() })
     useStore.getState().setPaneFilter(id, 'cyanotype')
     expect(focusLeaf().filter).toBe('cyanotype')
-    expect(useStore.getState().history.past).toHaveLength(1)
+    expect(depth()).toBe(1)
     useStore.getState().setPaneFilter(id, 'print')
     expect(focusLeaf().filter).toBe('print')
-    expect(useStore.getState().history.past).toHaveLength(2)
+    expect(depth()).toBe(2)
     // Same filter again: nothing changed, so nothing is recorded.
     useStore.getState().setPaneFilter(id, 'print')
-    expect(useStore.getState().history.past).toHaveLength(2)
+    expect(depth()).toBe(2)
     useStore.getState().setPaneFilter(id, null)
     expect(focusLeaf().filter).toBeUndefined()
-    expect(useStore.getState().history.past).toHaveLength(3)
+    expect(depth()).toBe(3)
     // One undo puts the filter back, in one step.
     useStore.getState().undo()
     expect(focusLeaf().filter).toBe('print')
-    expect(useStore.getState().history.past).toHaveLength(2)
+    expect(depth()).toBe(2)
   })
 
   test('a filter travels with the photo: swap, copy, paste and duplicate', () => {
@@ -459,6 +506,8 @@ describe('pane rotation and flips', () => {
 
 describe('grid groups (boards switched from the workspace switcher)', () => {
   const state = () => useStore.getState()
+  /** How many steps undo can walk back through in this group's board. */
+  const stepsOf = () => Math.max(0, historyPath(state().history).length - 1)
 
   test('a new group copies the open board: same photos, fresh ids, one undo step', () => {
     const firstId = state().activeGridId
@@ -474,7 +523,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
     expect(state().activeGridId).toBe(added!)
     // split + assign + the copy-carrying add: one step each.
-    expect(state().history.past).toHaveLength(3)
+    expect(stepsOf()).toBe(3)
 
     // The copy mirrors the board cell for cell, but nothing the store
     // addresses by id is shared.
@@ -505,19 +554,19 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
   test('switching groups is navigation: it pushes no undo entry', () => {
     const firstId = state().activeGridId
     const added = state().addGrid()!
-    const depth = state().history.past.length
+    const steps = stepsOf()
     state().switchGrid(firstId)
     state().switchGrid(added)
-    expect(state().history.past).toHaveLength(depth)
+    expect(stepsOf()).toBe(steps)
   })
 
   test('adding and renaming a group are one undo step each', () => {
     const firstId = state().activeGridId
     const added = state().addGrid()!
-    expect(state().history.past).toHaveLength(1)
+    expect(stepsOf()).toBe(1)
     state().renameGrid(added, 'Variant 2')
     expect(state().grids.map(g => g.name)).toEqual(['1', 'Variant 2'])
-    expect(state().history.past).toHaveLength(2)
+    expect(stepsOf()).toBe(2)
 
     state().undo()
     expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
@@ -551,7 +600,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
   })
 
   test('a no-op group action pushes nothing', () => {
-    const depth = state().history.past.length
+    const steps = stepsOf()
     // One group: it can't be deleted, and an unknown id changes nothing.
     state().removeGrid(state().activeGridId)
     state().removeGrid('nope')
@@ -559,7 +608,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     state().switchGrid(state().activeGridId)
     // A blank rename never counts.
     state().renameGrid(state().activeGridId, '  ')
-    expect(state().history.past).toHaveLength(depth)
+    expect(stepsOf()).toBe(steps)
   })
 
   test('four groups is the cap', () => {
@@ -571,7 +620,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
         expect(added).toBeNull()
     }
     expect(state().grids).toHaveLength(MAX_GRIDS)
-    expect(state().history.past).toHaveLength(MAX_GRIDS - 1)
+    expect(stepsOf()).toBe(MAX_GRIDS - 1)
   })
 
   test('a legacy session (one board, no groups) hydrates as group 1', () => {
@@ -595,7 +644,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(state().workspaces.map(w => w.id)).toEqual(['legacy0', 'legacy1', 'legacy2'])
     expect(state().activeId).toBe('legacy1')
     expect(state().parkedBoards).toEqual({})
-    expect(state().history.past).toHaveLength(0)
+    expect(stepsOf()).toBe(0)
   })
 
   test('a session with groups hydrates every board, open one first', () => {
