@@ -625,3 +625,143 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(boardOf(state(), 'gA')).toBe(state().parkedBoards.gA!.workspaces)
   })
 })
+
+describe('sticker management (a library surface, outside the board history)', () => {
+  const state = () => useStore.getState()
+
+  /** A photo as a session before stickers had a kind would have saved it. */
+  const legacyPhoto = (id: string) => ({
+    id,
+    name: `${id}.png`,
+    file: new File([], `${id}.png`, { type: 'image/png' }),
+    trueW: 64,
+    trueH: 64,
+    kind: undefined as 'photo' | 'sticker' | undefined,
+    folder: undefined as string | undefined,
+    orphaned: undefined as boolean | undefined,
+  })
+
+  /**
+   * A session with a pane photo `p1`, which (unless `draw` is false) draws the
+   * sticker `s1` both as a pane sticker and as a board sticker.
+   */
+  function hydrateWith(
+    photos: ReturnType<typeof legacyPhoto>[],
+    { meta = {}, draw = true }: { meta?: Record<string, unknown>, draw?: boolean } = {},
+  ) {
+    const cell = state().workspaces[0]!
+    const marker = { id: 'st1', photoId: 's1', x: 0.5, y: 0.5, s: 0.2 }
+    const root = {
+      ...cell.root,
+      type: 'leaf' as const,
+      id: 'pane-1',
+      photoId: 'p1',
+      stickers: draw ? [marker] : [],
+    }
+    state().hydrate({
+      meta: {
+        workspaces: [{ ...cell, root, stickers: draw ? [{ ...marker, id: 'bst1' }] : [] }],
+        activeId: cell.id,
+        gap: 0,
+        radius: 0,
+        bg: '#000000',
+        longSide: 2048,
+        format: 'image/jpeg',
+        quality: 0.92,
+        ...meta,
+      } as never,
+      photos: photos as never,
+    })
+  }
+
+  test('a legacy session lands every photo as a photo, and no folders', () => {
+    hydrateWith([legacyPhoto('p1'), legacyPhoto('s1')])
+    expect(state().photos.map(p => p.kind)).toEqual(['photo', 'photo'])
+    expect(state().stickerFolders).toEqual([])
+    expect(state().history.past).toHaveLength(0)
+  })
+
+  test('a saved folder list hydrates, and a retired asset nothing draws is collected', () => {
+    hydrateWith(
+      [
+        { ...legacyPhoto('p1'), kind: 'sticker', folder: 'Faces' },
+        { ...legacyPhoto('s1'), kind: 'sticker', orphaned: true },
+        { ...legacyPhoto('gone'), kind: 'sticker', orphaned: true },
+      ],
+      { meta: { stickerFolders: ['Faces'] } },
+    )
+    expect(state().stickerFolders).toEqual(['Faces'])
+    // s1 is still drawn by the pane and the board; `gone` is not drawn at all.
+    expect(state().photos.map(p => [p.id, p.orphaned])).toEqual([['p1', undefined], ['s1', true]])
+  })
+
+  test('folder edits push no undo entry', () => {
+    hydrateWith([legacyPhoto('p1')])
+    const before = state().history.past.length
+    expect(state().addStickerFolder('Faces')).toBe(true)
+    expect(state().addStickerFolder('faces')).toBe(false)
+    expect(state().addStickerFolder('   ')).toBe(false)
+    expect(state().renameStickerFolder('Faces', 'Heads')).toBe(true)
+    expect(state().renameStickerFolder('Nope', 'Heads')).toBe(false)
+    state().deleteStickerFolder('Heads')
+    expect(state().stickerFolders).toEqual([])
+    expect(state().history.past).toHaveLength(before)
+  })
+
+  test('moving a sticker to a folder, and deleting an empty folder, repoints it', () => {
+    hydrateWith([{ ...legacyPhoto('s1'), kind: 'sticker' }, legacyPhoto('p1')])
+    state().addStickerFolder('Faces')
+    state().moveStickerToFolder('s1', 'Faces')
+    expect(state().photos.find(p => p.id === 's1')!.folder).toBe('Faces')
+    state().deleteStickerFolder('Faces')
+    expect(state().stickerFolders).toEqual([])
+    expect(state().photos.find(p => p.id === 's1')!.folder).toBeUndefined()
+  })
+
+  test('a folder that does not exist is not a move target', () => {
+    hydrateWith([{ ...legacyPhoto('s1'), kind: 'sticker' }])
+    state().moveStickerToFolder('s1', 'Ghost')
+    expect(state().photos.find(p => p.id === 's1')!.folder).toBeUndefined()
+  })
+
+  test('deleting a placed sticker keeps the asset, hidden, so the copies still draw', () => {
+    hydrateWith([{ ...legacyPhoto('s1'), kind: 'sticker' }])
+    state().deleteStickerAsset('s1')
+    const kept = state().photos.find(p => p.id === 's1')
+    expect(kept).toBeDefined()
+    expect(kept!.orphaned).toBe(true)
+    // The references themselves are untouched: whatever the boards draw, they
+    // still draw, and the id still resolves through the photos map.
+    const board = activeWs(state())
+    const drawn = [...board.stickers, ...leafList(board.root).flatMap(l => l.stickers)]
+    expect(drawn.some(s => s.photoId === 's1')).toBe(true)
+    expect(state().photos.some(p => p.id === 's1')).toBe(true)
+  })
+
+  test('deleting an unused sticker drops it from the library', () => {
+    hydrateWith([{ ...legacyPhoto('s1'), kind: 'sticker' }, legacyPhoto('p1')], { draw: false })
+    state().deleteStickerAsset('s1')
+    expect(state().photos.some(p => p.id === 's1')).toBe(false)
+  })
+
+  test('a reference only reachable through undo still counts as one', () => {
+    hydrateWith([{ ...legacyPhoto('s1'), kind: 'sticker' }, legacyPhoto('p1')], { draw: false })
+    // Drawing it (then handing the board back) leaves it in the undo stack, so
+    // an undo could bring the pane that draws it back: the asset survives.
+    state().addSticker('s1')
+    state().undo()
+    state().deleteStickerAsset('s1')
+    expect(state().photos.find(p => p.id === 's1')?.orphaned).toBe(true)
+    // With the history dropped there is nothing to restore, and the sweep at
+    // hydration collects it.
+    state().resetHistory()
+    state().deleteStickerAsset('s1')
+    expect(state().photos.some(p => p.id === 's1')).toBe(false)
+  })
+
+  test('a sticker is its own kind: the maker\'s import keeps the canvas ratio alone', () => {
+    const added = state().addPhotos([new File([], 'made.png', { type: 'image/png' })], false, 'sticker')
+    expect(added).toHaveLength(1)
+    expect(state().photos.find(p => p.id === added[0]!.id)!.kind).toBe('sticker')
+  })
+})

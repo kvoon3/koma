@@ -16,6 +16,9 @@ import { looksHeic, probeHeic, warmHeicDecoder } from './heic'
 import { probeJpeg, probePng } from './imageStore'
 import { baseKey, splitLiveFiles } from './livephoto'
 
+/** The two kinds of library asset: an imported photo, or a made sticker. */
+export type PhotoKind = 'photo' | 'sticker'
+
 /** Photo id → the photo, for the render passes that resolve a pane's `photoId`. */
 export const photoMap = (photos: Photo[]) => new Map(photos.map(p => [p.id, p]))
 
@@ -33,9 +36,10 @@ export interface PhotoBatch {
  * sorted by their path in the drop, so a Finder folder import keeps its order;
  * motion files are keyed by base name for `glueMotionFiles`. Also starts the
  * (heavy, lazily imported) HEIC decoder when a HEIC is in the batch, so its
- * parse overlaps probing and rendering.
+ * parse overlaps probing and rendering. `kind` stamps the batch: the sticker
+ * maker's rendered PNGs enter as `'sticker'` assets, everything else as photos.
  */
-export function importPhotoBatch(files: File[]): PhotoBatch {
+export function importPhotoBatch(files: File[], kind: PhotoKind = 'photo'): PhotoBatch {
   const { images, videos } = splitLiveFiles(files)
   const vids = new Map<string, File>()
   for (const v of videos) {
@@ -59,6 +63,7 @@ export function importPhotoBatch(files: File[]): PhotoBatch {
     videoFile: vids.get(baseKey(f.name)),
     trueW: 0,
     trueH: 0,
+    kind,
   }))
   return { added, videos: vids }
 }

@@ -1,12 +1,13 @@
 import type { ReactElement } from 'react'
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { CircleHelp, Download, FileText, FolderPlus, Grid2x2Plus, ImagePlus, LayoutGrid, Ratio, RotateCcw, RotateCw, Settings } from 'lucide'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useAppCommands } from '../lib/appCommands'
 import { flipCanvasRatio, matchCanvasToFirstPhoto } from '../lib/canvasCommands'
 import { pickImageFiles, pickImageFolder } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
+import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -29,7 +30,9 @@ export function CanvasMenu({ children }: { children: ReactElement }) {
   const [open, setOpen] = useState(false)
   useMenuEscapeClose(open, () => actionsRef.current?.close())
 
-  const photos = useStore(s => s.photos)
+  const allPhotos = useStore(s => s.photos)
+  // Fill / match draw from the photo library; stickers are decoration.
+  const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
   const emptyCount = useStore(s => leafList(activeWs(s).root).filter(l => !l.photoId).length)
   const canvasRatio = useStore(s => activeWs(s).canvasRatio)
   const activeId = useStore(s => s.activeId)

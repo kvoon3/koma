@@ -16,6 +16,7 @@ import { setLabelPreviewUnit } from '../lib/labelMetrics'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { cutOutPane, restorePaneOriginal } from '../lib/paneCutout'
 import { blendFadePx, dividerLine, expandRectForBlend, leafList, placement, ratioFromPointer, seamSides } from '../lib/panes'
+import { photoAssetsOf } from '../lib/stickerLibrary'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
 import { AppearanceDockTools, GridDockTool } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
@@ -331,7 +332,7 @@ export function Stage() {
 
   const resetRatio = useCallback(() => {
     const s = useStore.getState()
-    const first = s.photos.find(p => p.trueW)
+    const first = photoAssetsOf(s.photos).find(p => p.trueW)
     // canvasRatio lives on the workspace now, so reset through setCanvasSize
     // (which always needs a number: fall back to the current ratio).
     s.setCanvasSize(first ? first.trueW / first.trueH : (activeWs(s).canvasRatio ?? 1.5), 1)

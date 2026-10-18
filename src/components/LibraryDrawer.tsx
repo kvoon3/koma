@@ -7,12 +7,15 @@ import { Button } from '@/components/ui/button'
 import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
+import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
 import { Library } from './Library'
 
 export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean, onClose: () => void, onRequestClear: () => void }) {
-  const photos = useStore(s => s.photos)
+  const allPhotos = useStore(s => s.photos)
+  // Stickers live on their own page (#/stickers): the library lists photos.
+  const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
   const assign = useStore(s => s.assign)
   const assignMany = useStore(s => s.assignMany)
   const focusId = useStore(s => activeWs(s).focusId)

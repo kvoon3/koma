@@ -4,7 +4,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { clearFilterCaches } from '../lib/filterCache'
@@ -12,6 +12,7 @@ import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
 import { clearSession } from '../lib/sessionStore'
+import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
 import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, migrateWorkspaceInserts, normalizeWorkspaces, useStore } from '../store'
@@ -323,7 +324,8 @@ export function TopBar({
     return () => window.removeEventListener('mousemove', onBarPointerMove)
   }, [openMenu, settingsOpen])
 
-  const photos = useStore(s => s.photos.length)
+  // The hint counts what the drawer shows: photos, never stickers.
+  const photos = useStore(s => photoAssetsOf(s.photos).length)
   const root = useStore(s => activeWs(s).root)
   const anyFilled = useStore(s =>
     s.workspaces.some(w => leafList(w.root).some(l => l.photoId)))
@@ -366,6 +368,8 @@ export function TopBar({
       radius: doc.settings.radius,
       bg: doc.settings.bg,
       cutouts: doc.cutouts ?? {},
+      // Sticker folders ride with the file; a file saved before them has none.
+      stickerFolders: doc.stickerFolders ?? [],
       bgGradient: doc.settings.bgGradient ?? null,
       // A saved photo id only applies if that photo came along in the file.
       bgImage: doc.settings.bgImage && photos.some(p => p.id === doc.settings.bgImage!.photoId) ? doc.settings.bgImage : null,
@@ -407,15 +411,24 @@ export function TopBar({
 
         {grid
           ? (
-            // Grid view is pure navigation: Help only (crop report is an
-            // editing aid, library tools are hidden).
-              <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
-                <Menu.Item className={itemCls} onClick={onToggleHelp}>
-                  <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Keyboard shortcuts')}
-                  <span className={hintCls}>?</span>
-                </Menu.Item>
-              </CatMenu>
+            // Grid view is pure navigation: the sticker library is the one
+            // asset surface it reaches (crop report is an editing aid and the
+            // photo tools stay hidden), plus Help.
+              <>
+                <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
+                  <Menu.Item className={itemCls} onClick={() => void navigate({ to: '/stickers' })}>
+                    <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
+                    {t('Stickers')}
+                  </Menu.Item>
+                </CatMenu>
+                <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
+                  <Menu.Item className={itemCls} onClick={onToggleHelp}>
+                    <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
+                    {t('Keyboard shortcuts')}
+                    <span className={hintCls}>?</span>
+                  </Menu.Item>
+                </CatMenu>
+              </>
             )
           : (
               <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
@@ -434,6 +447,12 @@ export function TopBar({
                     {photos ? `${photos} · ` : ''}
                     I
                   </span>
+                </Menu.Item>
+                {/* Stickers are their own library, one page away (the hub
+                    destination the future routes hang off). */}
+                <Menu.Item className={itemCls} onClick={() => void navigate({ to: '/stickers' })}>
+                  <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Stickers')}
                 </Menu.Item>
                 <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
                 <Menu.Item

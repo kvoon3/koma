@@ -184,9 +184,15 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
  * the grid / editor maps behind it. `exportOpen` is the export dialog's
  * presence; while it is up the board ignores the keyboard entirely.
  */
-export function useRouteKeys({ grid, exportOpen, onExport, chrome }: {
+export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }: {
   /** The overview (`/`) owns different bindings than the editor. */
   grid: boolean
+  /**
+   * A hub route (the sticker manager) shows no board, so every board binding
+   * (pane keys, focus, undo, export, the G toggle) is inert there: they would
+   * otherwise edit a board the user cannot see. Settings and help still open.
+   */
+  hub?: boolean
   exportOpen: boolean
   /** Run the current route's export (mod+E). */
   onExport: () => void
@@ -223,7 +229,6 @@ export function useRouteKeys({ grid, exportOpen, onExport, chrome }: {
       if (isTypingTarget(e))
         return
 
-      const s = useStore.getState()
       const k = e.key
       const ui: KeyUi = {
         helpOpen,
@@ -241,9 +246,18 @@ export function useRouteKeys({ grid, exportOpen, onExport, chrome }: {
         },
       }
 
+      if (hub) {
+        // A hub route shows no board, so only the popover keys it shares with
+        // the overview act there: a pane key would edit a board out of sight.
+        handleGridKey(e, k, ui)
+        return
+      }
+
+      const s = useStore.getState()
+
       if (k === 'G' || k === 'g') {
         e.preventDefault()
-        useStore.getState().clearSelection()
+        s.clearSelection()
         if (grid)
           void navigate({ to: '/w/$wsId', params: { wsId: s.activeId }, viewTransition: viewTransitionOption() })
         else
@@ -263,5 +277,5 @@ export function useRouteKeys({ grid, exportOpen, onExport, chrome }: {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [helpOpen, libOpen, settingsOpen, report, setHelpOpen, setLibOpen, setSettingsOpen, setReport, doCrops, grid, navigate, exportOpen])
+  }, [helpOpen, libOpen, settingsOpen, report, setHelpOpen, setLibOpen, setSettingsOpen, setReport, doCrops, grid, hub, navigate, exportOpen])
 }

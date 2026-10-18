@@ -12,6 +12,7 @@ import { FloatActions } from './components/FloatActions'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LibraryDrawer } from './components/LibraryDrawer'
 import { Stage } from './components/Stage'
+import { StickerManager } from './components/StickerManager'
 import ToastHost from './components/ToastHost'
 import { ToolsDockHost } from './components/ToolsDock'
 import { TopBar } from './components/TopBar'
@@ -33,6 +34,9 @@ import { useRouteKeys } from './useRouteKeys'
 function RootLayout() {
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => s.location.pathname === '/' })
+  // The sticker manager is a library surface, not a board: it draws its own
+  // chrome and none of the board's floating actions belong over it.
+  const stickers = useRouterState({ select: s => s.location.pathname === '/stickers' })
 
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
@@ -123,6 +127,7 @@ function RootLayout() {
   // grid / editor maps behind it (see useRouteKeys).
   useRouteKeys({
     grid,
+    hub: stickers,
     exportOpen: exportItems != null,
     onExport: doExport,
     chrome: { helpOpen, libOpen, settingsOpen, report, doCrops, setHelpOpen, setLibOpen, setSettingsOpen, setReport },
@@ -187,7 +192,7 @@ function RootLayout() {
             <AppCommandsContext value={commands}>
               <Outlet />
               {/* Floating page actions (back / reset) hover over the active view. */}
-              <FloatActions />
+              {!stickers && <FloatActions />}
             </AppCommandsContext>
           </main>
         </ToolsDockHost>
@@ -260,7 +265,13 @@ const workspaceRoute = createRoute({
   component: WorkspaceRoute,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, workspaceRoute])
+const stickerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/stickers',
+  component: StickerManager,
+})
+
+const routeTree = rootRoute.addChildren([indexRoute, workspaceRoute, stickerRoute])
 
 export const router = createRouter({
   routeTree,

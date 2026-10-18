@@ -13,6 +13,8 @@ export interface WorkspaceDocV1 {
   activeId: string
   /** Cutout → original photo ids; absent in files saved before one-tap cutout. */
   cutouts?: CutoutMap
+  /** Sticker folders; absent in files saved before the sticker manager. */
+  stickerFolders?: string[]
   settings: {
     gap: number
     radius: number
@@ -31,6 +33,10 @@ export interface WorkspaceDocV1 {
     trueH: number
     data: string
     video?: string
+    /** A made sticker rather than an imported photo; absent = photo. */
+    kind?: 'photo' | 'sticker'
+    /** Sticker folder; absent = Unsorted. */
+    folder?: string
   }[]
 }
 
@@ -47,6 +53,7 @@ export interface WorkspaceFileState {
   quality: number
   photos: Photo[]
   cutouts: CutoutMap
+  stickerFolders: string[]
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -85,6 +92,12 @@ export async function buildDoc(s: WorkspaceFileState): Promise<WorkspaceDocV1> {
       trueH: p.trueH,
       data: await fileToDataUrl(p.file),
     }
+    // A sticker stays a sticker across the file, folder included, so the
+    // library it lands in sorts and shows exactly as the one it came from.
+    if (p.kind)
+      entry.kind = p.kind
+    if (p.folder)
+      entry.folder = p.folder
     if (p.videoFile)
       entry.video = await fileToDataUrl(p.videoFile)
     return entry
@@ -96,6 +109,7 @@ export async function buildDoc(s: WorkspaceFileState): Promise<WorkspaceDocV1> {
     workspaces: s.workspaces,
     activeId: s.activeId,
     cutouts: s.cutouts,
+    stickerFolders: s.stickerFolders,
     settings: {
       gap: s.gap,
       radius: s.radius,
@@ -151,6 +165,8 @@ export async function parseWorkspaceFile(file: File): Promise<{ doc: WorkspaceDo
       file: await dataUrlToFile(p.data, p.name),
       trueW: p.trueW,
       trueH: p.trueH,
+      kind: p.kind,
+      folder: p.folder,
     }
     if (p.video) {
       // Live Photos pair still+video by basename (livephoto.ts baseKey), so

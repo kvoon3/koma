@@ -3,6 +3,7 @@ import type { FilterId } from './lib/filters'
 import type { History } from './lib/history'
 import type { Photo } from './lib/imageStore'
 import type { FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
+import type { PhotoKind } from './lib/photoLibrary'
 import type { SessionMeta } from './lib/sessionStore'
 import type { PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 import type { GridGroup, ParkedBoard } from './lib/workspaces'
@@ -42,6 +43,20 @@ import {
 import { blankAllBoards, glueMotionFiles, importPhotoBatch, probePhotoDims, withPhotoDims } from './lib/photoLibrary'
 import { clearSession } from './lib/sessionStore'
 import { migrateSettings, partializeSettings, SETTINGS_DEFAULTS, SETTINGS_VERSION, TOOLS_DOCK_MODE } from './lib/settingsStore'
+import {
+  addFolder,
+  deleteFolder,
+  dropCutoutRefs,
+  folderOf,
+  gcRetired,
+  normalizePhotoKinds,
+  photoAssetsOf,
+  pruneCutouts,
+  referenceCounts,
+  renameFolder,
+  retirePhoto,
+  withFolder,
+} from './lib/stickerLibrary'
 import { runPaneMorph } from './lib/viewTransition'
 import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
 
@@ -107,6 +122,12 @@ export interface PaneClip {
  */
 interface State extends PersistedSettings {
   photos: Photo[]
+  /**
+   * The sticker folders that exist, even while empty (one level deep, named by
+   * hand; a sticker's own `folder` says which one it is in, absent = Unsorted).
+   * Library-shaped, not board-shaped: folder edits are outside the undo stack.
+   */
+  stickerFolders: string[]
   /** The open group's nine cells (every board action works on these). */
   workspaces: Workspace[]
   activeId: string
@@ -279,6 +300,27 @@ function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
 const NAVIGATION_SLICES = ['activeId', 'activeGridId'] as const
 const UNDOABLE_PATCH_KEYS = UNDO_SLICES.filter(k => !(NAVIGATION_SLICES as readonly string[]).includes(k))
 
+/**
+ * Every photo id the session still draws or could draw again: the boards of
+ * every group, the collage background, the pane clipboard, and both history
+ * stacks (an undo or redo restores panes that reference a sticker, so a
+ * reachable snapshot counts as a reference too). A retired asset is kept while
+ * it appears here and collected once it does not (see lib/stickerLibrary).
+ */
+function livePhotoRefs(s: State): Set<string> {
+  const boards: Workspace[] = [...s.workspaces]
+  const singles: (string | null | undefined)[] = [s.bgImage?.photoId, s.paneClip?.photoId]
+  for (const board of Object.values(s.parkedBoards))
+    boards.push(...board.workspaces)
+  for (const snap of [...s.history.past, ...s.history.future]) {
+    boards.push(...snap.workspaces)
+    for (const board of Object.values(snap.parkedBoards))
+      boards.push(...board.workspaces)
+    singles.push(snap.bgImage?.photoId)
+  }
+  return new Set(referenceCounts(boards, singles).keys())
+}
+
 let labelEditSeq = 0
 
 /** Clear selection-type state on any workspace / view switch. */
@@ -291,6 +333,7 @@ const clearedSelection = {
 
 export const useStore = create<State & Actions>()(persist((set, get) => ({
   photos: [],
+  stickerFolders: [],
   cutouts: {},
   cutoutJob: null,
   workspaces: bootWorkspaces,
@@ -311,8 +354,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   stickerMakerFor: null,
   history: emptyHistory(),
 
-  addPhotos: (files, autoFill = true) => {
-    const { added, videos } = importPhotoBatch(files)
+  addPhotos: (files, autoFill = true, kind: PhotoKind = 'photo') => {
+    const { added, videos } = importPhotoBatch(files, kind)
     if (!added.length && !videos.size)
       return []
     set(s => ({ photos: [...glueMotionFiles(s.photos, videos), ...added] }))
@@ -327,8 +370,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       set(s => ({
         photos: withPhotoDims(s.photos, p.id, d),
         // Auto-set the aspect ratio of the ACTIVE workspace only, and only
-        // while it is still unset.
-        workspaces: s.workspaces.map(w => (w.id === s.activeId && w.canvasRatio == null
+        // while it is still unset. A sticker never sets it: it is decoration,
+        // not the photo the canvas is shaped to.
+        workspaces: s.workspaces.map(w => (w.id === s.activeId && w.canvasRatio == null && kind === 'photo'
           ? { ...w, canvasRatio: d.w / d.h }
           : w)),
       }))
@@ -364,6 +408,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     void clearSession()
     set(s => ({
       photos: [],
+      // The folders only ever grouped the stickers that are gone with them.
+      stickerFolders: [],
       // Every group is wiped, not just the open one: the photos are gone
       // everywhere (see `blankAllBoards`).
       ...blankAllBoards(s.workspaces, s.parkedBoards, newWorkspace),
@@ -562,16 +608,31 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const parkedBoards: Record<string, ParkedBoard<Workspace>> = {}
     for (const [id, board] of Object.entries(hydrated.parked))
       parkedBoards[id] = { workspaces: lift(board.workspaces), activeId: board.activeId }
+    const workspaces = lift(hydrated.workspaces)
+    // Legacy photos carry no kind, and every sticker of theirs was just a PNG
+    // in the library: they land as photos (see `normalizePhotoKinds`). Orphaned
+    // snapshots nothing draws any more are dropped here, the one moment the
+    // history is empty, so no undo can want them back.
+    const opened = [
+      ...workspaces,
+      ...Object.values(parkedBoards).flatMap(b => b.workspaces),
+    ]
+    const photos = gcRetired(
+      normalizePhotoKinds(session.photos),
+      new Set(referenceCounts(opened, [session.meta.bgImage?.photoId]).keys()),
+    )
     set({
       ...session.meta,
       grids: hydrated.grids,
       activeGridId: hydrated.activeGridId,
       parkedBoards,
-      workspaces: lift(hydrated.workspaces),
+      workspaces,
       activeId: hydrated.activeId,
-      photos: session.photos,
+      photos,
+      // Sessions saved before the sticker manager have no folders.
+      stickerFolders: session.meta.stickerFolders ?? [],
       // Sessions saved before one-tap cutout have no map.
-      cutouts: session.meta.cutouts ?? {},
+      cutouts: pruneCutouts(session.meta.cutouts ?? {}, new Set(photos.map(p => p.id))),
       cutoutJob: null,
       labelSel: null,
       stickerSel: null,
@@ -583,7 +644,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     })
     // Re-probe photos whose header scan never finished before the page
     // closed (trueW/trueH drive export placement and the crop report).
-    for (const p of session.photos) {
+    for (const p of photos) {
       if (p.trueW > 0)
         continue
       void probePhotoDims(p.file).then((d) => {
@@ -974,7 +1035,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   autoFill: () => {
     const s = get()
-    if (!s.photos.length)
+    // Stickers are decoration, never a pane's photo: the fill only draws from
+    // the photo library.
+    const pool = photoAssetsOf(s.photos)
+    if (!pool.length)
       return
     let k = 0
     const ws = activeWs(s)
@@ -982,7 +1046,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     for (const leaf of leafList(ws.root)) {
       if (leaf.photoId)
         continue
-      const p = s.photos[k++ % s.photos.length]
+      const p = pool[k++ % pool.length]
       next = updateLeafIn(next, leaf.id, { photoId: p.id, zoom: 1, cx: 0.5, cy: 0.5, filter: undefined })
     }
     if (next === ws.root)
@@ -1141,6 +1205,80 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }))
   },
 
+  // ---- sticker management (a library surface, outside the board history) ---
+
+  /**
+   * Create a sticker folder. Folder edits are library actions, not board
+   * mutations: like `clearLibrary` they push no undo entry (they are not in
+   * `UNDO_SLICES`), so one ⌘Z after moving a sticker still undoes the board
+   * change before it. False when the name is blank or already taken.
+   */
+  addStickerFolder: (name) => {
+    const res = addFolder(get().stickerFolders, name)
+    if (!res.ok)
+      return false
+    set({ stickerFolders: res.folders })
+    return true
+  },
+
+  /**
+   * Rename one folder and carry its stickers over. The stickers are repointed
+   * by name, so the folder list and the assets can never disagree.
+   */
+  renameStickerFolder: (from, to) => {
+    const s = get()
+    const res = renameFolder(s.stickerFolders, from, to)
+    if (!res.ok)
+      return false
+    set({
+      stickerFolders: res.folders,
+      photos: from === res.name ? s.photos : s.photos.map(p => (folderOf(p) === from ? withFolder(p, res.name) : p)),
+    })
+    return true
+  },
+
+  /** Delete a folder; its stickers fall back to Unsorted (nothing is lost). */
+  deleteStickerFolder: (name) => {
+    const s = get()
+    if (!s.stickerFolders.includes(name))
+      return
+    set({
+      stickerFolders: deleteFolder(s.stickerFolders, name),
+      photos: s.photos.map(p => (folderOf(p) === name ? withFolder(p, '') : p)),
+    })
+  },
+
+  /** Move one sticker to a folder ('' = Unsorted). A folder must exist to be picked. */
+  moveStickerToFolder: (photoId, folder) => {
+    const s = get()
+    const name = folder.trim()
+    if (name && !s.stickerFolders.includes(name))
+      return
+    set({
+      photos: s.photos.map(p => (p.id === photoId && p.kind === 'sticker'
+        ? withFolder(p, name)
+        : p)),
+    })
+  },
+
+  /**
+   * Delete a sticker asset. Placed copies are snapshots and keep drawing: the
+   * preview and the exporter resolve a sticker through the photos map, so an
+   * asset that is still referenced is kept as an orphaned record (hidden from
+   * every list) instead of being dropped, and is collected once nothing
+   * references it any more (see lib/stickerLibrary).
+   */
+  deleteStickerAsset: (photoId) => {
+    const s = get()
+    const photo = s.photos.find(p => p.id === photoId)
+    if (!photo || photo.kind !== 'sticker')
+      return
+    // `retirePhoto` also covers the second ask about a snapshot that has since
+    // lost its last reference: the id leaves the library for good then.
+    const photos = retirePhoto(s.photos, photoId, livePhotoRefs(s))
+    set({ photos, cutouts: photos === s.photos ? s.cutouts : dropCutoutRefs(s.cutouts, photoId) })
+  },
+
   /** Step back one board mutation (session-only; see lib/history). */
   undo: () =>
     set((s) => {
@@ -1188,7 +1326,7 @@ function commit(tag: string | null = null): void {
 }
 
 interface Actions {
-  addPhotos: (files: File[], autoFill?: boolean) => Photo[]
+  addPhotos: (files: File[], autoFill?: boolean, kind?: PhotoKind) => Photo[]
   duplicatePane: (paneId: string, dir: 'row' | 'column') => void
   resetPane: (paneId: string) => void
   copyPane: (paneId: string) => void
@@ -1255,4 +1393,14 @@ interface Actions {
   addLabel: (x?: number, y?: number, init?: Partial<PaneLabel>) => string
   setLabel: (labelId: string, patch: Partial<PaneLabel>) => void
   removeLabel: (labelId: string) => void
+  /** Create a sticker folder; false when the name is blank or taken. */
+  addStickerFolder: (name: string) => boolean
+  /** Rename a sticker folder and repoint its stickers; false when refused. */
+  renameStickerFolder: (from: string, to: string) => boolean
+  /** Delete a sticker folder; its stickers fall back to Unsorted. */
+  deleteStickerFolder: (name: string) => void
+  /** Move one sticker asset to a folder ('' = Unsorted). */
+  moveStickerToFolder: (photoId: string, folder: string) => void
+  /** Delete a sticker asset, keeping the copies already placed on a board. */
+  deleteStickerAsset: (photoId: string) => void
 }
