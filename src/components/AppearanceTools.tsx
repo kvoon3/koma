@@ -5,10 +5,11 @@ import { RadioGroup } from '@base-ui/react/radio-group'
 import { Switch } from '@base-ui/react/switch'
 import { Frame, Grid3x3, ImagePlus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { colorInputCls, fieldControlCls, fieldLabelCls, fieldRowCls, RangeField, SegmentedField } from '@/components/ui/field'
 import { useThumb } from '../hooks'
 import { useT } from '../lib/i18n'
+import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
 import { isTransparentBg, useStore } from '../store'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
@@ -57,7 +58,9 @@ export function AppearanceDockTools() {
   const bg = useStore(s => s.bg)
   const bgGradient = useStore(s => s.bgGradient)
   const bgImage = useStore(s => s.bgImage)
-  const photos = useStore(s => s.photos)
+  const allPhotos = useStore(s => s.photos)
+  // A sticker as the collage background is not a thing; the swatches list photos.
+  const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
   const patch = useStore(s => s.patch)
   const resetSettings = useStore(s => s.resetSettings)
   const t = useT()

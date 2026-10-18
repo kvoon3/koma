@@ -9,6 +9,12 @@ export interface SessionPhotoRecord {
   trueH: number
   file: File
   videoFile?: File
+  /** Absent in sessions saved before stickers were an asset of their own. */
+  kind?: 'photo' | 'sticker'
+  /** Sticker folder; absent = Unsorted. */
+  folder?: string
+  /** Deleted asset a placed copy still draws (see lib/stickerLibrary). */
+  orphaned?: boolean
 }
 
 /** One board of nine, saved with the session (see `normalizeGrids`). */
@@ -37,6 +43,8 @@ export interface SessionMeta {
   bg: string
   /** Cutout → original photo ids; absent in sessions saved before one-tap cutout. */
   cutouts?: CutoutMap
+  /** Absent in sessions saved before the sticker manager: no named folders yet. */
+  stickerFolders?: string[]
   /** Absent in sessions saved before the collage background (see migrateSettings v8). */
   bgGradient?: string | null
   bgImage?: BgImage | null
@@ -53,6 +61,8 @@ export interface SessionSource {
   activeId: string
   /** Boards of the groups that are not open, by group id. */
   parkedBoards: Record<string, { workspaces: Workspace[], activeId: string }>
+  /** The named sticker folders (empty folders persist too). */
+  stickerFolders: string[]
   gap: number
   radius: number
   bg: string
@@ -79,6 +89,7 @@ export function sessionMeta(s: SessionSource): SessionMeta {
     activeGridId: s.activeGridId,
     workspaces: s.workspaces,
     activeId: s.activeId,
+    stickerFolders: s.stickerFolders,
     gap: s.gap,
     radius: s.radius,
     bg: s.bg,
@@ -96,8 +107,19 @@ const DB_VERSION = 1
 const META_KEY = 'session'
 
 let dbPromise: Promise<IDBDatabase> | null = null
-/** Ids already written in this page session; Files are immutable so no re-put. */
-const writtenIds = new Set<string>()
+/**
+ * The ids written in this page session, with the signature of the record's
+ * mutable fields (name, dims, kind, folder, orphaned): a File is immutable so
+ * an unchanged record is never re-put, while a sticker moving between folders
+ * is (the record itself is all that is written again, the File riding along as
+ * a reference rather than as fresh bytes).
+ */
+const writtenIds = new Map<string, string>()
+
+/** Everything about a record except its pixels. */
+function recordSignature(p: SessionPhotoRecord): string {
+  return JSON.stringify([p.name, p.trueW, p.trueH, p.kind ?? '', p.folder ?? '', p.orphaned ?? false])
+}
 
 function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -160,11 +182,11 @@ export async function saveSession(meta: SessionMeta, photos: SessionPhotoRecord[
     void tx.objectStore('meta').put(meta, META_KEY)
     const photoOs = tx.objectStore('photos')
     for (const p of photos) {
-      if (writtenIds.has(p.id))
+      const signature = recordSignature(p)
+      if (writtenIds.get(p.id) === signature)
         continue
-      // Files are immutable across re-renders, so once written we never re-put.
       photoOs.put(p)
-      writtenIds.add(p.id)
+      writtenIds.set(p.id, signature)
     }
     await txDone(tx)
   }
@@ -190,11 +212,11 @@ export async function loadSession(): Promise<{ meta: SessionMeta, photos: Sessio
     if (!meta || !Array.isArray(photos)) {
       // Mark anything we already wrote in this session so saveSession skips it.
       for (const p of photos)
-        writtenIds.add(p.id)
+        writtenIds.set(p.id, recordSignature(p))
       return null
     }
     for (const p of photos)
-      writtenIds.add(p.id)
+      writtenIds.set(p.id, recordSignature(p))
     return { meta: meta as SessionMeta, photos }
   }
   catch (err) {

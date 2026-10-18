@@ -159,7 +159,9 @@ async function insertSticker(
   })
   const file = await dataUrlToFile(res.dataUrl, `${style.baseName || 'sticker'}.png`)
   const s = useStore.getState()
-  const photo = s.addPhotos([file], false)[0]
+  // The maker's PNG enters the library as a sticker asset: it is listed on the
+  // sticker page, never in the photo library (see lib/stickerLibrary).
+  const photo = s.addPhotos([file], false, 'sticker')[0]
   if (photo) {
     s.addSticker(photo.id, 0.5, 0.5)
     say(t('Sticker added'))
