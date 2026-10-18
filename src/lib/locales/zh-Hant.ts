@@ -664,6 +664,7 @@ export const zhHant: Record<string, string> = {
 
   // History (wave35/history-tree): the step tree panel and its step labels
   'History': '歷史',
+  'History · all steps': '歷史 · 全部步驟',
   '{n} steps': '{n} 步',
   '{n} variants': '{n} 個分支',
   'No steps yet': '還沒有步驟',
