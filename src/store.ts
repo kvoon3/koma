@@ -1,23 +1,20 @@
-import type { BgImage } from './lib/collageBg'
 import type { CutoutMap } from './lib/cutout'
-import type { GridCellRatio } from './lib/gridTools'
 import type { History } from './lib/history'
 import type { Photo } from './lib/imageStore'
-import type { Divider, FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
+import type { FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { SessionMeta } from './lib/sessionStore'
+import type { PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
   clearTreePhotos,
   GRID_CELL_RATIO,
-  isGridCellRatio,
   shuffleFilled,
 } from './lib/gridTools'
-import { looksHeic, probeHeic, warmHeicDecoder } from './lib/heic'
 import { emptyHistory, record, redoStep, undoStep } from './lib/history'
-import { clearImageCaches, probeJpeg, probePng } from './lib/imageStore'
-import { baseKey, splitLiveFiles } from './lib/livephoto'
+import { clearImageCaches } from './lib/imageStore'
+import { migrateWorkspaceInserts } from './lib/layout'
 import {
   cloneNode,
   deletePane,
@@ -28,22 +25,47 @@ import {
 
   newLabel,
   newLeaf,
-  placement,
 
   removeLeaf,
   rotationOf,
   setSplitRatioIn,
   splitLeaf,
-  stickerToBoard,
   swapLeafContents,
 
   uid,
   updateLeafIn,
   wrapAngle,
 } from './lib/panes'
+import { blankAllBoards, glueMotionFiles, importPhotoBatch, probePhotoDims, withPhotoDims } from './lib/photoLibrary'
 import { clearSession } from './lib/sessionStore'
+import { migrateSettings, partializeSettings, SETTINGS_DEFAULTS, SETTINGS_VERSION, TOOLS_DOCK_MODE } from './lib/settingsStore'
 import { runPaneMorph } from './lib/viewTransition'
 import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
+
+// The seams this file was split along are re-exported here, so every other
+// module keeps importing the store (see lib/layout, lib/photoLibrary,
+// lib/settingsStore).
+export { computeLayout, fitCanvas, migrateWorkspaceInserts } from './lib/layout'
+export type { Derived } from './lib/layout'
+export { photoMap } from './lib/photoLibrary'
+export {
+  BG,
+  BLEND_CROSSFADE,
+  DOCK_BG,
+  DOCK_OPACITY,
+  EDGE_FADE,
+  EDGE_FADE_STRENGTH,
+  GAP,
+  GRID_GAP,
+  migrateSettings,
+  PANE_BORDER,
+  partializeSettings,
+  RADIUS,
+  SETTINGS_DEFAULTS,
+  SETTINGS_VERSION,
+  TOOLS_DOCK_MODE,
+} from './lib/settingsStore'
+export type { DockBg, PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 
 /** One of the grid's collage workspaces (1–9 of them). Array order is the grid order. */
 export interface Workspace {
@@ -73,14 +95,11 @@ export interface PaneClip {
 }
 
 /**
- * Bottom tools sheet display: icon-only single row / icon + label single row /
- * wrapped multi-row. There is no put-away state: the sheet is always on
- * screen, the smallest display only drops the labels (see toolsDockMode.ts).
+ * Everything the store holds. The visual settings the reload keeps are
+ * `PersistedSettings` (see lib/settingsStore, which also migrates them); what
+ * follows is the session-only rest.
  */
-export type ToolsDockMode = 'icons' | 'row' | 'expanded'
-export type DockBg = 'solid' | 'frosted' | 'liquid'
-
-interface State {
+interface State extends PersistedSettings {
   photos: Photo[]
   /** The open group's nine cells (every board action works on these). */
   workspaces: Workspace[]
@@ -97,24 +116,6 @@ interface State {
   activeGridId: string
   /** Boards of the groups that are not open, by group id. */
   parkedBoards: Record<string, ParkedBoard<Workspace>>
-  /** The workspace the G key / center button returns to (tracked by id, not position). */
-  gap: number
-  /** Space between the nine overview cells, in px (grid view only). */
-  gridGap: number
-  radius: number
-  bg: string
-  /** Whole-collage background gradient end color over `bg` (see lib/collageBg). */
-  bgGradient: string | null
-  /** Whole-collage background photo over `bg` (see lib/collageBg). */
-  bgImage: BgImage | null
-  edgeFade: number
-  edgeFadeStrength: number
-  /**
-   * Opt-in photo crossfade (overlap + opposing masks + plus-lighter).
-   * Off by default: Safari regresses when this is the default blend path.
-   */
-  blendCrossfade: boolean
-  paneBorder: boolean
   longSide: number
   format: 'image/jpeg' | 'image/png'
   quality: number
@@ -127,16 +128,6 @@ interface State {
    * repeated requests for the same pane still fire.
    */
   labelEditReq: { labelId: string, seq: number } | null
-  dockBg: DockBg
-  /** Aspect of the 3×3 grid's cells (display, snapshot and per-cell export). */
-  gridCellRatio: GridCellRatio
-  /** Dock background opacity, 0–100 (%). */
-  dockOpacity: number
-  /**
-   * Bottom tools sheet display. Persisted; starts in the labelled row. Drag
-   * the sheet or tap the handle to move between icons / row / expanded.
-   */
-  toolsDockMode: ToolsDockMode
   /**
    * Copied pane contents for the menu's paste item, session-only so a reload
    * forgets it. Pasting clones the stickers under fresh ids.
@@ -176,75 +167,6 @@ const UNDO_SLICES = ['workspaces', 'activeId', 'grids', 'activeGridId', 'parkedB
 /** The board state one undo / redo step restores (see `UNDO_SLICES`). */
 export type UndoSnapshot = Pick<State, (typeof UNDO_SLICES)[number]>
 
-export const GAP = 0
-export const GRID_GAP = 10
-export const RADIUS = 0
-export const BG = '#000000'
-export const EDGE_FADE = 60
-export const EDGE_FADE_STRENGTH = 100
-export const BLEND_CROSSFADE = true
-export const PANE_BORDER = false
-
-export const DOCK_BG: DockBg = 'solid'
-export const DOCK_OPACITY = 60
-export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
-
-/**
- * v9: the icon-minimized 'collapsed' dock display is gone. The bump itself
- * is the fix: zustand persist only runs `migrate` when the saved version
- * differs, so an unchanged version would let a saved 'collapsed' through.
- */
-export const SETTINGS_VERSION = 9
-
-const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
-const DOCK_MODES: readonly ToolsDockMode[] = ['icons', 'row', 'expanded']
-/** The dropped icon-minimized display, still found in saved settings. */
-const LEGACY_DOCK_COLLAPSED = 'collapsed'
-
-/** Persisted-settings migration (zustand `persist`); pure for unit tests. */
-export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
-  const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
-  if (version < 1)
-    p.blendCrossfade = BLEND_CROSSFADE
-  // v2: dock background + opacity + handle icon, and the dock mode is now
-  // persisted (see v6 for the default). Sanitize either way.
-  if (version < 2)
-    p.toolsDockMode = TOOLS_DOCK_MODE
-  // v6: the default dock mode became 'row'. A saved pre-v6 'collapsed' was
-  // the old default and can't be told from a choice, so reset it once.
-  if (version < 6)
-    p.toolsDockMode = TOOLS_DOCK_MODE
-  // v5: default became solid. Pre-v5 'frosted' was the old default and can't
-  // be told from an explicit pick (preview-only), so reset it.
-  if (version < 5 && p.dockBg === 'frosted')
-    p.dockBg = DOCK_BG
-  // v7: grid cell aspect ratio (1:1 default).
-  if (!isGridCellRatio(p.gridCellRatio))
-    p.gridCellRatio = GRID_CELL_RATIO
-  // v4: the 'transparent' dock style is gone; it (and any unknown value)
-  // falls back to the default below.
-  if (!DOCK_BGS.includes(p.dockBg as DockBg))
-    p.dockBg = DOCK_BG
-  const op = Number(p.dockOpacity)
-  p.dockOpacity = Number.isFinite(op) && p.dockOpacity != null ? Math.min(100, Math.max(0, op)) : DOCK_OPACITY
-  // v3: the temporary handle-icon toggle is gone (the handle icon follows
-  // the next tap; see toolsDockMode.ts).
-  delete p.dockHandleIcon
-  // v9: the icon-minimized state is gone. A save that still holds it lands on
-  // the icon-only row, the nearest display that survived (the drawer cannot
-  // be put away any more). Unconditional so any older version migrating up
-  // is corrected regardless of where it was saved.
-  if (p.toolsDockMode === LEGACY_DOCK_COLLAPSED)
-    p.toolsDockMode = 'icons'
-  if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
-    p.toolsDockMode = TOOLS_DOCK_MODE
-  // v8: whole-collage background layers over the gap fill; off for old saves.
-  if (version < 8) {
-    p.bgGradient ??= null
-    p.bgImage ??= null
-  }
-  return p
-}
 export const MIN_PANE_PX = 56
 /** Canvas ratio bounds: the narrowest and widest a split can be shaped to. */
 export const MIN_CANVAS_RATIO = 0.12
@@ -372,79 +294,34 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   grids: [{ id: bootGridId, name: '1' }],
   activeGridId: bootGridId,
   parkedBoards: {},
-  gap: GAP,
-  gridGap: GRID_GAP,
-  radius: RADIUS,
-  bg: BG,
-  bgGradient: null,
-  bgImage: null,
-  edgeFade: EDGE_FADE,
-  edgeFadeStrength: EDGE_FADE_STRENGTH,
-  blendCrossfade: BLEND_CROSSFADE,
-  paneBorder: PANE_BORDER,
+  ...SETTINGS_DEFAULTS,
+  toolsDockMode: TOOLS_DOCK_MODE,
+  gridCellRatio: GRID_CELL_RATIO,
   longSide: 2048,
   format: 'image/jpeg',
   quality: 0.92,
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
-  toolsDockMode: TOOLS_DOCK_MODE,
-  dockBg: DOCK_BG,
-  gridCellRatio: GRID_CELL_RATIO,
-  dockOpacity: DOCK_OPACITY,
   paneClip: null,
   stickerMakerFor: null,
   history: emptyHistory(),
 
   addPhotos: (files, autoFill = true) => {
-    const { images, videos } = splitLiveFiles(files)
-    const vids = new Map<string, File>()
-    for (const v of videos) {
-      const k = baseKey(v.name)
-      if (k && !vids.has(k))
-        vids.set(k, v)
-    }
-    const imgs = images.filter(f => f.type.startsWith('image/') || looksHeic(f))
-    if (!imgs.length && !vids.size)
+    const { added, videos } = importPhotoBatch(files)
+    if (!added.length && !videos.size)
       return []
-    // Start the (heavy, lazily imported) HEIC decoder before the first pane
-    // asks for pixels, so its parse overlaps probing and rendering.
-    if (imgs.some(looksHeic))
-      warmHeicDecoder()
-    imgs.sort((a, b) =>
-      (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, {
-        numeric: true,
-      }),
-    )
-    const stamp = Date.now().toString(36)
-    const added: Photo[] = imgs.map((f, i) => ({
-      id: `${stamp}-${i}-${Math.random().toString(36).slice(2, 7)}`,
-      name: f.name,
-      file: f,
-      videoFile: vids.get(baseKey(f.name)),
-      trueW: 0,
-      trueH: 0,
-    }))
-    // A MOV dropped on its own glues onto an already-imported still with the
-    // same basename (Finder / Photos exports arrive as HEIC + MOV pairs).
-    set(s => ({
-      photos: [
-        ...s.photos.map(p => (!p.videoFile && vids.get(baseKey(p.name))
-          ? { ...p, videoFile: vids.get(baseKey(p.name)) }
-          : p)),
-        ...added,
-      ],
-    }))
+    set(s => ({ photos: [...glueMotionFiles(s.photos, videos), ...added] }))
 
     // `forEach` would drop each probe's promise on the floor. The probes are
     // independent and nothing waits on them, so start one per photo and let the
     // loop finish; each patch lands on its own leaf when it does.
     const probeDims = async (p: Photo) => {
-      const d = (await (looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file))) ?? await probePng(p.file)
+      const d = await probePhotoDims(p.file)
       if (!d)
         return
       set(s => ({
-        photos: s.photos.map(x => (x.id === p.id ? { ...x, trueW: d.w, trueH: d.h } : x)),
+        photos: withPhotoDims(s.photos, p.id, d),
         // Auto-set the aspect ratio of the ACTIVE workspace only, and only
         // while it is still unset.
         workspaces: s.workspaces.map(w => (w.id === s.activeId && w.canvasRatio == null
@@ -469,15 +346,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     void clearSession()
     set(s => ({
       photos: [],
-      // Reset every workspace to a fresh blank canvas, keeping each id and its
-      // grid slot: `activeId` and `mapActive` key off those ids, so new ones
-      // would leave every later pane action pointed at nothing. Every group is
-      // wiped, not just the open one: the photos are gone everywhere.
-      workspaces: s.workspaces.map(w => ({ ...newWorkspace(), id: w.id })),
-      parkedBoards: Object.fromEntries(Object.entries(s.parkedBoards).map(([id, b]) => [
-        id,
-        { ...b, workspaces: b.workspaces.map(w => ({ ...newWorkspace(), id: w.id })) },
-      ])),
+      // Every group is wiped, not just the open one: the photos are gone
+      // everywhere (see `blankAllBoards`).
+      ...blankAllBoards(s.workspaces, s.parkedBoards, newWorkspace),
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,
@@ -697,12 +568,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     for (const p of session.photos) {
       if (p.trueW > 0)
         continue
-      void ((looksHeic(p.file) ? probeHeic(p.file) : probeJpeg(p.file)).then(d => d ?? probePng(p.file))).then((d) => {
+      void probePhotoDims(p.file).then((d) => {
         if (!d)
           return
-        set(s => ({
-          photos: s.photos.map(x => (x.id === p.id ? { ...x, trueW: d.w, trueH: d.h } : x)),
-        }))
+        set(s => ({ photos: withPhotoDims(s.photos, p.id, d) }))
       })
     }
   },
@@ -1098,21 +967,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // The settings drawer's Reset: every visual knob back to its default. The
   // font mirror is not in the store (it lives in lib/fonts), so the drawer
   // resets that one itself.
-  resetSettings: () =>
-    set({
-      gap: GAP,
-      gridGap: GRID_GAP,
-      radius: RADIUS,
-      bg: BG,
-      bgGradient: null,
-      bgImage: null,
-      edgeFade: EDGE_FADE,
-      edgeFadeStrength: EDGE_FADE_STRENGTH,
-      blendCrossfade: BLEND_CROSSFADE,
-      paneBorder: PANE_BORDER,
-      dockBg: DOCK_BG,
-      dockOpacity: DOCK_OPACITY,
-    }),
+  resetSettings: () => set({ ...SETTINGS_DEFAULTS }),
 
   /** Dragging the canvas handle streams sizes: one gesture is one undo step. */
   setCanvasSize: (ratio, fill) => {
@@ -1273,22 +1128,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   version: SETTINGS_VERSION,
   // v2: dock background/opacity + persisted dock mode. v3: drop dockHandleIcon. v4: drop 'transparent' dock style. v5: solid default. v6: dock mode reset to row. v7: gridCellRatio.
   migrate: migrateSettings,
-  partialize: state => ({
-    gap: state.gap,
-    gridGap: state.gridGap,
-    radius: state.radius,
-    bg: state.bg,
-    bgGradient: state.bgGradient,
-    bgImage: state.bgImage,
-    edgeFade: state.edgeFade,
-    edgeFadeStrength: state.edgeFadeStrength,
-    blendCrossfade: state.blendCrossfade,
-    paneBorder: state.paneBorder,
-    dockBg: state.dockBg,
-    gridCellRatio: state.gridCellRatio,
-    dockOpacity: state.dockOpacity,
-    toolsDockMode: state.toolsDockMode,
-  }),
+  // Annotated so zustand does not infer the store type from the settings
+  // shape; the spread keeps the payload a plain record, which is what
+  // `migrateSettings` returns and what zustand hands back to `merge`.
+  partialize: (state: State & Actions) => ({ ...partializeSettings(state) }),
 }))
 
 /**
@@ -1299,118 +1142,6 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
  */
 function commit(tag: string | null = null): void {
   useStore.setState(s => ({ history: record(s.history, snapshotOf(s), Date.now(), tag) }))
-}
-
-export const photoMap = (photos: Photo[]) => new Map(photos.map(p => [p.id, p]))
-
-export interface Derived {
-  W: number
-  H: number
-  leaves: { node: Leaf, rect: { x: number, y: number, w: number, h: number } }[]
-  dividers: Divider[]
-  gap: number
-  radius: number
-  fade: number
-  unit: number
-}
-
-export function fitCanvas(
-  canvasRatio: number | null,
-  availW: number,
-  availH: number,
-): { W: number, H: number } {
-  const ar = canvasRatio ?? 1.5
-  let W = availW
-  let H = W / ar
-  if (H > availH) {
-    H = availH
-    W = H * ar
-  }
-  return { W, H }
-}
-
-export function computeLayout(
-  root: Node,
-  canvasRatio: number | null,
-  canvasFill: number,
-  availW: number,
-  availH: number,
-  gapValue: number,
-  radiusValue: number,
-  fadeValue: number,
-): Derived {
-  const fit = fitCanvas(canvasRatio, availW, availH)
-  const W = Math.max(80, Math.round(fit.W * canvasFill))
-  const H = Math.max(80, Math.round(fit.H * canvasFill))
-  const u = Math.min(W, H) / 1000
-  const gap = gapValue * u
-  const l = layoutTree(root, W, H, gap)
-  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, fade: fadeValue * u, unit: u }
-}
-
-function liftLeafStickers(
-  node: Leaf,
-  rect: { x: number, y: number, w: number, h: number },
-  board: { w: number, h: number },
-  photoById: Map<string, Photo>,
-): Sticker[] {
-  const photo = node.photoId ? photoById.get(node.photoId) : undefined
-  const place = photo?.trueW && photo.trueH
-    ? placement(rect, node, photo.trueW, photo.trueH)
-    : { x: rect.x, y: rect.y, w: rect.w, h: rect.h }
-  return node.stickers.map((st) => {
-    const sp = photoById.get(st.photoId)
-    if (sp?.trueW && sp.trueH)
-      return stickerToBoard(st, place, board, sp.trueW, sp.trueH)
-    return {
-      ...st,
-      x: (rect.x + rect.w / 2) / board.w,
-      y: (rect.y + rect.h / 2) / board.h,
-      s: 0.2,
-    }
-  })
-}
-
-/** A legacy pane-normalized label re-expressed in board coords (size is already board-unit). */
-function liftLeafLabel(
-  lab: PaneLabel,
-  rect: { x: number, y: number, w: number, h: number },
-  board: { w: number, h: number },
-): PaneLabel {
-  return {
-    ...lab,
-    id: lab.id ?? uid('l'),
-    x: (rect.x + lab.x * rect.w) / board.w,
-    y: (rect.y + lab.y * rect.h) / board.h,
-  }
-}
-
-/** Lift legacy per-leaf stickers and labels onto the workspace board and clear the leaves. */
-export function migrateWorkspaceInserts(
-  ws: Workspace,
-  photos: Photo[],
-  availW = 1000,
-  availH = 1000,
-): Workspace {
-  const stickers = ws.stickers ?? []
-  const labels = ws.labels ?? []
-  if (!leafList(ws.root).some(l => l.stickers.length > 0 || l.label))
-    return stickers === ws.stickers && labels === ws.labels ? ws : { ...ws, stickers, labels }
-  const photoById = new Map(photos.map(p => [p.id, p]))
-  const derived = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, availW, availH, 0, 0, 0)
-  const board = { w: derived.W, h: derived.H }
-  const lifted: Sticker[] = [...stickers]
-  const liftedLabels: PaneLabel[] = [...labels]
-  let root = ws.root
-  for (const { node, rect } of derived.leaves) {
-    if (!node.stickers.length && !node.label)
-      continue
-    lifted.push(...liftLeafStickers(node, rect, board, photoById))
-    if (node.label)
-      liftedLabels.push(liftLeafLabel(node.label, rect, board))
-    root = updateLeafIn(root, node.id, { stickers: [], label: null })
-  }
-  return { ...ws, root, stickers: lifted, labels: liftedLabels }
 }
 
 interface Actions {
