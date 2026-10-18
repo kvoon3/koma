@@ -1,8 +1,14 @@
 /**
- * Tactile texture filters: deterministic, resolution-independent pixel
+ * Texture and pixel-grid filters: deterministic, resolution-independent pixel
  * replacement for a pane's photo. Pure (no DOM, no store, no fonts), so the
  * preview cache (`lib/filterCache`) and the exporter draw the very same bytes
  * through one function.
+ *
+ * Two families share the pipeline: the *textures* (grain, duotones, print,
+ * cyanotype, paper, bit grain) are frozen presets drawn from noise fields, and
+ * the *pixel family* (mosaic, tessera, diamond, halftone, two ordered dithers)
+ * is geometry drawn from a dialled grid, which is why those six take parameters
+ * (`FilterParams` below).
  *
  * Everything here is our own recipe, measured against nothing: no palette,
  * kernel, preset or threshold is taken from any other app's filter set (the
@@ -17,11 +23,13 @@
  *   The pane's pixels are replaced wholesale, so every output is opaque: alpha
  *   is forced to 255 (the exporter clips the pane itself).
  * - **Resolution independent.** Every parameter is expressed in *filter units*
- *   and multiplied by `r = max(w, h) / 1024` (our base, not any reference
- *   app's), so a 2048px render carries the same texture as a 1024px one, at
- *   twice the pixel size. Noise is sampled from an integer lattice in filter
- *   space, so the pattern itself is scale-invariant: the same 2× render
- *   downsamples onto the 1× one instead of being an unrelated field.
+ *   (stage pixels, for the pixel family: see `stagePitch`) and multiplied by
+ *   `r = max(w, h) / 1024` (our base, not any reference app's), so a 2048px
+ *   render carries the same texture as a 1024px one, at twice the pixel size.
+ *   Noise is sampled from an integer lattice in filter space and the pixel
+ *   family's grids are whole pixels, so the pattern itself is scale-invariant:
+ *   the same 2× render downsamples onto the 1× one instead of being an
+ *   unrelated field.
  * - **Deterministic.** Same pixels + same id + same seed → byte-identical
  *   output, in every engine: the pipeline uses only integer ops (`Math.imul`,
  *   shifts) and IEEE-exact float ops (+, −, ×, ÷, `Math.sqrt`, `Math.floor`),
