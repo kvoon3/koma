@@ -74,12 +74,13 @@ export function PhotoDetail({ photo, uses, allTags, onTag, onUntag, onDelete, on
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:flex-row">
-            {/* The frame itself: contained, not cropped, on the pane's own fill
-                so a landscape photo and a portrait one read at their shape. */}
-            <div className="flex min-w-0 flex-1 items-center justify-center bg-pane-bg p-2 sm:p-3" data-photo-detail-preview="">
+            {/* `absolute inset-0` gives the img a definite box (a percentage
+                height would fall back to the intrinsic size), so a 1x1 preview
+                scales up instead of rendering as its own single pixel. */}
+            <div className="relative min-h-[200px] min-w-0 flex-1 bg-pane-bg sm:min-h-[300px]" data-photo-detail-preview="">
               {preview
-                ? <img src={preview.url} alt={photo?.name ?? ''} className="photo-in max-h-[38dvh] max-w-full object-contain sm:max-h-[54dvh]" draggable={false} />
-                : <span className="block h-[120px] w-full" />}
+                ? <img src={preview.url} alt={photo?.name ?? ''} className="photo-in absolute inset-0 h-full w-full object-contain p-2 sm:p-3" draggable={false} />
+                : null}
             </div>
 
             <aside className="flex w-full flex-none flex-col gap-3 border-t border-line p-3 sm:w-[260px] sm:border-t-0 sm:border-l">

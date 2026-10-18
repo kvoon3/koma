@@ -133,7 +133,7 @@ export function PhotoManager() {
     setTagAsk(null)
     setRawPick(null)
     say(count
-      ? t('Tag deleted · it came off {n} photos', { n: count })
+      ? t('Tag deleted · it came off every photo that wore it')
       : t('Tag deleted'))
   }
 
@@ -146,7 +146,7 @@ export function PhotoManager() {
     setDeleting(null)
     setOpenId(null)
     say(placed
-      ? t('Photo deleted · the {n} placed copies stay on the board', { n: placed })
+      ? t('Photo deleted · the copies placed on a board stay there')
       : t('Photo deleted'))
   }
 
@@ -179,7 +179,10 @@ export function PhotoManager() {
         </label>
       </header>
 
-      <div className="flex flex-none items-center gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:px-4">
+      {/* A phone stacks this row: at 320 the icon buttons leave the chip
+          scroller ~220px, where the fade's 48px band is a fifth of it and the
+          cut chip's border ghosts at the boundary, reading as a hard clip. */}
+      <div className="flex flex-none flex-col gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:flex-row sm:items-center sm:px-4">
         {/* Chips scroll on their own; the tag actions stay put at the end of the
             row, so a phone never scrolls to reach them. */}
         <div
@@ -196,70 +199,73 @@ export function PhotoManager() {
             ))}
           </div>
         </div>
-        {/* Rename / delete act on the picked tag; All has neither and Untagged
+        {/* The actions, as one cluster: their own line on a phone. */}
+        <div className="flex flex-none items-center justify-end gap-1.5 sm:justify-start">
+          {/* Rename / delete act on the picked tag; All has neither and Untagged
             only groups what wears nothing. */}
-        {pick != null && pick !== '' && (
-          <>
-            <Tip
-              label={t('Rename tag')}
-              trigger={(
-                <button
-                  type="button"
-                  className={toolCls}
-                  aria-label={t('Rename tag')}
-                  data-tag-rename=""
-                  onClick={() => {
-                    setPromptError(null)
-                    setPrompt(p => ({ mode: 'rename', seq: (p?.seq ?? 0) + 1 }))
-                  }}
-                >
-                  <MorphIcon icon={Pencil} size={13} strokeWidth={1.75} />
-                </button>
-              )}
-            />
-            <Tip
-              label={t('Delete tag')}
-              trigger={(
-                <button
-                  type="button"
-                  className={toolCls}
-                  aria-label={t('Delete tag')}
-                  data-tag-delete=""
-                  onClick={() => setTagAsk(pick)}
-                >
-                  <MorphIcon icon={Trash2} size={13} strokeWidth={1.75} />
-                </button>
-              )}
-            />
-          </>
-        )}
-        <span className="flex flex-none">
-          <Button
-            variant="strong"
-            aria-label={t('New tag')}
-            data-tag-new=""
-            onClick={() => {
-              setPromptError(null)
-              setPrompt(p => ({ mode: 'create', seq: (p?.seq ?? 0) + 1 }))
-            }}
-          >
-            <MorphIcon icon={Tag} size={12} strokeWidth={1.75} />
-            <span className="max-sm:hidden">{t('New tag')}</span>
-          </Button>
-        </span>
-        {/* The page's own import door: the library surface adds to the library
+          {pick != null && pick !== '' && (
+            <>
+              <Tip
+                label={t('Rename tag')}
+                trigger={(
+                  <button
+                    type="button"
+                    className={toolCls}
+                    aria-label={t('Rename tag')}
+                    data-tag-rename=""
+                    onClick={() => {
+                      setPromptError(null)
+                      setPrompt(p => ({ mode: 'rename', seq: (p?.seq ?? 0) + 1 }))
+                    }}
+                  >
+                    <MorphIcon icon={Pencil} size={13} strokeWidth={1.75} />
+                  </button>
+                )}
+              />
+              <Tip
+                label={t('Delete tag')}
+                trigger={(
+                  <button
+                    type="button"
+                    className={toolCls}
+                    aria-label={t('Delete tag')}
+                    data-tag-delete=""
+                    onClick={() => setTagAsk(pick)}
+                  >
+                    <MorphIcon icon={Trash2} size={13} strokeWidth={1.75} />
+                  </button>
+                )}
+              />
+            </>
+          )}
+          <span className="flex flex-none">
+            <Button
+              variant="strong"
+              aria-label={t('New tag')}
+              data-tag-new=""
+              onClick={() => {
+                setPromptError(null)
+                setPrompt(p => ({ mode: 'create', seq: (p?.seq ?? 0) + 1 }))
+              }}
+            >
+              <MorphIcon icon={Tag} size={12} strokeWidth={1.75} />
+              <span className="max-sm:hidden">{t('New tag')}</span>
+            </Button>
+          </span>
+          {/* The page's own import door: the library surface adds to the library
             without touching whatever board happens to be open (autoFill off). */}
-        <span className="flex flex-none">
-          <Button
-            variant="strong"
-            aria-label={t('Add photos')}
-            data-photo-add=""
-            onClick={() => fileRef.current?.click()}
-          >
-            <MorphIcon icon={ImagePlus} size={12} strokeWidth={1.75} />
-            <span className="max-sm:hidden">{t('Add photos')}</span>
-          </Button>
-        </span>
+          <span className="flex flex-none">
+            <Button
+              variant="strong"
+              aria-label={t('Add photos')}
+              data-photo-add=""
+              onClick={() => fileRef.current?.click()}
+            >
+              <MorphIcon icon={ImagePlus} size={12} strokeWidth={1.75} />
+              <span className="max-sm:hidden">{t('Add photos')}</span>
+            </Button>
+          </span>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb sm:p-4">
@@ -346,7 +352,7 @@ export function PhotoManager() {
         open={tagAsk != null}
         title={t('Delete tag?')}
         description={countIn(tagAsk)
-          ? t('It comes off {n} photos. The photos themselves are not deleted.', { n: countIn(tagAsk) })
+          ? t('It comes off every photo that wears it. The photos themselves are not deleted.')
           : t('No photo wears this tag.')}
         confirmLabel={t('Delete tag')}
         danger
