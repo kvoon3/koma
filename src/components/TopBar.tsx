@@ -3,7 +3,7 @@ import type { Lang } from '../lib/i18n'
 import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Images, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -11,7 +11,7 @@ import { clearFilterCaches } from '../lib/filterCache'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
-import { GRID_PATH, HUB_PATH, isGridPath, PHOTOS_PATH, STICKERS_PATH } from '../lib/routes'
+import { isGridPath, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
@@ -194,15 +194,13 @@ function TopBarActions({
  * stands aside.
  */
 function Wordmark() {
-  const t = useT()
   return (
-    <Link
-      to={HUB_PATH}
-      aria-label={t('Home')}
-      className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt no-underline max-sm:hidden"
+    <span
+      aria-hidden
+      className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt max-sm:hidden"
     >
       koma
-    </Link>
+    </span>
   )
 }
 
@@ -390,7 +388,7 @@ export function TopBar({
     useStore.getState().resetHistory()
     setOpenDoc(null)
     say(t('Workspace opened'))
-    void navigate({ to: GRID_PATH })
+    void navigate({ to: OVERVIEW_PATH })
   }
 
   return (

@@ -6,6 +6,7 @@ import { useMemo } from 'react'
 import { formatSeen, readHubSeen } from '../lib/hubSeen'
 import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
+import { OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from '../lib/routes'
 import { photoAssetsOf, stickerAssetsOf } from '../lib/stickerLibrary'
 import { useStore } from '../store'
 
@@ -13,17 +14,19 @@ import { useStore } from '../store'
 const cardCls = 'group flex min-w-0 cursor-pointer flex-col gap-2 border border-line bg-pane-bg p-4 text-left shadow-pop outline-0 outline-2 outline-offset-1 outline-transparent transition-[outline-color,background-color,scale] duration-(--dur-surface) ease-(--ease-out) hover:not-focus-visible:outline-line-strong focus-visible:outline-accent active:scale-[0.99] pointer-coarse:p-5'
 
 /**
- * The hub (`/`): the app's root, three doors instead of one board. Grid making
- * is the board overview the app opened on before (now `#/grid`), photo
- * management and sticker management are the two libraries.
+ * `#/legacy-index`: the launcher drafted while the hub root was under review,
+ * kept as a working page and demoted off the main flow. The board overview went
+ * back to `/` (the routing it always had), and nothing in the app links here:
+ * no menu entry, no card, no shortcut. The page is reachable only by visiting
+ * the URL.
  *
- * It carries what a launcher is for and nothing else: each destination's icon,
- * one line about it, how much is in there, and when it was last opened (a
- * localStorage timestamp, see `lib/hubSeen`). The top bar stays above it, so
- * settings, the language, the theme and the two library doors are all one click
- * away from here, and `#/w/<id>` still opens a board directly.
+ * It is still fully functional: three doors (the board overview, photo
+ * management, sticker management), each with its icon, one line about it, how
+ * much is in there, and when it was last opened (a localStorage timestamp, see
+ * `lib/hubSeen`). The board chrome stays inert here, as on the two library
+ * pages (`isHubPath`).
  */
-export function Hub() {
+export function LegacyIndex() {
   const t = useT()
   const workspaces = useStore(s => s.workspaces)
   const allPhotos = useStore(s => s.photos)
@@ -35,10 +38,10 @@ export function Hub() {
   // recorded while you were away are the ones it shows.
   const seen = useMemo(() => readHubSeen(), [])
 
-  const entries: { key: 'grid' | 'photos' | 'stickers', to: '/grid' | '/photos' | '/stickers', icon: IconInput, title: string, blurb: string, count: string }[] = [
+  const entries: { key: 'grid' | 'photos' | 'stickers', to: typeof OVERVIEW_PATH | typeof PHOTOS_PATH | typeof STICKERS_PATH, icon: IconInput, title: string, blurb: string, count: string }[] = [
     {
       key: 'grid',
-      to: '/grid',
+      to: OVERVIEW_PATH,
       icon: LayoutGrid,
       title: t('Grid making'),
       blurb: t('Arrange photos into collages: split, crop, filter, export.'),
@@ -46,7 +49,7 @@ export function Hub() {
     },
     {
       key: 'photos',
-      to: '/photos',
+      to: PHOTOS_PATH,
       icon: Images,
       title: t('Photo management'),
       blurb: t('Every imported photo in one contact sheet, tagged and searchable.'),
@@ -54,7 +57,7 @@ export function Hub() {
     },
     {
       key: 'stickers',
-      to: '/stickers',
+      to: STICKERS_PATH,
       icon: StickerIcon,
       title: t('Sticker management'),
       blurb: t('The stickers you made, in folders, with where each one is used.'),
@@ -63,16 +66,19 @@ export function Hub() {
   ]
 
   return (
-    <main className="absolute inset-0 overflow-y-auto bg-canvas" data-hub="">
+    <main className="absolute inset-0 overflow-y-auto bg-canvas" data-legacy-index="">
       <div className="mx-auto flex min-h-full w-full max-w-[900px] flex-col justify-center gap-6 px-4 py-8 sm:px-6 sm:py-12">
         <header className="flex flex-col gap-1.5">
+          <span className="w-fit border border-line px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.08em] text-faint" data-legacy-draft="">
+            {t('Retained draft')}
+          </span>
           <h1 className="m-0 text-[19px] font-semibold tracking-[-0.01em] text-txt sm:text-[22px]">{t('Welcome to koma')}</h1>
           <p className="m-0 text-[12.5px] leading-[1.6] text-dim">
             {t('Three doors: build a grid, sort your photos, keep your stickers.')}
           </p>
         </header>
 
-        <nav className="grid gap-2.5 sm:grid-cols-3 sm:gap-3" data-hub-entries="">
+        <nav className="grid gap-2.5 sm:grid-cols-3 sm:gap-3" data-legacy-entries="">
           {entries.map((entry) => {
             const when = formatSeen(seen[entry.key])
             return (
@@ -80,16 +86,16 @@ export function Hub() {
                 key={entry.key}
                 to={entry.to}
                 className={cardCls}
-                data-hub-entry={entry.key}
+                data-legacy-entry={entry.key}
               >
                 <span className="grid h-9 w-9 flex-none place-items-center border border-line bg-panel-2 text-txt transition-colors duration-(--dur-fast) group-hover:bg-chip-hover">
                   <MorphIcon icon={entry.icon} size={17} strokeWidth={1.5} />
                 </span>
                 <span className="text-[14px] font-semibold text-txt">{entry.title}</span>
-                <span className="text-[11.5px] leading-[1.55] text-dim" data-hub-blurb="">{entry.blurb}</span>
+                <span className="text-[11.5px] leading-[1.55] text-dim" data-legacy-blurb="">{entry.blurb}</span>
                 <span className="mt-auto flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pt-2.5 text-[10.5px] tabular-nums text-faint">
-                  <span data-hub-count={entry.key}>{entry.count}</span>
-                  {when && <span data-hub-seen={entry.key}>{t('Last opened {when}', { when })}</span>}
+                  <span data-legacy-count={entry.key}>{entry.count}</span>
+                  {when && <span data-legacy-seen={entry.key}>{t('Last opened {when}', { when })}</span>}
                 </span>
               </Link>
             )

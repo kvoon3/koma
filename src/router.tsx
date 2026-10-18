@@ -10,7 +10,7 @@ import { CropDialog } from './components/CropDialog'
 import { ExportDialog } from './components/ExportDialog'
 import { FloatActions } from './components/FloatActions'
 import { HelpOverlay } from './components/HelpOverlay'
-import { Hub } from './components/Hub'
+import { LegacyIndex } from './components/LegacyIndex'
 import { LibraryDrawer } from './components/LibraryDrawer'
 import { PhotoManager } from './components/PhotoManager'
 import { Stage } from './components/Stage'
@@ -26,7 +26,7 @@ import { exportOptions, renderGridCellItems, renderGridItems, renderWorkspaceIte
 import { armRun, releaseRun } from './lib/exportRun'
 import { hubKeyForPath, markHubSeen } from './lib/hubSeen'
 import { t } from './lib/i18n'
-import { GRID_PATH, HUB_PATH, isGridPath, isHubPath, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
+import { EDITOR_PATH, isGridPath, isHubPath, LEGACY_INDEX_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
 import { say } from './lib/toast'
 import { viewTransitionOption } from './lib/viewTransition'
 import { useStore } from './store'
@@ -38,8 +38,8 @@ import { useRouteKeys } from './useRouteKeys'
 function RootLayout() {
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
-  // A hub route (the launcher or one of its two libraries) is not a board: it
-  // draws its own chrome and none of the board's floating actions belong over it.
+  // A library route (or the retained launcher) is not a board: it draws its own
+  // chrome and none of the board's floating actions belong over it.
   const hub = useRouterState({ select: s => isHubPath(s.location.pathname) })
   const pathname = useRouterState({ select: s => s.location.pathname })
 
@@ -57,9 +57,9 @@ function RootLayout() {
 
   initTheme()
 
-  // The hub's cards say when each destination was last opened: the chrome
-  // records every visit here, whichever route the user came from (a board is a
-  // grid-making visit, the two libraries are their own).
+  // The retained launcher's cards say when each destination was last opened:
+  // the chrome records every visit here, whichever route the user came from (a
+  // board is a grid-making visit, the two libraries are their own).
   useEffect(() => {
     const key = hubKeyForPath(pathname)
     if (key)
@@ -165,8 +165,8 @@ function RootLayout() {
         useStore.getState().clearSelection()
         void navigate({ to: '/w/$wsId', params: { wsId: s.activeId }, viewTransition: viewTransitionOption() })
       }
-      // A hub route lists the library itself (the photo page, or the hub's
-      // own counts), so the drawer would only cover what the drop just filled.
+      // A library route lists the photos itself, so the drawer would only
+      // cover what the drop just filled.
       if (!hub)
         setLibOpen(true)
     }
@@ -261,7 +261,7 @@ function WorkspaceRoute() {
       useStore.getState().clearSelection()
     }
     else {
-      void navigate({ to: GRID_PATH, replace: true })
+      void navigate({ to: OVERVIEW_PATH, replace: true })
     }
   }, [wsId, exists, navigate])
 
@@ -270,26 +270,26 @@ function WorkspaceRoute() {
 
 const rootRoute = createRootRoute({ component: RootLayout })
 
-/**
- * The root is the hub: three destinations, one route each. The board overview
- * the app used to open on is `#/grid`, so `/` can be the door instead of a
- * destination, and `#/w/<id>` links keep opening the board they name.
- */
-const hubRoute = createRoute({
+/** `/`: the 3×3 board overview, where the app opens (the root it always had). */
+const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: HUB_PATH,
-  component: Hub,
+  path: OVERVIEW_PATH,
+  component: WorkspaceGrid,
 })
 
-const gridRoute = createRoute({
+/**
+ * `#/legacy-index`: the launcher drafted while the hub root was under review,
+ * kept routable and working but linked from nowhere (see `components/LegacyIndex`).
+ */
+const legacyIndexRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: GRID_PATH,
-  component: WorkspaceGrid,
+  path: LEGACY_INDEX_PATH,
+  component: LegacyIndex,
 })
 
 const workspaceRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/w/$wsId',
+  path: EDITOR_PATH,
   component: WorkspaceRoute,
 })
 
@@ -305,7 +305,7 @@ const stickerRoute = createRoute({
   component: StickerManager,
 })
 
-const routeTree = rootRoute.addChildren([hubRoute, gridRoute, workspaceRoute, photoRoute, stickerRoute])
+const routeTree = rootRoute.addChildren([overviewRoute, legacyIndexRoute, workspaceRoute, photoRoute, stickerRoute])
 
 export const router = createRouter({
   routeTree,

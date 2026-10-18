@@ -1,8 +1,9 @@
 /**
- * The hub's three destinations remember when each was last opened, so the
- * launcher can say "last opened 19:15" instead of listing bare links. It is
- * localStorage state of its own (`collage:hubSeen`), beside the persisted
- * settings, not session state: losing it costs a timestamp and nothing else.
+ * The three destinations remember when each was last opened, so the retained
+ * launcher (`#/legacy-index`) can say "last opened 19:15" instead of listing
+ * bare links. It is localStorage state of its own (`collage:hubSeen`), beside
+ * the persisted settings, not session state: losing it costs a timestamp and
+ * nothing else, and with the launcher off the main flow nothing else reads it.
  *
  * The mapping (which route belongs to which destination) and the label
  * formatting are pure, so they are unit-tested without a browser.
@@ -14,12 +15,13 @@ export type HubKey = 'grid' | 'photos' | 'stickers'
 const KEY = 'collage:hubSeen'
 
 /**
- * The destination a route belongs to: the editor is grid making (a board is
- * where the grid is edited), and the two library pages are their own entries.
- * The hub itself belongs to nothing (opening it is not a destination visit).
+ * The destination a route belongs to: the board overview and the editor are
+ * grid making (a board is where the grid is edited), and the two library pages
+ * are their own entries. `#/legacy-index` belongs to nothing: opening the
+ * retained launcher is not a visit to a destination.
  */
 export function hubKeyForPath(path: string): HubKey | null {
-  if (path === '/grid' || path === '/w/$wsId' || path.startsWith('/w/'))
+  if (path === '/' || path === '/w/$wsId' || path.startsWith('/w/'))
     return 'grid'
   if (path === '/photos')
     return 'photos'
