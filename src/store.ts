@@ -43,6 +43,7 @@ import {
   wrapAngle,
 } from './lib/panes'
 import { blankAllBoards, glueMotionFiles, importPhotoBatch, probePhotoDims, withPhotoDims } from './lib/photoLibrary'
+import { addTag, deleteTag, normalizeTagList, renameTag, resolveTag, retag, untagAll, withoutTag, withTag } from './lib/photoTags'
 import { clearSession } from './lib/sessionStore'
 import { migrateSettings, partializeSettings, SETTINGS_DEFAULTS, SETTINGS_VERSION, TOOLS_DOCK_MODE } from './lib/settingsStore'
 import {
@@ -131,6 +132,12 @@ interface State extends PersistedSettings {
    * Library-shaped, not board-shaped: folder edits are outside the undo stack.
    */
   stickerFolders: string[]
+  /**
+   * The photo tags that exist, even while they label nothing (many per photo;
+   * a photo's own `tags` say which ones it wears). Library-shaped like
+   * `stickerFolders`: tag edits are outside the undo stack.
+   */
+  photoTags: string[]
   /** The open group's nine cells (every board action works on these). */
   workspaces: Workspace[]
   activeId: string
@@ -324,6 +331,17 @@ function livePhotoRefs(s: State): Set<string> {
   return new Set(referenceCounts(boards, singles).keys())
 }
 
+/**
+ * Retire one library asset (see `retirePhoto`): the record leaves the library,
+ * or stays as an orphaned snapshot when a board still draws it, so a placed
+ * copy keeps rendering in the preview and the export. The two delete actions
+ * differ only in which kind of asset they accept.
+ */
+function retireAsset(s: State, photoId: string): Pick<State, 'photos' | 'cutouts'> {
+  const photos = retirePhoto(s.photos, photoId, livePhotoRefs(s))
+  return { photos, cutouts: photos === s.photos ? s.cutouts : dropCutoutRefs(s.cutouts, photoId) }
+}
+
 let labelEditSeq = 0
 
 /** Clear selection-type state on any workspace / view switch. */
@@ -337,6 +355,7 @@ const clearedSelection = {
 export const useStore = create<State & Actions>()(persist((set, get) => ({
   photos: [],
   stickerFolders: [],
+  photoTags: [],
   cutouts: {},
   cutoutJob: null,
   workspaces: bootWorkspaces,
@@ -411,8 +430,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     void clearSession()
     set(s => ({
       photos: [],
-      // The folders only ever grouped the stickers that are gone with them.
+      // The folders only ever grouped the stickers that are gone with them,
+      // and the tags only ever labelled the photos that are.
       stickerFolders: [],
+      photoTags: [],
       // Every group is wiped, not just the open one: the photos are gone
       // everywhere (see `blankAllBoards`).
       ...blankAllBoards(s.workspaces, s.parkedBoards, newWorkspace),
@@ -634,6 +655,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       photos,
       // Sessions saved before the sticker manager have no folders.
       stickerFolders: session.meta.stickerFolders ?? [],
+      // Sessions saved before tagging have no tags; a tag a photo still wears
+      // but the saved list lost is unioned back in (see `normalizeTagList`).
+      photoTags: normalizeTagList(session.meta.photoTags ?? [], photos),
       // Sessions saved before one-tap cutout have no map.
       cutouts: pruneCutouts(session.meta.cutouts ?? {}, new Set(photos.map(p => p.id))),
       cutoutJob: null,
@@ -1278,8 +1302,74 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return
     // `retirePhoto` also covers the second ask about a snapshot that has since
     // lost its last reference: the id leaves the library for good then.
-    const photos = retirePhoto(s.photos, photoId, livePhotoRefs(s))
-    set({ photos, cutouts: photos === s.photos ? s.cutouts : dropCutoutRefs(s.cutouts, photoId) })
+    set(retireAsset(s, photoId))
+  },
+
+  // ---- photo tags (the photo page's library state) ------------------------
+
+  /** Create a tag; false when the name is blank or taken (case-insensitively). */
+  addPhotoTag: (name) => {
+    const res = addTag(get().photoTags, name)
+    if (!res.ok)
+      return false
+    set({ photoTags: res.tags })
+    return true
+  },
+
+  /** Rename a tag and repoint every photo wearing it; false when refused. */
+  renamePhotoTag: (from, to) => {
+    const s = get()
+    const res = renameTag(s.photoTags, from, to)
+    if (!res.ok)
+      return false
+    set({
+      photoTags: res.tags,
+      photos: from === res.name ? s.photos : retag(s.photos, from, res.name),
+    })
+    return true
+  },
+
+  /** Delete a tag; it comes off every photo and the photos themselves stay. */
+  deletePhotoTag: (name) => {
+    const s = get()
+    if (!s.photoTags.includes(name))
+      return
+    set({ photoTags: deleteTag(s.photoTags, name), photos: untagAll(s.photos, name) })
+  },
+
+  /**
+   * Put a tag on one photo. Unlike a sticker's folder (which has to exist
+   * before a sticker can move into it), a tag typed on a photo joins the list
+   * on the spot: tagging is where tags are invented.
+   */
+  tagPhoto: (photoId, name) => {
+    const s = get()
+    const tag = resolveTag(s.photoTags, name)
+    if (!tag || !s.photos.some(p => p.id === photoId))
+      return
+    const res = addTag(s.photoTags, tag)
+    set({
+      photoTags: res.ok ? res.tags : s.photoTags,
+      photos: s.photos.map(p => (p.id === photoId ? withTag(p, tag) : p)),
+    })
+  },
+
+  /** Take one tag off one photo (the tag itself stays in the list). */
+  untagPhoto: (photoId, name) => {
+    set(s => ({ photos: s.photos.map(p => (p.id === photoId ? withoutTag(p, name) : p)) }))
+  },
+
+  /**
+   * Delete a photo asset. The same snapshot rule as a sticker's: a photo a
+   * board still draws stays as an orphaned record (hidden from every list) so
+   * the pane keeps rendering, and is collected once nothing references it.
+   */
+  deletePhotoAsset: (photoId) => {
+    const s = get()
+    const photo = s.photos.find(p => p.id === photoId)
+    if (!photo || photo.kind === 'sticker')
+      return
+    set(retireAsset(s, photoId))
   },
 
   /**
@@ -1423,4 +1513,16 @@ interface Actions {
   deleteStickerAsset: (photoId: string) => void
   /** Record how a made sticker was drawn, so the page can reopen it. */
   setStickerRecipe: (photoId: string, recipe: StickerRecipe) => void
+  /** Create a photo tag; false when the name is blank or taken. */
+  addPhotoTag: (name: string) => boolean
+  /** Rename a photo tag and repoint the photos wearing it; false when refused. */
+  renamePhotoTag: (from: string, to: string) => boolean
+  /** Delete a photo tag; it comes off every photo. */
+  deletePhotoTag: (name: string) => void
+  /** Put a tag on one photo, adding it to the tag list when it is new. */
+  tagPhoto: (photoId: string, name: string) => void
+  /** Take one tag off one photo. */
+  untagPhoto: (photoId: string, name: string) => void
+  /** Delete a photo asset, keeping the copies already placed on a board. */
+  deletePhotoAsset: (photoId: string) => void
 }
