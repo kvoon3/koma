@@ -1,9 +1,10 @@
 import type { RefObject } from 'react'
+import type { History } from '../lib/history'
 import { Popover } from '@base-ui/react/popover'
 import { GitBranch } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
-import { historyLabel, historyPath, stepAge, stepCount } from '../lib/history'
+import { historyLabel, historyPath, stepAge } from '../lib/history'
 import { useT } from '../lib/i18n'
 import { useStore } from '../store'
 
@@ -55,6 +56,26 @@ function Marker({ current }: { current: boolean }) {
   return <span aria-hidden className={`block size-1.5 flex-none ${current ? 'bg-accent' : 'border border-line-strong'}`} />
 }
 
+/**
+ * The steps beside this one, under a visible tree gutter: the branches a
+ * linear undo stack would have thrown away. A child that is already on the
+ * root-to-cursor path renders below as its own row, so the expanded list
+ * shows only the OFF-path variants, so there are no duplicate labels and the
+ * cursor's row never leaves the list.
+ */
+function variantSummary(history: History<unknown>, t: ReturnType<typeof useT>, id: string): string {
+  const labels: string[] = []
+  let node = history.nodes[id]
+  while (node && labels.length < 2) {
+    const kid = node.children.map(c => history.nodes[c]).find(Boolean)
+    if (!kid)
+      break
+    labels.push(t(historyLabel(kid.label)))
+    node = kid
+  }
+  return labels.join(' → ')
+}
+
 export function HistoryPanel({ open, onOpenChange, anchor }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -70,9 +91,13 @@ export function HistoryPanel({ open, onOpenChange, anchor }: {
   const cursorRef = useRef<HTMLButtonElement | null>(null)
 
   const path = historyPath(history)
-  const steps = stepCount(history)
+  const onPath = new Set(path)
+  // Off-path variants, counted the way the badges count them: the direct
+  // children of path steps that are NOT the path's continuation. The header
+  // and the badges must agree on what "a variant" is.
+  const offPath = path.reduce((n, id) => n + (history.nodes[id]?.children.filter(c => history.nodes[c] && !onPath.has(c)).length ?? 0), 0)
 
-  const row = (id: string, indent: boolean) => {
+  const row = (id: string, variant: boolean) => {
     const node = history.nodes[id]
     if (!node)
       return null
@@ -80,38 +105,54 @@ export function HistoryPanel({ open, onOpenChange, anchor }: {
     const children = node.children.filter(child => history.nodes[child])
     const label = t(historyLabel(node.label))
     const isExpanded = expanded === id
+    const sub = variant ? variantSummary(history, t, id) : ''
     return (
       <div key={id}>
-        <div className="flex items-stretch" data-history-row={id} data-history-current={current ? 'true' : undefined}>
+        <div className="flex items-stretch" data-history-row={id} data-history-variant={variant ? 'true' : undefined} data-history-current={current ? 'true' : undefined}>
           <button
             ref={current ? cursorRef : undefined}
             type="button"
-            className={`${rowCls} ${indent ? 'pl-7' : ''} ${current ? 'font-medium' : ''}`}
+            className={`${rowCls} ${current ? 'font-medium' : ''}`}
             aria-current={current ? 'step' : undefined}
             aria-label={`${label} · ${ago(node.at)}`}
+            title={variant && sub ? `${label} → ${sub}` : label}
             onClick={() => jumpTo(id)}
           >
-            <Marker current={current} />
-            <span className="min-w-0 flex-1 truncate">{label}</span>
-            <span className="flex-none text-[10px] tabular-nums text-faint">{ago(node.at)}</span>
+            {variant
+              ? <MorphIcon icon={GitBranch} size={10} strokeWidth={1.75} className="flex-none text-faint" aria-hidden />
+              : <Marker current={current} />}
+            <span className="flex min-w-0 flex-1 flex-col gap-0">
+              <span className="flex items-baseline gap-2">
+                <span className="min-w-0 flex-1 truncate">{label}</span>
+                <span className="flex-none text-[10px] tabular-nums text-faint">{ago(node.at)}</span>
+              </span>
+              {sub && (
+                <span className="truncate text-[10px] text-faint">
+                  →
+                  {sub}
+                </span>
+              )}
+            </span>
           </button>
-          {children.length > 0 && (
+          {children.length > 1 && (
             <button
               type="button"
               className={badgeCls}
               data-history-branch={id}
               aria-expanded={isExpanded}
-              aria-label={t('{n} variants', { n: children.length })}
+              aria-label={t('{n} variants', { n: children.length - 1 })}
               onClick={() => setExpanded(isExpanded ? null : id)}
             >
               <MorphIcon icon={GitBranch} size={11} strokeWidth={1.75} />
-              <span>{children.length}</span>
+              <span>{children.length - 1}</span>
             </button>
           )}
         </div>
-        {/* The steps beside this one, indented under it: the branches a linear
-            undo stack would have thrown away. */}
-        {isExpanded && children.map(child => row(child, true))}
+        {isExpanded && (
+          <div className="ml-5 flex flex-col self-stretch border-l border-line pl-1">
+            {children.filter(child => !onPath.has(child)).map(child => row(child, true))}
+          </div>
+        )}
       </div>
     )
   }
@@ -134,7 +175,10 @@ export function HistoryPanel({ open, onOpenChange, anchor }: {
             <header className="flex flex-none items-center gap-2 border-b border-line py-1.5 pr-2.5 pl-3.5">
               <Popover.Title className="m-0 text-[12.5px] font-bold">{t('History')}</Popover.Title>
               <span className="flex-1" />
-              <span className="text-[10px] tabular-nums text-faint">{t('{n} steps', { n: steps })}</span>
+              <span className="text-[10px] tabular-nums text-faint">
+                {t('{n} steps', { n: path.length })}
+                {offPath > 0 && ` · ${t('{n} variants', { n: offPath })}`}
+              </span>
             </header>
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-1">
               {path.length === 0
