@@ -969,7 +969,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       if (leaf.photoId)
         continue
       const p = s.photos[k++ % s.photos.length]
-      next = updateLeafIn(next, leaf.id, { photoId: p.id, zoom: 1, cx: 0.5, cy: 0.5 })
+      next = updateLeafIn(next, leaf.id, { photoId: p.id, zoom: 1, cx: 0.5, cy: 0.5, filter: undefined })
     }
     if (next === ws.root)
       return
