@@ -2,6 +2,7 @@ import type { IconInput } from 'morphicons/react'
 import type { Action, DockRoute } from '../lib/actionGuard'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { StickerTarget } from '../lib/stickerAssets'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
 import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
@@ -145,6 +146,14 @@ function ToolButton({ icon, label, hint, onClick, options }: Omit<ToolDef, 'key'
       <span className={toolsLabelCls}>{label}</span>
     </button>
   )
+}
+
+/**
+ * What the editor's Make tool hands the dialog: the focused pane, as a pane
+ * target (module scope so the page body keeps one branch fewer).
+ */
+function paneTarget(paneId: string | null): StickerTarget | null {
+  return paneId ? { kind: 'pane', paneId } : null
 }
 
 export function Stage() {
@@ -449,7 +458,11 @@ export function Stage() {
         <PaneFilterTool hidden={!!dockLabel} />
       </ToolsDock>
 
-      <StickerMakerDialog open={stickerMakerFor != null} paneId={stickerMakerFor} onClose={() => openStickerMaker(null)} />
+      <StickerMakerDialog
+        open={stickerMakerFor != null}
+        target={paneTarget(stickerMakerFor)}
+        onClose={() => openStickerMaker(null)}
+      />
     </div>
   )
 }

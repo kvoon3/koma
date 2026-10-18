@@ -550,6 +550,11 @@ export const zhHans: Record<string, string> = {
   'Location': '位置',
   'Insert a location label from this photo\'s GPS': '用这张照片的 GPS 位置插入文字标签',
   // Sticker management (the sticker library route, one-level folders)
+  'New sticker': '制作贴图',
+  'Pick a photo': '选择照片',
+  'From the photo library': '从照片库选择',
+  'Save to {folder}': '保存到「{folder}」',
+  'Sticker saved to {folder}': '贴图已保存到「{folder}」',
   'Rename': '重命名',
   'Create': '新建',
   'Stickers': '贴图管理',

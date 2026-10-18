@@ -432,6 +432,19 @@ history** (like `clearLibrary`): they push no undo entry, so one ⌘Z after
 sorting still undoes the last board change. Deletion is the one destructive
 library action, so it confirms, and the confirm says what survives.
 
+**New sticker** in the toolbar opens the editor's sticker maker, with one
+difference at the end: its save files the PNG in the picked folder (Unsorted
+when the chips are on All) and touches no board, so it pushes no undo entry
+either. There is one maker, not two: `StickerMakerDialog` takes a
+`StickerTarget` (`lib/stickerAssets`) and only its save branches, on `pane`
+(bake, then pin onto the board, the editor's Make tool) or `library` (bake,
+then file under the folder, the page's New sticker). The source is either a
+file pick (the app's shared picker) or a photo already imported, picked from
+the drawer's own thumbnail grid inside the stage slot, so the cutout, the edge
+effects and the mask editor are the same code on both roads. The save button
+names the target ("Save to Faces"), and every opening starts from an empty
+stage so a new sticker never inherits the last one's pick.
+
 Entry is the top bar's Photo menu (both views); the route is the shape the
 future hub hangs off (grid making / photo management / sticker management).
 
