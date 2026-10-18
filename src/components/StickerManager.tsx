@@ -1,15 +1,19 @@
+import type { Photo } from '../lib/imageStore'
+import type { StickerRecipe } from '../lib/stickerRecipe'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, FolderPlus, Pencil, Search, Sticker as StickerIcon, Trash2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useState } from 'react'
 import { useT } from '../lib/i18n'
 import { addFolder, folderOf, referenceCounts, renameFolder, stickerAssetsOf } from '../lib/stickerLibrary'
+import { recipeOf } from '../lib/stickerRecipe'
 import { say } from '../lib/toast'
 import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FolderPrompt } from './sticker/FolderPrompt'
 import { StickerCard } from './sticker/StickerCard'
+import { StickerEraseDialog } from './StickerEraseDialog'
 import { StickerMakerDialog } from './StickerMakerDialog'
 import { Button } from './ui/button'
 import { Tip } from './ui/tip'
@@ -74,6 +78,13 @@ export function StickerManager() {
    * an empty stage instead of from the last one's pick and effects.
    */
   const [making, setMaking] = useState<{ seq: number } | null>(null)
+  /**
+   * The sticker whose silhouette is being painted over (see StickerEraseDialog)
+   * and the one being reopened in the maker with its own recipe. Both act on
+   * the library only: they save a new asset and push no board history.
+   */
+  const [erasing, setErasing] = useState<{ photo: Photo, src: string } | null>(null)
+  const [reEditing, setReEditing] = useState<{ photo: Photo, recipe: StickerRecipe, seq: number } | null>(null)
   // The chip bar scrolls sideways on a phone; its cut edge fades like the tools
   // dock's row, so a half-seen folder name reads as "more this way" rather than
   // as a chip clipped mid-word.
@@ -148,6 +159,23 @@ export function StickerManager() {
     say(moved
       ? t('Folder deleted · {n} stickers moved to Unsorted', { n: moved })
       : t('Folder deleted'))
+  }
+
+  /**
+   * The erase door's own two moments: the sticker's PNG is handed to the dialog
+   * as an object URL, minted on the click and released on the close. It lives in
+   * the click, not in an effect, so a StrictMode remount cannot revoke the URL
+   * the editor is about to decode.
+   */
+  const openErase = (photo: Photo) => {
+    if (erasing)
+      URL.revokeObjectURL(erasing.src)
+    setErasing({ photo, src: URL.createObjectURL(photo.file) })
+  }
+  const closeErase = () => {
+    if (erasing)
+      URL.revokeObjectURL(erasing.src)
+    setErasing(null)
   }
 
   const confirmDeleteSticker = () => {
@@ -285,30 +313,56 @@ export function StickerManager() {
                 className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5"
                 data-sticker-grid=""
               >
-                {shown.map(p => (
-                  <StickerCard
-                    key={p.id}
-                    photo={p}
-                    folder={label(folderOf(p))}
-                    folderKey={folderOf(p)}
-                    uses={uses.get(p.id) ?? 0}
-                    // Keys, not labels: a folder the user calls "Unsorted"
-                    // still moves to itself rather than to the default bucket.
-                    folders={['', ...folders]}
-                    onMove={folder => moveStickerToFolder(p.id, folder)}
-                    onDelete={() => setDeleting(p.id)}
-                  />
-                ))}
+                {shown.map((p) => {
+                  // The recipe is what the Re-edit door needs; a legacy asset
+                  // has none, so the door is not drawn at all.
+                  const recipe = recipeOf(p)
+                  return (
+                    <StickerCard
+                      key={p.id}
+                      photo={p}
+                      folder={label(folderOf(p))}
+                      folderKey={folderOf(p)}
+                      uses={uses.get(p.id) ?? 0}
+                      // Keys, not labels: a folder the user calls "Unsorted"
+                      // still moves to itself rather than to the default bucket.
+                      folders={['', ...folders]}
+                      onMove={folder => moveStickerToFolder(p.id, folder)}
+                      onDelete={() => setDeleting(p.id)}
+                      onErase={() => openErase(p)}
+                      onReEdit={recipe ? () => setReEditing(r => ({ photo: p, recipe, seq: (r?.seq ?? 0) + 1 })) : null}
+                    />
+                  )
+                })}
               </div>
             )
           : <StickerEmptyState />}
       </div>
 
+      {/* New sticker and Re-edit are one dialog: the maker, seeded from the
+          recipe when the page reopens an existing sticker, saving into that
+          sticker's own folder. Each opening is its own mount, so the recipe is
+          read once. */}
       <StickerMakerDialog
-        key={making?.seq ?? 0}
+        key={`make:${making?.seq ?? 0}`}
         open={making != null}
         target={makeTarget}
         onClose={() => setMaking(null)}
+      />
+
+      <StickerMakerDialog
+        key={`reedit:${reEditing?.seq ?? 0}`}
+        open={reEditing != null}
+        target={reEditing ? { kind: 'library', folder: folderOf(reEditing.photo) } : null}
+        reEdit={reEditing}
+        onClose={() => setReEditing(null)}
+      />
+
+      <StickerEraseDialog
+        open={erasing != null}
+        photo={erasing?.photo ?? null}
+        src={erasing?.src ?? null}
+        onClose={closeErase}
       />
 
       <FolderPrompt

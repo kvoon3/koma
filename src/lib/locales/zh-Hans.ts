@@ -605,4 +605,12 @@ export const zhHans: Record<string, string> = {
   'Used in {n} places on the board': '在画板上被使用了 {n} 处',
   'Not placed on the board': '还没有放到画板上',
   'No stickers here yet. Make one with the New sticker button above.': '这里还没有贴图。点上方「制作贴图」做一张，它就会进到这个素材库。',
+  // Sticker erase & re-edit (wave35/sticker-erase)
+  'Erase sticker': '擦除贴图',
+  'Re-edit sticker': '重新编辑贴图',
+  'Erased sticker saved to {folder}': '擦除后的贴图已保存到「{folder}」',
+  'Saves a new sticker · placed copies keep their pixels': '会存成一张新贴图 · 已放置的副本保留原来的像素',
+  'Paint the sticker’s own edge. Applying it saves a new sticker in the same folder · the copies already placed keep the old pixels.': '在贴图本身的边缘上涂抹。应用后会存成同一文件夹里的新贴图 · 已经放好的副本仍然使用原来的像素。',
+  'Saving...': '保存中…',
+  'Failed to save sticker': '保存贴图失败',
 }

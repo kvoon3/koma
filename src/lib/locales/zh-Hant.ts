@@ -603,4 +603,12 @@ export const zhHant: Record<string, string> = {
   'Used in {n} places on the board': '在畫布上被使用了 {n} 處',
   'Not placed on the board': '還沒有放到畫布上',
   'No stickers here yet. Make one with the New sticker button above.': '這裡還沒有貼圖。點上方「製作貼圖」做一張，它就會進到這個素材庫。',
+  // Sticker erase & re-edit (wave35/sticker-erase)
+  'Erase sticker': '擦除貼圖',
+  'Re-edit sticker': '重新編輯貼圖',
+  'Erased sticker saved to {folder}': '擦除後的貼圖已儲存到「{folder}」',
+  'Saves a new sticker · placed copies keep their pixels': '會存成一張新貼圖 · 已放置的副本保留原本的像素',
+  'Paint the sticker’s own edge. Applying it saves a new sticker in the same folder · the copies already placed keep the old pixels.': '在貼圖本身的邊緣上塗抹。套用後會存成同一資料夾裡的新貼圖 · 已經放好的副本仍然使用原本的像素。',
+  'Saving...': '儲存中…',
+  'Failed to save sticker': '儲存貼圖失敗',
 }
