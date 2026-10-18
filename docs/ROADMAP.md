@@ -35,6 +35,13 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - lib/motionTokens.ts for the shared ease curve hardcoded in dockSwap/dockFlip/boardPager (S)
 - paneCommands.ts: one file one job (S)
 
+## Shipped in Wave 3.5 (PRs #41/#40/#42/#43/#44)
+
+- Pixelation filter family (six, stage-px WYSIWYG dials) + the tactile eight from Wave 3
+- Sticker management (#/stickers) with folders, usage badges, make-on-page; erase + re-edit back to the ORIGINAL (original+result pair)
+- Photo management (#/photos) with tags, EXIF detail + reverse geocoding, safe delete; the hub draft parked at #/legacy-index
+- History: step tree with a jump panel in the floating cluster; pure-overwrite rule (one chain)
+
 ## Wave 3.5 (approved order)
 
 1. **Pixelation filters** (replaces the glyph/painterly tier-2 direction): mosaic, tiled-grout, diamond lattice, AM halftone (screen angle, mono/duotone), Bayer ordered dither (1-bit + color-preserving), constant dot screen; sliders WYSIWYG in stage px; clean-room as before
@@ -48,6 +55,13 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - **Detent rotation common component** + pane rotation/flip (`panes.ts`, `Pane.tsx`): every later rotation UI reuses it.
 - **Dock rework** (`ToolsDock.tsx`, `toolsDockMode.ts`, `dockPhysics.ts`): whole-drawer drag gesture, fix text-insert tools display, drop the minimized state for the three display modes, ratio control when nothing is selected. One agent owns the dock.
 - **Dual 9-grid comparison** (`workspaces.ts`, `WorkspaceGrid.tsx`, `Stage.tsx`).
+
+## Shipped in Wave 3.5 (PRs #41/#40/#42/#43/#44)
+
+- Pixelation filter family (six, stage-px WYSIWYG dials) + the tactile eight from Wave 3
+- Sticker management (#/stickers) with folders, usage badges, make-on-page; erase + re-edit back to the ORIGINAL (original+result pair)
+- Photo management (#/photos) with tags, EXIF detail + reverse geocoding, safe delete; the hub draft parked at #/legacy-index
+- History: step tree with a jump panel in the floating cluster; pure-overwrite rule (one chain)
 
 ## Wave 3.5 (approved order)
 
