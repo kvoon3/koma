@@ -317,12 +317,23 @@ export const zhHans: Record<string, string> = {
   'Cutout added to the library': '抠图已添加到素材库',
   'Background removal failed': '背景移除失败',
 
-  // Sticker maker: stamp edge (wave3/stickers)
+  // Sticker maker: stamp edge and manual mask (wave3/stickers)
   'Edge': '边缘',
   'Smooth': '平滑',
   'Stamp': '邮票',
   'Hole size': '齿孔大小',
   'Hole spacing': '齿孔间距',
+  'Adjust cutout': '手动修整抠图',
+  'Mask': '蒙版',
+  'Keep': '保留',
+  'Erase': '擦除',
+  'Tool': '工具',
+  'Brush': '画笔',
+  'Lasso': '套索',
+  'Brush size': '画笔大小',
+  'Apply': '应用',
+  'Could not open this image': '无法打开这张图片',
+  'Drag to paint · space or two fingers to move': '拖动涂抹 · 空格或双指移动',
 
   // Library / LibraryDrawer
   'Live Photo': '实况照片',
