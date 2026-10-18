@@ -413,7 +413,11 @@ same commit.
 Each card is the sticker on the transparency checkerboard (the same `stage-clear`
 read the export preview gives a PNG), its folder, a usage badge, and the four
 actions that act on the asset: erase, re-edit (only when it carries a recipe),
-move, delete. **Usage is derived, never stored**: every board of every group is
+move, delete. The name owns its line and the folder shares the action row; on a
+touch pointer the folder climbs onto the name's line and the four buttons grow
+into a 32px tap target with an 8px label under the glyph, because a phone has no
+tooltip to tell a scissors from a bin. Erase also wears the accent colour: it is
+an edit that saves a copy, not a delete. **Usage is derived, never stored**: every board of every group is
 scanned for photo ids (pane photos, pane stickers, board stickers, plus the
 collage background), and the count is what the badge shows. Labels contribute
 nothing: their icons are catalog ids, not photos.
@@ -488,6 +492,19 @@ The cost is one extra PNG per re-editable sticker, held in the session record;
 `stickerRecipeFrom` validates untrusted payloads (a session written by an older
 build, an imported file) and answers null unless every field is there, which is
 exactly the legacy state, and `normalizePhotoRecipes` applies that at hydration.
+
+The erase dialog's own layout follows from the small screens it has to survive:
+the sticker's editor scrolls (with the app's scroll-edge fade from
+`lib/useScrollFade`, so the cut edge reads as "more this way" instead of a
+cropped control) while **Cancel and Apply are pinned above the fold in a fixed
+footer**, drawn by the dialog rather than inside that scroll body
+(`StickerMaskEditor` takes `actions="none"` and hands its commit over as
+`MaskEditorHandle.apply()`). The editor's stage is measured in `dvh`
+(`min(34dvh, 280px)`), so a 412px-tall landscape phone shrinks the canvas
+instead of burying the toolbar; on a 375x812 or 1280x900 window the stage is
+within 4px of its old height. The undo depth beside Undo reads `0/20`, which is
+cryptic alone: it carries an accessible name and a hover title ("0 of 20 undo
+steps") without taking a row.
 
 Both depths **save a NEW record** in the source's folder and never rewrite the
 one they came from: `cat.png` becomes `cat (erased).png` or `cat (edited).png`

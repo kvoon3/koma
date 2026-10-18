@@ -1,8 +1,9 @@
+import type { Ref } from 'react'
 import type { MaskMode, MaskPoint } from '../lib/stickerFX'
 import type { MaskLayers, MaskView } from '../lib/stickerMask'
 import { Maximize2, Undo2 } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { RangeField, SegmentedField } from '@/components/ui/field'
 import { useT } from '../lib/i18n'
@@ -38,10 +39,27 @@ import {
  * stroke is its unit: one press-drag-release is one snapshot, whatever it
  * painted, and a lasso only takes a snapshot once it encloses something.
  */
-export function StickerMaskEditor({ src, onApply, onCancel }: {
+
+/** What a host that pins its own action row calls instead of drawing the buttons. */
+export interface MaskEditorHandle {
+  /** Commit source α × mask α; the host decides where the PNG goes. */
+  apply: () => void
+}
+
+export function StickerMaskEditor({ src, onApply, onCancel, actions = 'inline', onReady, ref }: {
   src: string
   onApply: (dataUrl: string) => void
   onCancel: () => void
+  /**
+   * `inline` draws Cancel / Apply under the toolbar (the maker's Adjust cutout).
+   * `none` leaves the commit to the host, so it can pin the pair outside its
+   * scroll body and a short window can never hide them (the sticker library's
+   * Erase); the host then calls `ref.apply()`.
+   */
+  actions?: 'inline' | 'none'
+  /** Fires once the layers are decodable, for a host's own Apply button state. */
+  onReady?: () => void
+  ref?: Ref<MaskEditorHandle>
 }) {
   const t = useT()
   const boxRef = useRef<HTMLDivElement | null>(null)
@@ -60,6 +78,11 @@ export function StickerMaskEditor({ src, onApply, onCancel }: {
   const spaceRef = useRef(false)
 
   const [ready, setReady] = useState(false)
+  /** The host's ready listener, reached through a ref so a new closure never reloads the layers. */
+  const readyRef = useRef(onReady)
+  useEffect(() => {
+    readyRef.current = onReady
+  })
   const [mode, setMode] = useState<MaskMode>('remove')
   const [tool, setTool] = useState<'brush' | 'lasso'>('brush')
   const [sizePct, setSizePct] = useState(12)
@@ -131,6 +154,7 @@ export function StickerMaskEditor({ src, onApply, onCancel }: {
         layersRef.current = layers
         scratchRef.current = document.createElement('canvas')
         setReady(true)
+        readyRef.current?.()
       })
       .catch(() => {
         if (alive)
@@ -325,17 +349,21 @@ export function StickerMaskEditor({ src, onApply, onCancel }: {
     display()
   }
 
-  const apply = () => {
+  const apply = useCallback(() => {
     const layers = layersRef.current
     if (layers)
       onApply(commitMask(layers.source, layers.mask))
-  }
+  }, [onApply])
+
+  useImperativeHandle(ref, () => ({ apply }), [apply])
 
   return (
     <div className="flex flex-col gap-2.5" data-sticker-mask-editor="">
       <div
         ref={boxRef}
-        className="stage-clear relative h-[min(46dvh,280px)] w-full shrink-0 overflow-hidden border border-line-strong"
+        // A landscape phone (412px tall) gets a shorter canvas rather than a
+        // toolbar that starts below the fold; every other window is unchanged.
+        className="stage-clear relative h-[min(34dvh,280px)] w-full shrink-0 overflow-hidden border border-line-strong [@media(max-height:560px)]:h-[min(26dvh,280px)]"
       >
         <canvas
           ref={canvasRef}
@@ -393,17 +421,26 @@ export function StickerMaskEditor({ src, onApply, onCancel }: {
           <MorphIcon icon={Maximize2} size={13} strokeWidth={1.75} />
           {t('Fit')}
         </Button>
-        <span className="ml-auto text-[10.5px] tabular-nums text-faint">
+        {/* "3/20" alone is a puzzle: the readout names itself for a screen
+            reader and on hover, without taking a row of its own. */}
+        <span
+          className="ml-auto text-[10.5px] tabular-nums text-faint"
+          title={t('{n} of {max} undo steps', { n: undoDepth, max: MASK_UNDO_CAP })}
+          aria-label={t('{n} of {max} undo steps', { n: undoDepth, max: MASK_UNDO_CAP })}
+          data-sticker-mask-undo-count=""
+        >
           {undoDepth}
           /
           {MASK_UNDO_CAP}
         </span>
       </div>
 
-      <div className="flex justify-end gap-[6px] border-t border-line pt-2.5">
-        <Button onClick={onCancel}>{t('Cancel')}</Button>
-        <Button variant="strong" disabled={!ready} onClick={apply}>{t('Apply')}</Button>
-      </div>
+      {actions === 'inline' && (
+        <div className="flex justify-end gap-[6px] border-t border-line pt-2.5">
+          <Button onClick={onCancel}>{t('Cancel')}</Button>
+          <Button variant="strong" disabled={!ready} onClick={apply}>{t('Apply')}</Button>
+        </div>
+      )}
     </div>
   )
 }

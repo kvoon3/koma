@@ -1,12 +1,15 @@
 import type { Photo } from '../lib/imageStore'
+import type { MaskEditorHandle } from '@/components/StickerMaskEditor'
 import { Dialog } from '@base-ui/react/dialog'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { StickerMaskEditor } from '@/components/StickerMaskEditor'
 import { useT } from '../lib/i18n'
 import { eraseStickerAsset } from '../lib/stickerAssets'
 import { say } from '../lib/toast'
+import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
+import { Button } from './ui/button'
 import { buttonBase, buttonVariants } from './ui/buttonStyles'
 
 /**
@@ -30,6 +33,12 @@ import { buttonBase, buttonVariants } from './ui/buttonStyles'
  * render, would race the StrictMode double mount: a URL made during the first
  * pass is revoked by the cleanup of a mount that never showed anything, and
  * the image then fails to load.
+ *
+ * Layout: the editor's own content scrolls (with the app's scroll-edge fade, so
+ * the cut is visible as a cue) while **Cancel / Apply sit in a fixed footer
+ * outside it**, so a short window (a landscape phone is 412px tall) can never
+ * put the commit below the fold. The editor passes `actions="none"` for that: it
+ * stays one component, the pair is just drawn by the host.
  */
 export function StickerEraseDialog({ open, photo, src, onClose }: {
   open: boolean
@@ -79,6 +88,11 @@ export function StickerEraseDialog({ open, photo, src, onClose }: {
 function EraseSurface({ photo, src, onDone }: { photo: Photo, src: string, onDone: () => void }) {
   const t = useT()
   const [busy, setBusy] = useState(false)
+  /** The layers are decodable: the pinned Apply becomes live. */
+  const [ready, setReady] = useState(false)
+  const editorRef = useRef<MaskEditorHandle | null>(null)
+  const scrollRef = useScrollFade<HTMLDivElement>('y')
+  const markReady = useCallback(() => setReady(true), [])
 
   const commit = async (dataUrl: string) => {
     setBusy(true)
@@ -93,19 +107,51 @@ function EraseSurface({ photo, src, onDone }: { photo: Photo, src: string, onDon
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-4">
-      <p className="m-0 text-[11.5px] leading-[1.5] text-dim" data-sticker-erase-note="">
-        {t('Paint the sticker’s own edge. Applying it saves a new sticker in the same folder · the copies already placed keep the old pixels.')}
-      </p>
-      {busy
-        ? <span className="grid h-[min(46dvh,280px)] place-items-center text-[11.5px] text-faint">{t('Saving...')}</span>
-        : (
-            <StickerMaskEditor
-              src={src}
-              onApply={dataUrl => void commit(dataUrl)}
-              onCancel={onDone}
-            />
-          )}
-    </div>
+    <>
+      {/* One child, so the fade hook measures the content rather than the note. */}
+      <div
+        ref={scrollRef}
+        style={scrollFadeStyle}
+        data-sticker-erase-scroll=""
+        className="min-h-0 flex-1 overflow-y-auto p-4"
+      >
+        <div className="flex flex-col gap-2.5">
+          {/* Two lines when there is room; on a short window it holds one, so the
+              toolbar below it still starts on screen (the title carries the rest). */}
+          <p
+            className="m-0 text-[11.5px] leading-[1.5] text-dim [@media(max-height:640px)]:line-clamp-1"
+            title={t('Paint the sticker’s own edge. Applying it saves a new sticker in the same folder · the copies already placed keep the old pixels.')}
+            data-sticker-erase-note=""
+          >
+            {t('Paint the sticker’s own edge. Applying it saves a new sticker in the same folder · the copies already placed keep the old pixels.')}
+          </p>
+          {busy
+            ? <span className="grid h-[min(34dvh,280px)] place-items-center text-[11.5px] text-faint [@media(max-height:560px)]:h-[min(26dvh,280px)]">{t('Saving...')}</span>
+            : (
+                <StickerMaskEditor
+                  ref={editorRef}
+                  src={src}
+                  actions="none"
+                  onReady={markReady}
+                  onApply={dataUrl => void commit(dataUrl)}
+                  onCancel={onDone}
+                />
+              )}
+        </div>
+      </div>
+
+      {/* The commit never scrolls: a 412px-tall window shows it pinned. */}
+      <div className="flex flex-none justify-end gap-[6px] border-t border-line px-3 py-2.5">
+        <Button onClick={onDone}>{t('Cancel')}</Button>
+        <Button
+          variant="strong"
+          disabled={!ready || busy}
+          onClick={() => editorRef.current?.apply()}
+          data-sticker-erase-apply=""
+        >
+          {t('Apply')}
+        </Button>
+      </div>
+    </>
   )
 }

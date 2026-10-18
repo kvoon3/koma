@@ -1,6 +1,6 @@
 import type { Photo } from '../../lib/imageStore'
 import { Menu } from '@base-ui/react/menu'
-import { Check, Eraser, FolderInput, Trash2, WandSparkles } from 'lucide'
+import { Check, FolderInput, Scissors, Trash2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo } from 'react'
 import { useInView, useThumb } from '../../hooks'
@@ -8,7 +8,16 @@ import { useT } from '../../lib/i18n'
 import { menuItemCls, menuPopupCls, menuSeparatorCls } from '../ui/menu'
 import { Tip } from '../ui/tip'
 
-const actionCls = 'grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-faint transition-colors duration-(--dur-fast) hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt disabled:cursor-default disabled:opacity-35'
+const actionCls = 'grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 transition-colors duration-(--dur-fast) hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt disabled:cursor-default disabled:opacity-35'
+/** The neutral row colour; Erase overrides it with the accent (one utility, one winner). */
+const actionQuietCls = 'text-faint'
+/**
+ * A touch pointer has no tooltip, so the two actions that could be mistaken for
+ * each other (erase and delete, a scissors and a bin at 13px) wear a micro-label
+ * under the glyph there, in a wider tap target. A mouse keeps the icon row.
+ */
+const actionCoarseCls = 'pointer-coarse:h-auto pointer-coarse:w-[32px] pointer-coarse:flex-col pointer-coarse:gap-[1px] pointer-coarse:py-[3px]'
+const coarseLabelCls = 'hidden text-[8px] leading-[1.05] tracking-[0.02em] pointer-coarse:block'
 
 /**
  * One sticker asset on the management page: the sticker itself on the
@@ -20,6 +29,10 @@ const actionCls = 'grid h-[22px] w-[22px] cursor-pointer place-items-center roun
  *
  * The two rows let a phone hold four actions without squeezing the name to
  * nothing: the name owns its line, the folder shares the action row.
+ *
+ * Erase wears the accent and the maker's scissors: an eraser rubber next to the
+ * bin read as two greys of the same thing, and erasing here is an edit (it
+ * saves a copy), not a delete.
  */
 export const StickerCard = memo(({
   photo,
@@ -86,10 +99,15 @@ export const StickerCard = memo(({
       </div>
 
       <div className="flex flex-col gap-0.5 border-t border-line px-2 py-1">
-        <span className="truncate text-[11.5px] text-txt" title={photo.name} data-sticker-name="">{photo.name}</span>
+        {/* On a touch pointer the folder climbs onto the name's line, which
+            leaves the whole width for the four labelled action buttons. */}
+        <div className="flex items-baseline gap-1 pointer-coarse:justify-between">
+          <span className="truncate text-[11.5px] text-txt" title={photo.name} data-sticker-name="">{photo.name}</span>
+          <span className="hidden shrink-0 text-[10px] text-faint pointer-coarse:block">{folder}</span>
+        </div>
 
         <div className="flex items-center gap-1">
-          <span className="min-w-0 flex-1 truncate text-[10px] text-faint" title={folder}>{folder}</span>
+          <span className="min-w-0 flex-1 truncate text-[10px] text-faint pointer-coarse:hidden" title={folder}>{folder}</span>
 
           {/* Erase repaints the final PNG's own alpha, so every sticker has it;
               Re-edit needs the maker's recipe and a legacy asset has none. */}
@@ -98,12 +116,13 @@ export const StickerCard = memo(({
             trigger={(
               <button
                 type="button"
-                className={actionCls}
+                className={`${actionCls} ${actionCoarseCls} text-accent`}
                 aria-label={t('Erase sticker')}
                 onClick={onErase}
                 data-sticker-erase=""
               >
-                <MorphIcon icon={Eraser} size={13} strokeWidth={1.75} />
+                <MorphIcon icon={Scissors} size={13} strokeWidth={1.75} />
+                <span className={coarseLabelCls}>{t('Erase')}</span>
               </button>
             )}
           />
@@ -113,12 +132,13 @@ export const StickerCard = memo(({
               trigger={(
                 <button
                   type="button"
-                  className={actionCls}
+                  className={`${actionCls} ${actionQuietCls} ${actionCoarseCls}`}
                   aria-label={t('Re-edit sticker')}
                   onClick={onReEdit}
                   data-sticker-reedit=""
                 >
                   <MorphIcon icon={WandSparkles} size={13} strokeWidth={1.75} />
+                  <span className={coarseLabelCls}>{t('Edit')}</span>
                 </button>
               )}
             />
@@ -128,8 +148,9 @@ export const StickerCard = memo(({
             <Tip
               label={t('Move to folder')}
               trigger={(
-                <Menu.Trigger className={actionCls} aria-label={t('Move to folder')} data-sticker-move="">
+                <Menu.Trigger className={`${actionCls} ${actionQuietCls} ${actionCoarseCls}`} aria-label={t('Move to folder')} data-sticker-move="">
                   <MorphIcon icon={FolderInput} size={13} strokeWidth={1.75} />
+                  <span className={coarseLabelCls}>{t('Move')}</span>
                 </Menu.Trigger>
               )}
             />
@@ -167,12 +188,13 @@ export const StickerCard = memo(({
             trigger={(
               <button
                 type="button"
-                className={`${actionCls} hover:not-disabled:text-danger`}
+                className={`${actionCls} ${actionQuietCls} ${actionCoarseCls} hover:not-disabled:text-danger`}
                 aria-label={t('Delete sticker')}
                 onClick={onDelete}
                 data-sticker-delete-button=""
               >
                 <MorphIcon icon={Trash2} size={13} strokeWidth={1.75} />
+                <span className={coarseLabelCls}>{t('Delete')}</span>
               </button>
             )}
           />
