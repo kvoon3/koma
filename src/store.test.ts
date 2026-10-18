@@ -4,8 +4,6 @@ import { degToRad, radToDeg } from './lib/detent'
 import { mulberry32 } from './lib/gridTools'
 import { emptyHistory, HISTORY_LIMIT } from './lib/history'
 import { leafList, rotationOf } from './lib/panes'
-import { DEFAULT_WORKSPACES, MAX_GRIDS } from './lib/workspaces'
-import { leafList } from './lib/panes'
 import { MAX_GRIDS } from './lib/workspaces'
 
 // The board's mutations run inside `runPaneMorph`, which falls back to a
@@ -406,7 +404,6 @@ describe('pane rotation and flips', () => {
   })
 })
 
-describe('grid groups (dual 9-grid)', () => {
 describe('grid groups (boards switched from the workspace switcher)', () => {
   const state = () => useStore.getState()
 

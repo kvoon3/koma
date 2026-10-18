@@ -22,12 +22,12 @@ import { flushSync } from 'react-dom'
 import { PAGER_SLOP, PAGER_SNAP_MS, pagerOffset, pagerRestOffset, pagerStep, pagerTravel } from '../../lib/boardPager'
 import { prefersReducedMotion } from '../../lib/viewTransition'
 import { useStore } from '../../store'
-import { lockedAxis, PULL_COMMIT, RECEDE_SCALE, releaseCapture } from './switcherLayout'
+import { lockedAxis, PULL_COMMIT, releaseCapture } from './switcherLayout'
 
 /** `--ease-out` as JS: the pager's settle uses the same curve as the CSS. */
 const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1]
 
-export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, cell, boxH, gap, cellCount, gridIds, activeIdx, onExit }: {
+export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recedeScale, cell, boxH, gap, cellCount, gridIds, activeIdx, onExit }: {
   /** The switcher is open: the surface is measured, and a close resets the pan. */
   open: boolean
   /** The stage the surface is placed in (measured, not depended on). */
@@ -37,6 +37,8 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, cell, 
   /** The stage and the board it holds: every reason to re-measure. */
   stageW: number
   stageH: number
+  /** The scale the board receded by (`recedeFit`): the pan is divided by it. */
+  recedeScale: number
   cell: number
   boxH: number
   gap: number
@@ -74,7 +76,7 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, cell, 
   useEffect(() => {
     const apply = (v: number) => {
       if (boardRef.current)
-        boardRef.current.style.transform = v ? `translateX(${v / RECEDE_SCALE}px)` : ''
+        boardRef.current.style.transform = v ? `translateX(${v / recedeScale}px)` : ''
       if (trackRef.current)
         trackRef.current.style.transform = v ? `translateX(${v}px)` : ''
     }
@@ -83,7 +85,7 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, cell, 
     return () => {
       off()
     }
-  }, [x, boardRef])
+  }, [x, boardRef, recedeScale])
 
   // Where the gesture surface sits, and how far one page of travel is: measured
   // off the receded board itself, so the surface and the neighbour boards land
@@ -104,7 +106,7 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, cell, 
     surface.style.height = `${b.height}px`
     surface.style.setProperty('--pager-travel', `${travel}px`)
     geomRef.current.travel = travel
-  }, [open, stageRef, boardRef, stageW, stageH, cell, boxH, gap, cellCount, gridIds.length, activeIdx, x])
+  }, [open, stageRef, boardRef, stageW, stageH, recedeScale, cell, boxH, gap, cellCount, gridIds.length, activeIdx, x])
 
   const leanTo = (id: string | null) => {
     if (ringRef.current === id)

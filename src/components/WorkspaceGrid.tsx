@@ -18,7 +18,7 @@ import { isTransparentBg, useStore } from '../store'
 import { DeleteZone } from './DeleteZone'
 import { BoardCaption } from './grid/BoardCaption'
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
-import { RECEDE_BLUR, RECEDE_OPACITY, RECEDE_SCALE, switcherMetrics } from './grid/switcherLayout'
+import { CAPTION_GAP, CAPTION_H, DOCK_CHROME_H, RECEDE_BLUR, RECEDE_OPACITY, recedeFit, STAGE_PAD_Y, switcherMetrics } from './grid/switcherLayout'
 import { useBoardPager } from './grid/useBoardPager'
 import { useGridKeyboard } from './grid/useGridKeyboard'
 import { DELETE_ZONE_ID, useGridReorder } from './grid/useGridReorder'
@@ -28,25 +28,8 @@ import { PagerSurface, WorkspaceSwitcher } from './grid/WorkspaceSwitcher'
 import { DockToolset } from './Stage'
 import { ToolsDock } from './ToolsDock'
 
-/** A board's caption row: the overview's two chips, centred. */
-const CAPTION_H = 30
-
-/** Air under a caption row, over its board. */
-const CAPTION_GAP = 8
-
 /** Side air the stage keeps around a board (both sides together). */
 const STAGE_PAD = 48
-
-/** Air the stage keeps above and below a board. */
-const STAGE_PAD_Y = 12
-
-/**
- * The chrome the dock keeps at the bottom of the stage on this route: its 28px
- * handle over the tools row (70px) over the status bar (31–44px, `--statusH`).
- * The dock is an overlay, so every board has to be sized above it: without the
- * reserve the third row of cells ends up under the sheet.
- */
-const DOCK_CHROME_H = 144
 
 /**
  * The 3×3 slot the board gets, and the smallest cell it may use, inside the
@@ -135,7 +118,14 @@ export function WorkspaceGrid() {
   }
   const { cell, box } = stageCellBox(body, gridGap, cellRatioValue(gridCellRatio))
   const boardW = cell * 3 + gridGap * 2
+  // The 3×3's height as it lays out: every cell is the same box, and the + cell
+  // counts as one more slot until the board is full.
+  const rows = Math.max(1, Math.ceil((workspaces.length + (workspaces.length < MAX_WORKSPACES ? 1 : 0)) / 3))
+  const boardH = rows * box.h + (rows - 1) * gridGap
   const { stripTop, stripH, cardW, cardH } = switcherMetrics(wrapSize.h)
+  // Where the board recedes to: the same zoom-out, shifted down (and on a stage
+  // too short for it, shrunk) so the whole column clears the strip.
+  const recede = recedeFit({ stageH: wrapSize.h, boardH, stripTop, stripH })
   const activeIdx = grids.findIndex(g => g.id === activeGridId)
   const boardRef = useRef<HTMLDivElement | null>(null)
 
@@ -154,6 +144,7 @@ export function WorkspaceGrid() {
     boardRef,
     stageW: wrapSize.w,
     stageH: wrapSize.h,
+    recedeScale: recede.scale,
     cell,
     boxH: box.h,
     gap: gridGap,
@@ -229,6 +220,7 @@ export function WorkspaceGrid() {
       box={box}
       gap={gridGap}
       boardW={boardW}
+      scale={recede.scale}
       photoById={photoById}
       transparent={transparent}
       {...pager.handlers}
@@ -265,16 +257,15 @@ export function WorkspaceGrid() {
             {/* The board's caption row (the workspace and snapshot chips,
                 centred: groups render nameless) and the grid below it, one
                 column of the board's width. While the switcher is open the
-                whole column recedes (scaled down, dimmed, blurred, inert)
-                behind the frosted strip, morphing there as the ws-board
-                group. */}
+                column recedes behind the frosted strip (scaled down, shifted
+                clear of it, dimmed, blurred, inert), morphing as ws-board. */}
             <div
               className="flex flex-col items-center"
               style={{
                 width: boardW,
                 gap: CAPTION_GAP,
                 viewTransitionName: boardNamed ? 'ws-board' : undefined,
-                transform: switcher ? `scale(${RECEDE_SCALE})` : undefined,
+                transform: switcher ? `translateY(${recede.translateY}px) scale(${recede.scale})` : undefined,
                 opacity: switcher ? RECEDE_OPACITY : 1,
                 filter: switcher ? `blur(${RECEDE_BLUR}px)` : undefined,
                 pointerEvents: switcher ? 'none' : undefined,
