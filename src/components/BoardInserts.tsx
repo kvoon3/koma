@@ -102,6 +102,7 @@ function BoardStickerView({
       className="group/sticker absolute z-[5] cursor-grab touch-none active:cursor-grabbing"
       style={{ left: r.x, top: r.y, width: r.w, height: r.h, transform: rotationCss(st) }}
       title={photo.name}
+      data-board-sticker={photo.id}
       onPointerDown={onMoveDown}
       onPointerMove={onMoveMove}
       onPointerUp={endGesture}

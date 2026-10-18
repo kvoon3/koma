@@ -385,6 +385,56 @@ library.
   still on screen; they are released once the close transition has finished
   painting (`onOpenChangeComplete`), below the close animation's paint.
 
+## Sticker library (`#/stickers`)
+
+A sticker is a library asset of its own, not a PNG that happens to sit in the
+photo library. `Photo` carries the marker: `kind: 'sticker'` (absent = photo,
+which is what every session saved before this reads as), a one-level `folder`
+(absent = Unsorted), and `orphaned` for an asset that was deleted while a placed
+copy still draws it. The photo library (drawer and menu count) lists
+`kind !== 'sticker'` only, and the sticker page lists `kind === 'sticker'` only;
+both hide orphaned records. The folder list is session state beside the photos
+(`stickerFolders`), so an empty folder survives a reload; a folder is a name, a
+sticker's `folder` its membership, and a rename repoints the stickers in the
+same commit.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ [←] Stickers  8                       [ Search……… ]       │
+├──────────────────────────────────────────────────────────┤
+│ All 8 · Unsorted 3 · Faces 1 · Animals 2 · Places 2      │
+│                                     [✎] [🗑] [+ New folder]│
+├──────────────────────────────────────────────────────────┤
+│ ▦ ✓Used 1   ▦ Unused   ▦ Unused   ▦ Unused   ▦ Unused      │  checkerboard
+│ red-dot.png  blue-dot…  gold-dot…  …                       │  thumbs (alpha)
+└──────────────────────────────────────────────────────────┘
+```
+
+Each card is the sticker on the transparency checkerboard (the same `stage-clear`
+read the export preview gives a PNG), its folder, a usage badge, and move /
+delete. **Usage is derived, never stored**: every board of every group is
+scanned for photo ids (pane photos, pane stickers, board stickers, plus the
+collage background), and the count is what the badge shows. Labels contribute
+nothing: their icons are catalog ids, not photos.
+
+**Delete removes the asset, keeps the drawing.** Preview and export resolve a
+sticker through the photos map, so dropping the record would blank a placed
+copy. On delete the session counts every reference it still holds (all groups'
+boards, the background, the pane clipboard, and both undo / redo stacks, since
+an undo can restore a pane that draws it): with none the record is dropped, and
+with any it is kept as an `orphaned` record that no list shows and every draw
+still resolves. Orphans are swept at hydration, the one moment the history is
+empty, so nothing can want them back. Deleting a folder never deletes
+stickers: they fall back to Unsorted.
+
+Folder moves, renames and deletes are **library actions, outside the board
+history** (like `clearLibrary`): they push no undo entry, so one ⌘Z after
+sorting still undoes the last board change. Deletion is the one destructive
+library action, so it confirms, and the confirm says what survives.
+
+Entry is the top bar's Photo menu (both views); the route is the shape the
+future hub hangs off (grid making / photo management / sticker management).
+
 ## Settings panel (`,` or the top-right Settings button)
 
 A dropdown hung off the Settings button itself: right-aligned to it, 4px under
@@ -552,13 +602,14 @@ when an actual HEIC is encountered, costing pure JPEG/PNG users nothing.
 
 ```
 src/
-  router.tsx        code-based routes: / = 3×3 grid, /w/$wsId = editor; hash history (single-file build must work via file://)
+  router.tsx        code-based routes: / = 3×3 grid, /w/$wsId = editor, /stickers = sticker library; hash history (single-file build must work via file://)
   main.tsx          boot: load session → render → debounced autosave + pagehide flush
   lib/panes.ts       pane tree: split/remove/layout/placement, shared by preview and export
   lib/imageStore.ts  three-tier image assets + JPEG/HEIC header probing
   lib/heic.ts        HEIC: meta box probing + WASM decoding (heic-to)
   lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot), file download / clipboard copy, crop report export
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
+  lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts, folder CRUD (pure)
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
   lib/browser.ts     which WebView the page was opened in (WeChat's UA) + the best-effort escape from it
@@ -568,6 +619,7 @@ src/
     TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
     FloatActions.tsx floating back / split / reset buttons under the top bar
     LibraryDrawer.tsx / Library.tsx
+    StickerManager.tsx  #/stickers: the sticker library (folder chips, usage, move / delete)
     SettingsPanel.tsx
     HelpOverlay.tsx
     ExportDialog.tsx    the preview every export lands in: download / copy / long-press
@@ -585,7 +637,10 @@ defaults to on and persists as `collage:fontMirror`.
 ## Routing & persistence
 
 TanStack Router (code-based) with **hash history**: `/` is the 3×3 overview,
-`/w/$wsId` the editor; unknown ids redirect to `/`. The view no longer lives
+`/w/$wsId` the editor, `/stickers` the sticker library; unknown ids redirect
+to `/`. The sticker library is a hub destination rather than a drawer over the
+board: it draws its own chrome (no floating board actions, and the board's key
+map is inert there), and its back chip returns wherever it was opened from. The view no longer lives
 in the store: the route is the view; the route param drives `activeId`.
 Grid↔edit navigations pass `viewTransition` so the cell→canvas morph keeps
 working (disabled under prefers-reduced-motion via `viewTransitionOption()`).
