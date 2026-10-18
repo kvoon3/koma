@@ -254,9 +254,12 @@ export function StickerManager() {
                     key={p.id}
                     photo={p}
                     folder={label(folderOf(p))}
+                    folderKey={folderOf(p)}
                     uses={uses.get(p.id) ?? 0}
-                    folders={[unsorted, ...folders]}
-                    onMove={folder => moveStickerToFolder(p.id, folder === unsorted ? '' : folder)}
+                    // Keys, not labels: a folder the user calls "Unsorted"
+                    // still moves to itself rather than to the default bucket.
+                    folders={['', ...folders]}
+                    onMove={folder => moveStickerToFolder(p.id, folder)}
                     onDelete={() => setDeleting(p.id)}
                   />
                 ))}

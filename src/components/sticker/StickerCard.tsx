@@ -20,6 +20,7 @@ const actionCls = 'grid h-[22px] w-[22px] cursor-pointer place-items-center roun
 export const StickerCard = memo(({
   photo,
   folder,
+  folderKey,
   uses,
   folders,
   onMove,
@@ -28,9 +29,14 @@ export const StickerCard = memo(({
   photo: Photo
   /** The folder's display name (a translated "Unsorted" for the default one). */
   folder: string
+  /** The folder's key: '' for Unsorted, else the folder's own name. */
+  folderKey: string
   /** How many places on the board draw this sticker (0 = unused). */
   uses: number
-  /** Every folder this sticker could move to, in chip order (Unsorted first). */
+  /**
+   * Every folder this sticker could move to, as keys in chip order: '' for
+   * Unsorted (labelled here) then the named ones.
+   */
   folders: string[]
   onMove: (folder: string) => void
   onDelete: () => void
@@ -87,15 +93,15 @@ export const StickerCard = memo(({
                   <Menu.GroupLabel className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">
                     {t('Move to folder')}
                   </Menu.GroupLabel>
-                  {folders.map(name => (
+                  {folders.map(key => (
                     <Menu.Item
-                      key={name}
+                      key={key || '__unsorted'}
                       className={menuItemCls}
-                      onClick={() => onMove(name)}
-                      data-move-to={name}
+                      onClick={() => onMove(key)}
+                      data-move-to={key || t('Unsorted')}
                     >
-                      {name}
-                      {name === folder && <MorphIcon icon={Check} size={12} strokeWidth={2} className="ml-auto pl-4 text-accent" />}
+                      {key || t('Unsorted')}
+                      {key === folderKey && <MorphIcon icon={Check} size={12} strokeWidth={2} className="ml-auto pl-4 text-accent" />}
                     </Menu.Item>
                   ))}
                 </Menu.Group>
