@@ -118,8 +118,10 @@ export function StickerManager() {
       setPromptError(t('That folder no longer exists'))
       return false
     }
-    // The pick follows the name, so a renamed folder stays the open one.
-    setRawPick(res.name)
+    // A rename keeps its folder open; a new folder leaves the view where it
+    // was (jumping into an empty folder hides the stickers you just sorted).
+    if (prompt?.mode === 'rename')
+      setRawPick(res.name)
     setPromptError(null)
     return true
   }
@@ -177,13 +179,16 @@ export function StickerManager() {
         </label>
       </header>
 
-      <div className="flex flex-none items-center gap-1.5 overflow-x-auto border-b border-line bg-panel px-3 py-1.5 [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb sm:px-4">
-        <FolderChip active={pick == null} label={t('All')} count={countIn(null)} onClick={() => setRawPick(null)} pick="__all" />
-        <FolderChip active={pick === ''} label={unsorted} count={countIn('')} onClick={() => setRawPick('')} pick={unsorted} />
-        {folders.map(f => (
-          <FolderChip key={f} active={pick === f} label={f} count={countIn(f)} onClick={() => setRawPick(f)} pick={f} />
-        ))}
-        <span className="flex-1" />
+      <div className="flex flex-none items-center gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:px-4">
+        {/* The chips scroll sideways on their own; the folder actions stay put
+            at the end of the row, so a phone never has to scroll to reach them. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb">
+          <FolderChip active={pick == null} label={t('All')} count={countIn(null)} onClick={() => setRawPick(null)} pick="__all" />
+          <FolderChip active={pick === ''} label={unsorted} count={countIn('')} onClick={() => setRawPick('')} pick={unsorted} />
+          {folders.map(f => (
+            <FolderChip key={f} active={pick === f} label={f} count={countIn(f)} onClick={() => setRawPick(f)} pick={f} />
+          ))}
+        </div>
         {/* Rename / delete act on the picked folder; All has neither and the
             default folder only groups what was never filed. */}
         {pick != null && pick !== '' && (
@@ -221,17 +226,20 @@ export function StickerManager() {
             />
           </>
         )}
-        <Button
-          variant="strong"
-          data-folder-new=""
-          onClick={() => {
-            setPromptError(null)
-            setPrompt(p => ({ mode: 'create', seq: (p?.seq ?? 0) + 1 }))
-          }}
-        >
-          <MorphIcon icon={FolderPlus} size={12} strokeWidth={1.75} />
-          {t('New folder')}
-        </Button>
+        <span className="flex flex-none">
+          <Button
+            variant="strong"
+            aria-label={t('New folder')}
+            data-folder-new=""
+            onClick={() => {
+              setPromptError(null)
+              setPrompt(p => ({ mode: 'create', seq: (p?.seq ?? 0) + 1 }))
+            }}
+          >
+            <MorphIcon icon={FolderPlus} size={12} strokeWidth={1.75} />
+            <span className="max-sm:hidden">{t('New folder')}</span>
+          </Button>
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb sm:p-4">
