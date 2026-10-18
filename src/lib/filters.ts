@@ -313,8 +313,8 @@ function paperTone(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h:
       // Soft ink: the coverage curve flattens at both ends, so nothing is pure
       // paper or pure ink.
       const cov = 0.05 + 0.78 * clamp01(p * (0.72 + 0.3 * p))
-      const fib = (cellNoise(x, y, 0.85 * r, seed + 19) - 0.5) * 8
-      const mottle = (cellNoise(x, y, 7.5 * r, seed + 21) - 0.5) * 6
+      const fib = (cellNoise(x, y, 0.85 * r, seed + 19) - 0.5) * 15
+      const mottle = (cellNoise(x, y, 7.5 * r, seed + 21) - 0.5) * 11
       const tex = fib + mottle
       for (let c = 0; c < 3; c++)
         dst[i + c] = PAPER_TONE_BASE[c]! * (1 - cov * absorb[c]!) + tex
