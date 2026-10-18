@@ -8,11 +8,13 @@
  * group; the × on a card's corner deletes it (never the last one; both ride the
  * undo stack, no confirm). The strip is for browsing only: it scrolls and snaps,
  * while the open group changes through the board pager (`lib/boardPager`) or a
- * card click. The backdrop or Esc returns to the overview as it was.
+ * card click. The backdrop, a tap on the board or Esc returns to the overview
+ * as it was.
  *
  * This file is the switcher's own surface: the strip, the cards, and the pager
  * boards plus the gesture layer they are dragged on. The physics behind that
- * layer (the snap, the fling, the pull-up exit) live in `grid/useBoardPager`.
+ * layer (the snap, the fling, the tap and pull-up exits) live in
+ * `grid/useBoardPager`.
  */
 import type { ReactNode, PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { Photo } from '../../lib/imageStore'
@@ -273,7 +275,7 @@ function PagerBoard({ side, board, cell, box, gap, boardW, scale, photoById, tra
  * The pager's gesture layer: an invisible surface laid exactly over the receded
  * board (measured by the caller), carrying the live board's neighbours a page
  * either side. The pointer handlers come from the caller, which owns the drag
- * state, the physics and the pull-up exit.
+ * state, the physics and the exits (a tap, or a pull up).
  */
 export function PagerSurface({ surfaceRef, trackRef, prevBoard, nextBoard, cell, box, gap, boardW, scale, photoById, transparent, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture }: {
   surfaceRef: RefObject<HTMLDivElement | null>
