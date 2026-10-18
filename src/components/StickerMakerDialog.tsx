@@ -1,7 +1,9 @@
+import type { Photo } from '../lib/imageStore'
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
+import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
 import { Dialog } from '@base-ui/react/dialog'
-import { ImagePlus, Scissors, X } from 'lucide'
+import { ImagePlus, Images, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { StickerMaskEditor } from '@/components/StickerMaskEditor'
@@ -13,10 +15,10 @@ import { removeBackground } from '../lib/bgRemoval'
 import { pickImageFiles } from '../lib/filePicker'
 import { useT } from '../lib/i18n'
 import { makeSticker } from '../lib/sticker'
+import { saveMadeSticker } from '../lib/stickerAssets'
 import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
 import { say } from '../lib/toast'
-import { dataUrlToFile } from '../lib/workspaceFile'
-import { useStore } from '../store'
+import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 
 /**
  * Text font choices: a small set of system stacks (no webfont download, so the
@@ -75,7 +77,6 @@ const STAGE_HEIGHT_DEFAULT = 220
 const TEXT_COLOR_DEFAULT = '#000000'
 const OUTLINE_COLOR_DEFAULT = '#ffffff'
 const PREVIEW_MAX = 480
-const INSERT_MAX = 960
 
 /**
  * `shrink-0` keeps the stage at its designed height: the dialog body is the
@@ -130,43 +131,6 @@ async function cutoutBackground(
   finally {
     onJob(null)
   }
-}
-
-/** Rasterize the sticker, add it to the library, and pin it onto the pane. */
-async function insertSticker(
-  source: StickerSource | null,
-  paneId: string | null,
-  style: {
-    outlineWidth: number
-    outlineColor: string
-    material: StickerMaterialType
-    baseName: string
-    perforation: PerforationDesign | null
-    displayLongEdge: number
-  },
-  t: (key: string) => string,
-  onDone: () => void,
-) {
-  if (!source || !paneId)
-    return
-  const res = await makeSticker(source, {
-    outlineWidth: style.outlineWidth,
-    outlineColor: style.outlineColor,
-    perforation: style.perforation,
-    displayLongEdge: style.displayLongEdge,
-    maxEdge: INSERT_MAX,
-    material: { type: style.material, intensity: 1 },
-  })
-  const file = await dataUrlToFile(res.dataUrl, `${style.baseName || 'sticker'}.png`)
-  const s = useStore.getState()
-  // The maker's PNG enters the library as a sticker asset: it is listed on the
-  // sticker page, never in the photo library (see lib/stickerLibrary).
-  const photo = s.addPhotos([file], false, 'sticker')[0]
-  if (photo) {
-    s.addSticker(photo.id, 0.5, 0.5)
-    say(t('Sticker added'))
-  }
-  onDone()
 }
 
 /** Debounced live preview of the sticker the current inputs would produce. */
@@ -307,6 +271,7 @@ function StickerStage({
   onRemoveBg,
   onRestore,
   onAdjust,
+  onPickLibrary = null,
 }: {
   tab: 'text' | 'image'
   imageStage: ImageStage
@@ -324,20 +289,41 @@ function StickerStage({
   onRemoveBg: () => void
   onRestore: () => void
   onAdjust: () => void
+  /** Library mode only: pick the source from the photo library instead of a file. */
+  onPickLibrary?: (() => void) | null
 }) {
   const t = useT()
 
   if (tab === 'image' && imageStage === 'empty') {
+    const label = (
+      <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold">
+        <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
+        {t('Choose an image')}
+      </span>
+    )
+    const cls = 'cursor-pointer text-dim transition-colors duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-[-1px]'
+    // The sticker page can draw its subject from the photos already imported:
+    // same stage, one more door, and the file picker keeps the whole frame.
+    if (onPickLibrary) {
+      return (
+        <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`}>
+          <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} onClick={onPick}>
+            {label}
+          </button>
+          <button type="button" className={`flex h-1/2 w-full items-center justify-center gap-2 text-[12.5px] font-semibold ${cls}`} onClick={onPickLibrary}>
+            <MorphIcon icon={Images} size={18} strokeWidth={1.75} />
+            {t('From the photo library')}
+          </button>
+        </div>
+      )
+    }
     return (
       <button
         type="button"
-        className={`${stageFrameCls} w-full cursor-pointer text-dim transition-colors duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-[-1px]`}
+        className={`${stageFrameCls} w-full ${cls}`}
         onClick={onPick}
       >
-        <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold">
-          <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
-          {t('Choose an image')}
-        </span>
+        {label}
       </button>
     )
   }
@@ -460,24 +446,28 @@ function useStickerImage() {
       URL.revokeObjectURL(pickRef.current)
   }, [])
 
-  // A sticker wants the subject alone, so the background is cut out as the
-  // pick lands, not through a state round trip.
+  // A sticker wants the subject alone, so the background is cut out as the pick
+  // lands, not through a state round trip. `loadFile` is the one door into the
+  // stage: the file picker hands it a File, the photo library hands it the File
+  // behind the picked photo.
+  const loadFile = (file: File) => {
+    // The pick owns the URL it mints: the release below drops the one it
+    // replaces (after the mint, so the two are never the same), and the
+    // unmount cleanup above drops the last one.
+    const next = { url: URL.createObjectURL(file), name: file.name }
+    if (pickRef.current)
+      URL.revokeObjectURL(pickRef.current)
+    pickRef.current = next.url
+    setCutoutUrl(null)
+    setManualUrl(null)
+    setPick(next)
+    runCutout(next.url)
+  }
+
   const pickImage = () => {
     pickImageFiles((files) => {
-      const file = files[0]
-      if (!file)
-        return
-      // The pick owns the URL it mints: the release below drops the one it
-      // replaces (after the mint, so the two are never the same), and the
-      // unmount cleanup above drops the last one.
-      const next = { url: URL.createObjectURL(file), name: file.name }
-      if (pickRef.current)
-        URL.revokeObjectURL(pickRef.current)
-      pickRef.current = next.url
-      setCutoutUrl(null)
-      setManualUrl(null)
-      setPick(next)
-      runCutout(next.url)
+      if (files[0])
+        loadFile(files[0])
     })
   }
 
@@ -511,13 +501,21 @@ function useStickerImage() {
     hasCutout,
     bgJob,
     pickImage,
+    loadFile,
     removeBg,
     restoreOriginal,
     applyMask: (url: string) => setManualUrl(url),
   }
 }
 
-export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, paneId: string | null, onClose: () => void }) {
+/**
+ * The sticker maker, one dialog with two doors: the editor's Make tool hands it
+ * a pane (`target.kind === 'pane'`, the sticker is pinned onto the board) and
+ * the sticker page hands it a folder (`'library'`, the sticker is filed in the
+ * library and no board is touched). Everything above the save is shared: the
+ * same stage, cutout, edge effects and mask editor.
+ */
+export function StickerMakerDialog({ open, target, onClose }: { open: boolean, target: StickerTarget | null, onClose: () => void }) {
   const t = useT()
 
   const [tab, setTab] = useState<'text' | 'image'>('image')
@@ -534,7 +532,10 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   const [editingMask, setEditingMask] = useState(false)
 
   const [inserting, setInserting] = useState(false)
-  const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, removeBg, restoreOriginal, applyMask } = useStickerImage()
+  /** Library mode only: the stage is showing the photo picker instead of a pick. */
+  const [pickingLibrary, setPickingLibrary] = useState(false)
+  const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask } = useStickerImage()
+  const libraryMode = target?.kind === 'library'
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
 
@@ -553,13 +554,18 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   )
 
   const insert = async () => {
+    if (!source || !target)
+      return
     // Text stickers take their name from the first line, not a leftover image pick.
     const baseName = tab === 'text'
       ? (text.trim().split('\n')[0].slice(0, 24) || 'sticker')
       : (imageName.replace(/\.[^.]+$/, '') || 'sticker')
+    const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge }
     setInserting(true)
     try {
-      await insertSticker(source, paneId, { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge }, t, onClose)
+      // Bake once, land it where this door wants it (lib/stickerAssets).
+      await saveMadeSticker(source, style, target, t)
+      onClose()
     }
     catch {
       say(t('Failed to make sticker'))
@@ -569,14 +575,22 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
     }
   }
 
-  const canInsert = !!source && !inserting && !bgJob
+  const canInsert = !!source && !!target && !inserting && !bgJob
+  /** The library target's folder, in the reader's own words ('' is Unsorted). */
+  const saveLabel = target?.kind === 'library'
+    ? t('Save to {folder}', { folder: target.folder || t('Unsorted') })
+    : t('Insert')
 
   return (
     <Dialog.Root
       open={open}
       onOpenChange={(o) => {
-        if (!o)
-          onClose()
+        if (o)
+          return
+        // Closing drops the photo picker with the dialog: reopening lands on the
+        // stage, not on a half-browsed library.
+        setPickingLibrary(false)
+        onClose()
       }}
     >
       <Dialog.Portal>
@@ -616,38 +630,51 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
             )}
 
             {/* Upload + live preview share one stage; cutout progress frosts the raw pick. */}
-            {editingMask && baseSrc
+            {libraryMode && pickingLibrary
               ? (
-                  <StickerMaskEditor
-                    key={imageSrc ?? baseSrc}
-                    src={imageSrc ?? baseSrc}
-                    onCancel={() => setEditingMask(false)}
-                    onApply={(url) => {
-                      applyMask(url)
-                      setEditingMask(false)
+                  <LibraryPickPanel
+                    onCancel={() => setPickingLibrary(false)}
+                    onPick={(photo: Photo) => {
+                      setPickingLibrary(false)
+                      // The photo's own File is the source, so the cutout, the
+                      // effects and the bake are the ones a file pick runs.
+                      loadFile(photo.file)
                     }}
                   />
                 )
-              : (
-                  <StickerStage
-                    tab={tab}
-                    imageStage={imageStage}
-                    imageSrc={imageSrc}
-                    bgJob={bgJob}
-                    hasCutout={hasCutout}
-                    source={source}
-                    outlineWidth={outlineWidth}
-                    outlineColor={outlineColor}
-                    material={material}
-                    perforation={perforation}
-                    displayLongEdge={displayLongEdge}
-                    onDisplaySize={setDisplayLongEdge}
-                    onPick={pickImage}
-                    onRemoveBg={removeBg}
-                    onRestore={restoreOriginal}
-                    onAdjust={() => setEditingMask(true)}
-                  />
-                )}
+              : editingMask && baseSrc
+                ? (
+                    <StickerMaskEditor
+                      key={imageSrc ?? baseSrc}
+                      src={imageSrc ?? baseSrc}
+                      onCancel={() => setEditingMask(false)}
+                      onApply={(url) => {
+                        applyMask(url)
+                        setEditingMask(false)
+                      }}
+                    />
+                  )
+                : (
+                    <StickerStage
+                      tab={tab}
+                      imageStage={imageStage}
+                      imageSrc={imageSrc}
+                      bgJob={bgJob}
+                      hasCutout={hasCutout}
+                      source={source}
+                      outlineWidth={outlineWidth}
+                      outlineColor={outlineColor}
+                      material={material}
+                      perforation={perforation}
+                      displayLongEdge={displayLongEdge}
+                      onDisplaySize={setDisplayLongEdge}
+                      onPick={pickImage}
+                      onRemoveBg={removeBg}
+                      onRestore={restoreOriginal}
+                      onAdjust={() => setEditingMask(true)}
+                      onPickLibrary={libraryMode ? () => setPickingLibrary(true) : null}
+                    />
+                  )}
 
             <div className="flex flex-col gap-2.5 border-t border-line pt-3">
               <ColorField label={t('Outline color')} value={outlineColor} onChange={setOutlineColor} />
@@ -678,8 +705,8 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
 
           <div className="flex justify-end gap-[6px] border-t border-line px-3 py-2.5">
             <Button onClick={onClose}>{t('Cancel')}</Button>
-            <Button variant="strong" disabled={!canInsert} onClick={insert}>
-              {t('Insert')}
+            <Button variant="strong" disabled={!canInsert} onClick={insert} data-sticker-save="">
+              {saveLabel}
             </Button>
           </div>
         </Dialog.Popup>
