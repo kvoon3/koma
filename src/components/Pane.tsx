@@ -9,6 +9,7 @@ import { createPortal, flushSync } from 'react-dom'
 import { usePreview } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
+import { EASE_OUT_CSS } from '../lib/motionTokens'
 import { pickPhotoForPane } from '../lib/paneCommands'
 import { clampLeaf, cornerRadiiCss, isPaneTransformed, leafCornerRadii, paneTransform, paneTransformCss, photoNorm, placement, pressPlan, seamFadeWidth, seamMaskStyle } from '../lib/panes'
 import { viewTransitionOption } from '../lib/viewTransition'
@@ -243,14 +244,14 @@ function SwapGhostReturn({
       onDone()
       return
     }
-    // The bezier equals the `--ease-out` token; WAAPI cannot read CSS vars in
-    // `easing`, so it is spelled out here.
+    // The shared `--ease-out` curve (lib/motionTokens); WAAPI cannot read CSS
+    // vars in `easing`, so it comes in as the spelled-out string.
     const anim = el.animate(
       [
         { transform: `translate3d(${from.x}px, ${from.y}px, 0)`, opacity: 0.95 },
         { transform: `translate3d(${to.x}px, ${to.y}px, 0)`, opacity: 0 },
       ],
-      { duration: 200, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' },
+      { duration: 200, easing: EASE_OUT_CSS, fill: 'forwards' },
     )
     anim.onfinish = onDone
     return () => {

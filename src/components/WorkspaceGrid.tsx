@@ -11,6 +11,7 @@ import { useAppCommands } from '../lib/appCommands'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { cellRatioValue, gridCellBox } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
+import { EASE_OUT_CSS } from '../lib/motionTokens'
 import { leafList } from '../lib/panes'
 import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransition'
 import { MAX_WORKSPACES } from '../lib/workspaces'
@@ -306,7 +307,7 @@ export function WorkspaceGrid() {
             </div>
           </SortableContext>
 
-          <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }}>
+          <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: EASE_OUT_CSS }}>
             {reorder.draggedWs
               ? (
                   <div
