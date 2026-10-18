@@ -60,14 +60,16 @@ export function usePanePreview(photo: Photo | null, filter: FilterValue | undefi
   const plainUrl = plain?.url ?? null
   const photoRef = useRef(photo)
   const filterRef = useRef(filter)
+  const key = filterKey(filter)
+  const keyRef = useRef(key)
   useEffect(() => {
     photoRef.current = photo
     filterRef.current = filter
-  }, [photo, filter])
-  const key = filterKey(filter)
-  const [shown, setShown] = useState<{ photoId: string, key: string, preview: Preview } | null>(() => {
+    keyRef.current = key
+  }, [photo, filter, key])
+  const [shown, setShown] = useState<{ photoId: string, preview: Preview } | null>(() => {
     const hit = id && key !== 'none' ? peekFilteredPreview(id, filter) : null
-    return hit && id ? { photoId: id, key, preview: hit } : null
+    return hit && id ? { photoId: id, preview: hit } : null
   })
 
   useEffect(() => {
@@ -79,14 +81,15 @@ export function usePanePreview(photo: Photo | null, filter: FilterValue | undefi
     }
     const hit = peekFilteredPreview(id, spec)
     if (hit) {
-      setShown({ photoId: id, key, preview: hit })
+      setShown({ photoId: id, preview: hit })
       return
     }
     setShown(held => (held && held.photoId === id ? held : null))
     let alive = true
     getFilteredPreview(source, spec).then((r) => {
-      if (alive && r)
-        setShown({ photoId: id, key, preview: r })
+      // A late render from an older setting must not replace the current one.
+      if (alive && r && keyRef.current === key)
+        setShown({ photoId: id, preview: r })
     })
     return () => {
       alive = false
@@ -95,7 +98,9 @@ export function usePanePreview(photo: Photo | null, filter: FilterValue | undefi
 
   if (key === 'none')
     return plain
-  return shown && shown.photoId === id && shown.key === key ? shown.preview : plain
+  // Still the same photo: keep its last filtered bitmap up while the new one
+  // renders, so dialling a knob does not flash the unfiltered photo.
+  return shown && shown.photoId === id ? shown.preview : plain
 }
 
 export function useThumb(photo: Photo, visible: boolean): string | null {
