@@ -586,5 +586,5 @@ export const zhHans: Record<string, string> = {
   'Unused': '未使用',
   'Used in {n} places on the board': '在画板上被使用了 {n} 处',
   'Not placed on the board': '还没有放到画板上',
-  'No stickers here yet. Make one from a pane with the Make tool and it lands in this library.': '这里还没有贴图。在窗格里用「制作」工具做一张，它就会进到这个素材库。',
+  'No stickers here yet. Make one with the New sticker button above.': '这里还没有贴图。点上方「制作贴图」做一张，它就会进到这个素材库。',
 }

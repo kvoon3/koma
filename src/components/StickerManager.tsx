@@ -379,7 +379,7 @@ function StickerEmptyState() {
   return (
     <p className="m-0 flex flex-col items-center gap-2 px-4 py-16 text-center text-[12px] leading-[1.6] text-dim" data-sticker-empty="">
       <MorphIcon icon={StickerIcon} size={22} strokeWidth={1.5} className="text-faint" />
-      {t('No stickers here yet. Make one from a pane with the Make tool and it lands in this library.')}
+      {t('No stickers here yet. Make one with the New sticker button above.')}
     </p>
   )
 }
