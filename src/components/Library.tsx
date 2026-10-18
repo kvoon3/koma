@@ -101,16 +101,29 @@ export const Library = memo(({
   activeId,
   selectedIds,
   onPick,
+  layout = 'row',
 }: {
   photos: Photo[]
   activeId: string | null
   selectedIds: Set<string>
   onPick: (id: string, mods: PickMods) => void
+  /** `row` is the drawer's strip; `grid` is a bounded picker (the sticker maker's photo pick). */
   layout?: 'row' | 'grid'
 }) => {
   const t = useT()
   if (!photos.length) {
     return <p className="m-0 px-3.5 py-1 text-xs text-dim">{t('Library is empty. Click "+ Photo" or drop photos straight into the window.')}</p>
+  }
+  if (layout === 'grid') {
+    // Same thumbs at the same size: three to a phone dialog, four on a desktop
+    // one, scrolling inside the box the caller bounds.
+    return (
+      <div className="grid grid-cols-3 content-start gap-[5px] p-1.5 sm:grid-cols-4 [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb">
+        {photos.map(p => (
+          <Thumb key={p.id} photo={p} active={p.id === activeId} selected={selectedIds.has(p.id)} onPick={onPick} />
+        ))}
+      </div>
+    )
   }
   return (
     <div className="flex min-h-0 flex-1 items-start gap-[5px] overflow-x-auto overflow-y-hidden px-3.5 pb-1.5 [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb">

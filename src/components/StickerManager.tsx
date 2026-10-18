@@ -1,5 +1,5 @@
 import { useNavigate, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, FolderPlus, Pencil, Search, Sticker as StickerIcon, Trash2 } from 'lucide'
+import { ArrowLeft, FolderPlus, Pencil, Search, Sticker as StickerIcon, Trash2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useState } from 'react'
 import { useT } from '../lib/i18n'
@@ -10,6 +10,7 @@ import { useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FolderPrompt } from './sticker/FolderPrompt'
 import { StickerCard } from './sticker/StickerCard'
+import { StickerMakerDialog } from './StickerMakerDialog'
 import { Button } from './ui/button'
 import { Tip } from './ui/tip'
 
@@ -67,6 +68,12 @@ export function StickerManager() {
   /** The sticker awaiting a delete confirm. */
   const [deleting, setDeleting] = useState<string | null>(null)
   const [folderAsk, setFolderAsk] = useState<string | null>(null)
+  /**
+   * The maker, opened from this page: its save files the sticker in a folder.
+   * Every opening is its own mount (the `seq` key), so a new sticker starts from
+   * an empty stage instead of from the last one's pick and effects.
+   */
+  const [making, setMaking] = useState<{ seq: number } | null>(null)
   // The chip bar scrolls sideways on a phone; its cut edge fades like the tools
   // dock's row, so a half-seen folder name reads as "more this way" rather than
   // as a chip clipped mid-word.
@@ -156,6 +163,8 @@ export function StickerManager() {
   }
 
   const deletingName = allPhotos.find(p => p.id === deleting)?.name ?? ''
+  /** Where a made sticker lands: the picked folder, or Unsorted on All. */
+  const makeTarget = useMemo(() => ({ kind: 'library' as const, folder: pick ?? '' }), [pick])
 
   return (
     <div className="absolute inset-0 flex flex-col bg-canvas" data-sticker-manager="">
@@ -254,6 +263,19 @@ export function StickerManager() {
             <span className="max-sm:hidden">{t('New folder')}</span>
           </Button>
         </span>
+        {/* The page's own maker: the same dialog the editor's Make tool opens,
+            saving into the picked folder instead of onto the board. */}
+        <span className="flex flex-none">
+          <Button
+            variant="strong"
+            aria-label={t('New sticker')}
+            data-sticker-new=""
+            onClick={() => setMaking(m => ({ seq: (m?.seq ?? 0) + 1 }))}
+          >
+            <MorphIcon icon={WandSparkles} size={12} strokeWidth={1.75} />
+            <span className="max-sm:hidden">{t('New sticker')}</span>
+          </Button>
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb sm:p-4">
@@ -281,6 +303,13 @@ export function StickerManager() {
             )
           : <StickerEmptyState />}
       </div>
+
+      <StickerMakerDialog
+        key={making?.seq ?? 0}
+        open={making != null}
+        target={makeTarget}
+        onClose={() => setMaking(null)}
+      />
 
       <FolderPrompt
         key={prompt == null ? 'closed' : `${prompt.mode}:${prompt.seq}`}
