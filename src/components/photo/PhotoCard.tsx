@@ -81,10 +81,12 @@ export const PhotoCard = memo(({
           {used ? t('Used {n}', { n: uses }) : t('Unused')}
         </span>
         {/* The capture time is the camera's, read from the EXIF at import: a
-            photo without one carries no line rather than a made-up date. */}
+            photo without one carries no line rather than a made-up date. It is
+            a fact to read, not a faint watermark, so it wears the badge fill
+            plus `txt` ink rather than the dimmest tier. */}
         {taken && (
           <span
-            className="absolute bottom-1.5 right-1.5 border border-line-strong bg-badge-bg px-1.5 py-px text-[9.5px] tabular-nums text-dim backdrop-blur-[3px]"
+            className="absolute bottom-1.5 right-1.5 border border-line-strong bg-badge-bg px-1.5 py-[1.5px] text-[10.5px] font-medium tabular-nums text-txt backdrop-blur-[3px]"
             data-photo-taken-badge=""
           >
             {taken}

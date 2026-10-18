@@ -611,8 +611,18 @@ beside the dimension probe) and **stored on the library entry and in the
 session record**, so the detail block never re-parses a 40 MB file on open and
 survives a reload.
 
+The toolbar stacks below `sm` (chips on their own full-width line, the tag
+actions under them) rather than sharing one row with them: at 320px two icon
+buttons leave the chip scroller ~220px, where the scroll fade's 48px band is a
+fifth of the row and the chip at the cut ghosts as a lone border, which reads as
+a hard clip. Full width, the fade stays the "more this way" affordance the tools
+dock and the sticker folder chips use.
+
 Clicking a card opens the detail dialog: the frame large, the EXIF block (taken,
 location, true size, where the board draws it), the tag editor, and delete. The
+preview is a floor-heighted box with the image absolutely filling it, so a small
+preview (a 1×1 fixture, a screenshot) scales up instead of rendering as its own
+pixel, and the frame never collapses to a sliver on a phone. The
 location line is the camera's WGS-84 fix resolved against the bundled district
 polygons (`lib/regeo`, the lazy 5.6 MB index the text lane already ships), so a
 photo from Hangzhou reads as `杭州市西湖区` with no network and the coordinates
