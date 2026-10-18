@@ -57,6 +57,21 @@ function digest(data: Uint8ClampedArray): number {
   return h >>> 0
 }
 
+/**
+ * Recipes whose detail is a screen rather than a continuous field: a 2× render
+ * lays the same screen out at twice the pitch, so it is the same texture but not
+ * the same pixels after a downsample.
+ */
+const BINARY_IDS = new Set<(typeof FILTER_IDS)[number]>(['bitgrain', 'halftone', 'bayerMono', 'bayerColor'])
+
+/**
+ * The pixel family draws geometry, not a noise field: a block average, a tiled
+ * mean, a dot screen, an ordered matrix. None of them has anything to vary per
+ * photo, so they are seed-invariant on purpose (the mosaic's speckle is off at
+ * its default, and a seed would only drive that).
+ */
+const PIXEL_IDS = new Set<(typeof FILTER_IDS)[number]>(['mosaic', 'tessera', 'diamond', 'halftone', 'bayerMono', 'bayerColor'])
+
 describe('filterScale', () => {
   it('is 1 at the 1024 base and doubles with the long side', () => {
     expect(FILTER_BASE).toBe(1024)
@@ -78,8 +93,8 @@ describe('filterSeed', () => {
 })
 
 describe('isFilterId', () => {
-  it('accepts the eight ids and nothing else', () => {
-    expect(FILTER_IDS).toHaveLength(8)
+  it('accepts the fourteen ids and nothing else', () => {
+    expect(FILTER_IDS).toHaveLength(14)
     for (const id of FILTER_IDS)
       expect(isFilterId(id)).toBe(true)
     for (const bad of ['', 'none', 'grain ', 'Grain', null, undefined, 3, {}])
@@ -98,20 +113,28 @@ describe('applyFilter', () => {
     }
   })
 
-  it('gives a different field for a different seed', () => {
+  it('gives a different field for a different seed, and none where it has no field', () => {
     for (const id of FILTER_IDS) {
       const a = run(96, 96, id, 1)
       const b = run(96, 96, id, 2)
-      expect([id, digest(a.data) === digest(b.data)]).toEqual([id, false])
+      expect([id, digest(a.data) === digest(b.data)]).toEqual([id, PIXEL_IDS.has(id)])
     }
   })
 
-  it('produces eight distinct results from one input', () => {
+  it('is byte-identical across seeds for the whole pixel family', () => {
+    for (const id of PIXEL_IDS) {
+      expect([id, digest(run(96, 96, id, 1).data) === digest(run(96, 96, id, 7).data)]).toEqual([id, true])
+    }
+  })
+
+  it('produces fourteen distinct results from one input', () => {
+    // 128px: at 64 the pixel family's stage-pixel pitches round to one pixel,
+    // which collapses the tiled recipes back onto the photo they were handed.
     const seeds = new Map(FILTER_IDS.map(id => [id, 0x2F1B3C5D]))
-    const digests = FILTER_IDS.map(id => digest(run(64, 64, id, seeds.get(id)!).data))
+    const digests = FILTER_IDS.map(id => digest(run(128, 128, id, seeds.get(id)!).data))
     expect(new Set(digests).size).toBe(FILTER_IDS.length)
     // Not just a couple of bytes apart: every pair differs in many pixels.
-    const outs = FILTER_IDS.map(id => run(64, 64, id, 0x2F1B3C5D).data)
+    const outs = FILTER_IDS.map(id => run(128, 128, id, 0x2F1B3C5D).data)
     for (let i = 0; i < outs.length; i++) {
       for (let j = i + 1; j < outs.length; j++) {
         let diff = 0
@@ -140,9 +163,9 @@ describe('applyFilter', () => {
   })
 
   it('is resolution independent: a 2× render carries the same texture', () => {
-    // A 16×16 coarse luma field must match for all eight filters. The
-    // continuous seven must also match pixel for pixel after a 2× downsample;
-    // `bitgrain` cannot, its binary block edges sitting half a pixel off at 2×.
+    // A 16×16 coarse luma field must match for all fourteen filters. The
+    // continuous ones must also match pixel for pixel after a 2× downsample;
+    // the screened ones cannot (their detail is meant to be rearranged at 2×).
     const grid = 16
     const coarse = (px: FilterPixels) => {
       const out = new Float64Array(grid * grid)
@@ -171,7 +194,7 @@ describe('applyFilter', () => {
       for (let i = 0; i < a.length; i++)
         fieldDiff += Math.abs(a[i]! - b[i]!)
       expect([id, fieldDiff / a.length < 3]).toEqual([id, true])
-      if (id === 'bitgrain')
+      if (BINARY_IDS.has(id))
         continue
       // Box-average the 2× detail the way a browser's downscale would.
       let sum = 0

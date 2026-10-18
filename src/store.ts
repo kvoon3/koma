@@ -1,5 +1,5 @@
 import type { CutoutMap } from './lib/cutout'
-import type { FilterId } from './lib/filters'
+import type { FilterValue } from './lib/filters'
 import type { History } from './lib/history'
 import type { Photo } from './lib/imageStore'
 import type { FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
@@ -10,6 +10,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { readExif } from './lib/exif'
 import { clearFilterCaches } from './lib/filterCache'
+import { sameFilter } from './lib/filters'
 import {
   clearTreePhotos,
   GRID_CELL_RATIO,
@@ -95,7 +96,7 @@ export interface PaneClip {
   rot?: number
   flipX?: boolean
   flipY?: boolean
-  filter?: FilterId
+  filter?: FilterValue
   stickers: Sticker[]
   label: PaneLabel | null
 }
@@ -920,11 +921,11 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * a flip). Clearing stores `undefined` so an untouched pane and a cleared one
    * serialize the same, and so a session round-trip cannot resurrect it.
    */
-  setPaneFilter: (paneId, filter) => {
+  setPaneFilter: (paneId, filter, tag) => {
     const leaf = findLeaf(activeWs(get()).root, paneId)
-    if (!leaf || (leaf.filter ?? null) === (filter ?? null))
+    if (!leaf || sameFilter(leaf.filter, filter))
       return
-    commit()
+    commit(tag)
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { filter: filter ?? undefined }) })),
     }))
@@ -1227,8 +1228,12 @@ interface Actions {
   flipPane: (paneId: string, axis: 'x' | 'y') => void
   /** Back upright and unflipped in one step. */
   resetPaneRotation: (paneId: string) => void
-  /** Apply one texture filter to the pane's photo, or null to clear it. */
-  setPaneFilter: (paneId: string, filter: FilterId | null) => void
+  /**
+   * Apply one texture filter setting to the pane's photo, or null to clear it.
+   * The value is atomic: an id plus the knobs the pixel filters dial. `tag`
+   * coalesces a parameter drag into one undo step.
+   */
+  setPaneFilter: (paneId: string, filter: FilterValue | null, tag?: string) => void
   focus: (paneId: string) => void
   focusNeighbor: (dir: FocusDir) => void
   selectLabel: (labelId: string | null) => void
