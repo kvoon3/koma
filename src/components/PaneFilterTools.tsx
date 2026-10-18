@@ -52,7 +52,7 @@ function focusedLeaf(s: Parameters<typeof activeWs>[0]) {
  * hands back an object URL; a tile that is still rendering keeps the previous
  * texture-less plane, so opening the palette never flashes white holes.
  */
-function Swatch({ photo, filterId, label }: { photo: Photo, filterId: FilterId | null, label: string }) {
+function Swatch({ photo, filterId }: { photo: Photo, filterId: FilterId | null }) {
   const [url, setUrl] = useState<string | null>(() => peekFilterSwatch(photo.id, filterId, SWATCH))
   useEffect(() => {
     let alive = true
@@ -66,7 +66,7 @@ function Swatch({ photo, filterId, label }: { photo: Photo, filterId: FilterId |
   }, [photo, filterId])
   return url
     ? <img src={url} alt="" draggable={false} className="block h-full w-full object-cover" />
-    : <div className="h-full w-full animate-pulse bg-panel-2" aria-label={label} />
+    : <div className="h-full w-full animate-pulse bg-panel-2" />
 }
 
 export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
@@ -118,7 +118,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
                 onClick={() => pick(null)}
               >
                 <MorphIcon icon={X} size={12} strokeWidth={2} />
-                {t('None')}
+                {t('Clear filter')}
               </button>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
@@ -131,7 +131,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
                 onClick={() => pick(null)}
               >
                 <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
-                  <Swatch photo={photo} filterId={null} label={t('None')} />
+                  <Swatch photo={photo} filterId={null} />
                 </span>
                 <span className="max-w-full truncate">{t('None')}</span>
               </button>
@@ -146,7 +146,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
                   onClick={() => pick(id)}
                 >
                   <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
-                    <Swatch photo={photo} filterId={id} label={t(FILTER_LABEL[id])} />
+                    <Swatch photo={photo} filterId={id} />
                   </span>
                   <span className="max-w-full truncate">{t(FILTER_LABEL[id])}</span>
                 </button>
