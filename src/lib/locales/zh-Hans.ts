@@ -711,5 +711,4 @@ export const zhHans: Record<string, string> = {
   'Blend': '混合',
   'Workspace list': '工作区列表',
   'Board': '版面',
-  'Edit': '编辑',
 }

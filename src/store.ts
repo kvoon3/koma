@@ -323,7 +323,8 @@ function livePhotoRefs(s: State): Set<string> {
   const singles: (string | null | undefined)[] = [s.bgImage?.photoId, s.paneClip?.photoId]
   for (const board of Object.values(s.parkedBoards))
     boards.push(...board.workspaces)
-  for (const snap of [...s.history.past, ...s.history.future]) {
+  for (const node of Object.values(s.history.nodes)) {
+    const snap = node.snapshot
     boards.push(...snap.workspaces)
     for (const board of Object.values(snap.parkedBoards))
       boards.push(...board.workspaces)
@@ -1395,7 +1396,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return { ...restoreSnapshot(s, step.snapshot), history: step.history }
     }),
 
-  /** Step forward into the child visited last; the branches beside it stay. */
+  /** Step forward into the child visited last. The move records nothing. */
   redo: () =>
     set((s) => {
       const step = stepDown(s.history, snapshotOf(s))
