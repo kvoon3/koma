@@ -501,12 +501,7 @@ export const zhHant: Record<string, string> = {
   'Square (1:1)': '正方形（1:1）',
   // Dual grid (two 9-grid groups, compared side by side)
   // Dual grid (two 9-grid groups, compared side by side or stacked)
-  'Compare': '對比',
-  'Exit compare': '結束對比',
-  'Swap sides': '交換兩側',
   // First / second, not left / right: on a phone the two boards stack.
-  'First group': '第一個群組',
-  'Second group': '第二個群組',
   // Workspaces (the board groups, switched from the Mission Control-style switcher)
   'Add a group': '新增群組',
   'Open group {name}': '開啟群組 {name}',

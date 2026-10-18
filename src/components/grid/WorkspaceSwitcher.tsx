@@ -27,7 +27,7 @@ import { leafList } from '../../lib/panes'
 import { MAX_GRIDS, MAX_WORKSPACES } from '../../lib/workspaces'
 import { useStore } from '../../store'
 import { AddSlotFrame, CellBody, CellPreview } from './CellPreview'
-import { CARD_GAP, CARD_SCALE, RECEDE_BLUR, RECEDE_OPACITY, RECEDE_SCALE, STRIP_GAP } from './switcherLayout'
+import { CARD_GAP, CARD_SCALE, RECEDE_BLUR, RECEDE_OPACITY, STRIP_GAP } from './switcherLayout'
 
 /** Stable keys for the slots a board has not filled (a board holds nine). */
 const EMPTY_SLOT_KEYS = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9'] as const
@@ -226,13 +226,15 @@ function CardCell({ ws, box, photoById, transparent }: {
  * past each other as one plane. It sits a page to its side of the live board
  * (`--pager-travel`, from the measured board) and is read-only.
  */
-function PagerBoard({ side, board, cell, box, gap, boardW, photoById, transparent }: {
+function PagerBoard({ side, board, cell, box, gap, boardW, scale, photoById, transparent }: {
   side: 'prev' | 'next'
   board: BoardCells
   cell: number
   box: { w: number, h: number }
   gap: number
   boardW: number
+  /** The scale the live board receded by: the neighbour has to wear the same one. */
+  scale: number
   photoById: Map<string, Photo>
   transparent: boolean
 }) {
@@ -246,7 +248,7 @@ function PagerBoard({ side, board, cell, box, gap, boardW, photoById, transparen
       className="pointer-events-none absolute top-0 left-0 origin-top-left"
       style={{
         width: boardW,
-        transform: `translateX(${offset}) scale(${RECEDE_SCALE})`,
+        transform: `translateX(${offset}) scale(${scale})`,
         opacity: RECEDE_OPACITY,
         filter: `blur(${RECEDE_BLUR}px)`,
       }}
@@ -273,7 +275,7 @@ function PagerBoard({ side, board, cell, box, gap, boardW, photoById, transparen
  * either side. The pointer handlers come from the caller, which owns the drag
  * state, the physics and the pull-up exit.
  */
-export function PagerSurface({ surfaceRef, trackRef, prevBoard, nextBoard, cell, box, gap, boardW, photoById, transparent, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture }: {
+export function PagerSurface({ surfaceRef, trackRef, prevBoard, nextBoard, cell, box, gap, boardW, scale, photoById, transparent, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture }: {
   surfaceRef: RefObject<HTMLDivElement | null>
   trackRef: RefObject<HTMLDivElement | null>
   /** The neighbouring boards present in the row (absent at its ends). */
@@ -283,6 +285,8 @@ export function PagerSurface({ surfaceRef, trackRef, prevBoard, nextBoard, cell,
   box: { w: number, h: number }
   gap: number
   boardW: number
+  /** The scale the live board receded by (see `recedeFit`). */
+  scale: number
   photoById: Map<string, Photo>
   transparent: boolean
   onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => void
@@ -304,8 +308,8 @@ export function PagerSurface({ surfaceRef, trackRef, prevBoard, nextBoard, cell,
       onDragStart={e => e.preventDefault()}
     >
       <div ref={trackRef} className="absolute inset-0">
-        {prevBoard && <PagerBoard side="prev" board={prevBoard} cell={cell} box={box} gap={gap} boardW={boardW} photoById={photoById} transparent={transparent} />}
-        {nextBoard && <PagerBoard side="next" board={nextBoard} cell={cell} box={box} gap={gap} boardW={boardW} photoById={photoById} transparent={transparent} />}
+        {prevBoard && <PagerBoard side="prev" board={prevBoard} cell={cell} box={box} gap={gap} boardW={boardW} scale={scale} photoById={photoById} transparent={transparent} />}
+        {nextBoard && <PagerBoard side="next" board={nextBoard} cell={cell} box={box} gap={gap} boardW={boardW} scale={scale} photoById={photoById} transparent={transparent} />}
       </div>
     </div>
   )
