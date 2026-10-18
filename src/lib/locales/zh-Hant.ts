@@ -613,4 +613,5 @@ export const zhHant: Record<string, string> = {
   'Failed to save sticker': '儲存貼圖失敗',
   'Edit': '編輯',
   '{n} of {max} undo steps': '{max} 步復原中已用 {n} 步',
+  'Reset effects': '重設效果',
 }
