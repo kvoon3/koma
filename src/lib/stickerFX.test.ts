@@ -9,11 +9,15 @@ import {
   composeSilhouette,
   MASK_UNDO_CAP,
   MAX_OUTLINE_RADIUS,
-  OUTLINE_RADIUS_FACTOR,
+  MAX_TOOTH_DEPTH,
+  MAX_TOOTH_SPACING,
+  MIN_TOOTH_DEPTH,
+  MIN_TOOTH_SPACING,
   outlineRadius,
   parseHexColor,
   perforationFromSliders,
   perforationPunches,
+  perforationToTexture,
   pushCapped,
   silhouetteCoverage,
   silhouettePadding,
@@ -275,14 +279,16 @@ describe('canvas padding', () => {
   test('reserves at least the stroke and the punch', () => {
     expect(silhouettePadding(0)).toBe(2)
     expect(silhouettePadding(42)).toBeGreaterThanOrEqual(43)
-    expect(silhouettePadding(10, { size: 30, spacing: 12 })).toBeGreaterThanOrEqual(31)
+    // Half a punch disc: the other half opens into air.
+    expect(silhouettePadding(10, { size: 30, spacing: 12 })).toBeGreaterThanOrEqual(16)
     expect(silhouettePadding(42, { size: 30, spacing: 12 })).toBeGreaterThanOrEqual(43)
   })
 
   test('padding tracks the widest thing painted, holes included', () => {
-    // A notch that reaches past the border is punched air, so the border is
-    // what has to fit; the punch still gets its own air when it is the bigger.
-    expect(silhouettePadding(42, { size: 96, spacing: 12 })).toBe(98)
+    // A notch's outward half is punched air, so only its radius (half the
+    // disc) has to fit inside the frame; the border gets its own air.
+    expect(silhouettePadding(42, { size: 96, spacing: 12 })).toBe(50)
+    expect(silhouettePadding(42, { size: 320, spacing: 12 })).toBe(162)
     expect(silhouettePadding(94)).toBe(96)
   })
 })
@@ -297,34 +303,58 @@ describe('parseHexColor', () => {
   })
 })
 
-describe('perforation slider mapping', () => {
-  test('the design unit is the border width\'s own 2.35', () => {
-    const p = perforationFromSliders(8, 12)
-    expect(p.size).toBeCloseTo(18.8, 6)
-    expect(p.spacing).toBeCloseTo(28.2, 6)
-    // One unit of hole size equals one unit of border width, in pixels.
-    expect(p.size / 8).toBeCloseTo(OUTLINE_RADIUS_FACTOR, 6)
+describe('perforation sliders (stage pixels)', () => {
+  test('the sliders read as stage pixels: depth and period pass through', () => {
+    expect(perforationFromSliders(5, 9)).toEqual({ depth: 5, spacing: 9 })
+    expect(perforationFromSliders(1.5, 22)).toEqual({ depth: 1.5, spacing: 22 })
   })
 
-  test('clamped at both ends, and a nonsense pick is a hole-free no-op', () => {
-    expect(perforationFromSliders(1000, 1000).size).toBe(96)
-    expect(perforationFromSliders(1000, 1000).spacing).toBeCloseTo(2350, 6)
-    expect(perforationFromSliders(0, 0)).toEqual({ size: 0, spacing: 4 })
-    expect(perforationFromSliders(Number.NaN, Number.NaN)).toEqual({ size: 0, spacing: 4 })
+  test('clamped to the ranges the stage can carry, nonsense falls to the floor', () => {
+    expect(perforationFromSliders(1000, 1000)).toEqual({ depth: MAX_TOOTH_DEPTH, spacing: MAX_TOOTH_SPACING })
+    expect(perforationFromSliders(0, 0)).toEqual({ depth: MIN_TOOTH_DEPTH, spacing: MIN_TOOTH_SPACING })
+    expect(perforationFromSliders(Number.NaN, Number.NaN)).toEqual({ depth: MIN_TOOTH_DEPTH, spacing: MIN_TOOTH_SPACING })
   })
 
-  test('the mapped pair is what composeSilhouette punches with', () => {
+  test('the stage → texture scale is the whole mapping: x6 makes a 30px bite', () => {
+    // A disc's radius is the bite depth, so the disc is two depths across.
+    expect(perforationToTexture({ depth: 5, spacing: 9 }, 6)).toEqual({ size: 60, spacing: 54 })
+    expect(perforationToTexture({ depth: 5, spacing: 9 }, 1)).toEqual({ size: 10, spacing: 9 })
+    // No reachable scale, no scaling.
+    expect(perforationToTexture({ depth: 5, spacing: 9 }, 0)).toEqual({ size: 10, spacing: 9 })
+    expect(perforationToTexture({ depth: 5, spacing: 9 }, Number.NaN)).toEqual({ size: 10, spacing: 9 })
+    // The texture cap and the floor still hold at a silly scale.
+    expect(perforationToTexture({ depth: 16, spacing: 9 }, 100).size).toBe(320)
+    expect(perforationToTexture({ depth: 5, spacing: 3 }, 0.5).spacing).toBe(4)
+  })
+
+  test('a 4px design bites 4px per unit of scale, measured on the punched field', () => {
+    // Rim straight run on the top edge of a 60x60 block, 10px border.
     const size = 120
     const alpha = rectangle(size, 30, 20, 90, 80)
-    const { punch, centers } = perforationPunches(
-      squaredDistanceTransform(alpha, size, size),
-      size,
-      size,
-      10,
-      perforationFromSliders(3, 6),
-    )
-    expect(centers.length).toBeGreaterThan(3)
-    expect(punch.some(v => v > 0.5)).toBe(true)
+    const radius = 10
+    const dist = squaredDistanceTransform(alpha, size, size)
+    const scale = 6
+    const design = { depth: 4, spacing: 4 }
+    const texture = perforationToTexture(design, scale)
+    const { punch, centers } = perforationPunches(dist, size, size, radius, texture)
+    // One notch on the top rim, at y = 10 (the art starts at y = 20).
+    const notch = centers.filter(c => c.y === 10).sort((a, b) => a.x - b.x)[1]
+    expect(notch).toBeDefined()
+    // Depth = how far the punched disc reaches *down* from the rim, which is
+    // the disc's radius: depth × scale texture pixels, i.e. 4 stage pixels.
+    let depth = 0
+    for (let y = notch.y; y < notch.y + 60; y += 1) {
+      if (punch[y * size + notch.x] <= 0.5)
+        break
+      depth = y - notch.y + 1
+    }
+    expect(depth).toBe(texture.size / 2)
+    expect(depth / scale).toBeCloseTo(design.depth, 6)
+    // And the period along the rim is the design spacing × scale.
+    const xs = centers.filter(c => c.y === 10).map(c => c.x).sort((a, b) => a - b)
+    for (const delta of deltas(xs))
+      expect(Math.abs(delta - texture.spacing)).toBeLessThanOrEqual(1)
+    expect(texture.spacing / scale).toBeCloseTo(design.spacing, 6)
   })
 })
 
