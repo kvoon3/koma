@@ -2,6 +2,7 @@ import type { Photo } from '../lib/imageStore'
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
+import type { StickerRecipe, StickerRecipeSource } from '../lib/stickerRecipe'
 import { Dialog } from '@base-ui/react/dialog'
 import { ImagePlus, Images, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -17,6 +18,7 @@ import { useT } from '../lib/i18n'
 import { makeSticker } from '../lib/sticker'
 import { saveMadeSticker } from '../lib/stickerAssets'
 import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
+import { editedStickerMeta } from '../lib/stickerRecipe'
 import { say } from '../lib/toast'
 import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 
@@ -417,9 +419,14 @@ function useCutoutJob(onDone: (url: string) => void) {
  * The sticker maker's picked image: the pick's own URL plus the cutout that
  * replaces it, each owned by the pick or cutout that made it. The cutout
  * runs automatically on pick; Restore original brings the full frame back.
+ *
+ * `initial` is the subject a re-edit starts from: the source pixels a made
+ * sticker's recipe captured (see lib/stickerRecipe). It enters as the pick, so
+ * the stage, the mask editor and the bake are the ones a file pick runs, minus
+ * the cutout job: those pixels were already cut.
  */
-function useStickerImage() {
-  const [pick, setPick] = useState<{ url: string, name: string } | null>(null)
+function useStickerImage(initial: { url: string, name: string } | null = null) {
+  const [pick, setPick] = useState<{ url: string, name: string } | null>(initial)
   const [cutoutUrl, setCutoutUrl] = useState<string | null>(null)
   // The mask editor's committed cutout: a data URL, so it outlives no URL and
   // needs no revoke. It sits on top of the cutout, and the cutout sits on top
@@ -508,33 +515,162 @@ function useStickerImage() {
   }
 }
 
-/**
- * The sticker maker, one dialog with two doors: the editor's Make tool hands it
- * a pane (`target.kind === 'pane'`, the sticker is pinned onto the board) and
- * the sticker page hands it a folder (`'library'`, the sticker is filed in the
- * library and no board is touched). Everything above the save is shared: the
- * same stage, cutout, edge effects and mask editor.
- */
-export function StickerMakerDialog({ open, target, onClose }: { open: boolean, target: StickerTarget | null, onClose: () => void }) {
-  const t = useT()
+/** The controls a fresh make starts from, or the ones a sticker was saved with. */
+interface MakerSeed {
+  tab: 'text' | 'image'
+  text: string
+  color: string
+  font: string
+  outlineWidth: number
+  outlineColor: string
+  material: StickerMaterialType
+  stamp: boolean
+  toothDepth: number
+  toothSpacing: number
+  displayLongEdge: number
+  /** The subject a re-edit starts from (a recipe's captured pixels), if any. */
+  image: { url: string, name: string } | null
+  /** The library photo the subject came from, when it came from one. */
+  photoId?: string
+}
 
-  const [tab, setTab] = useState<'text' | 'image'>('image')
-  const [text, setText] = useState('')
-  const [color, setColor] = useState(TEXT_COLOR_DEFAULT)
-  const [font, setFont] = useState(FONTS[0].id)
-  const [outlineWidth, setOutlineWidth] = useState(OUTLINE_DEFAULT)
-  const [outlineColor, setOutlineColor] = useState(OUTLINE_COLOR_DEFAULT)
-  const [material, setMaterial] = useState<StickerMaterialType>('original')
-  const [stamp, setStamp] = useState(false)
-  const [toothDepth, setToothDepth] = useState(TOOTH_DEPTH_DEFAULT)
-  const [toothSpacing, setToothSpacing] = useState(TOOTH_SPACING_DEFAULT)
-  const [displayLongEdge, setDisplayLongEdge] = useState(STAGE_HEIGHT_DEFAULT)
+/**
+ * A re-edit opens holding the subject and every control the sticker was saved
+ * with; a fresh make opens empty. The recipe is read once, here, so the
+ * component below only ever sees values (`lib/stickerRecipe`).
+ */
+function seedOf(edit: { recipe: StickerRecipe } | null): MakerSeed {
+  const source = edit?.recipe.source ?? null
+  const style = edit?.recipe.style ?? null
+  const words = source?.type === 'text' ? source : null
+  return {
+    tab: words ? 'text' : 'image',
+    text: words?.text ?? '',
+    color: words?.color ?? TEXT_COLOR_DEFAULT,
+    font: words?.fontId ?? FONTS[0].id,
+    outlineWidth: style?.outlineWidth ?? OUTLINE_DEFAULT,
+    outlineColor: style?.outlineColor ?? OUTLINE_COLOR_DEFAULT,
+    material: style?.material ?? 'original',
+    // The stamp sliders' own unit is what the recipe stores (`PerforationDesign`
+    // is the clamped slider pair), so the controls come back exactly as saved.
+    stamp: !!style?.perforation,
+    toothDepth: style?.perforation?.depth ?? TOOTH_DEPTH_DEFAULT,
+    toothSpacing: style?.perforation?.spacing ?? TOOTH_SPACING_DEFAULT,
+    displayLongEdge: style?.displayLongEdge ?? STAGE_HEIGHT_DEFAULT,
+    image: source?.type === 'image' ? { url: source.src, name: source.name } : null,
+    photoId: source?.type === 'image' ? source.photoId : undefined,
+  }
+}
+
+/** The dialog's own labels: a re-edit says so in the title, and in the DOM for the tests. */
+function dialogLabels(edit: { photo: Photo } | null, t: (key: string) => string): { title: string, mode: string } {
+  return edit ? { title: t('Re-edit sticker'), mode: 'reedit' } : { title: t('Sticker maker'), mode: 'new' }
+}
+
+/** The name a bake files under: the sticker it came from, or the maker's own. */
+function baseNameOf(reEdit: { photo: Photo } | null, tab: 'text' | 'image', text: string, imageName: string): string {
+  if (reEdit)
+    return editedStickerMeta(reEdit.photo, 'rebaked').baseName
+  // Text stickers take their name from the first line, not a leftover image pick.
+  if (tab === 'text')
+    return text.trim().split('\n')[0].slice(0, 24) || 'sticker'
+  return imageName.replace(/\.[^.]+$/, '') || 'sticker'
+}
+
+/**
+ * The subject this bake consumes, kept on the new asset so IT can be re-edited
+ * too (see lib/stickerRecipe). A re-edit keeps the provenance the recipe had:
+ * the same library photo, when the subject came from one.
+ */
+function recipeSourceOf(
+  tab: 'text' | 'image',
+  text: string,
+  color: string,
+  font: string,
+  imageSrc: string | null,
+  imageName: string,
+  photoId: string | undefined,
+): StickerRecipeSource | null {
+  if (tab === 'text')
+    return { type: 'text', text: text.trim(), color, fontId: font }
+  return imageSrc ? { type: 'image', src: imageSrc, name: imageName, photoId } : null
+}
+
+/**
+ * The dialog's save row. A re-edit says what it is about to do before it does
+ * it: a save is a new record, never a rewrite, so the copies already placed
+ * keep drawing the asset they were placed from. Its own row, so a phone never
+ * squeezes the sentence against the buttons.
+ */
+function MakerFooter({ reEdit, canInsert, saveLabel, onClose, onInsert }: {
+  reEdit: boolean
+  canInsert: boolean
+  saveLabel: string
+  onClose: () => void
+  onInsert: () => void
+}) {
+  const t = useT()
+  return (
+    <div className="flex flex-col gap-2 border-t border-line px-3 py-2.5">
+      {reEdit && (
+        <span className="text-[10.5px] leading-[1.35] text-faint" data-sticker-reedit-note="">
+          {t('Saves a new sticker · placed copies keep their pixels')}
+        </span>
+      )}
+      <div className="flex justify-end gap-[6px]">
+        <Button onClick={onClose}>{t('Cancel')}</Button>
+        <Button variant="strong" disabled={!canInsert} onClick={onInsert} data-sticker-save="">
+          {saveLabel}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The sticker maker, one dialog with three doors: the editor's Make tool hands
+ * it a pane (`target.kind === 'pane'`, the sticker is pinned onto the board),
+ * the sticker page hands it a folder (`'library'`, the sticker is filed in the
+ * library and no board is touched), and the sticker page's **Re-edit** hands it
+ * a recipe (`reEdit`, the dialog opens holding the subject and every control
+ * the sticker was saved with). Everything above the save is shared: the same
+ * stage, cutout, edge effects and mask editor, and every door saves a NEW
+ * record rather than rewriting one.
+ */
+export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
+  open: boolean
+  target: StickerTarget | null
+  onClose: () => void
+  /**
+   * The sticker being modified, with the recipe it carries (see
+   * lib/stickerRecipe). Null for a fresh make. Every control above starts from
+   * the recipe's values, so what the dialog shows is what the bake will do.
+   */
+  reEdit?: { photo: Photo, recipe: StickerRecipe } | null
+}) {
+  const t = useT()
+  const { title, mode } = dialogLabels(reEdit, t)
+  // Read once per opening (the page remounts the dialog), so every control
+  // below starts from the recipe rather than from the last make.
+  const seed = seedOf(reEdit)
+
+  const [tab, setTab] = useState<'text' | 'image'>(seed.tab)
+  const [text, setText] = useState(seed.text)
+  const [color, setColor] = useState(seed.color)
+  const [font, setFont] = useState(seed.font)
+  const [outlineWidth, setOutlineWidth] = useState(seed.outlineWidth)
+  const [outlineColor, setOutlineColor] = useState(seed.outlineColor)
+  const [material, setMaterial] = useState<StickerMaterialType>(seed.material)
+  const [stamp, setStamp] = useState(seed.stamp)
+  const [toothDepth, setToothDepth] = useState(seed.toothDepth)
+  const [toothSpacing, setToothSpacing] = useState(seed.toothSpacing)
+  const [displayLongEdge, setDisplayLongEdge] = useState(seed.displayLongEdge)
   const [editingMask, setEditingMask] = useState(false)
 
   const [inserting, setInserting] = useState(false)
   /** Library mode only: the stage is showing the photo picker instead of a pick. */
   const [pickingLibrary, setPickingLibrary] = useState(false)
-  const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask } = useStickerImage()
+  const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask } = useStickerImage(seed.image)
   const libraryMode = target?.kind === 'library'
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
@@ -556,15 +692,13 @@ export function StickerMakerDialog({ open, target, onClose }: { open: boolean, t
   const insert = async () => {
     if (!source || !target)
       return
-    // Text stickers take their name from the first line, not a leftover image pick.
-    const baseName = tab === 'text'
-      ? (text.trim().split('\n')[0].slice(0, 24) || 'sticker')
-      : (imageName.replace(/\.[^.]+$/, '') || 'sticker')
+    const baseName = baseNameOf(reEdit, tab, text, imageName)
     const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge }
+    const recipeSource = recipeSourceOf(tab, text, color, font, imageSrc, imageName, seed.photoId)
     setInserting(true)
     try {
       // Bake once, land it where this door wants it (lib/stickerAssets).
-      await saveMadeSticker(source, style, target, t)
+      await saveMadeSticker(source, style, target, t, recipeSource)
       onClose()
     }
     catch {
@@ -595,9 +729,9 @@ export function StickerMakerDialog({ open, target, onClose }: { open: boolean, t
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed z-(--z-modal) inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-ending-style:opacity-0" />
-        <Dialog.Popup className="fixed z-(--z-modal) left-1/2 top-1/2 flex max-h-[min(86dvh,720px)] w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-none border border-line bg-panel text-txt shadow-pop outline-0 transition-[opacity,translate,scale] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
+        <Dialog.Popup data-sticker-maker={mode} className="fixed z-(--z-modal) left-1/2 top-1/2 flex max-h-[min(86dvh,720px)] w-[min(560px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-none border border-line bg-panel text-txt shadow-pop outline-0 transition-[opacity,translate,scale] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]">
           <header className="flex items-center justify-between gap-2.5 border-b border-line py-[11px] pl-4 pr-3">
-            <Dialog.Title className="m-0 text-[13.5px] font-semibold">{t('Sticker maker')}</Dialog.Title>
+            <Dialog.Title className="m-0 text-[13.5px] font-semibold">{title}</Dialog.Title>
             <Dialog.Close className={`${buttonBase} ${buttonVariants.close}`} aria-label={t('Close')}>
               <MorphIcon icon={X} size={15} strokeWidth={1.75} />
             </Dialog.Close>
@@ -703,12 +837,7 @@ export function StickerMakerDialog({ open, target, onClose }: { open: boolean, t
             </div>
           </div>
 
-          <div className="flex justify-end gap-[6px] border-t border-line px-3 py-2.5">
-            <Button onClick={onClose}>{t('Cancel')}</Button>
-            <Button variant="strong" disabled={!canInsert} onClick={insert} data-sticker-save="">
-              {saveLabel}
-            </Button>
-          </div>
+          <MakerFooter reEdit={!!reEdit} canInsert={canInsert} saveLabel={saveLabel} onClose={onClose} onInsert={insert} />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
