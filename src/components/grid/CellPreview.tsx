@@ -13,7 +13,7 @@ import { usePanePreview, usePreview } from '../../hooks'
 import { fontById } from '../../lib/fonts'
 import { useT } from '../../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../../lib/labelIcons'
-import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../../lib/panes'
+import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelAlign, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../../lib/panes'
 import { isTransparentBg, useStore } from '../../store'
 import { LabelIconGlyph } from '../BoardLabel'
 import { SeamBackdrop } from '../Stage'
@@ -217,7 +217,7 @@ export function CellPreview({ root, canvasRatio, box, photoById, stickers = [], 
             }}
           >
             {labelIconNode(lab.icon) && <LabelIconGlyph node={labelIconNode(lab.icon)!} />}
-            {lab.text}
+            <span style={{ display: 'block', whiteSpace: 'pre', textAlign: labelAlign(lab) }}>{lab.text}</span>
           </span>
         ))}
       </div>

@@ -1,5 +1,6 @@
 import type { BgImage } from './collageBg'
 import type { FilterId } from './filters'
+import type { FontMeta } from './fonts'
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
 import type { CornerRadii, Leaf, Node, PaneLabel, PaneTransform, Rect, SeamSides, Sticker } from './panes'
 import { mapSeq } from './async'
@@ -9,7 +10,8 @@ import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fo
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, labelIconNode, loadLabelIcon } from './labelIcons'
-import { blendFadePx, boardStickerRect, expandRectForBlend, labelPaint, labelRect, layoutTree, leafCornerRadii, leafList, paneTransform, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
+import { labelPreviewUnit } from './labelMetrics'
+import { blendFadePx, boardStickerRect, expandRectForBlend, labelAlign, labelAlignOffset, labelPaint, labelRect, labelTextLines, layoutTree, leafCornerRadii, leafList, paneTransform, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -404,33 +406,102 @@ function drawLabels(ctx: CanvasRenderingContext2D, prep: Prepared, icons: LabelI
     drawLabel(ctx, prep, lab, board, icons.get(lab.id))
 }
 
-function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel, board: Rect, icon?: HTMLImageElement) {
+export interface LabelLinePlacement {
+  text: string
+  /** Layout width of the line, from canvas metrics. */
+  w: number
+  ascent: number
+  descent: number
+  lineH: number
+  halfLead: number
+  /** Absolute board px where this line's text starts. */
+  x: number
+  /** Absolute board px baseline. */
+  baseline: number
+}
+
+export interface LabelLayout {
+  box: Rect
+  blockW: number
+  blockH: number
+  iconW: number
+  /** Absolute board px where the text block (after the icon) starts. */
+  left: number
+  fontPx: number
+  meta: FontMeta
+  lines: LabelLinePlacement[]
+}
+
+/**
+ * The one layout both the preview (through CSS) and the exporter draw: one
+ * measured line box per explicit newline, a block as wide as the widest line,
+ * and the icon slot before it. Exported so the browser parity check can read
+ * the exact per-line x the canvas will draw at, rather than re-deriving it.
+ */
+export function labelLineLayout(lab: PaneLabel, board: Rect, unit: number, withIcon = !!labelIconNode(lab.icon), measureUnit = labelPreviewUnit() || unit): LabelLayout {
   const meta = fontById(lab.font)
-  const fontPx = lab.size * prep.u
-  const m = measureLabel(meta, fontPx, lab.text)
-  // Reproduce the DOM preview's `line-height: normal` line box exactly:
-  // box height = measured line box, baseline offset follows the half-leading model.
-  const lineH = normalLineHeightRatio(meta, lab.text) * fontPx || (m.fontAscent + m.fontDescent)
-  const halfLead = Math.max(0, (lineH - (m.fontAscent + m.fontDescent)) / 2)
+  const fontPx = lab.size * unit
+  // Measure at the preview's px size, then scale the metrics to export px:
+  // the system font's advances are not linear in size (see lib/labelMetrics).
+  const measurePx = lab.size * measureUnit
+  const k = fontPx / measurePx
+  const lines = labelTextLines(lab.text).map((line) => {
+    const m = measureLabel(meta, measurePx, line)
+    // Reproduce the DOM preview's `line-height: normal` line box exactly:
+    // box height = measured line box, baseline offset follows the half-leading model.
+    const lineH = normalLineHeightRatio(meta, line) * fontPx || (m.fontAscent + m.fontDescent) * k || fontPx * 1.2
+    return {
+      text: line,
+      w: m.w * k,
+      ascent: m.fontAscent * k,
+      descent: m.fontDescent * k,
+      lineH,
+      halfLead: Math.max(0, (lineH - (m.fontAscent + m.fontDescent) * k) / 2),
+      x: 0,
+      baseline: 0,
+    }
+  })
+  const blockW = Math.max(0, ...lines.map(l => l.w))
+  const blockH = lines.reduce((sum, l) => sum + l.lineH, 0)
   // Mirror the DOM's flex row: [icon][gap][text], all centered vertically.
-  const iconW = icon ? fontPx * (LABEL_ICON_EM + LABEL_ICON_GAP_EM) : 0
-  const r = labelRect(board, lab, m.w + iconW, lineH, fontPx)
+  const iconW = withIcon ? fontPx * (LABEL_ICON_EM + LABEL_ICON_GAP_EM) : 0
+  const box = labelRect(board, lab, blockW + iconW, blockH, fontPx)
+  const left = box.x + fontPx * 0.38
+  const align = labelAlign(lab)
+  let top = box.y + fontPx * 0.22
+  for (const line of lines) {
+    line.x = left + iconW + labelAlignOffset(align, blockW, line.w)
+    line.baseline = top + line.halfLead + line.ascent
+    top += line.lineH
+  }
+  return { box, blockW, blockH, iconW, left, fontPx, meta, lines }
+}
+
+function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel, board: Rect, icon?: HTMLImageElement) {
+  const layout = labelLineLayout(lab, board, prep.u, !!icon)
+  const { box: r, fontPx, meta, lines, left } = layout
   const colors = labelPaint(lab)
+  // Every placement is absolute board px; the box is drawn about its center
+  // (where the label rotation pivots), so bring them back into that frame.
+  const cx = r.x + r.w / 2
+  const cy = r.y + r.h / 2
   ctx.save()
-  ctx.translate(r.x + r.w / 2, r.y + r.h / 2)
+  ctx.translate(cx, cy)
   ctx.rotate(rotationOf(lab))
   ctx.fillStyle = colors.fill
   ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h)
-  const left = -r.w / 2 + fontPx * 0.38
   if (icon) {
     const s = fontPx * LABEL_ICON_EM
-    ctx.drawImage(icon, left, -s / 2, s, s)
+    ctx.drawImage(icon, left - cx, -s / 2, s, s)
   }
   ctx.fillStyle = colors.fg
   ctx.font = `400 ${fontPx}px ${meta.cssStack}`
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
-  ctx.fillText(lab.text, left + iconW, -r.h / 2 + fontPx * 0.22 + halfLead + m.fontAscent)
+  for (const line of lines) {
+    if (line.text)
+      ctx.fillText(line.text, line.x - cx, line.baseline - cy)
+  }
   ctx.restore()
 }
 

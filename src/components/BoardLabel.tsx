@@ -1,16 +1,16 @@
 import type { IconNode } from 'lucide'
 import type { FontMeta } from '../lib/fonts'
-import type { PaneLabel } from '../lib/panes'
+import type { LabelAlign, PaneLabel } from '../lib/panes'
 import { Popover } from '@base-ui/react/popover'
 import { Select } from '@base-ui/react/select'
-import { Ban, Baseline, Blend, Check, ChevronDown, Contrast, PaintBucket, RefreshCw, RotateCcw, Smile, Trash2, Type as TypeIcon, X } from 'lucide'
+import { AlignCenter, AlignLeft, AlignRight, Ban, Baseline, Blend, Check, ChevronDown, Contrast, MapPin, PaintBucket, RefreshCw, RotateCcw, Smile, Trash2, Type as TypeIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
 import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/components/ui/field'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
-import { labelBgAlpha, labelPaint, rotationCss, rotationOf, snapRotation } from '../lib/panes'
+import { labelAlign, labelBgAlpha, labelPaint, normalizeLabelText, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
@@ -173,7 +173,33 @@ export function ResetRotationButton({ shown, flip, onReset }: {
   )
 }
 
-function LabelEditor({ text, onDone }: { text: string, onDone: (text: string) => void }) {
+/**
+ * A line break at the caret. `insertLineBreak` keeps the contentEditable's own
+ * undo/selection bookkeeping (it writes a `<br>`), and the Range fallback
+ * writes a literal newline, which `white-space: pre-wrap` renders the same way.
+ * InnerText turns either into a `\n` on commit.
+ */
+function insertLineBreak() {
+  try {
+    if (typeof document.execCommand === 'function' && document.execCommand('insertLineBreak'))
+      return
+  }
+  catch {
+  }
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount)
+    return
+  const range = sel.getRangeAt(0)
+  range.deleteContents()
+  const node = document.createTextNode('\n')
+  range.insertNode(node)
+  range.setStartAfter(node)
+  range.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+
+function LabelEditor({ text, align, onDone }: { text: string, align: LabelAlign, onDone: (text: string) => void }) {
   const editorRef = useRef<HTMLDivElement | null>(null)
   const t = useT()
 
@@ -193,20 +219,28 @@ function LabelEditor({ text, onDone }: { text: string, onDone: (text: string) =>
   }, [])
 
   const finish = (e: React.FocusEvent<HTMLDivElement>) => {
-    onDone((e.currentTarget.textContent ?? '').replace(/\s+/g, ' ').trim())
+    // innerText, not textContent: a contentEditable stores a typed Enter as
+    // <br> / <div>, and only the rendered text knows where the lines break.
+    // eslint-disable-next-line unicorn/prefer-dom-node-text-content -- that is the whole point
+    const raw = e.currentTarget.innerText ?? e.currentTarget.textContent ?? ''
+    onDone(normalizeLabelText(raw))
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // IME composition owns Enter: committing there would eat a candidate.
     if (e.nativeEvent.isComposing)
       return
-    if (e.key !== 'Enter' && e.key !== 'Escape')
-      return
-    // keep Esc/Enter from reaching the global handler (Esc would deselect)
+    // Keep both keys from reaching the global handler (Esc would deselect).
     e.stopPropagation()
-    const el = e.currentTarget as HTMLElement
-    if (e.key === 'Enter')
-      e.preventDefault()
-    el.blur()
+    if (e.key === 'Escape') {
+      ;(e.currentTarget as HTMLElement).blur()
+      return
+    }
+    if (e.key !== 'Enter')
+      return
+    // Enter is a line break, not a commit: commit is blur / Esc.
+    e.preventDefault()
+    insertLineBreak()
   }
 
   return (
@@ -216,6 +250,10 @@ function LabelEditor({ text, onDone }: { text: string, onDone: (text: string) =>
       aria-label={t('Edit text label')}
       contentEditable
       suppressContentEditableWarning
+      // `pre-wrap` keeps the newlines legible while typing; the committed
+      // string is plain text with `\n`, never a DOM structure.
+      className="whitespace-pre-wrap outline-0"
+      style={{ textAlign: align }}
       onBlur={finish}
       onKeyDown={onKeyDown}
     >
@@ -571,6 +609,54 @@ function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
   )
 }
 
+const ALIGN_ITEMS: { id: LabelAlign, icon: typeof AlignLeft, label: string }[] = [
+  { id: 'left', icon: AlignLeft, label: 'Align left' },
+  { id: 'center', icon: AlignCenter, label: 'Align center' },
+  { id: 'right', icon: AlignRight, label: 'Align right' },
+]
+
+/**
+ * The three-button alignment group: one radio-like group per label, shared by
+ * the desktop toolbar and the dock's popover so both act on `align` through
+ * the same `setLabel` patch (and therefore the same `setLabel:<id>` undo step).
+ */
+function AlignButtons({ labelId, lab, setLabel, className, buttonClassName, iconSize = 13 }: {
+  labelId: string
+  lab: PaneLabel
+  setLabel: (id: string, patch: Partial<PaneLabel>) => void
+  className?: string
+  buttonClassName?: string
+  iconSize?: number
+}) {
+  const t = useT()
+  const current = labelAlign(lab)
+  return (
+    <div
+      role="group"
+      aria-label={t('Label alignment')}
+      className={className ?? 'flex h-[22px] items-stretch overflow-hidden border border-float-line bg-float-bg-2'}
+    >
+      {ALIGN_ITEMS.map(({ id, icon, label }) => (
+        <button
+          key={id}
+          type="button"
+          className={buttonClassName ?? 'grid w-[21px] cursor-pointer place-items-center border-0 bg-transparent p-0 text-txt hover:bg-chip-hover aria-pressed:bg-accent aria-pressed:text-on-accent'}
+          title={t(label)}
+          aria-label={t(label)}
+          aria-pressed={current === id}
+          onPointerDown={e => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            setLabel(labelId, { align: id })
+          }}
+        >
+          <MorphIcon icon={icon} size={iconSize} strokeWidth={1.75} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** Compact icon-row controls for the desktop floating label toolbar. */
 export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelControlProps) {
   const t = useT()
@@ -585,6 +671,7 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelCont
         selectLabel={selectLabel}
         triggerClassName="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover"
       />
+      <AlignButtons labelId={labelId} lab={lab} setLabel={setLabel} />
       <button
         className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
         title={t('Invert colors')}
@@ -646,7 +733,7 @@ const dockToolCls = `${toolsBtnCls} ${dockBtnStateCls}`
 const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border border-line-strong bg-panel p-2 text-txt shadow-pop outline-0'
 const swatchCls = 'box-border h-7 w-7 cursor-pointer rounded-none border border-line-strong p-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] aria-pressed:outline-2 aria-pressed:outline-accent aria-pressed:outline-offset-1'
 
-type DockTool = 'font' | 'fg' | 'bg' | 'alpha' | 'icon'
+type DockTool = 'font' | 'fg' | 'bg' | 'alpha' | 'icon' | 'align'
 
 /**
  * One dock tool that opens its control in a small popover just above it. The
@@ -733,7 +820,7 @@ function SwatchGrid({ value, label, onChange }: { value: string, label: string, 
  * layout: the buttons are flex items of the dock's row / wrapped container, so
  * they carry the sheet's display mode and geometry rather than their own.
  */
-export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void }) {
+export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocation }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void, onInsertLocation?: () => void }) {
   const iconFadeRef = useScrollFade<HTMLDivElement>()
   const t = useT()
   const [openTool, setOpenTool] = useState<DockTool | null>(null)
@@ -768,6 +855,22 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
             )
           })}
         </div>
+      </DockPopover>
+      <DockPopover
+        id="align"
+        {...pop}
+        label={t('Label alignment')}
+        caption={t('Align')}
+        trigger={<MorphIcon icon={ALIGN_ITEMS.find(i => i.id === labelAlign(lab))!.icon} size={22} strokeWidth={1.5} />}
+      >
+        <AlignButtons
+          labelId={labelId}
+          lab={lab}
+          setLabel={setLabel}
+          className="flex gap-1.5"
+          buttonClassName="grid h-9 w-12 cursor-pointer place-items-center rounded-none border border-line-strong bg-transparent p-0 text-txt hover:bg-chip-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
+          iconSize={18}
+        />
       </DockPopover>
       <DockPopover id="fg" {...pop} label={t('Text color')} caption={t('Text color')} trigger={<ColorGlyph icon={Baseline} color={paint.fg} />}>
         <SwatchGrid value={paint.fg} label={t('Text color')} onChange={fg => setLabel(labelId, { fg })} />
@@ -813,6 +916,18 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete }: Omit<LabelC
           ))}
         </div>
       </DockPopover>
+      {onInsertLocation && (
+        <button
+          type="button"
+          className={dockToolCls}
+          title={t('Insert a location label from this photo\'s GPS')}
+          aria-label={t('Location')}
+          onClick={onInsertLocation}
+        >
+          <MorphIcon icon={MapPin} size={22} strokeWidth={1.5} />
+          <span className={toolsLabelCls}>{t('Location')}</span>
+        </button>
+      )}
       <button
         type="button"
         className={dockToolCls}
@@ -882,6 +997,7 @@ function LabelView({
       className={`group/label absolute z-[6] touch-none px-[0.38em] py-[0.22em] leading-[normal] whitespace-pre outline-1 outline-offset-3 transition-[outline-color] duration-(--dur-fast) ease-(--ease-out) ${
         editing ? 'cursor-text select-text' : 'cursor-grab active:cursor-grabbing'
       } ${editing || selected ? 'outline-txt' : 'outline-transparent'}`}
+      data-label-id={labelId}
       data-font-tick={fontTick}
       style={{
         left: `${lab.x * 100}%`,
@@ -904,11 +1020,15 @@ function LabelView({
       }}
     >
       {editing
-        ? <LabelEditor text={lab.text} onDone={commitEdit} />
+        ? <LabelEditor text={lab.text} align={labelAlign(lab)} onDone={commitEdit} />
         : (
             <div className="flex items-center" style={{ gap: `${LABEL_ICON_GAP_EM}em` }}>
               {icon && <LabelIconGlyph node={icon} />}
-              <span>{lab.text}</span>
+              {/* The text block is as wide as its longest line (a flex item
+                  shrink-wraps to max-content); `text-align` then places each
+                  shorter line the exporter also places through
+                  `labelAlignOffset`. `pre` keeps explicit newlines only. */}
+              <span style={{ display: 'block', whiteSpace: 'pre', textAlign: labelAlign(lab) }}>{lab.text}</span>
             </div>
           )}
       <LabelChrome
