@@ -615,4 +615,5 @@ export const zhHans: Record<string, string> = {
   'Failed to save sticker': '保存贴图失败',
   'Edit': '编辑',
   '{n} of {max} undo steps': '{max} 步撤销中已用 {n} 步',
+  'Reset effects': '重置效果',
 }
