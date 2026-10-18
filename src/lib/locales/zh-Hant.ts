@@ -204,7 +204,6 @@ export const zhHant: Record<string, string> = {
   'Pine tree': '松樹',
   'Camping': '露營',
   'Globe': '地球',
-  'Home': '家',
   'Cat': '貓',
   'Dog': '狗',
   'Bird': '鳥',
@@ -661,4 +660,5 @@ export const zhHant: Record<string, string> = {
   'Tag deleted · it came off every photo that wore it': '標籤已刪除 · 已從所有使用它的照片上移除',
   '{n} in the photo library': '照片庫共 {n} 張',
   '{n} in the sticker library': '貼紙庫共 {n} 張',
+  'Retained draft': '保留草稿',
 }

@@ -206,7 +206,6 @@ export const zhHans: Record<string, string> = {
   'Pine tree': '松树',
   'Camping': '露营',
   'Globe': '地球',
-  'Home': '家',
   'Cat': '猫',
   'Dog': '狗',
   'Bird': '鸟',
@@ -663,4 +662,5 @@ export const zhHans: Record<string, string> = {
   'Tag deleted · it came off every photo that wore it': '标签已删除 · 已从所有使用它的照片上移除',
   '{n} in the photo library': '照片库共 {n} 张',
   '{n} in the sticker library': '贴纸库共 {n} 张',
+  'Retained draft': '保留草稿',
 }
