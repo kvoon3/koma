@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { emptyHistory } from './history'
+import { emptyHistory, historyPath } from './history'
 
 // Same bare stand-ins as store.test.ts (see the notes there): the store's
 // mutations run through `runPaneMorph`, whose browser path needs nothing more,
@@ -55,7 +55,7 @@ describe('canvas ratio commands', () => {
     // One command, one entry: `commit` needs no extra push of its own.
     useStore.setState({ history: emptyHistory() })
     setCanvasRatio(SQUARE_RATIO)
-    expect(useStore.getState().history.past).toHaveLength(1)
+    expect(historyPath(useStore.getState().history)).toHaveLength(2)
     expect(ws().canvasRatio).toBe(1)
     useStore.getState().undo()
     expect(ws().canvasRatio).toBeNull()
