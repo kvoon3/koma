@@ -1,3 +1,4 @@
+import type { StickerRecipe } from './stickerRecipe'
 import { decodeHeicBitmap, looksHeic, probeHeic } from './heic'
 
 export interface Photo {
@@ -18,6 +19,13 @@ export interface Photo {
    * that outlives the asset keeps rendering (see lib/stickerLibrary).
    */
   orphaned?: boolean
+  /**
+   * How the maker drew this sticker: its subject and the controls it was saved
+   * with, so the sticker page can reopen it (see lib/stickerRecipe). Absent on
+   * every sticker made before re-editing existed; such an asset offers Erase
+   * only.
+   */
+  recipe?: StickerRecipe
   /** Paired Live Photo video (IMG_1234.HEIC + IMG_1234.MOV), if one was dropped alongside. */
   videoFile?: File
   trueW: number

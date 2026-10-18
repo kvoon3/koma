@@ -6,6 +6,7 @@ import type { FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { PhotoKind } from './lib/photoLibrary'
 import type { SessionMeta } from './lib/sessionStore'
 import type { PersistedSettings, ToolsDockMode } from './lib/settingsStore'
+import type { StickerRecipe } from './lib/stickerRecipe'
 import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -58,6 +59,7 @@ import {
   retirePhoto,
   withFolder,
 } from './lib/stickerLibrary'
+import { normalizePhotoRecipes } from './lib/stickerRecipe'
 import { runPaneMorph } from './lib/viewTransition'
 import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
 
@@ -619,7 +621,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       ...Object.values(parkedBoards).flatMap(b => b.workspaces),
     ]
     const photos = gcRetired(
-      normalizePhotoKinds(session.photos),
+      normalizePhotoRecipes(normalizePhotoKinds(session.photos)),
       new Set(referenceCounts(opened, [session.meta.bgImage?.photoId]).keys()),
     )
     set({
@@ -1280,6 +1282,17 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set({ photos, cutouts: photos === s.photos ? s.cutouts : dropCutoutRefs(s.cutouts, photoId) })
   },
 
+  /**
+   * Attach the maker's recipe to a made sticker (see lib/stickerRecipe). It is
+   * written once, at save time, and never edited: it is the sticker's record of
+   * how it was drawn, not a control the page tunes afterwards.
+   */
+  setStickerRecipe: (photoId, recipe) => {
+    set(s => ({
+      photos: s.photos.map(p => (p.id === photoId && p.kind === 'sticker' ? { ...p, recipe } : p)),
+    }))
+  },
+
   /** Step back one board mutation (session-only; see lib/history). */
   undo: () =>
     set((s) => {
@@ -1408,4 +1421,6 @@ interface Actions {
   moveStickerToFolder: (photoId: string, folder: string) => void
   /** Delete a sticker asset, keeping the copies already placed on a board. */
   deleteStickerAsset: (photoId: string) => void
+  /** Record how a made sticker was drawn, so the page can reopen it. */
+  setStickerRecipe: (photoId: string, recipe: StickerRecipe) => void
 }
