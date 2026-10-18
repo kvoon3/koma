@@ -649,7 +649,8 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
 /**
  * The focused pane's dock tools. Below lg the dock also carries the split and
  * the pane context menu's touch-friendly rows (desktop keeps those in the
- * hover chip and right-click menu); every command comes from lib/paneCommands.
+ * hover chip and right-click menu); every command comes from lib/paneCommands
+ * (the layout and view ones re-exported from lib/paneLayoutCommands).
  */
 const NO_PHOTOS = new Map<string, Photo>()
 
