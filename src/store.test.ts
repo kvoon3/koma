@@ -257,52 +257,51 @@ describe('history bounds', () => {
     expect(canRedo(tree())).toBe(false)
   })
 
-  test('the tree is capped: steps left behind are pruned, the cursor path is not', () => {
+  test('the tree is capped: the oldest steps go first, the cursor path stays', () => {
     const base = ws().labels.length
     for (let i = 0; i < HISTORY_LIMIT + 5; i++)
       useStore.getState().addLabel(0.1, 0.1)
     expect(ws().labels).toHaveLength(base + HISTORY_LIMIT + 5)
-    // A straight line is all cursor path, so nothing has been prunable yet.
-    expect(stepCount(tree())).toBe(HISTORY_LIMIT + 6)
-
-    // Walk back and act again: the steps behind the cursor are leaves now, and
-    // the tree trims itself back to the cap, oldest first.
-    for (let i = 0; i < HISTORY_LIMIT + 5; i++)
-      useStore.getState().undo()
-    expect(depth()).toBe(0)
-    useStore.getState().addLabel(0.2, 0.2)
-    expect(stepCount(tree())).toBeLessThanOrEqual(HISTORY_LIMIT)
-    expect(depth()).toBe(1)
-    // The branch the cursor stands on reaches all the way back to the start.
+    // Acting at a step that has children replaces them, so a session builds one
+    // chain: the cap trims its oldest end, exactly as the linear stack did.
+    expect(stepCount(tree())).toBe(HISTORY_LIMIT)
+    expect(depth()).toBe(HISTORY_LIMIT - 1)
     const path = historyPath(tree())
-    expect(path).toHaveLength(2)
     for (const id of path)
       expect(tree().nodes[id]).toBeDefined()
-    // Undoing the new step lands on the state the root recorded: the board
-    // before the very first label, which the prune kept.
+
+    // Undo walks back as far as the kept steps reach, and no further.
+    for (let i = 0; i < HISTORY_LIMIT; i++)
+      useStore.getState().undo()
+    expect(depth()).toBe(0)
+    expect(canUndo(tree())).toBe(false)
+    // The oldest step kept is the board after the first five labels.
+    expect(ws().labels).toHaveLength(base + 6)
     useStore.getState().undo()
-    expect(ws().labels).toHaveLength(base)
+    expect(ws().labels).toHaveLength(base + 6)
   })
 
-  test('a new action branches instead of dropping the redo path', () => {
+  test('a new action replaces the branch behind the cursor', () => {
     useStore.getState().split(ws().focusId, 'row')
-    const twoPane = ws().root
     const splitStep = tree().cursor!
+    useStore.getState().addLabel(0.2, 0.2)
+    const labelStep = tree().cursor!
     useStore.getState().undo()
     expect(ahead()).toBe(1)
-    useStore.getState().addLabel(0.2, 0.2)
-    // The step the undo left behind is a sibling of the new one, not a casualty.
-    const branch = tree().nodes[tree().nodes[tree().cursor!]!.parent!]!
-    expect(branch.children).toHaveLength(2)
-    expect(branch.children[0]).toBe(splitStep)
-    expect(tree().nodes[splitStep]!.label).toBe('split')
-    // Undo walks back to the branch point, redo returns into the branch it left…
+    useStore.getState().addLabel(0.4, 0.4)
+    // The step the undo left behind is gone, not a sibling of the new one.
+    expect(tree().nodes[labelStep]).toBeUndefined()
+    expect(tree().nodes[splitStep]!.children).toHaveLength(1)
+    expect(ws().labels).toHaveLength(1)
+    // Undo walks back to the split, redo returns into the replacement.
     useStore.getState().undo()
     expect(ws().labels).toHaveLength(0)
     expect(canRedo(tree())).toBe(true)
-    // …and the split is still one jump away.
-    useStore.getState().jumpTo(splitStep)
-    expect(ws().root).toBe(twoPane)
+    useStore.getState().redo()
+    expect(ws().labels).toHaveLength(1)
+    // Nothing of the replaced step can be reached again: it is not a jump target.
+    useStore.getState().jumpTo(labelStep)
+    expect(tree().cursor).not.toBe(labelStep)
   })
 
   test('jumping to a step restores it exactly and records nothing', () => {
