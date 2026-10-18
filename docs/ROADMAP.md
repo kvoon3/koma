@@ -22,7 +22,12 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - Workspaces: Mission Control-style switcher (pull-down in / pull-up out, 1:1 board pager, read-only strip, nameless cards), grid groups with copy-on-add, WorkspaceGrid split into components/grid/
 - Vision acceptance pipeline (judge at 375px + 1280px) recorded in AGENTS.md; i18n drift test; UNDOABLE_PATCH_KEYS derived from the snapshot
 
-## Tech-debt wave (from the architecture review, before Wave 3)
+## Tech-debt wave (shipped, PRs #32/#33/#34)
+
+- router.tsx export flow + key map extracted (687 → 274 lines)
+- store.ts split along its seams (1480 → 1211; layout/photoLibrary/settingsStore in lib/)
+- exporter decoupled from the store; motionTokens single source; paneCommands one job
+- Follow-up (M): the four store-reading command modules; action factories to shrink store.ts further
 
 - router.tsx: extract ~250 lines of export orchestration to lib/exportFlow.ts; split the keyboard map into a hook (M)
 - store.ts: split along the seams into lib/layout.ts (pure), lib/photoLibrary.ts, lib/settingsStore.ts (M)
