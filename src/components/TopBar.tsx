@@ -3,14 +3,15 @@ import type { Lang } from '../lib/i18n'
 import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
-import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Images, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { clearFilterCaches } from '../lib/filterCache'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
+import { GRID_PATH, HUB_PATH, isGridPath, PHOTOS_PATH, STICKERS_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
@@ -193,13 +194,15 @@ function TopBarActions({
  * stands aside.
  */
 function Wordmark() {
+  const t = useT()
   return (
-    <span
-      aria-hidden
-      className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt max-sm:hidden"
+    <Link
+      to={HUB_PATH}
+      aria-label={t('Home')}
+      className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt no-underline max-sm:hidden"
     >
       koma
-    </span>
+    </Link>
   )
 }
 
@@ -236,7 +239,7 @@ export function TopBar({
   const wsFileRef = useRef<HTMLInputElement>(null)
 
   const navigate = useNavigate()
-  const grid = useRouterState({ select: s => s.location.pathname === '/' })
+  const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
 
   const [saving, setSaving] = useState(false)
   /** Parsed doc awaiting the replace-current-board confirm. */
@@ -387,7 +390,7 @@ export function TopBar({
     useStore.getState().resetHistory()
     setOpenDoc(null)
     say(t('Workspace opened'))
-    void navigate({ to: '/' })
+    void navigate({ to: GRID_PATH })
   }
 
   return (
@@ -416,7 +419,11 @@ export function TopBar({
             // photo tools stay hidden), plus Help.
               <>
                 <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
-                  <Menu.Item className={itemCls} onClick={() => void navigate({ to: '/stickers' })}>
+                  <Menu.Item className={itemCls} onClick={() => void navigate({ to: PHOTOS_PATH })}>
+                    <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
+                    {t('Photos')}
+                  </Menu.Item>
+                  <Menu.Item className={itemCls} onClick={() => void navigate({ to: STICKERS_PATH })}>
                     <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
                     {t('Stickers')}
                   </Menu.Item>
@@ -448,9 +455,12 @@ export function TopBar({
                     I
                   </span>
                 </Menu.Item>
-                {/* Stickers are their own library, one page away (the hub
-                    destination the future routes hang off). */}
-                <Menu.Item className={itemCls} onClick={() => void navigate({ to: '/stickers' })}>
+                {/* The two libraries are hub destinations, one page away. */}
+                <Menu.Item className={itemCls} onClick={() => void navigate({ to: PHOTOS_PATH })}>
+                  <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Photos')}
+                </Menu.Item>
+                <Menu.Item className={itemCls} onClick={() => void navigate({ to: STICKERS_PATH })}>
                   <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
                   {t('Stickers')}
                 </Menu.Item>

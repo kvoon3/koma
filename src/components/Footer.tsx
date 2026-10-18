@@ -4,6 +4,7 @@ import { MorphIcon } from 'morphicons/react'
 import { siGithub, siVite } from 'simple-icons'
 import { outputSizeFor } from '../lib/exporter'
 import { useT } from '../lib/i18n'
+import { isGridPath } from '../lib/routes'
 import { activeWs, useStore } from '../store'
 
 /**
@@ -12,7 +13,7 @@ import { activeWs, useStore } from '../store'
  * it rides with the dock instead of sitting under it.
  */
 export function Footer({ className }: { className?: string } = {}) {
-  const grid = useRouterState({ select: s => s.location.pathname === '/' })
+  const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
   const t = useT()
   const longSide = useStore(s => s.longSide)
   const canvasRatio = useStore(s => activeWs(s).canvasRatio)

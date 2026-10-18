@@ -4,6 +4,7 @@ import { ArrowLeft, Redo2, RotateCcw, Undo2 } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { useT } from '../lib/i18n'
+import { GRID_PATH, isGridPath } from '../lib/routes'
 import { say } from '../lib/toast'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { useStore } from '../store'
@@ -25,7 +26,7 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
  */
 export function FloatActions() {
   const navigate = useNavigate()
-  const grid = useRouterState({ select: s => s.location.pathname === '/' })
+  const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
   const t = useT()
   const [resetAsk, setResetAsk] = useState(false)
   const canUndo = useStore(s => s.history.past.length > 0)
@@ -48,7 +49,7 @@ export function FloatActions() {
 
   const goGrid = () => {
     useStore.getState().clearSelection()
-    void navigate({ to: '/', viewTransition: viewTransitionOption() })
+    void navigate({ to: GRID_PATH, viewTransition: viewTransitionOption() })
   }
 
   const doReset = () => {
