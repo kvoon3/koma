@@ -106,7 +106,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
          * row's scroll, so the anchor has to be shifted back into view.
          */}
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} sticky className="z-[260] select-none outline-0">
-          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[272px] p-2 text-txt`}>
+          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[296px] p-2 text-txt`}>
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-[11px] font-semibold text-dim">{t('Texture')}</span>
               <button
