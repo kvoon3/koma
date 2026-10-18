@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { pagerOffset, pagerRestOffset, pagerStep, pagerTravel } from './boardPager'
+import { PAGER_SLOP, pagerOffset, pagerRelease, pagerRestOffset, pagerStep, pagerTravel } from './boardPager'
 
 const T = 400
 
@@ -68,5 +68,46 @@ describe('pagerRestOffset', () => {
     expect(pagerRestOffset(0, T)).toBe(0)
     expect(pagerRestOffset(1, T)).toBe(-T)
     expect(pagerRestOffset(-1, T)).toBe(T)
+  })
+})
+
+/**
+ * The release rule: a tap on the receded board leaves the switcher (the dim's
+ * exit, on the biggest target on screen), a sideways gesture pages, and a
+ * vertical one does nothing on its own (the pull-up has already exited when it
+ * was long enough). The surface used to swallow the tap, which made the big
+ * obvious area under the strip dead.
+ */
+describe('pagerRelease', () => {
+  const tap = { axis: null, dx: 0, dy: 0, cancelled: false } as const
+
+  it('reads a press that never locked an axis and never left the slop as a tap', () => {
+    expect(pagerRelease({ ...tap })).toBe('tap')
+    // the slop is exclusive: 5px a side of jitter is still a click
+    expect(pagerRelease({ ...tap, dx: 5, dy: -5 })).toBe('tap')
+    expect(pagerRelease({ ...tap, dx: -5.9, dy: 5.9 })).toBe('tap')
+  })
+
+  it('a press past the slop with no axis locked is a drag that decided nothing', () => {
+    // too close to the diagonal to lock: past the slop, so not a tap
+    expect(pagerRelease({ ...tap, dx: PAGER_SLOP, dy: PAGER_SLOP })).toBe('stay')
+    expect(pagerRelease({ ...tap, dx: -PAGER_SLOP - 1, dy: 0 })).toBe('stay')
+  })
+
+  it('a sideways gesture pages, held or cancelled', () => {
+    expect(pagerRelease({ ...tap, axis: 'x', dx: -120 })).toBe('page')
+    expect(pagerRelease({ ...tap, axis: 'x', dx: 40, cancelled: true })).toBe('page')
+  })
+
+  it('a vertical gesture stays: the pull-up had its chance', () => {
+    expect(pagerRelease({ ...tap, axis: 'y', dy: -20 })).toBe('stay')
+    expect(pagerRelease({ ...tap, axis: 'y', dy: -69 })).toBe('stay')
+  })
+
+  it('a cancelled pointer is never a tap', () => {
+    // the OS or the element took the gesture; a click is something the user
+    // finished, so a lost pointer must not close the switcher
+    expect(pagerRelease({ ...tap, cancelled: true })).toBe('stay')
+    expect(pagerRelease({ ...tap, dx: 2, cancelled: true })).toBe('stay')
   })
 })
