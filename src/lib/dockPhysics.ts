@@ -11,10 +11,16 @@ export function rubberBand(overshoot: number, dim = 120, c = 0.55): number {
   return (1 - 1 / ((overshoot * c) / dim + 1)) * dim
 }
 
-/** Raw drag offset → displayed offset, rubber-banding beyond [min, max]. */
+/**
+ * Raw drag offset → displayed offset. `max` is the put-away end, which the
+ * drawer cannot reach: it gives (rubber-bands) and springs back. `min` is the
+ * largest snap and stops dead, like the pager's ends: the sheet is
+ * bottom-anchored, so travel above it would lift its bottom edge off the
+ * footer.
+ */
 export function dampOffset(raw: number, min: number, max: number): number {
   if (raw < min)
-    return min - rubberBand(min - raw)
+    return min
   if (raw > max)
     return max + rubberBand(raw - max)
   return raw
