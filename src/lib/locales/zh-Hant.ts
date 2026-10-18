@@ -521,4 +521,12 @@ export const zhHant: Record<string, string> = {
   'Cyanotype': '藍晒',
   'Paper Tone': '紙感單色',
   'Bit Grain': '粗粒網點',
+  // Multi-line labels + EXIF location (wave3/text)
+  'Label alignment': '文字對齊',
+  'Align left': '左對齊',
+  'Align center': '置中',
+  'Align right': '右對齊',
+  'Align': '對齊',
+  'Location': '位置',
+  'Insert a location label from this photo\'s GPS': '用這張照片的 GPS 位置插入文字標籤',
 }

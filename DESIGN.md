@@ -17,7 +17,7 @@ type Node = Leaf | Split
 interface Leaf { type: 'leaf', id, photoId, zoom, cx, cy, rot?, flipX?, flipY?, filter?: FilterId, stickers: Sticker[], label: PaneLabel | null } // rot: radians, absent = upright; flips: absent = not mirrored; filter: absent = no texture
 interface Split { type: 'split', id, dir: 'row' | 'column', ratio, a: Node, b: Node }
 interface Sticker { id, photoId, x, y, s, rot } // rot: radians, 0 when absent (old saves)
-interface PaneLabel { text, font, theme: 'dark' | 'light', x, y, size, rot } // x/y: pane-normalized center; size: ‰ of short edge; theme: dark = white on black (default); rot: same rule as Sticker
+interface PaneLabel { text, font, theme: 'dark' | 'light', x, y, size, rot?, align? } // x/y: pane-normalized center; size: ‰ of short edge; theme: dark = white on black (default); rot: same rule as Sticker; align?: 'left' | 'center' | 'right', absent = center
 ```
 
 `dir: 'row'` splits left/right, `'column'` splits top/bottom.
@@ -54,6 +54,7 @@ rows.
 | "Rotate" in the tools panel | Turn or mirror the focused pane's photo, on the shared dial (`components/ui/RotationControl.tsx`): a drag is stepless (23.7° is a value, not a lattice point) with the 15° and 90° ticks felt as magnetism: inside ±4° of a soft tick the angle leans toward it, inside ±10° of a hard one it leans harder while still letting a continuing drag through, and release settles onto a hard tick within 2.5° while keeping any other angle decimals and all. Readout to one decimal, 0 button and double-click to reset, keyboard quantized (arrows 15°, Shift 90°, Alt 1°), plus ±90° quarter turns and the two flips. An upright pane keeps the plain img; a turned one rides a layer inside the photo clip, so the pane box, radius, feather and stickers never turn with it. One gesture is one undo step (`rotatePane:<id>`) |
 | "Filter" in the tools panel | Lay a tactile texture on the focused pane's photo: eight pixel-level filters (film grain, three duotones, a two-ink print, cyanotype, a paper tone, a coarse bit grain), plus None to clear. A filter is baked into the photo's own pixels, before placement and before the turn, mirror and crop, so the grain pans and rotates with the photo instead of sitting on the pane; the pane's preview and the exporter run the same pass at the same seed, so what the pane shows is what the file gets. Swatches are a 1:1 loupe into the pane photo's filtered bitmap (a whole photo squeezed into 76px would average its own grain away). The filter travels with the photo like `rot`: it copies with duplicate / copy+paste / swap and resets when a photo arrives. One tap is one undo step |
 | "Text" in the tools panel | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font and toggle black/white there, and it stays upright however the label is turned), drag to move, corner handle to resize, bottom-left arrow to rotate, bottom-center chip to reset the angle, double-click to edit, click away or Esc to deselect |
+| "Text" in the tools panel | Add a text label to the focused pane (white on black by default, pinned to the pane) and start editing: click it to select (the toolbar stays pinned: pick a Google font, set the line alignment and toggle black/white there, and it stays upright however the label is turned), drag to move, corner handle to resize, bottom-left arrow to rotate, bottom-center chip to reset the angle, double-click to edit, click away or Esc to deselect |
 | × at pane top right | Close the pane (hidden while only one pane exists; shown while the pane is focused) |
 
 | Key | Action |
@@ -97,6 +98,48 @@ handle sits precisely under the pointer (measured offset: 0,0). At the bounds,
 `canvasFill` only affects how large the canvas appears in the preview; **it does
 not affect export** (export resolution comes from the long-edge setting in
 Settings; the ratio comes from `ratio`).
+
+### Multi-line text labels
+
+A label is a free-placed board object, not an authored text box, so its text
+only breaks at explicit newlines: **no auto-wrap**. Auto-wrap would make a
+line's break depend on the current font size and the board's pixel size, and
+the preview and the exporter would break the same string differently at
+different scales. Enter in the label editor inserts a line break (IME
+composition owns Enter meanwhile); Esc or clicking away commits. On commit
+every line is trimmed and blank lines at either end are dropped, while blank
+lines inside the label survive as deliberate paragraph gaps.
+
+`align` (`left` / `center` / `right`, absent = `center`, the pre-alignment look)
+aligns each line inside the box, whose width is the widest line. The desktop
+floating toolbar and the mobile label dock both carry the same three-button
+group; the patch rides `setLabel:<id>`, so one alignment choice is one undo
+step. Preview and export share one placement rule: the DOM's shrink-wrapped
+block uses CSS `text-align`, and `drawLabel` uses `labelAlignOffset` on canvas
+measurements of the same lines. The parity is measured in the browser (a
+three-line left-aligned label: per-line x within 1 px of the exported PNG).
+
+### Photo location from EXIF
+
+Importing a JPEG also reads its APP1 Exif header (`lib/exif.ts`, zero
+dependencies, bounded and non-throwing): the GPS IFD's DMS rationals plus the
+N/S/E/W refs give a WGS-84 fix, `DateTimeOriginal` gives the capture time.
+HEIC and PNG carry no EXIF in this path, so they simply have no fix. When the
+focused pane's photo has a fix, the tools gain **Location** (below `lg` the
+label dock carries it too): a new board label with a pin icon and the district
+name, added in one commit (one undo step), positioned at the pane's center like
+the Text tool. With no polygon hit it falls back to the plain coordinate pair.
+
+Reverse geocoding is offline. `scripts/build-districts.mjs` downloads the
+AreaCity `ok_geo.csv` (MIT, see `THIRD_PARTY_NOTICES.md`) into the OS temp dir
+(the 16.5 MB archive is never committed), keeps the province / city / district
+rows, converts their GCJ-02 points to WGS-84 once and Douglas-Peucker
+simplifies each ring (~500 m for districts, coarser for the province / city
+fallback). The result is `src/data/districts.json` (5.4 MB), imported lazily by
+`lib/regeo.ts` on the first Location insert: a 0.5° coarse grid pre-filters
+candidate polygons, even-odd point-in-polygon picks the deepest hit, and a
+lookup takes microseconds once the chunk has loaded. Nothing about a normal
+board load touches the file.
 
 ## Chrome layout
 
