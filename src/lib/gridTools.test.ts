@@ -62,4 +62,12 @@ describe('clearTreePhotos', () => {
     const root: Node = leaf('x', null)
     expect(clearTreePhotos(root)).toBe(root)
   })
+  test('the photo takes its texture with it', () => {
+    // The filter belongs to the photo, so clearing the photo clears the print:
+    // the next photo in that pane must not inherit it.
+    const root: Leaf = { ...leaf('a', 'p1'), filter: 'print' }
+    const out = clearTreePhotos(root) as Leaf
+    expect(out.photoId).toBeNull()
+    expect(out.filter).toBeUndefined()
+  })
 })

@@ -70,7 +70,9 @@ export function gridCellFileName(i: number, total: number, ext: string, stamp = 
 /** A layout tree with every pane's photo removed (layout kept, view reset). */
 export function clearTreePhotos(root: Node): Node {
   if (root.type === 'leaf')
-    return root.photoId ? { ...root, photoId: null, zoom: 1, cx: 0.5, cy: 0.5 } : root
+    // The texture belongs to the photo that is leaving (`filter: undefined`),
+    // so a board cleared here cannot hand the next photo a stale print.
+    return root.photoId ? { ...root, photoId: null, zoom: 1, cx: 0.5, cy: 0.5, filter: undefined } : root
   const a = clearTreePhotos(root.a)
   const b = clearTreePhotos(root.b)
   return a === root.a && b === root.b ? root : { ...root, a, b }
