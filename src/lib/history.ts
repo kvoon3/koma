@@ -2,12 +2,20 @@
  * Undo / redo as a tree of whole-state snapshots. Pure, so the store keeps the
  * tree in its own state and every transition here is unit-tested without one.
  *
- * A linear pair of stacks forgets: undo twice, do something else, and the two
- * steps you undid are gone. A tree keeps them, branching instead: undoing moves
- * the cursor to the parent step, redo follows the branch you last walked, and a
- * new action after undos hangs a child off the cursor (a sibling of the step it
- * could have overwritten). Nothing is ever lost, and the panel can jump to any
- * step of any branch (`components/HistoryPanel`).
+ * A linear pair of stacks forgets the future the moment you act again. A tree
+ * keeps it while you browse: undo moves the cursor to the parent step, redo
+ * follows the branch you last walked, and the panel can jump to any step
+ * (`components/HistoryPanel`).
+ *
+ * ## Acting from a step that has children
+ *
+ * A new action recorded at a step that already has children does NOT open a
+ * second branch: it REPLACES the child the cursor last visited (the step redo
+ * would have walked into) together with everything below it, and the new
+ * action takes its place. A replaced branch is destroyed for good: that is
+ * the product's chosen trade for one clean main line instead of a bush of
+ * near-identical variants. A sibling that was never on the active line is not
+ * touched, so a tree that already has a fork keeps it.
  *
  * A snapshot is a shallow view of the undoable slices (the workspace array, its
  * objects and the background are all replaced, never mutated, by the store's
@@ -120,24 +128,14 @@ function lineage<T>(history: History<T>, id: string | null): string[] {
   return out
 }
 
-/**
- * Drop the oldest leaves until the tree fits `limit` again. Leaves only, and
- * never a step on the cursor's path: the branch you are standing on is what
- * undo reaches, so it outlives everything else.
- *
- * A tree whose only steps are the cursor's path cannot shrink (there is no
- * leaf off the path): the walk runs out and the tree stays over the limit by
- * the length of that path, which is bounded by the same 400 for any board a
- * person builds by hand.
- */
-/** Detach one leaf, and point its parent's way back down at a step that is left. */
-function dropLeaf<T>(nodes: Record<string, HistoryNode<T>>, id: string): Record<string, HistoryNode<T>> {
+/** Detach one step from its parent, and point the parent's way back down at a step that is left. */
+function unlink<T>(nodes: Record<string, HistoryNode<T>>, id: string): Record<string, HistoryNode<T>> {
   const node = nodes[id]
   const parent = node?.parent == null ? undefined : nodes[node.parent]
   if (!node || !parent)
     return nodes
   const children = parent.children.filter(c => c !== id)
-  const next: Record<string, HistoryNode<T>> = {
+  return {
     ...nodes,
     [node.parent!]: {
       ...parent,
@@ -145,40 +143,93 @@ function dropLeaf<T>(nodes: Record<string, HistoryNode<T>>, id: string): Record<
       lastVisitedChild: parent.lastVisitedChild === id ? (children.at(-1) ?? null) : parent.lastVisitedChild,
     },
   }
+}
+
+/** Drop one leaf: a step with nothing below it. */
+function dropLeaf<T>(nodes: Record<string, HistoryNode<T>>, id: string): Record<string, HistoryNode<T>> {
+  const next = unlink(nodes, id)
   delete next[id]
   return next
 }
 
+/**
+ * Drop a step and its whole subtree (the overwrite rule's casualty). The walk is
+ * iterative: a branch left over from a long session can be hundreds deep.
+ */
+function dropSubtree<T>(nodes: Record<string, HistoryNode<T>>, id: string): Record<string, HistoryNode<T>> {
+  if (!nodes[id])
+    return nodes
+  const next = unlink(nodes, id)
+  const stack = [id]
+  while (stack.length) {
+    const cur = stack.pop()!
+    const node = next[cur]
+    if (!node)
+      continue
+    stack.push(...node.children)
+    delete next[cur]
+  }
+  return next
+}
+
+/**
+ * Drop the oldest leaves until the tree fits `limit` again. Leaves first, and
+ * never a step on the cursor's path: the branch you are standing on is what
+ * undo reaches, so it outlives everything else.
+ *
+ * A tree that is nothing but the cursor's path (the shape every session takes
+ * now that acting overwrites, see the header) has no leaf off the path to drop,
+ * so it shrinks the other way instead: the ROOT goes, and the step below it
+ * becomes the new root. That is the old linear stack's rule (forget the oldest
+ * first) and it keeps the node count bounded whatever the shape.
+ */
 function prune<T>(history: History<T>, limit: number): History<T> {
   let nodes = history.nodes
+  let root = history.root
   let count = Object.keys(nodes).length
   if (count <= limit)
     return history
-  const keep = new Set(lineage(history, history.cursor))
-  const oldest = Object.keys(nodes).sort((a, b) => seqOf(a) - seqOf(b))
-  // Dropping a leaf can make its parent one, so sweep the run repeatedly:
-  // a pass that frees nothing means only the cursor's path is left.
-  for (let freed = true; count > limit && freed;) {
-    freed = false
-    for (const id of oldest) {
-      if (count <= limit)
-        break
+  const byAge = Object.keys(nodes).sort((a, b) => seqOf(a) - seqOf(b))
+  while (count > limit) {
+    const keep = new Set(lineage({ ...history, nodes, root }, history.cursor))
+    // Dropping a leaf can make its parent one, so the sweep runs again: a pass
+    // that frees nothing means only the cursor's path is left.
+    let victim: string | null = null
+    for (const id of byAge) {
       const node = nodes[id]
-      if (!node || node.parent == null || keep.has(id) || node.children.length > 0)
-        continue
-      nodes = dropLeaf(nodes, id)
-      count--
-      freed = true
+      if (node && node.parent != null && node.children.length === 0 && !keep.has(id)) {
+        victim = id
+        break
+      }
     }
+    if (victim != null) {
+      nodes = dropLeaf(nodes, victim)
+      count--
+      continue
+    }
+    // A pure chain: forget the oldest step of it, root and all, so the walk
+    // above always has a step left to stand on.
+    const oldest = lineage({ ...history, nodes, root }, history.cursor).at(-1)
+    const heir = oldest == null ? undefined : nodes[oldest]?.children.find(c => nodes[c])
+    if (oldest == null || heir == null) {
+      break
+    }
+    const next = { ...nodes }
+    delete next[oldest]
+    next[heir] = { ...next[heir]!, parent: null }
+    nodes = next
+    root = heir
+    count--
   }
-  return { ...history, nodes }
+  return { ...history, nodes, root }
 }
 
 /**
  * Record `snapshot`: the board as it stands right before the mutation about to
- * run. The step it opens hangs off the cursor (branching: the steps the cursor
- * already has are kept), and a commit continuing the same gesture keeps the
- * step the gesture opened instead, so undo returns to before the gesture began.
+ * run. The step it opens hangs off the cursor; if the cursor already has a step
+ * below it, that step (and its subtree) is replaced, see the header. A commit
+ * continuing the same gesture keeps the step the gesture opened instead, so
+ * undo returns to before the gesture began.
  */
 export function record<T>(
   history: History<T>,
@@ -202,9 +253,14 @@ export function record<T>(
     return { ...history, nodes: { ...history.nodes, [cursor]: { ...node, at: now } } }
   }
   // Settle the step we are leaving with the board as it is now (see the tail
-  // note above), then hang the new step off it.
+  // note above), then hang the new step off it, replacing the line the cursor
+  // would have redone into if there is one.
   const settled: History<T> = { ...history, nodes: { ...history.nodes, [cursor]: { ...node, snapshot } } }
-  return prune(addNode(settled, cursor, snapshot, tag, now), limit)
+  const replaced = node.lastVisitedChild ?? node.children.at(-1) ?? null
+  const trimmed: History<T> = replaced == null
+    ? settled
+    : { ...settled, nodes: dropSubtree(settled.nodes, replaced) }
+  return prune(addNode(trimmed, cursor, snapshot, tag, now), limit)
 }
 
 export interface Step<T> {

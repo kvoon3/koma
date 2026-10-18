@@ -326,6 +326,39 @@ open board's `workspaces`, so a session written before groups loads as group 1
 with every cell intact, and a build from before groups still reads the board it
 saved.
 
+## Undo / redo: a step tree (`lib/history.ts`)
+
+Undo is a tree of board snapshots, not a pair of stacks. Every board mutation
+commits the state it is about to change (`commit(tag)`), which becomes a step
+hanging off the cursor; the cursor is the step the board is at.
+
+- **⌘Z** walks to the parent; **⇧⌘Z / Ctrl+Y** walks down into the child the
+  cursor last visited (redo returns where you came from, not to the newest
+  branch). A jump from the panel rewrites that visited chain, so redo always
+  continues the line you were last on.
+- **Jumping**: the clock button beside undo / redo opens the step list
+  (`components/HistoryPanel.tsx`), root first, each row with its label and how
+  long ago it was recorded. The current row wears the chip-on wash and an accent
+  bar down its edge; any row is one click back, restored exactly and with no
+  step of its own (browsing never grows the tree). A step with more than one
+  child carries a badge that opens the steps beside it.
+- **Acting from a step that has children replaces them**: the child the cursor
+  last visited (the step redo would have walked into) and its whole subtree are
+  deleted, and the new action takes its place, with no prompt and no soft-delete
+  state. A replaced branch is destroyed, and that is the product's chosen trade
+  for one clean main line instead of a bush of near-identical variants; a
+  sibling that was never on the active line is left alone. In practice a
+  session's tree is therefore one chain: undo, act, and the truncated line is
+  gone for good.
+- **One gesture is one step**: commits carrying the same streaming tag inside
+  600ms (`rotatePane:<id>`, `moveSticker:<id>`, `setCanvasSize`) collapse into
+  the step the gesture opened. Only gesture tags coalesce, so two quick clicks
+  on Split are two steps.
+- **Cap**: 400 steps. Off-path leaves go first, oldest first; a tree that is
+  only the cursor's path (every session, per the rule above) drops its root
+  instead and re-roots one step down, like the old linear stack. The tree is
+  session-only: a reload, a hydrated session or an opened file forgets it.
+
 ## Export preview (`components/ExportDialog.tsx`)
 
 Rendering is the slow half and happens first (the top bar's Export chip keeps
