@@ -16,8 +16,10 @@ import { useStore } from '../store'
  *
  * A row is a jump: the store restores that step's board in one move, which
  * records nothing, so browsing history never grows it. The list reads
- * root-first (chronology downwards) and the cursor's row is marked, so the two
- * directions of a branch are legible without a graph.
+ * root-first (chronology downwards) and the step the board is at is washed in
+ * the active-row fill with an accent bar down its edge, the way the dock marks
+ * the tool it is showing: the eye lands on it before it reads a word, at phone
+ * and desktop size alike.
  */
 
 /** The header clock: a step recorded seconds ago should say so without a reload. */
@@ -46,7 +48,18 @@ function agoLabel(t: ReturnType<typeof useT>, at: number, now: number): string {
 
 const popup = 'flex max-h-[min(70dvh,520px)] w-[min(320px,calc(100vw-20px))] max-sm:w-[calc(100vw-12px)] flex-col overflow-hidden rounded-none border border-line-strong bg-panel text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97]'
 
-const rowCls = 'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-none border-0 bg-transparent px-2 py-1.5 text-left text-xs text-txt outline-0 transition-[background-color,color] duration-(--dur-fast) hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent'
+const rowCls = 'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-none border-0 px-2 py-1.5 text-left text-xs text-txt outline-0 transition-[background-color,color] duration-(--dur-fast) focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent'
+
+/**
+ * The step the board is at: the chip-on wash plus a 2px accent bar on its
+ * leading edge (the dock's "showing this one" idiom), and its clock stays
+ * readable instead of faint. Its hover is swallowed, or a pointer would wash
+ * the marker out at the moment it is most looked at.
+ */
+const currentRowCls = 'bg-chip-on font-medium text-chip-on-txt shadow-[inset_2px_0_0_var(--accent)] hover:bg-chip-on'
+
+/** Any other step: quiet until hovered, pressed while clicked. */
+const otherRowCls = 'bg-transparent hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt'
 
 /** The branch badge: present, but quiet until the row is hovered or open. */
 const badgeCls = 'flex flex-none cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2 text-[10px] tabular-nums text-faint outline-0 transition-[background-color,color] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt data-popup-open:bg-chip-on data-popup-open:text-chip-on-txt focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent'
@@ -112,7 +125,7 @@ export function HistoryPanel({ open, onOpenChange, anchor }: {
           <button
             ref={current ? cursorRef : undefined}
             type="button"
-            className={`${rowCls} ${current ? 'font-medium' : ''}`}
+            className={`${rowCls} ${current ? currentRowCls : otherRowCls}`}
             aria-current={current ? 'step' : undefined}
             aria-label={`${label} · ${ago(node.at)}`}
             title={variant && sub ? `${label} → ${sub}` : label}
@@ -124,7 +137,7 @@ export function HistoryPanel({ open, onOpenChange, anchor }: {
             <span className="flex min-w-0 flex-1 flex-col gap-0">
               <span className="flex items-baseline gap-2">
                 <span className="min-w-0 flex-1 truncate">{label}</span>
-                <span className="flex-none text-[10px] tabular-nums text-faint">{ago(node.at)}</span>
+                <span className={`flex-none text-[10px] tabular-nums ${current ? 'text-chip-on-txt' : 'text-faint'}`}>{ago(node.at)}</span>
               </span>
               {sub && (
                 <span className="truncate text-[10px] text-faint">
