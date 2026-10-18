@@ -252,7 +252,9 @@ export const MAX_CANVAS_RATIO = 8
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
 
-export const isTransparentBg = (bg: string) => bg === 'transparent'
+// The transparent-fill test describes the collage background, so it lives with
+// it in lib/collageBg; re-exported so the app's call sites keep one import site.
+export { isTransparentBg } from './lib/collageBg'
 
 function newWorkspace(): Workspace {
   const root = newLeaf()

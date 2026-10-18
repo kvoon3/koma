@@ -53,6 +53,14 @@ export function blurSize(W: number, H: number) {
   return { w: Math.max(1, Math.round(W * k)), h: Math.max(1, Math.round(H * k)) }
 }
 
+/**
+ * The gap fill is 'transparent', i.e. left clear: the export must keep alpha
+ * and the Stage/cells paint a checker behind it instead of a color. Lives here
+ * with the background it describes, so the exporter (and anything else that
+ * reasons about the fill) does not have to reach into the app store for it.
+ */
+export const isTransparentBg = (bg: string) => bg === 'transparent'
+
 /** A gradient only applies over an opaque base color. */
 export function hasGradient(b: CollageBg): boolean {
   return !!b.gradient && b.bg !== 'transparent'
