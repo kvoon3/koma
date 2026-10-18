@@ -33,6 +33,9 @@ export default antfu({
   antislop: true,
   react: true,
   typescript: true,
+  // Generated district polygons (scripts/build-districts.mjs): a 5 MB data
+  // file, not source. Linting it parses the whole array as code.
+  ignores: ['src/data/districts.json'],
 }, {
   name: 'local/no-chinese-comment',
   plugins: {
