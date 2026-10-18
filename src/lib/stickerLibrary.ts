@@ -2,6 +2,7 @@ import type { Workspace } from '../store'
 import type { CutoutMap } from './cutout'
 import type { Photo } from './imageStore'
 import type { Sticker } from './panes'
+import { cleanEntryName, MAX_NAME_LEN, sameEntryName } from './assetNames'
 
 /**
  * Sticker assets: the PNGs the sticker maker writes into the photo library,
@@ -18,10 +19,16 @@ import type { Sticker } from './panes'
  *
  * Pure, so the fiddly parts (hydrate normalization, folder edits, usage
  * counting, the retire decision) are unit-tested without a store.
+ *
+ * Three of them are not sticker-specific and the photo manager uses them too:
+ * `referenceCounts` (usage, derived from the boards), `retirePhoto` /
+ * `gcRetired` (delete an asset, keep what still draws it) and the kind
+ * normalization. Only the folder rules are stickers' own (`lib/photoTags`
+ * holds the many-to-many counterpart).
  */
 
 /** Folders are one level deep and named by hand; the cap keeps a chip readable. */
-export const MAX_FOLDER_NAME = 24
+export const MAX_FOLDER_NAME = MAX_NAME_LEN
 
 /** The assets the photo library lists: never a sticker, never a retired snapshot. */
 export function photoAssetsOf(photos: readonly Photo[]): Photo[] {
@@ -124,7 +131,8 @@ export function usesOf(counts: ReadonlyMap<string, number>, photoId: string): nu
  * The library after a delete request for `photoId`: an asset something still
  * draws turns into an orphaned snapshot (kept, hidden, still rendering), and
  * one nothing draws leaves the library. Returns the list unchanged when the id
- * is unknown.
+ * is unknown. Kind-agnostic on purpose: the sticker page and the photo page
+ * delete through the same rule (see the store's `retireAsset`).
  */
 export function retirePhoto(
   photos: Photo[],
@@ -177,14 +185,9 @@ export type FolderEdit
   = | { ok: true, folders: string[], name: string }
     | { ok: false, reason: FolderError }
 
-/** Trim, collapse inner runs of space, cap the length (and re-trim the cut). */
+/** A folder name under the folder cap (see `lib/assetNames` for the shared rules). */
 function cleanName(raw: string): string {
-  return raw.trim().replace(/\s+/g, ' ').slice(0, MAX_FOLDER_NAME).trim()
-}
-
-/** Names compare case-insensitively: "Faces" and "faces" would be one folder in practice. */
-function sameName(a: string, b: string): boolean {
-  return a.toLocaleLowerCase() === b.toLocaleLowerCase()
+  return cleanEntryName(raw, MAX_FOLDER_NAME)
 }
 
 /** Add a folder to the list; the list keeps its order. */
@@ -192,7 +195,7 @@ export function addFolder(folders: readonly string[], raw: string): FolderEdit {
   const name = cleanName(raw)
   if (!name)
     return { ok: false, reason: 'empty' }
-  if (folders.some(f => sameName(f, name)))
+  if (folders.some(f => sameEntryName(f, name)))
     return { ok: false, reason: 'duplicate' }
   return { ok: true, folders: [...folders, name], name }
 }
@@ -207,7 +210,7 @@ export function renameFolder(folders: readonly string[], from: string, raw: stri
   const name = cleanName(raw)
   if (!name)
     return { ok: false, reason: 'empty' }
-  if (folders.some(f => f !== from && sameName(f, name)))
+  if (folders.some(f => f !== from && sameEntryName(f, name)))
     return { ok: false, reason: 'duplicate' }
   return { ok: true, folders: folders.map(f => (f === from ? name : f)), name }
 }

@@ -6,7 +6,7 @@
  * `Dialog.Close`, an `<a>` styled as a chip).
  */
 
-export type Variant = 'flat' | 'on' | 'strong' | 'close'
+export type Variant = 'flat' | 'on' | 'strong' | 'close' | 'danger'
 
 export const buttonBase = [
   'inline-flex cursor-pointer items-center gap-[5px] whitespace-nowrap rounded-none border-0',
@@ -31,6 +31,8 @@ export const buttonVariants: Record<Variant, string> = {
   on: 'bg-accent text-on-accent hover:not-disabled:bg-accent hover:not-disabled:text-on-accent',
   strong: 'bg-chip-strong text-txt hover:not-disabled:bg-accent hover:not-disabled:text-on-accent',
   close: 'h-[26px] w-[26px] justify-center p-0 text-faint hover:not-disabled:text-txt',
+  /** A destructive action's resting state (dialog footer, detail panel): red on hover, never on plain. */
+  danger: 'bg-transparent text-danger hover:not-disabled:bg-danger hover:not-disabled:text-on-accent',
 }
 
 /**

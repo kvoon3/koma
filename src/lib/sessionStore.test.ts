@@ -17,6 +17,7 @@ function source() {
     activeId: 'b1',
     parkedBoards: { gA: { workspaces: board('a', 3), activeId: 'a2' } },
     stickerFolders: ['Faces'],
+    photoTags: ['trip'],
     gap: 0,
     radius: 0,
     bg: '#000000',
@@ -50,8 +51,9 @@ describe('sessionMeta', () => {
     // The single-board field older builds read stays in step with the open group.
     expect(meta.workspaces).toHaveLength(2)
     expect(meta.activeId).toBe('b1')
-    // Named folders are library state and travel with the session.
+    // Named folders and tags are library state and travel with the session.
     expect(meta.stickerFolders).toEqual(['Faces'])
+    expect(meta.photoTags).toEqual(['trip'])
   })
 
   it('round-trips through the hydration migration', () => {

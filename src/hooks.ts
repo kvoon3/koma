@@ -1,9 +1,11 @@
 import type { FilterValue } from './lib/filters'
 import type { Photo, Preview } from './lib/imageStore'
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { getFilteredPreview, peekFilteredPreview } from './lib/filterCache'
 import { filterKey, resolveFilter } from './lib/filters'
 import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
+import { referenceCounts } from './lib/stickerLibrary'
+import { useStore } from './store'
 
 export function usePreview(photo: Photo | null): Preview | null {
   const id = photo?.id ?? null
@@ -101,6 +103,26 @@ export function usePanePreview(photo: Photo | null, filter: FilterValue | undefi
   // Still the same photo: keep its last filtered bitmap up while the new one
   // renders, so dialling a knob does not flash the unfiltered photo.
   return shown && shown.photoId === id ? shown.preview : plain
+}
+
+/**
+ * Photo id → how many places the app draws it: every board of every group
+ * (pane photos, pane stickers, board stickers) plus the collage background.
+ * One derivation for both library pages (photo management and stickers), so a
+ * usage badge cannot drift between them; the count is never stored (see
+ * `lib/stickerLibrary.referenceCounts`).
+ */
+export function useAssetUses(): Map<string, number> {
+  const workspaces = useStore(s => s.workspaces)
+  const parkedBoards = useStore(s => s.parkedBoards)
+  const bgImage = useStore(s => s.bgImage)
+  return useMemo(
+    () => referenceCounts(
+      [...workspaces, ...Object.values(parkedBoards).flatMap(b => b.workspaces)],
+      [bgImage?.photoId],
+    ),
+    [workspaces, parkedBoards, bgImage],
+  )
 }
 
 export function useThumb(photo: Photo, visible: boolean): string | null {

@@ -14,6 +14,8 @@ export interface SessionPhotoRecord {
   kind?: 'photo' | 'sticker'
   /** Sticker folder; absent = Unsorted. */
   folder?: string
+  /** Manual tags (see lib/photoTags); absent in sessions saved before tagging. */
+  tags?: string[]
   /** Deleted asset a placed copy still draws (see lib/stickerLibrary). */
   orphaned?: boolean
   /**
@@ -22,6 +24,9 @@ export interface SessionPhotoRecord {
    * every photo: such an asset offers Erase only.
    */
   recipe?: StickerRecipe
+  /** WGS-84 camera fix and EXIF capture time, so the EXIF block survives a reload. */
+  gps?: { lat: number, lng: number }
+  takenAt?: string
 }
 
 /** One board of nine, saved with the session (see `normalizeGrids`). */
@@ -52,6 +57,8 @@ export interface SessionMeta {
   cutouts?: CutoutMap
   /** Absent in sessions saved before the sticker manager: no named folders yet. */
   stickerFolders?: string[]
+  /** Absent in sessions saved before photo tagging: no tags yet. */
+  photoTags?: string[]
   /** Absent in sessions saved before the collage background (see migrateSettings v8). */
   bgGradient?: string | null
   bgImage?: BgImage | null
@@ -70,6 +77,8 @@ export interface SessionSource {
   parkedBoards: Record<string, { workspaces: Workspace[], activeId: string }>
   /** The named sticker folders (empty folders persist too). */
   stickerFolders: string[]
+  /** The named photo tags (empty tags persist too). */
+  photoTags: string[]
   gap: number
   radius: number
   bg: string
@@ -97,6 +106,7 @@ export function sessionMeta(s: SessionSource): SessionMeta {
     workspaces: s.workspaces,
     activeId: s.activeId,
     stickerFolders: s.stickerFolders,
+    photoTags: s.photoTags,
     gap: s.gap,
     radius: s.radius,
     bg: s.bg,
@@ -122,12 +132,18 @@ let dbPromise: Promise<IDBDatabase> | null = null
  * written again, the File riding along as a reference rather than as fresh
  * bytes). The recipe's own bytes stay out of the signature: it is written once
  * with the asset and never edited, so its presence is all that can change.
+ * mutable fields (name, dims, kind, folder, orphaned, tags, gps, takenAt): a
+ * File is immutable so an unchanged record is never re-put, while a sticker
+ * moving between folders or a photo gaining a tag is (the record itself is all
+ * that is written again, the File riding along as a reference rather than as
+ * fresh bytes).
  */
 const writtenIds = new Map<string, string>()
 
 /** Everything about a record except its pixels (and the recipe's payload). */
 function recordSignature(p: SessionPhotoRecord): string {
   return JSON.stringify([p.name, p.trueW, p.trueH, p.kind ?? '', p.folder ?? '', p.orphaned ?? false, p.recipe ? 1 : 0])
+  return JSON.stringify([p.name, p.trueW, p.trueH, p.kind ?? '', p.folder ?? '', p.orphaned ?? false, p.tags ?? [], p.gps ?? null, p.takenAt ?? ''])
 }
 
 function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {

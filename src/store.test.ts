@@ -765,3 +765,158 @@ describe('sticker management (a library surface, outside the board history)', ()
     expect(state().photos.find(p => p.id === added[0]!.id)!.kind).toBe('sticker')
   })
 })
+
+describe('photo management (tags, usage, delete)', () => {
+  const state = () => useStore.getState()
+
+  /** A library photo as the import writes it (no tags, no EXIF). */
+  const photo = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    name: `${id}.jpg`,
+    file: new File([], `${id}.jpg`, { type: 'image/jpeg' }),
+    trueW: 64,
+    trueH: 64,
+    kind: 'photo' as const,
+    ...extra,
+  })
+
+  /**
+   * Hydrate a session whose first board draws `drawn` in a pane (and, when
+   * `boardSticker` is set, that sticker id as a board-level sticker), which is
+   * what makes an asset "used" for the retire rule.
+   */
+  function hydrateWith(
+    photos: ReturnType<typeof photo>[],
+    { meta = {}, drawn = 'p1' as string | null, boardSticker = null as string | null } = {},
+  ) {
+    const cell = state().workspaces[0]!
+    const root = {
+      ...cell.root,
+      type: 'leaf' as const,
+      id: 'pane-1',
+      photoId: drawn,
+      stickers: [],
+    }
+    state().hydrate({
+      meta: {
+        workspaces: [{ ...cell, root, stickers: boardSticker ? [{ id: 'bs1', photoId: boardSticker, x: 0.5, y: 0.5, s: 0.2 }] : [] }],
+        activeId: cell.id,
+        gap: 0,
+        radius: 0,
+        bg: '#000000',
+        longSide: 2048,
+        format: 'image/jpeg',
+        quality: 0.92,
+        ...meta,
+      } as never,
+      photos: photos as never,
+    })
+  }
+
+  test('a legacy session hydrates with no tags at all', () => {
+    const legacy = photo('p1')
+    delete (legacy as { kind?: string }).kind
+    hydrateWith([legacy, photo('p2')])
+    expect(state().photoTags).toEqual([])
+    expect(state().photos.every(p => p.tags === undefined)).toBe(true)
+  })
+
+  test('a saved tag list hydrates, and a lost tag comes back from the photos', () => {
+    hydrateWith([photo('p1', { tags: ['Trip', 'Food'] }), photo('p2')], { meta: { photoTags: ['Trip'] } })
+    expect(state().photoTags).toEqual(['Trip', 'Food'])
+    expect(state().photos[0]!.tags).toEqual(['Trip', 'Food'])
+  })
+
+  test('tag edits push no undo entry', () => {
+    hydrateWith([photo('p1'), photo('p2')])
+    const before = state().history.past.length
+    expect(state().addPhotoTag('Trip')).toBe(true)
+    expect(state().addPhotoTag('trip')).toBe(false)
+    expect(state().addPhotoTag('  ')).toBe(false)
+    expect(state().renamePhotoTag('Trip', 'Journey')).toBe(true)
+    expect(state().renamePhotoTag('Nope', 'Journey')).toBe(false)
+    state().deletePhotoTag('Journey')
+    expect(state().photoTags).toEqual([])
+    expect(state().history.past).toHaveLength(before)
+  })
+
+  test('tagging a photo adds the tag to the list on the spot, in one spelling', () => {
+    hydrateWith([photo('p1'), photo('p2')])
+    state().tagPhoto('p1', 'Trip')
+    expect(state().photoTags).toEqual(['Trip'])
+    expect(state().photos[0]!.tags).toEqual(['Trip'])
+    // A second photo typing the same tag in another case attaches to the first
+    // spelling instead of inventing a second tag.
+    state().tagPhoto('p2', ' trip ')
+    expect(state().photoTags).toEqual(['Trip'])
+    expect(state().photos[1]!.tags).toEqual(['Trip'])
+    // A blank tag, or an unknown photo, changes nothing.
+    state().tagPhoto('p2', '  ')
+    state().tagPhoto('ghost', 'Food')
+    expect(state().photoTags).toEqual(['Trip'])
+    expect(state().photos[1]!.tags).toEqual(['Trip'])
+  })
+
+  test('untagging one photo leaves the tag in the list for the others', () => {
+    hydrateWith([photo('p1', { tags: ['Trip'] }), photo('p2', { tags: ['Trip'] })], { meta: { photoTags: ['Trip'] } })
+    state().untagPhoto('p1', 'Trip')
+    expect(state().photos[0]!.tags).toBeUndefined()
+    expect(state().photos[1]!.tags).toEqual(['Trip'])
+    expect(state().photoTags).toEqual(['Trip'])
+  })
+
+  test('renaming a tag repoints every photo wearing it', () => {
+    hydrateWith([photo('p1', { tags: ['Trip'] }), photo('p2')], { meta: { photoTags: ['Trip'] } })
+    state().renamePhotoTag('Trip', 'Journey')
+    expect(state().photoTags).toEqual(['Journey'])
+    expect(state().photos[0]!.tags).toEqual(['Journey'])
+    // Renaming to its own name in another case repoints too, not just the list.
+    state().renamePhotoTag('Journey', 'journey')
+    expect(state().photos[0]!.tags).toEqual(['journey'])
+  })
+
+  test('deleting a tag takes it off the photos and keeps them', () => {
+    hydrateWith([photo('p1', { tags: ['Trip', 'Food'] }), photo('p2')], { meta: { photoTags: ['Trip', 'Food'] } })
+    state().deletePhotoTag('Food')
+    expect(state().photoTags).toEqual(['Trip'])
+    expect(state().photos).toHaveLength(2)
+    expect(state().photos[0]!.tags).toEqual(['Trip'])
+  })
+
+  test('deleting a photo a board draws keeps the record, hidden, so the pane still renders', () => {
+    hydrateWith([photo('p1'), photo('p2')])
+    state().deletePhotoAsset('p1')
+    const kept = state().photos.find(p => p.id === 'p1')
+    expect(kept).toBeDefined()
+    expect(kept!.orphaned).toBe(true)
+    // The pane still points at it, and the map the preview resolves it through
+    // still holds the record (see photoAssetsOf hiding it from the lists).
+    expect(leafList(ws().root)[0]!.photoId).toBe('p1')
+  })
+
+  test('deleting an unused photo drops it from the library', () => {
+    hydrateWith([photo('p1'), photo('p2')])
+    state().deletePhotoAsset('p2')
+    expect(state().photos.some(p => p.id === 'p2')).toBe(false)
+  })
+
+  test('a photo whose last reference is a board sticker survives that sticker\'s delete', () => {
+    hydrateWith([photo('p1'), photo('p2')], { boardSticker: 'p2' })
+    state().deletePhotoAsset('p2')
+    expect(state().photos.find(p => p.id === 'p2')?.orphaned).toBe(true)
+  })
+
+  test('the two delete actions stay on their own kind', () => {
+    hydrateWith([photo('p1'), photo('p2', { kind: 'sticker' })])
+    state().deletePhotoAsset('p2')
+    expect(state().photos.find(p => p.id === 'p2')).toBeDefined()
+    state().deleteStickerAsset('p1')
+    expect(state().photos.find(p => p.id === 'p1')).toBeDefined()
+  })
+
+  test('the tag list goes with the library it labelled', () => {
+    hydrateWith([photo('p1', { tags: ['Trip'] })], { meta: { photoTags: ['Trip'] } })
+    state().clearLibrary()
+    expect(state().photoTags).toEqual([])
+  })
+})

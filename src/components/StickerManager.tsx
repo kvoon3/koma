@@ -4,18 +4,19 @@ import { useNavigate, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, FolderPlus, Pencil, Search, Sticker as StickerIcon, Trash2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo, useState } from 'react'
+import { useAssetUses } from '../hooks'
 import { useT } from '../lib/i18n'
-import { addFolder, folderOf, referenceCounts, renameFolder, stickerAssetsOf } from '../lib/stickerLibrary'
+import { addFolder, folderOf, MAX_FOLDER_NAME, renameFolder, stickerAssetsOf } from '../lib/stickerLibrary'
 import { recipeOf } from '../lib/stickerRecipe'
 import { say } from '../lib/toast'
 import { scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
-import { FolderPrompt } from './sticker/FolderPrompt'
 import { StickerCard } from './sticker/StickerCard'
 import { StickerEraseDialog } from './StickerEraseDialog'
 import { StickerMakerDialog } from './StickerMakerDialog'
 import { Button } from './ui/button'
+import { NamePrompt } from './ui/NamePrompt'
 import { Tip } from './ui/tip'
 
 /** Which chip is picked: every sticker, the default folder, or one named folder. */
@@ -46,9 +47,6 @@ export function StickerManager() {
 
   const allPhotos = useStore(s => s.photos)
   const folders = useStore(s => s.stickerFolders)
-  const workspaces = useStore(s => s.workspaces)
-  const parkedBoards = useStore(s => s.parkedBoards)
-  const bgImage = useStore(s => s.bgImage)
 
   const addStickerFolder = useStore(s => s.addStickerFolder)
   const renameStickerFolder = useStore(s => s.renameStickerFolder)
@@ -93,14 +91,9 @@ export function StickerManager() {
   const stickers = useMemo(() => stickerAssetsOf(allPhotos), [allPhotos])
 
   // Usage: every place the board draws a photo id (pane photos, pane stickers,
-  // board stickers) over all groups, plus the collage background.
-  const uses = useMemo(
-    () => referenceCounts(
-      [...workspaces, ...Object.values(parkedBoards).flatMap(b => b.workspaces)],
-      [bgImage?.photoId],
-    ),
-    [workspaces, parkedBoards, bgImage],
-  )
+  // board stickers) over all groups, plus the collage background. The photo
+  // page reads the same hook, so the two badges cannot disagree.
+  const uses = useAssetUses()
 
   const label = (folder: string) => folder || unsorted
   const countIn = (folder: FolderPick) => (folder == null
@@ -365,13 +358,16 @@ export function StickerManager() {
         onClose={closeErase}
       />
 
-      <FolderPrompt
+      <NamePrompt
         key={prompt == null ? 'closed' : `${prompt.mode}:${prompt.seq}`}
         open={prompt != null}
         title={prompt?.mode === 'rename' ? t('Rename folder') : t('New folder')}
         initial={prompt?.mode === 'rename' ? (pick ?? '') : ''}
         confirmLabel={prompt?.mode === 'rename' ? t('Rename') : t('Create')}
         error={promptError}
+        field="folder"
+        placeholder={t('Folder name')}
+        maxLength={MAX_FOLDER_NAME}
         onSubmit={submitFolder}
         onClose={() => {
           setPrompt(null)
