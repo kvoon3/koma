@@ -1,8 +1,8 @@
 import type { Workspace } from '../store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowLeft, Redo2, RotateCcw, Undo2 } from 'lucide'
+import { ArrowLeft, History, Redo2, RotateCcw, Undo2 } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { canRedo, canUndo } from '../lib/history'
 import { useT } from '../lib/i18n'
 import { isGridPath, OVERVIEW_PATH } from '../lib/routes'
@@ -10,6 +10,7 @@ import { say } from '../lib/toast'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
+import { HistoryPanel } from './HistoryPanel'
 import { Tip } from './ui/tip'
 
 // The floating-chrome idiom shared with the pane buttons and the resize
@@ -21,17 +22,22 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
  * (edit view only) and, on the right, undo / redo of the board (both views:
  * the history is app-global) ahead of reset-workspace (the active workspace in
  * the editor, all nine from the grid overview). Undo / redo walk the step tree
- * one step at a time; the whole tree is the History panel in the workspace
- * menu, which can jump to any step of any branch. Floating keeps the top bar to
- * menus and export; the buttons hover over the stage / grid instead of taking
- * layout space, and sit below the drawers (z-44) so an open drawer covers
- * them. Below lg the focused pane's split lives in the tools dock (Stage).
+ * one step at a time; the clock beside them opens the whole tree as a list, so
+ * any step can be jumped to. The panel lives here rather than in a top-bar menu
+ * because undo / redo do: it is board chrome, works in both views, and hangs
+ * off the button it was opened from. Floating keeps the top bar to menus and
+ * export; the buttons hover over the stage / grid instead of taking layout
+ * space, and sit below the drawers (z-44) so an open drawer covers them. Below
+ * lg the focused pane's split lives in the tools dock (Stage).
  */
 export function FloatActions() {
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
   const t = useT()
   const [resetAsk, setResetAsk] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  /** Where the History panel hangs from: the button that opens it. */
+  const historyAnchorRef = useRef<HTMLButtonElement | null>(null)
   const undoable = useStore(s => canUndo(s.history))
   const redoable = useStore(s => canRedo(s.history))
 
@@ -113,6 +119,21 @@ export function FloatActions() {
         />
 
         <Tip
+          label={t('History · all steps')}
+          trigger={(
+            <button
+              ref={historyAnchorRef}
+              className={`${btnCls} ${historyOpen ? 'text-txt shadow-[inset_0_-2px_0_var(--accent)]' : ''}`}
+              aria-label={t('History')}
+              aria-expanded={historyOpen}
+              onClick={() => setHistoryOpen(open => !open)}
+            >
+              <MorphIcon icon={History} size={15} strokeWidth={1.75} />
+            </button>
+          )}
+        />
+
+        <Tip
           label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
           trigger={(
             <button
@@ -126,6 +147,8 @@ export function FloatActions() {
           )}
         />
       </div>
+
+      <HistoryPanel open={historyOpen} onOpenChange={setHistoryOpen} anchor={historyAnchorRef} />
 
       <ConfirmDialog
         open={resetAsk}
