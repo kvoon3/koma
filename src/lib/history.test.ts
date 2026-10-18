@@ -1,4 +1,5 @@
 /// <reference types="bun" />
+import type { History } from './history'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
@@ -78,20 +79,43 @@ describe('recording steps', () => {
     expect(m.tree.cursor).toBe('s4')
   })
 
-  test('a new action after undos branches instead of dropping the future', () => {
+  test('acting from a step with children replaces the line redo would walk into', () => {
+    // The product's example: 1 → 2 → [3, the cursor] → 4; acting at 3 replaces 4.
     const m = machine()
       .act(1, 'split') // s2
       .act(2, 'split') // s3
-      .act(3, 'rotatePane:p1') // s4: branch A
-    m.undo().undo()
-    expect(m.board).toBe(1)
-    m.act(4, 'addSticker') // s5: branch B, sibling of s3
-    expect(m.tree.nodes.s2!.children).toEqual(['s3', 's5'])
-    expect(m.tree.nodes.s2!.lastVisitedChild).toBe('s5')
-    // Nothing of branch A was lost: its steps and their states are still there.
-    expect(m.tree.nodes.s3!.parent).toBe('s2')
-    expect(m.tree.nodes.s4!.snapshot).toBe(3)
-    expect(historyPath(m.tree)).toEqual(['s1', 's2', 's5'])
+      .act(3, 'rotatePane:p1') // s4
+    m.undo() // back to s3, having left s4
+    expect(m.board).toBe(2)
+    m.act(4, 'addSticker') // s5 takes s4's place
+    expect(m.tree.nodes.s3!.children).toEqual(['s5'])
+    expect(m.tree.nodes.s3!.lastVisitedChild).toBe('s5')
+    expect(m.tree.nodes.s4).toBeUndefined()
+    // No confirmation, no soft-delete state: the step is simply not there.
+    expect(m.tree.nodes.s1!.children).toEqual(['s2'])
+    expect(historyPath(m.tree)).toEqual(['s1', 's2', 's3', 's5'])
+  })
+
+  test('the replaced branch is destroyed: its whole subtree, not just its tail', () => {
+    const m = machine()
+      .act(1, 'split') // s2
+      .act(2, 'split') // s3
+      .act(3, 'rotatePane:p1') // s4
+      .act(4, 'addSticker') // s5
+    m.undo().undo() // back to s3, which still has s4 → s5 below it
+    expect(m.board).toBe(2)
+    expect(m.tree.cursor).toBe('s3')
+    const count = stepCount(m.tree)
+    m.act(5, 'addLabel') // s6 replaces s4 and everything under it
+    expect(stepCount(m.tree)).toBe(count - 1)
+    for (const gone of ['s4', 's5'])
+      expect(m.tree.nodes[gone]).toBeUndefined()
+    // Nothing can reach it back: no redo, no jump, no key.
+    expect(canRedo(m.tree)).toBe(false)
+    expect(jump(m.tree, 's4', m.board)).toBeNull()
+    m.undo().redo()
+    expect(m.board).toBe(5)
+    expect(m.tree.cursor).toBe('s6')
   })
 
   test('an untagged commit never coalesces', () => {
@@ -134,23 +158,18 @@ describe('coalescing a gesture', () => {
 })
 
 describe('jumping', () => {
-  test('jumping to a step of another branch restores it exactly, and redo follows that branch', () => {
+  test('a jump restores that step exactly, and redo continues down from it', () => {
     const m = machine()
       .act(1, 'split')
       .act(2, 'split')
-      .act(3, 'rotatePane:p1') // branch A ends here
-    m.undo().undo()
-    m.act(4, 'addSticker') // branch B
-    m.jumpTo('s3')
+      .act(3, 'rotatePane:p1')
+    m.jumpTo('s2')
+    expect(m.board).toBe(1)
+    m.redo()
     expect(m.board).toBe(2)
     m.redo()
     expect(m.board).toBe(3)
     expect(m.tree.cursor).toBe('s4')
-    // and back up into the branch point, then down the other side
-    m.undo().undo()
-    expect(m.tree.cursor).toBe('s2')
-    m.redo()
-    expect(m.board).toBe(2)
   })
 
   test('a jump is one move: it records no step of its own', () => {
@@ -181,76 +200,89 @@ describe('jumping', () => {
 })
 
 describe('redo follows the visited child', () => {
-  test('a second branch is reached only after visiting it', () => {
-    const m = machine()
-      .act(1, 'split') // s2
-      .act(2, 'split') // s3
-    m.undo() // at s2, having left s3
-    m.act(3, 'addSticker') // s4, the newest child
-    m.undo() // at s2 again, having left s4
-    expect(m.tree.nodes.s2!.children).toEqual(['s3', 's4'])
-    // Redo returns to the step we last stood in, not to the newest one.
+  test('a jump into a step makes its child the way back down', () => {
+    const m = machine().act(1, 'split').act(2, 'split').act(3, 'rotatePane:p1')
+    m.jumpTo('s2')
+    expect(m.tree.nodes.s2!.lastVisitedChild).toBe('s3')
     m.redo()
-    expect(m.tree.cursor).toBe('s4')
-    expect(m.board).toBe(3)
+    expect(m.tree.cursor).toBe('s3')
+    expect(m.board).toBe(2)
+  })
+
+  test('the visited child wins over the newest one on a tree that has a fork', () => {
+    // Acting overwrites (see the header), so a session only ever builds a
+    // chain: this pins the pure rule for the shape a forked tree would have.
+    const forked = (): History<number> => ({
+      nodes: {
+        s1: { snapshot: 0, parent: null, children: ['s2', 's3'], lastVisitedChild: 's2', label: 'start', at: 1 },
+        s2: { snapshot: 1, parent: 's1', children: [], lastVisitedChild: null, label: 'split', at: 2 },
+        s3: { snapshot: 2, parent: 's1', children: [], lastVisitedChild: null, label: 'addLabel', at: 3 },
+      },
+      root: 's1',
+      cursor: 's1',
+      seq: 3,
+    })
+    const step = stepDown(forked(), 0)!
+    expect(step.snapshot).toBe(1)
+    expect(step.history.cursor).toBe('s2')
   })
 })
 
 describe('the cap', () => {
-  test('the oldest leaves are pruned once they are behind the cursor', () => {
+  test('a chain drops its oldest step once it is over the cap, cursor path included', () => {
     const m = machine(8)
     for (let i = 1; i <= 20; i++)
       m.act(i, 'split')
-    // A straight line is all cursor path: nothing is prunable yet.
-    expect(stepCount(m.tree)).toBe(21)
-    // Walk back up and record again: the steps left behind are now leaves.
-    for (let i = 0; i < 19; i++)
-      m.undo()
-    m.act(100, 'addSticker')
+    // Acting always overwrites, so the tree is one chain: the oldest steps go.
     expect(stepCount(m.tree)).toBe(8)
-    expect(m.tree.nodes.s1).toBeDefined()
-    expect(historyPath(m.tree)).toEqual(['s1', 's2', 's22'])
-    for (const id of historyPath(m.tree))
-      expect(m.tree.nodes[id]).toBeDefined()
-    expect(m.board).toBe(100)
+    const path = historyPath(m.tree)
+    expect(path).toHaveLength(8)
+    expect(m.tree.root).toBe(path[0]!)
+    expect(m.tree.cursor).toBe(path.at(-1)!)
+    expect(m.tree.nodes.s1).toBeUndefined()
+    expect(m.board).toBe(20)
+    // What is left still walks: undo reaches the oldest state kept.
+    for (let i = 0; i < 7; i++)
+      m.undo()
+    expect(canUndo(m.tree)).toBe(false)
+    expect(m.board).toBe(13)
   })
 
-  test('a branch nobody is standing on goes before the cursor path', () => {
-    const m = machine(6)
-    for (let i = 1; i <= 5; i++)
-      m.act(i, 'split') // s2..s6, a straight line
-    m.undo().undo() // back to s4, leaving s5 → s6 behind
-    m.act(6, 'addSticker') // s7: a second branch off s4
-    m.act(7, 'addSticker') // s8
-    // s5 → s6 is now a branch nobody stands on: it goes, oldest leaf first.
-    expect(stepCount(m.tree)).toBe(6)
-    expect(m.tree.nodes.s6).toBeUndefined()
-    expect(m.tree.nodes.s5).toBeUndefined()
-    expect(historyPath(m.tree)).toEqual(['s1', 's2', 's3', 's4', 's7', 's8'])
+  test('an off-path leaf goes before any step of the cursor path', () => {
+    // A forked tree again: unreachable from a session now, so it is built by
+    // hand to check that the cap protects the line the cursor stands on.
+    const forked = (): History<number> => ({
+      nodes: {
+        s1: { snapshot: 0, parent: null, children: ['s2', 's3'], lastVisitedChild: 's3', label: 'start', at: 1 },
+        s2: { snapshot: 1, parent: 's1', children: [], lastVisitedChild: null, label: 'split', at: 2 },
+        s3: { snapshot: 2, parent: 's1', children: [], lastVisitedChild: null, label: 'addLabel', at: 3 },
+      },
+      root: 's1',
+      cursor: 's3',
+      seq: 3,
+    })
+    const tree = record(forked(), 2, 5000, 'addLabel', 3)
+    expect(stepCount(tree)).toBe(3)
+    expect(tree.nodes.s2).toBeUndefined() // the variant nobody stands on
+    expect(historyPath(tree)).toEqual(['s1', 's3', 's4'])
   })
 
-  test('pruning re-points the way back down, so redo still has a child', () => {
+  test('pruning never leaves a parent pointing at a step that is gone', () => {
     const m = machine(4)
-    m.act(1, 'split').act(2, 'split') // s2 → s3
+    m.act(1, 'split').act(2, 'split')
     m.undo() // at s2, having left s3
     for (let i = 3; i <= 12; i++)
       m.act(i, 'addSticker')
-    expect(m.tree.nodes.s3).toBeUndefined() // the old leaf went
-    const node = m.tree.nodes.s2!
-    expect(node.children.length).toBeGreaterThan(0)
-    for (const child of node.children)
-      expect(m.tree.nodes[child]).toBeDefined()
-    expect(node.lastVisitedChild == null || m.tree.nodes[node.lastVisitedChild] != null).toBe(true)
-  })
-
-  test('a tree that is nothing but the cursor path cannot shrink', () => {
-    const m = machine(3)
-    for (let i = 1; i <= 9; i++)
-      m.act(i, 'split')
-    // Nothing off the path is left to drop, and the path is never touched.
-    expect(stepCount(m.tree)).toBe(10)
-    expect(historyPath(m.tree)).toHaveLength(10)
-    expect(m.board).toBe(9)
+    for (const [id, node] of Object.entries(m.tree.nodes)) {
+      for (const child of node.children)
+        expect(m.tree.nodes[child]).toBeDefined()
+      if (node.lastVisitedChild != null)
+        expect(m.tree.nodes[node.lastVisitedChild]).toBeDefined()
+      if (node.parent != null)
+        expect(m.tree.nodes[node.parent]).toBeDefined()
+      expect(id).toMatch(/^s\d+$/)
+    }
+    expect(historyPath(m.tree)).toHaveLength(4)
   })
 })
 
