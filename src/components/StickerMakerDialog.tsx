@@ -1,9 +1,10 @@
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import type { Perforation } from '../lib/stickerFX'
 import { Dialog } from '@base-ui/react/dialog'
-import { ImagePlus, X } from 'lucide'
+import { ImagePlus, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { StickerMaskEditor } from '@/components/StickerMaskEditor'
 import { Button } from '@/components/ui/button'
 import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { ColorField, RangeField, SegmentedField, SelectField } from '@/components/ui/field'
@@ -256,6 +257,7 @@ function StickerStage({
   onPick,
   onRemoveBg,
   onRestore,
+  onAdjust,
 }: {
   tab: 'text' | 'image'
   imageStage: ImageStage
@@ -270,6 +272,7 @@ function StickerStage({
   onPick: () => void
   onRemoveBg: () => void
   onRestore: () => void
+  onAdjust: () => void
 }) {
   const t = useT()
 
@@ -314,6 +317,10 @@ function StickerStage({
                     trigger={<Button variant="strong" onClick={onRemoveBg}>{t('Remove background')}</Button>}
                   />
                 )}
+            <Button variant="strong" onClick={onAdjust}>
+              <MorphIcon icon={Scissors} size={12} strokeWidth={1.75} />
+              {t('Adjust cutout')}
+            </Button>
           </div>
           <Button variant="strong" onClick={onPick}>{t('Replace')}</Button>
         </div>
@@ -369,12 +376,23 @@ function useCutoutJob(onDone: (url: string) => void) {
 function useStickerImage() {
   const [pick, setPick] = useState<{ url: string, name: string } | null>(null)
   const [cutoutUrl, setCutoutUrl] = useState<string | null>(null)
+  // The mask editor's committed cutout: a data URL, so it outlives no URL and
+  // needs no revoke. It sits on top of the cutout, and the cutout sits on top
+  // of the pick, so Restore original drops back through all three.
+  const [manualUrl, setManualUrl] = useState<string | null>(null)
   const pickRef = useRef<string | null>(null)
-  const { job: bgJob, run: runCutout } = useCutoutJob(setCutoutUrl)
+  const { job: bgJob, run: runCutout } = useCutoutJob((url) => {
+    setCutoutUrl(url)
+    // A fresh cutout is a new subject: a mask made for the old one does not
+    // describe it any more.
+    setManualUrl(null)
+  })
 
-  // The displayed image: the cutout while one is showing, else the pick.
-  const imageSrc = cutoutUrl ?? pick?.url ?? null
-  const hasCutout = !!cutoutUrl
+  // What the mask editor opens: the current cut before any manual edit.
+  const baseSrc = cutoutUrl ?? pick?.url ?? null
+  // The displayed image: the manual cutout, else the AI cutout, else the pick.
+  const imageSrc = manualUrl ?? baseSrc
+  const hasCutout = !!cutoutUrl || !!manualUrl
 
   // The pick's URL outlives the render that minted it, so the unmount cleanup
   // reaches it through the ref.
@@ -398,6 +416,7 @@ function useStickerImage() {
         URL.revokeObjectURL(pickRef.current)
       pickRef.current = next.url
       setCutoutUrl(null)
+      setManualUrl(null)
       setPick(next)
       runCutout(next.url)
     })
@@ -419,14 +438,24 @@ function useStickerImage() {
     runCutout(imageSrc)
   }
 
-  // Restore original: release the cutout, the display falls back to the pick.
+  // Restore original: release the cutout and the manual mask, so the display
+  // falls back to the pick itself.
   const restoreOriginal = () => {
-    if (!cutoutUrl)
-      return
     setCutoutUrl(null)
+    setManualUrl(null)
   }
 
-  return { imageSrc, imageName: pick?.name ?? '', hasCutout, bgJob, pickImage, removeBg, restoreOriginal }
+  return {
+    imageSrc,
+    baseSrc,
+    imageName: pick?.name ?? '',
+    hasCutout,
+    bgJob,
+    pickImage,
+    removeBg,
+    restoreOriginal,
+    applyMask: (url: string) => setManualUrl(url),
+  }
 }
 
 export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, paneId: string | null, onClose: () => void }) {
@@ -442,9 +471,10 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
   const [stamp, setStamp] = useState(false)
   const [holeSize, setHoleSize] = useState(HOLE_SIZE_DEFAULT)
   const [holeSpacing, setHoleSpacing] = useState(HOLE_SPACING_DEFAULT)
+  const [editingMask, setEditingMask] = useState(false)
 
   const [inserting, setInserting] = useState(false)
-  const { imageSrc, imageName, hasCutout, bgJob, pickImage, removeBg, restoreOriginal } = useStickerImage()
+  const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, removeBg, restoreOriginal, applyMask } = useStickerImage()
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
 
@@ -525,21 +555,36 @@ export function StickerMakerDialog({ open, paneId, onClose }: { open: boolean, p
             )}
 
             {/* Upload + live preview share one stage; cutout progress frosts the raw pick. */}
-            <StickerStage
-              tab={tab}
-              imageStage={imageStage}
-              imageSrc={imageSrc}
-              bgJob={bgJob}
-              hasCutout={hasCutout}
-              source={source}
-              outlineWidth={outlineWidth}
-              outlineColor={outlineColor}
-              material={material}
-              perforation={perforation}
-              onPick={pickImage}
-              onRemoveBg={removeBg}
-              onRestore={restoreOriginal}
-            />
+            {editingMask && baseSrc
+              ? (
+                  <StickerMaskEditor
+                    key={imageSrc ?? baseSrc}
+                    src={imageSrc ?? baseSrc}
+                    onCancel={() => setEditingMask(false)}
+                    onApply={(url) => {
+                      applyMask(url)
+                      setEditingMask(false)
+                    }}
+                  />
+                )
+              : (
+                  <StickerStage
+                    tab={tab}
+                    imageStage={imageStage}
+                    imageSrc={imageSrc}
+                    bgJob={bgJob}
+                    hasCutout={hasCutout}
+                    source={source}
+                    outlineWidth={outlineWidth}
+                    outlineColor={outlineColor}
+                    material={material}
+                    perforation={perforation}
+                    onPick={pickImage}
+                    onRemoveBg={removeBg}
+                    onRestore={restoreOriginal}
+                    onAdjust={() => setEditingMask(true)}
+                  />
+                )}
 
             <div className="flex flex-col gap-2.5 border-t border-line pt-3">
               <ColorField label={t('Outline color')} value={outlineColor} onChange={setOutlineColor} />
