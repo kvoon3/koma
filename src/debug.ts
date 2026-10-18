@@ -1,6 +1,7 @@
 import * as exporter from './lib/exporter'
 import * as imageStore from './lib/imageStore'
 import * as panes from './lib/panes'
+import * as regeo from './lib/regeo'
 import { useStore } from './store'
 
 export function installDebugHandle() {
@@ -11,5 +12,6 @@ export function installDebugHandle() {
     imageStore,
     exporter,
     panes,
+    regeo,
   }
 }

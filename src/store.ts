@@ -8,8 +8,8 @@ import type { PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { clearFilterCaches } from './lib/filterCache'
 import { readExif } from './lib/exif'
+import { clearFilterCaches } from './lib/filterCache'
 import {
   clearTreePhotos,
   GRID_CELL_RATIO,
@@ -1097,8 +1097,11 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }))
   },
 
-  addLabel: (x = 0.5, y = 0.5) => {
-    const label = newLabel(x, y)
+  addLabel: (x = 0.5, y = 0.5, init) => {
+    // `init` lets a command insert a finished label (location text + pin icon)
+    // in the same commit that adds it: one undo step, like a plain Text add.
+    const fresh = newLabel(x, y)
+    const label: PaneLabel = { ...fresh, ...init, id: fresh.id }
     commit()
     set(s => ({
       workspaces: mapActive(s, w => ({ ...w, labels: [...(w.labels ?? []), label] })),
@@ -1249,7 +1252,7 @@ interface Actions {
   rotateSticker: (stickerId: string, rot: number) => void
   removeSticker: (stickerId: string) => void
   /** Add a board label at a canvas-normalized point; returns its id. */
-  addLabel: (x?: number, y?: number) => string
+  addLabel: (x?: number, y?: number, init?: Partial<PaneLabel>) => string
   setLabel: (labelId: string, patch: Partial<PaneLabel>) => void
   removeLabel: (labelId: string) => void
 }

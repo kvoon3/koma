@@ -62,6 +62,52 @@ function withAlpha(hex: string, a: number) {
   return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
 }
 
+/** Horizontal alignment of a label's lines inside its box. */
+export type LabelAlign = 'left' | 'center' | 'right'
+
+/**
+ * A label's alignment. Absent means center, which is exactly how every label
+ * laid out before alignment existed (single line = a shrink-wrapped box), so
+ * old sessions hydrate unchanged.
+ */
+export const labelAlign = (lab: { align?: LabelAlign }): LabelAlign => lab.align ?? 'center'
+
+/**
+ * Lines render at explicit `\n` only. Labels are placed freely on the board
+ * (a label is not a text box with an authored width), so auto-wrap would make
+ * a line's break depend on the current font size and the board's pixel size,
+ * and preview and export would disagree at different scales. One newline =
+ * one line, always.
+ */
+export const labelTextLines = (text: string): string[] => text.replace(/\r\n?/g, '\n').split('\n')
+
+/**
+ * What the editor commits: CRLF normalized, each line trimmed, blank lines at
+ * either end dropped, blank lines inside kept (a deliberate gap between
+ * paragraphs). Interior blank lines survive a close/reopen, and the text never
+ * carries layout-significant trailing whitespace into the measured box.
+ */
+export function normalizeLabelText(raw: string): string {
+  const lines = labelTextLines(raw).map(line => line.trim())
+  while (lines.length && !lines[0])
+    lines.shift()
+  while (lines.length && !lines[lines.length - 1])
+    lines.pop()
+  return lines.join('\n')
+}
+
+/**
+ * A line's x offset inside the text block (the widest line defines the block),
+ * shared by the DOM preview (as CSS `text-align`) and the exporter's canvas
+ * `fillText`, so the two cannot pick different origins for one alignment.
+ */
+export function labelAlignOffset(align: LabelAlign, maxW: number, lineW: number): number {
+  if (align === 'left')
+    return 0
+  const gap = maxW - lineW
+  return align === 'right' ? gap : gap / 2
+}
+
 export interface PaneLabel {
   /** Stable id: labels are a board-level list, many per workspace. */
   id: string
@@ -82,6 +128,8 @@ export interface PaneLabel {
   size: number
   /** Rotation in radians; absent means unrotated (see `rotationOf`). */
   rot?: number
+  /** Line alignment; absent means center (see `labelAlign`). */
+  align?: LabelAlign
 }
 
 export interface Leaf {

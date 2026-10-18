@@ -4,7 +4,7 @@ import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
+import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview } from '../hooks'
@@ -12,7 +12,8 @@ import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { cutoutAction, restoreOriginalAction } from '../lib/cutout'
 import { GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
-import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
+import { setLabelPreviewUnit } from '../lib/labelMetrics'
+import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { cutOutPane, restorePaneOriginal } from '../lib/paneCutout'
 import { blendFadePx, dividerLine, expandRectForBlend, leafList, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
@@ -35,6 +36,35 @@ const NO_LABELS: PaneLabel[] = []
 
 const HIT_MIN = 15
 const MIN_CANVAS = 120
+
+/** `bindAction`'s `when` for the Location tool: the photo has an EXIF fix. */
+function photoHasGps(p: { photo: Photo | null }): boolean {
+  return !!p.photo?.gps
+}
+
+/** Does the focused pane's photo carry an EXIF fix? (The label dock's Location action.) */
+function focusPhotoHasGps(view: Derived, focusId: string, photoById: Map<string, Photo>): boolean {
+  if (!focusId)
+    return false
+  const leaf = view.leaves.find(l => l.node.id === focusId)?.node
+  if (!leaf?.photoId)
+    return false
+  return !!photoById.get(leaf.photoId)?.gps
+}
+
+/**
+ * The Location tool: its own function keeps the long tool-definition list in
+ * `usePaneTools` below the cognitive-complexity budget.
+ */
+function locationToolFor(t: (key: string) => string, bind: (a: Action<Photo>) => (() => void) | null): ToolDef {
+  return {
+    key: 'location',
+    icon: MapPin,
+    label: t('Location'),
+    hint: t('Insert a location label from this photo\'s GPS'),
+    onClick: bind({ requires: 'photo', when: photoHasGps, run: p => insertLocationLabel(p.paneId) }),
+  }
+}
 
 interface ToolDef {
   key: string
@@ -179,6 +209,9 @@ export function Stage() {
 
   // Which pane edges are seams (face another photo); recomputed with the layout.
   const seams = useMemo(() => seamSides(view.leaves, view.gap), [view])
+  // Publish the preview's label unit: the exporter measures labels at this
+  // size rather than at export px so multi-line x matches the preview.
+  useEffect(() => setLabelPreviewUnit(view.unit), [view.unit])
   // Backdrop blend: pane edges feather into the shared blurred field behind
   // everything (width 0 turns the whole treatment off).
   const paneFade = view.fade
@@ -312,6 +345,9 @@ export function Stage() {
   // its controls while a label is selected.
   const compact = useMediaQuery('(max-width: 1023.98px)')
   const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
+  // The label dock's location action follows the focused pane's photo, not the
+  // selected label: it inserts a new label for that photo's EXIF fix.
+  const focusHasGps = focusPhotoHasGps(view, focusId, photoById)
   // Canvas appearance tools always live in the dock; pane/label tools join when relevant.
   const toolsHidden = false
 
@@ -400,6 +436,7 @@ export function Stage() {
                 lab={dockLabel}
                 setLabel={setLabel}
                 onDelete={() => removeLabel(dockLabel.id)}
+                onInsertLocation={focusHasGps && focusId ? () => insertLocationLabel(focusId) : undefined}
               />
             )
           : tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
@@ -762,6 +799,9 @@ function usePaneTools(focusId: string, view: Derived | null, photoById: Map<stri
     ? { key: 'original', icon: Undo2, label: t('Original'), hint: t('Restore the original photo'), onClick: bind(restoreAction) }
     : { key: 'cutout', icon: Scissors, label: t('Cut out'), hint: t('Remove the photo background'), onClick: bind(cutoutAction<Photo>({ cutouts, busy: cutoutBusy }, (id, ph) => void cutOutPane(id, ph))) }
   const textTool: ToolDef = { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: bind(onPane(addLabelToPane)) }
+  // The photo's EXIF fix, when it has one. Disabled (not hidden) without GPS,
+  // like every other tool that does not apply to the focused pane.
+  const locationTool = locationToolFor(t, bind)
   // Full set, fixed order on every route and breakpoint: what does not apply
   // is disabled by `bindAction`, never hidden, so nothing shifts.
   const tools: ToolDef[] = [
@@ -771,6 +811,7 @@ function usePaneTools(focusId: string, view: Derived | null, photoById: Map<stri
     cutoutTool,
     { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind({ requires: 'photo', run: p => openStickerMaker(p.paneId) }) },
     textTool,
+    locationTool,
     {
       key: 'view',
       icon: ImageIcon,
