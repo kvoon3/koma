@@ -613,4 +613,6 @@ export const zhHans: Record<string, string> = {
   'Paint the sticker’s own edge. Applying it saves a new sticker in the same folder · the copies already placed keep the old pixels.': '在贴图本身的边缘上涂抹。应用后会存成同一文件夹里的新贴图 · 已经放好的副本仍然使用原来的像素。',
   'Saving...': '保存中…',
   'Failed to save sticker': '保存贴图失败',
+  'Edit': '编辑',
+  '{n} of {max} undo steps': '{max} 步撤销中已用 {n} 步',
 }
