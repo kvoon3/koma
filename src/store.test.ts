@@ -402,6 +402,59 @@ describe('pane rotation and flips', () => {
     expect(focusLeaf().flipX).toBeFalsy()
     expect(focusLeaf().flipY).toBeFalsy()
   })
+
+  test('a filter is one untagged undo step, and clearing it is another', () => {
+    const id = focusLeaf().id
+    if (!focusLeaf().photoId)
+      useStore.getState().assign(id, 'ph-1')
+    useStore.setState({ history: emptyHistory() })
+    useStore.getState().setPaneFilter(id, 'cyanotype')
+    expect(focusLeaf().filter).toBe('cyanotype')
+    expect(useStore.getState().history.past).toHaveLength(1)
+    useStore.getState().setPaneFilter(id, 'print')
+    expect(focusLeaf().filter).toBe('print')
+    expect(useStore.getState().history.past).toHaveLength(2)
+    // Same filter again: nothing changed, so nothing is recorded.
+    useStore.getState().setPaneFilter(id, 'print')
+    expect(useStore.getState().history.past).toHaveLength(2)
+    useStore.getState().setPaneFilter(id, null)
+    expect(focusLeaf().filter).toBeUndefined()
+    expect(useStore.getState().history.past).toHaveLength(3)
+    // One undo puts the filter back, in one step.
+    useStore.getState().undo()
+    expect(focusLeaf().filter).toBe('print')
+    expect(useStore.getState().history.past).toHaveLength(2)
+  })
+
+  test('a filter travels with the photo: swap, copy, paste and duplicate', () => {
+    const [a, b] = [focusLeaf().id, (() => {
+      useStore.getState().split(focusLeaf().id, 'row')
+      return leafList(ws().root)[1]!.id
+    })()]
+    useStore.getState().assign(a, 'ph-a')
+    useStore.getState().assign(b, 'ph-b')
+    useStore.getState().setPaneFilter(a, 'grain')
+
+    useStore.getState().swapPhotos(a, b)
+    expect(leafList(ws().root).find(l => l.id === b)!.filter).toBe('grain')
+    expect(leafList(ws().root).find(l => l.id === a)!.filter).toBeUndefined()
+
+    useStore.getState().copyPane(b)
+    useStore.getState().pastePane(a)
+    expect(leafList(ws().root).find(l => l.id === a)!.filter).toBe('grain')
+
+    useStore.getState().duplicatePane(a, 'column')
+    const copy = leafList(ws().root).find(l => l.id !== a && l.id !== b)!
+    expect(copy.photoId).toBe('ph-a')
+    expect(copy.filter).toBe('grain')
+  })
+
+  test('a new photo clears the filter, like the turn and the mirrors', () => {
+    const id = focusLeaf().id
+    useStore.getState().setPaneFilter(id, 'bitgrain')
+    useStore.getState().assign(id, 'ph-new')
+    expect(focusLeaf().filter).toBeUndefined()
+  })
 })
 
 describe('grid groups (boards switched from the workspace switcher)', () => {
