@@ -1,8 +1,10 @@
 import type { BgImage } from './collageBg'
+import type { FilterId } from './filters'
 import type { FullSource, FullSourceBatch, Photo } from './imageStore'
 import type { CornerRadii, Leaf, Node, PaneLabel, PaneTransform, Rect, SeamSides, Sticker } from './panes'
 import { mapSeq } from './async'
 import { isTransparentBg, paintCollageBg } from './collageBg'
+import { applyFilter, filterSeed, isFilterId } from './filters'
 import { ensureFonts, fontById, measureLabel, normalLineHeightRatio } from './fonts'
 import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
@@ -154,6 +156,36 @@ function applyPaneTurn(ctx: CanvasRenderingContext2D, center: { x: number, y: nu
 }
 
 /**
+ * The photo's pixels with its texture filter baked in, at the photo's own
+ * resolution. Both directions matter and both are chosen, not incidental:
+ *
+ * - the filter runs on the whole source frame BEFORE placement, so its grain,
+ *   plates and dither are anchored to the photo and pan / zoom / rotate with
+ *   it, so the texture is printed on the photo and not on the pane;
+ * - it runs at the source resolution, and `lib/filters` scales its parameters
+ *   to the image, so a 2048px export and a 1024px preview carry the same
+ *   texture at their own pixel sizes.
+ *
+ * One canvas per (photo, filter) per export run: several panes can hold the
+ * same photo, and the filter is not free.
+ */
+export function filteredSource(src: CanvasImageSource, w: number, h: number, filterId: FilterId, seed: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(src, 0, 0, w, h)
+  const img = ctx.getImageData(0, 0, w, h)
+  applyFilter(img, filterId, seed)
+  ctx.putImageData(img, 0, 0)
+  return canvas
+}
+
+/** What a paint draws for one pane: the photo, filtered when the pane asks. */
+type PaintSource = (photo: Photo, leaf: Leaf) => CanvasImageSource | null
+
+/**
  * Draw one placed photo into its pane: turned and mirrored as the pane frames
  * it, feathered along the seam edges when it has any.
  *
@@ -260,7 +292,7 @@ async function resolveSources(wanted: Photo[], sources: FullSourceBatch): Promis
  *  unclipped and blurred behind the panes, so their feathered edges melt
  *  into one continuous field. Mirrors the preview's SeamBackdrop layer.
  */
-function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, src: Map<Photo, FullSource | null>) {
+function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: ExportOptions, paint: PaintSource) {
   if (typeof ctx.filter !== 'string' || prep.fade <= 0)
     return
   const R = Math.max(prep.u * 40, prep.fade)
@@ -273,8 +305,10 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
     const seam = prep.seam.get(leaf.id)
     if (!seam || !(seam.left || seam.right || seam.top || seam.bottom))
       continue
-    const full = src.get(photo)
-    if (!full)
+    // The backdrop is the pane's photo blurred, so it takes the filter too: a
+    // filtered pane must not melt into an unfiltered halo.
+    const paintSrc = paint(photo, leaf)
+    if (!paintSrc)
       continue
     // Deliberately untransformed: the backdrop is the blurred field behind the
     // panes, and the preview's own backdrop layer (Stage.tsx) does not turn
@@ -282,7 +316,7 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
     const p = placement(layout, leaf, photo.trueW, photo.trueH)
     ctx.save()
     ctx.filter = `blur(${R}px)`
-    ctx.drawImage(full.src, p.x, p.y, p.w, p.h)
+    ctx.drawImage(paintSrc, p.x, p.y, p.w, p.h)
     ctx.restore()
   }
   ctx.restore()
@@ -292,20 +326,20 @@ function drawBackdrop(ctx: CanvasRenderingContext2D, prep: Prepared, opts: Expor
  * Clip each photo into its pane and draw it placed (feathered at seams).
  * Board stickers are drawn later, unclipped.
  */
-function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: ExportOptions, src: Map<Photo, FullSource | null>) {
+function drawPhotoCells(ctx: CanvasRenderingContext2D, prep: Prepared, _opts: ExportOptions, paint: PaintSource) {
   // Crossfade: complementary alphas add (source-over would darken under the fade).
   if (prep.crossfade && prep.fade > 0)
     ctx.globalCompositeOperation = 'lighter'
   for (const { leaf, rect, layout, photo } of prep.cells) {
-    const full = src.get(photo)
-    if (!full)
+    const paintSrc = paint(photo, leaf)
+    if (!paintSrc)
       continue
     const p = placement(layout, leaf, photo.trueW, photo.trueH)
     const seam = prep.seam.get(leaf.id)
     ctx.save()
     roundRect(ctx, rect.x, rect.y, rect.w, rect.h, leafCornerRadii(prep.radius, seam, prep.gap))
     ctx.clip()
-    drawPanePhoto(ctx, full.src, p, rect, leaf, seam, prep.fade)
+    drawPanePhoto(ctx, paintSrc, p, rect, leaf, seam, prep.fade)
     ctx.restore()
   }
   if (prep.crossfade && prep.fade > 0)
@@ -423,15 +457,35 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
     const stickers = opts.stickers ?? []
     const bgPhoto = opts.bgImage ? opts.photos.get(opts.bgImage.photoId) : undefined
     const src = await resolveSources(paintPhotos(prep, opts.photos, stickers, bgPhoto), sources)
+    // Filtered sources, one per (photo, filter): baked once per run and reused
+    // by every pane holding that pair. Released with the batch below.
+    const filtered = new Map<string, HTMLCanvasElement>()
+    const paint: PaintSource = (photo, leaf) => {
+      const full = src.get(photo)
+      if (!full)
+        return null
+      // A saved file from a newer build may name a filter this one lacks.
+      if (!leaf.filter || !isFilterId(leaf.filter))
+        return full.src
+      const key = `${photo.id}|${leaf.filter}`
+      let canvas = filtered.get(key)
+      if (!canvas) {
+        canvas = filteredSource(full.src, full.w, full.h, leaf.filter, filterSeed(photo.id, leaf.filter))
+        filtered.set(key, canvas)
+      }
+      return canvas
+    }
     // Whole-collage background layers, under everything the panes paint.
     paintCollageBg(ctx, W, H, { bg: opts.bg, gradient: opts.bgGradient ?? null, image: opts.bgImage ?? null }, (bgPhoto && src.get(bgPhoto)) || null)
     // Backdrop feather (default) or overlap crossfade (opt-in).
     if (!prep.crossfade)
-      drawBackdrop(ctx, prep, opts, src)
-    drawPhotoCells(ctx, prep, opts, src)
+      drawBackdrop(ctx, prep, opts, paint)
+    drawPhotoCells(ctx, prep, opts, paint)
     drawBoardStickers(ctx, prep, stickers, opts.photos, src)
     await ensureLabelFonts(prep)
     drawLabels(ctx, prep, await loadLabelIcons(prep))
+    for (const canvas of filtered.values())
+      canvas.width = canvas.height = 0
   }
   finally {
     sources.release()

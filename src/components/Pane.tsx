@@ -6,7 +6,7 @@ import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as Stick
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
-import { usePreview } from '../hooks'
+import { usePanePreview } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
@@ -1411,7 +1411,9 @@ function PaneImpl({
   onClose,
 }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null)
-  const preview = usePreview(photo)
+  // The photo as this pane shows it: with its texture filter baked in when one
+  // is set (`lib/filterCache`, the same pixels the exporter draws).
+  const preview = usePanePreview(photo, leaf.filter)
   const navigate = useNavigate()
 
   // Exit the editor back to the grid overview, morphing the canvas into its cell.

@@ -1,5 +1,7 @@
+import type { FilterId } from './lib/filters'
 import type { Photo, Preview } from './lib/imageStore'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { getFilteredPreview, peekFilteredPreview } from './lib/filterCache'
 import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
 
 export function usePreview(photo: Photo | null): Preview | null {
@@ -34,6 +36,57 @@ export function usePreview(photo: Photo | null): Preview | null {
   }, [id])
 
   return url
+}
+
+/**
+ * The preview a pane should draw: the photo's plain preview, or the same photo
+ * with its texture filter baked in (`lib/filterCache`).
+ *
+ * While a new filtered bitmap renders, the previous one stays on screen: it has
+ * the same size and the same subject, so a filter switch reads as a change of
+ * texture rather than a reload. It is only ever the *same photo's* previous
+ * render; crossing photos falls back to the plain preview, never to another
+ * photo's picture.
+ */
+export function usePanePreview(photo: Photo | null, filter: FilterId | undefined): Preview | null {
+  const plain = usePreview(photo)
+  const id = photo?.id ?? null
+  // The base preview may not be decoded yet; when it lands, the filter can run.
+  const plainUrl = plain?.url ?? null
+  const photoRef = useRef(photo)
+  useEffect(() => {
+    photoRef.current = photo
+  }, [photo])
+  const [shown, setShown] = useState<{ photoId: string, preview: Preview } | null>(() => {
+    const hit = id && filter ? peekFilteredPreview(id, filter) : null
+    return hit && id ? { photoId: id, preview: hit } : null
+  })
+
+  useEffect(() => {
+    const source = photoRef.current
+    if (!id || !filter || !source) {
+      setShown(null)
+      return
+    }
+    const hit = peekFilteredPreview(id, filter)
+    if (hit) {
+      setShown({ photoId: id, preview: hit })
+      return
+    }
+    setShown(held => (held && held.photoId === id ? held : null))
+    let alive = true
+    getFilteredPreview(source, filter).then((r) => {
+      if (alive && r)
+        setShown({ photoId: id, preview: r })
+    })
+    return () => {
+      alive = false
+    }
+  }, [id, filter, plainUrl])
+
+  if (!filter)
+    return plain
+  return shown && shown.photoId === id ? shown.preview : plain
 }
 
 export function useThumb(photo: Photo, visible: boolean): string | null {
