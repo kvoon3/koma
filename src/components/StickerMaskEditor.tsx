@@ -335,7 +335,7 @@ export function StickerMaskEditor({ src, onApply, onCancel }: {
     <div className="flex flex-col gap-2.5" data-sticker-mask-editor="">
       <div
         ref={boxRef}
-        className="stage-clear relative h-[min(46dvh,280px)] w-full overflow-hidden border border-line-strong"
+        className="stage-clear relative h-[min(46dvh,280px)] w-full shrink-0 overflow-hidden border border-line-strong"
       >
         <canvas
           ref={canvasRef}

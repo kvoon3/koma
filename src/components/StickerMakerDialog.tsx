@@ -70,7 +70,12 @@ const OUTLINE_COLOR_DEFAULT = '#ffffff'
 const PREVIEW_MAX = 480
 const INSERT_MAX = 960
 
-const stageFrameCls = 'stage-clear relative flex h-[220px] items-center justify-center overflow-hidden border border-line-strong'
+/**
+ * `shrink-0` keeps the stage at its designed height: the dialog body is the
+ * scrolling half, so on a short window (a landscape phone is 412px tall) the
+ * stage scrolls instead of collapsing to a 30px strip with its chips clipped.
+ */
+const stageFrameCls = 'stage-clear relative flex h-[220px] shrink-0 items-center justify-center overflow-hidden border border-line-strong'
 
 function buildSource(
   tab: 'text' | 'image',
