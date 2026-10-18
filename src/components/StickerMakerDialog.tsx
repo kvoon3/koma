@@ -2,7 +2,7 @@ import type { Photo } from '../lib/imageStore'
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
-import type { StickerRecipe, StickerRecipeSource } from '../lib/stickerRecipe'
+import type { StickerOriginalInput, StickerRecipe } from '../lib/stickerRecipe'
 import { Dialog } from '@base-ui/react/dialog'
 import { ImagePlus, Images, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -18,7 +18,7 @@ import { useT } from '../lib/i18n'
 import { makeSticker } from '../lib/sticker'
 import { saveMadeSticker } from '../lib/stickerAssets'
 import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
-import { editedStickerMeta } from '../lib/stickerRecipe'
+import { editedStickerMeta, textOriginal } from '../lib/stickerRecipe'
 import { say } from '../lib/toast'
 import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 
@@ -380,11 +380,22 @@ function StickerStage({
  * Local U²-Netᵖ cutouts. Jobs are token-guarded: a second run while the
  * first still goes drops the stale result and frees its URL instead of
  * clobbering the newer pick.
+ *
+ * `auto` is a source to cut as soon as the maker mounts. A re-edit opens on the
+ * original and its cutout is not a user gesture, so the job starts here, in the
+ * hook that owns it: the stage is in its "cutting out" state from the first
+ * paint, and once per mount (each opening of the maker is its own mount).
  */
-function useCutoutJob(onDone: (url: string) => void) {
-  const [job, setJob] = useState<BgJob | null>(null)
+function useCutoutJob(onDone: (url: string) => void, auto: string | null = null) {
+  const [job, setJob] = useState<BgJob | null>(auto ? { phase: 'loading', progress: 0 } : null)
   const jobRef = useRef(0)
   const t = useT()
+  const tRef = useRef(t)
+  const doneRef = useRef(onDone)
+  useEffect(() => {
+    tRef.current = t
+    doneRef.current = onDone
+  })
 
   const run = (src: string) => {
     const token = ++jobRef.current
@@ -397,7 +408,7 @@ function useCutoutJob(onDone: (url: string) => void) {
       },
       (url) => {
         if (isCurrent())
-          onDone(url)
+          doneRef.current(url)
         else
           URL.revokeObjectURL(url)
       },
@@ -407,10 +418,27 @@ function useCutoutJob(onDone: (url: string) => void) {
         // Keep the reason readable without growing the toast: it is the only
         // diagnostic a phone ever sees.
         const detail = reason.length > 160 ? `${reason.slice(0, 157)}…` : reason
-        say(`${t('Background removal failed')}: ${detail}`, { timeout: 8000 })
+        say(`${tRef.current('Background removal failed')}: ${detail}`, { timeout: 8000 })
       },
     )
   }
+
+  // The mount's own run. Reached through refs so the effect fires exactly once:
+  // `auto` is a fresh string every render of the dialog above, and a dep on it
+  // would restart the model on every keystroke.
+  const autoRef = useRef(auto)
+  const runRef = useRef(run)
+  const startedRef = useRef(false)
+  useEffect(() => {
+    runRef.current = run
+  })
+  useEffect(() => {
+    const src = autoRef.current
+    if (!src || startedRef.current)
+      return
+    startedRef.current = true
+    runRef.current(src)
+  }, [])
 
   return { job, run }
 }
@@ -420,25 +448,38 @@ function useCutoutJob(onDone: (url: string) => void) {
  * replaces it, each owned by the pick or cutout that made it. The cutout
  * runs automatically on pick; Restore original brings the full frame back.
  *
- * `initial` is the subject a re-edit starts from: the source pixels a made
- * sticker's recipe captured (see lib/stickerRecipe). It enters as the pick, so
- * the stage, the mask editor and the bake are the ones a file pick runs, minus
- * the cutout job: those pixels were already cut.
+ * `initial` is the ORIGINAL a re-edit starts from (see lib/stickerRecipe): the
+ * un-cut picture the sticker was made from, its name, and the library photo it
+ * came from when it came from one. It enters as the pick and the cutout job runs
+ * on it again, so a re-edit re-cuts the original rather than inheriting pixels
+ * that were already cut. The original itself is what a save carries forward:
+ * `original()` is the picked File, or the stored data URL when nothing was
+ * re-picked.
  */
-function useStickerImage(initial: { url: string, name: string } | null = null) {
-  const [pick, setPick] = useState<{ url: string, name: string } | null>(initial)
+function useStickerImage(initial: { url: string, name: string, photoId?: string } | null = null) {
+  const [pick, setPick] = useState<{ url: string, name: string } | null>(initial ? { url: initial.url, name: initial.name } : null)
   const [cutoutUrl, setCutoutUrl] = useState<string | null>(null)
+  /**
+   * The picture this sticker is being made from, as the save needs it: the
+   * picked File (encoded at save time) or the stored original a re-edit carries
+   * untouched. A fresh pick replaces it, which is why it is a ref and not a
+   * field of the mounted seed.
+   */
+  const originalRef = useRef<StickerOriginalInput | null>(
+    initial ? { type: 'image', src: initial.url, name: initial.name, photoId: initial.photoId } : null,
+  )
   // The mask editor's committed cutout: a data URL, so it outlives no URL and
   // needs no revoke. It sits on top of the cutout, and the cutout sits on top
   // of the pick, so Restore original drops back through all three.
   const [manualUrl, setManualUrl] = useState<string | null>(null)
   const pickRef = useRef<string | null>(null)
+  // A re-edit's original is the mount's auto job: see useCutoutJob.
   const { job: bgJob, run: runCutout } = useCutoutJob((url) => {
     setCutoutUrl(url)
     // A fresh cutout is a new subject: a mask made for the old one does not
     // describe it any more.
     setManualUrl(null)
-  })
+  }, initial?.url ?? null)
 
   // What the mask editor opens: the current cut before any manual edit.
   const baseSrc = cutoutUrl ?? pick?.url ?? null
@@ -465,6 +506,8 @@ function useStickerImage(initial: { url: string, name: string } | null = null) {
     if (pickRef.current)
       URL.revokeObjectURL(pickRef.current)
     pickRef.current = next.url
+    // A new pick is a new original: the recipe the save writes starts here.
+    originalRef.current = { type: 'image', file, name: file.name }
     setCutoutUrl(null)
     setManualUrl(null)
     setPick(next)
@@ -512,6 +555,8 @@ function useStickerImage(initial: { url: string, name: string } | null = null) {
     removeBg,
     restoreOriginal,
     applyMask: (url: string) => setManualUrl(url),
+    /** The picture this sticker is being made from (see `originalRef`). */
+    original: () => originalRef.current,
   }
 }
 
@@ -528,21 +573,19 @@ interface MakerSeed {
   toothDepth: number
   toothSpacing: number
   displayLongEdge: number
-  /** The subject a re-edit starts from (a recipe's captured pixels), if any. */
-  image: { url: string, name: string } | null
-  /** The library photo the subject came from, when it came from one. */
-  photoId?: string
+  /** The ORIGINAL a re-edit opens on (a recipe's stored picture), if any. */
+  image: { url: string, name: string, photoId?: string } | null
 }
 
 /**
- * A re-edit opens holding the subject and every control the sticker was saved
- * with; a fresh make opens empty. The recipe is read once, here, so the
- * component below only ever sees values (`lib/stickerRecipe`).
+ * A re-edit opens on the original picture, holding every control the sticker
+ * was saved with; a fresh make opens empty. The recipe is read once, here, so
+ * the component below only ever sees values (`lib/stickerRecipe`).
  */
 function seedOf(edit: { recipe: StickerRecipe } | null): MakerSeed {
-  const source = edit?.recipe.source ?? null
+  const original = edit?.recipe.original ?? null
   const style = edit?.recipe.style ?? null
-  const words = source?.type === 'text' ? source : null
+  const words = original?.type === 'text' ? original : null
   return {
     tab: words ? 'text' : 'image',
     text: words?.text ?? '',
@@ -557,8 +600,7 @@ function seedOf(edit: { recipe: StickerRecipe } | null): MakerSeed {
     toothDepth: style?.perforation?.depth ?? TOOTH_DEPTH_DEFAULT,
     toothSpacing: style?.perforation?.spacing ?? TOOTH_SPACING_DEFAULT,
     displayLongEdge: style?.displayLongEdge ?? STAGE_HEIGHT_DEFAULT,
-    image: source?.type === 'image' ? { url: source.src, name: source.name } : null,
-    photoId: source?.type === 'image' ? source.photoId : undefined,
+    image: original?.type === 'image' ? { url: original.src, name: original.name, photoId: original.photoId } : null,
   }
 }
 
@@ -578,22 +620,16 @@ function baseNameOf(reEdit: { photo: Photo } | null, tab: 'text' | 'image', text
 }
 
 /**
- * The subject this bake consumes, kept on the new asset so IT can be re-edited
- * too (see lib/stickerRecipe). A re-edit keeps the provenance the recipe had:
- * the same library photo, when the subject came from one.
+ * The original this save carries forward, so the NEW record is re-editable too
+ * (see lib/stickerRecipe). A text sticker's original is its spec; an image
+ * sticker's is the picture the maker started from (`useStickerImage`'s ref: the
+ * fresh pick, or the stored original when a re-edit changed nothing about the
+ * subject). It is never the cutout: that is a step, not a source.
  */
-function recipeSourceOf(
-  tab: 'text' | 'image',
-  text: string,
-  color: string,
-  font: string,
-  imageSrc: string | null,
-  imageName: string,
-  photoId: string | undefined,
-): StickerRecipeSource | null {
+function originalOf(tab: 'text' | 'image', text: string, color: string, font: string, picked: StickerOriginalInput | null): StickerOriginalInput | null {
   if (tab === 'text')
-    return { type: 'text', text: text.trim(), color, fontId: font }
-  return imageSrc ? { type: 'image', src: imageSrc, name: imageName, photoId } : null
+    return text.trim() ? textOriginal(text.trim(), color, font) : null
+  return picked
 }
 
 /**
@@ -602,12 +638,14 @@ function recipeSourceOf(
  * keep drawing the asset they were placed from. Its own row, so a phone never
  * squeezes the sentence against the buttons.
  */
-function MakerFooter({ reEdit, canInsert, saveLabel, onClose, onInsert }: {
+function MakerFooter({ reEdit, canInsert, saveLabel, onClose, onInsert, onReset }: {
   reEdit: boolean
   canInsert: boolean
   saveLabel: string
   onClose: () => void
   onInsert: () => void
+  /** Back to the values the sticker was saved with (a re-edit's seeded defaults). */
+  onReset: () => void
 }) {
   const t = useT()
   return (
@@ -617,7 +655,13 @@ function MakerFooter({ reEdit, canInsert, saveLabel, onClose, onInsert }: {
           {t('Saves a new sticker · placed copies keep their pixels')}
         </span>
       )}
-      <div className="flex justify-end gap-[6px]">
+      <div className="flex items-center justify-end gap-[6px]">
+        {/* The saved style is a starting point, not a lock: it can go back. */}
+        {reEdit && (
+          <span className="mr-auto flex">
+            <Button onClick={onReset} data-sticker-reset-effects="">{t('Reset effects')}</Button>
+          </span>
+        )}
         <Button onClick={onClose}>{t('Cancel')}</Button>
         <Button variant="strong" disabled={!canInsert} onClick={onInsert} data-sticker-save="">
           {saveLabel}
@@ -670,7 +714,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   const [inserting, setInserting] = useState(false)
   /** Library mode only: the stage is showing the photo picker instead of a pick. */
   const [pickingLibrary, setPickingLibrary] = useState(false)
-  const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask } = useStickerImage(seed.image)
+  const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask, original } = useStickerImage(seed.image)
   const libraryMode = target?.kind === 'library'
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
@@ -694,11 +738,12 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
       return
     const baseName = baseNameOf(reEdit, tab, text, imageName)
     const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge }
-    const recipeSource = recipeSourceOf(tab, text, color, font, imageSrc, imageName, seed.photoId)
+    // The picture this sticker started from, carried onto the new record.
+    const fromOriginal = originalOf(tab, text, color, font, original())
     setInserting(true)
     try {
       // Bake once, land it where this door wants it (lib/stickerAssets).
-      await saveMadeSticker(source, style, target, t, recipeSource)
+      await saveMadeSticker(source, style, target, t, fromOriginal)
       onClose()
     }
     catch {
@@ -707,6 +752,16 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     finally {
       setInserting(false)
     }
+  }
+
+  /** The saved style, back in the controls (a re-edit's starting point). */
+  const resetEffects = () => {
+    setOutlineWidth(seed.outlineWidth)
+    setOutlineColor(seed.outlineColor)
+    setMaterial(seed.material)
+    setStamp(seed.stamp)
+    setToothDepth(seed.toothDepth)
+    setToothSpacing(seed.toothSpacing)
   }
 
   const canInsert = !!source && !!target && !inserting && !bgJob
@@ -837,7 +892,14 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
             </div>
           </div>
 
-          <MakerFooter reEdit={!!reEdit} canInsert={canInsert} saveLabel={saveLabel} onClose={onClose} onInsert={insert} />
+          <MakerFooter
+            reEdit={!!reEdit}
+            canInsert={canInsert}
+            saveLabel={saveLabel}
+            onClose={onClose}
+            onInsert={insert}
+            onReset={resetEffects}
+          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

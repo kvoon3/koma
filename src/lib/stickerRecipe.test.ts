@@ -4,18 +4,19 @@ import type { StickerBakeStyle } from './stickerAssets'
 import { describe, expect, it } from 'bun:test'
 import { useStore } from '../store'
 import { eraseStickerAsset } from './stickerAssets'
-import { buildStickerRecipe, editedStickerMeta, normalizePhotoRecipes, recipeOf, stickerRecipeFrom } from './stickerRecipe'
+import { buildStickerRecipe, editedStickerMeta, normalizePhotoRecipes, recipeOf, stickerRecipeFrom, textOriginal } from './stickerRecipe'
 
 /**
- * The re-edit metadata: what a made sticker carries so the library can reopen
- * the maker over it, and what a legacy asset (made before re-editing) carries
- * instead: nothing, which is why it offers Erase only.
+ * The re-edit record: the ORIGINAL a sticker was started from plus the style it
+ * was saved with. The finished sticker is the other half of the pair and is the
+ * record's own `file`, so there is no third thing to store.
  *
- * The bake itself is canvas work and is measured in the browser (`makeSticker`
- * cannot run under bun); here the recipe's own lifecycle is pinned: built from
- * the maker's controls, attached to the asset, round-tripped through a session
- * record, and read back, or dropped for a payload that is not a complete
- * recipe.
+ * The bake (and the capture that encodes a picked File) is canvas work and is
+ * measured in the browser (`makeSticker` cannot run under bun); here the
+ * record's own lifecycle is pinned: built from the maker's inputs, attached to
+ * the asset, carried forward through a re-save without re-encoding, round-tripped
+ * through a session record, and read back, or dropped for a payload that is not
+ * a complete record.
  */
 
 const STYLE: StickerBakeStyle = {
@@ -55,7 +56,7 @@ describe('a made sticker\'s recipe', () => {
       { type: 'text', text: 'hi', color: '#000000', fontId: 'rounded' },
       STYLE,
     )
-    expect(recipe).toEqual({ source: { type: 'text', text: 'hi', color: '#000000', fontId: 'rounded' }, style: STYLE })
+    expect(recipe).toEqual({ original: { type: 'text', text: 'hi', color: '#000000', fontId: 'rounded' }, style: STYLE })
 
     // The asset carries it, exactly as `addStickerAsset` leaves it.
     const made = photo('a', { kind: 'sticker', folder: 'Faces', recipe: recipe! })
@@ -68,7 +69,7 @@ describe('a made sticker\'s recipe', () => {
     const plain = photo('p')
     useStore.setState({ photos: [sticker, plain] })
 
-    const recipe = (await buildStickerRecipe({ type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, STYLE))!
+    const recipe = (await buildStickerRecipe(textOriginal('hi', '#000000', 'system'), STYLE))!
     useStore.getState().setStickerRecipe('s', recipe)
 
     const photos = useStore.getState().photos
@@ -85,16 +86,30 @@ describe('a made sticker\'s recipe', () => {
     expect(normalizePhotoRecipes([legacy])[0]).toBe(legacy)
   })
 
+  it('keeps a stored original byte for byte when a re-save carries it forward', async () => {
+    const stored = { type: 'image' as const, src: 'data:image/jpeg;base64,AAAA', name: 'cat.jpg', photoId: 'p1' }
+    const recipe = await buildStickerRecipe(stored, STYLE)
+    // No canvas, no second encode: the original is already the original.
+    expect(recipe?.original).toBe(stored)
+    expect(recipe?.style).toEqual(STYLE)
+    // ... and a re-baked copy is re-editable again, with its own style.
+    const restyled = await buildStickerRecipe(stored, { ...STYLE, outlineWidth: 38 })
+    expect(restyled?.original).toEqual(stored)
+    expect(restyled?.style.outlineWidth).toBe(38)
+  })
+
   it('is dropped when the payload is not a complete recipe', () => {
     const legacy = photo('old', { kind: 'sticker' })
     const broken = [
       {},
-      { source: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' } },
-      { source: { type: 'text', text: 'hi' }, style: STYLE },
-      { source: { type: 'image', name: 'cat.png' }, style: STYLE },
-      { source: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, style: { ...STYLE, material: 'chrome' } },
-      { source: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, style: { ...STYLE, baseName: undefined } },
-      { source: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, style: { ...STYLE, perforation: { depth: 4 } } },
+      { original: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' } },
+      { original: { type: 'text', text: 'hi' }, style: STYLE },
+      { original: { type: 'image', name: 'cat.png' }, style: STYLE },
+      { original: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, style: { ...STYLE, material: 'chrome' } },
+      { original: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, style: { ...STYLE, baseName: undefined } },
+      { original: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, style: { ...STYLE, perforation: { depth: 4 } } },
+      // The shape this lane shipped before the original/result split: no original.
+      { source: { type: 'text', text: 'hi', color: '#000000', fontId: 'system' }, style: STYLE },
     ]
     for (const payload of broken) {
       expect(stickerRecipeFrom(payload)).toBeNull()

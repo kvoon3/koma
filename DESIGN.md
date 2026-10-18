@@ -463,35 +463,80 @@ is whether the maker's inputs still exist:
   sticker, including every one made before this existed. Only the dialog shell
   is new code; the editor, its undo stack and its commit are shared with the
   maker's *Adjust cutout*.
-- **Re-edit** reopens the **real maker** (`StickerMakerDialog` in its
-  `reEdit` mode) over the recipe the sticker was saved with, so the outline,
-  the stamp teeth and the material are controls again instead of pixels. It
-  needs `Photo.recipe`; a legacy asset has none and the card does not draw the
-  button at all.
+- **Re-edit** means *edit again from the start*: the maker reopens on the
+  ORIGINAL picture the sticker was started from (`StickerMakerDialog` in its
+  `reEdit` mode), re-runs the AI cutout on it, and loads the style the sticker
+  was saved with as the starting values of the controls (outline, edge, teeth,
+  material) with a **Reset effects** button that puts them back. Nothing is
+  inherited from the finished pixels except the style numbers. It needs
+  `Photo.recipe`; a legacy asset has none and the card does not draw the button.
 
-`Photo.recipe` (`lib/stickerRecipe`) is the creation metadata, written once at
-save time by `addStickerAsset` and never edited:
+**The sticker item stores a pair: the original and the result.** The result is
+the record itself (its `Photo.file`, the composited PNG) and needs no field; the
+original is `Photo.recipe.original`, written once at save time by
+`addStickerAsset`:
 
 ```ts
-type StickerRecipeSource
-  = | { type: 'text', text: string, color: string, fontId: string }
-    | { type: 'image', src: string, name: string, photoId?: string } // src: a PNG data URL, long edge ≤ 960
+type StickerOriginal
+  = | { type: 'text', text: string, color: string, fontId: string } // no image exists: the spec is the original
+    | { type: 'image', src: string, name: string, photoId?: string } // src: the un-cut photo, data URL ≤ 1600px
 
 interface StickerRecipe {
-  source: StickerRecipeSource
+  original: StickerOriginal
   style: StickerBakeStyle // outline width/color, material, baseName, perforation, displayLongEdge
 }
 ```
 
-The image source is the **pixels the bake consumed**, re-encoded to its own PNG
-data URL, not a pointer: a subject may be a text sticker, a file that was never
-imported, or a cutout the user painted by hand in the mask editor, and a photo
-id would describe none of those; an object URL dies with the dialog.
-`photoId` rides along as provenance when the subject did come from the library.
-The cost is one extra PNG per re-editable sticker, held in the session record;
-`stickerRecipeFrom` validates untrusted payloads (a session written by an older
-build, an imported file) and answers null unless every field is there, which is
-exactly the legacy state, and `normalizePhotoRecipes` applies that at hydration.
+The image original is the **picture the user picked**, before any cutout, border
+or material, re-encoded to its own data URL: a subject may come from a file that
+was never imported, and a photo id would describe neither that nor a file the
+library later lost, while an object URL dies with the dialog. `photoId` rides
+along as provenance when it did come from the library. A save carries the
+original forward unchanged (no second encode, so no generation loss): the new
+record is re-editable again. `stickerRecipeFrom` validates untrusted payloads (a
+session written by an older build, an imported file) and answers null unless
+every field is there, which is exactly the legacy state, and
+`normalizePhotoRecipes` applies that at hydration.
+
+**What the first cut of this lane stored instead** (audit): the maker passed
+`imageSrc` (the AI cutout, or the hand-masked result when the user had adjusted
+it) into a 960px PNG capture, so `recipe.source` was the *cut*, not the
+original. Measured on a 2400x1800 photo: the old field held 960x720 at 583,738
+chars with corner alpha **0** (the cutout's transparency), while the picture it
+was made from is 1600x1200 at 709,267 chars with corner alpha **255** (the plain
+frame). Re-edit could therefore never re-run the cutout; it re-composited pixels
+that had already been cut. The field is now the original, and the tests and the
+browser run assert the two halves differ.
+
+**The cap, measured.** Re-cutting and re-baking the stored original at several
+caps and comparing against a fresh decode of the same file (480px grid, RGBA
+mean absolute difference; the same file cut twice is the floor, at 0.0):
+
+| stored original | bytes in the record | mean Δ vs fresh |
+| --- | --- | --- |
+| 960px PNG (the old field) | 584 KB | 5.98 / 255 |
+| 960px JPEG q0.92 | 215 KB | 5.98 / 255 |
+| **1600px JPEG q0.92 (shipped)** | **756 KB** | **3.71 / 255** |
+| 2048px JPEG q0.92 | 1301 KB | 4.39 / 255 |
+| full 2400px JPEG q0.92 | 2229 KB | 0.81 / 255 |
+| 1600px PNG | 5227 KB | 1.36 / 255 |
+
+`ORIGINAL_MAX = 1600`: the old 960 cap was measurably lossy (a 1px dimension
+shift plus ~2.3% channel error against the fresh decode), 1600 halves that while
+staying at a third of the uncapped bytes, and it encodes photos as JPEG q0.92
+(PNG at the same size would be 6.9x the bytes for a difference under one 8-bit
+step on average). Bigger is not monotonically better either: 2048 costs 545 KB
+more than 1600 and lands further from the fresh decode, because the cap is a
+byte budget, not a quality dial. A source that may carry alpha (PNG/WebP) is
+kept as PNG; the encoder picks by the file's own type.
+
+**Cost in the session.** Measured on that photo: result PNG 1,285,125 B plus
+original 709,267 chars ≈ **1.99 MB per re-editable sticker** (a text sticker is
+443 KB, no image). Each re-edit copy carries its own copy of the original, so a
+sticker re-edited three times stores the original four times; deduplicating
+originals by hash is the upgrade path if a library ever gets big. `recordSignature`
+in `lib/sessionStore` tracks only *whether* a recipe is present, so the record is
+written when the recipe lands, not on every save.
 
 The erase dialog's own layout follows from the small screens it has to survive:
 the sticker's editor scrolls (with the app's scroll-edge fade from
@@ -514,8 +559,9 @@ never touched. The two dialogs say so in one line each. Because nothing on a
 board changes, **neither action pushes an undo entry** (the undo stance the
 folder actions already take): the way back from an edit is deleting the copy it
 made, and the original is still in the library. The erased copy carries no
-recipe: its pixels are hand work, so a later Re-edit would silently drop the
-strokes; Erase is its door, and Erase again on its own alpha composes.
+recipe: its pixels are hand work over a finished sticker, not an edit of an
+original, so a later Re-edit would silently drop the strokes; Erase is its door,
+and Erase again on its own alpha composes.
 
 A `.koma.json` save rebuilds photos from their data URLs without the recipe, so
 a sticker imported from a file offers Erase only.
@@ -698,7 +744,7 @@ src/
   lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot), file download / clipboard copy, crop report export
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
   lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts, folder CRUD (pure)
-  lib/stickerRecipe.ts  a made sticker's creation recipe (subject + bake style): build, validate, read
+  lib/stickerRecipe.ts  a sticker's original + bake style (the other half of the pair is the record): build, validate, read
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
   lib/browser.ts     which WebView the page was opened in (WeChat's UA) + the best-effort escape from it
