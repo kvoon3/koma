@@ -411,8 +411,9 @@ same commit.
 ```
 
 Each card is the sticker on the transparency checkerboard (the same `stage-clear`
-read the export preview gives a PNG), its folder, a usage badge, and move /
-delete. **Usage is derived, never stored**: every board of every group is
+read the export preview gives a PNG), its folder, a usage badge, and the four
+actions that act on the asset: erase, re-edit (only when it carries a recipe),
+move, delete. **Usage is derived, never stored**: every board of every group is
 scanned for photo ids (pane photos, pane stickers, board stickers, plus the
 collage background), and the count is what the badge shows. Labels contribute
 nothing: their icons are catalog ids, not photos.
@@ -444,6 +445,63 @@ the drawer's own thumbnail grid inside the stage slot, so the cutout, the edge
 effects and the mask editor are the same code on both roads. The save button
 names the target ("Save to Faces"), and every opening starts from an empty
 stage so a new sticker never inherits the last one's pick.
+
+**Erase and Re-edit: two depths of editing an existing sticker.** A saved
+sticker is the *composited* PNG (cutout, border and perforation baked in), so
+there are exactly two things the library can offer over it, and the difference
+is whether the maker's inputs still exist:
+
+- **Erase** (`components/StickerEraseDialog.tsx`) paints the sticker's *own*
+  alpha. It opens the maker's `StickerMaskEditor` over the final PNG: brush
+  keep / erase, lasso, wheel zoom and space-or-two-finger pan, and the same
+  20-snapshot undo, with the commit being source α × mask α (`lib/stickerMask`).
+  Nothing but the record's pixels is needed, so it is offered on **every**
+  sticker, including every one made before this existed. Only the dialog shell
+  is new code; the editor, its undo stack and its commit are shared with the
+  maker's *Adjust cutout*.
+- **Re-edit** reopens the **real maker** (`StickerMakerDialog` in its
+  `reEdit` mode) over the recipe the sticker was saved with, so the outline,
+  the stamp teeth and the material are controls again instead of pixels. It
+  needs `Photo.recipe`; a legacy asset has none and the card does not draw the
+  button at all.
+
+`Photo.recipe` (`lib/stickerRecipe`) is the creation metadata, written once at
+save time by `addStickerAsset` and never edited:
+
+```ts
+type StickerRecipeSource
+  = | { type: 'text', text: string, color: string, fontId: string }
+    | { type: 'image', src: string, name: string, photoId?: string } // src: a PNG data URL, long edge ≤ 960
+
+interface StickerRecipe {
+  source: StickerRecipeSource
+  style: StickerBakeStyle // outline width/color, material, baseName, perforation, displayLongEdge
+}
+```
+
+The image source is the **pixels the bake consumed**, re-encoded to its own PNG
+data URL, not a pointer: a subject may be a text sticker, a file that was never
+imported, or a cutout the user painted by hand in the mask editor, and a photo
+id would describe none of those; an object URL dies with the dialog.
+`photoId` rides along as provenance when the subject did come from the library.
+The cost is one extra PNG per re-editable sticker, held in the session record;
+`stickerRecipeFrom` validates untrusted payloads (a session written by an older
+build, an imported file) and answers null unless every field is there, which is
+exactly the legacy state, and `normalizePhotoRecipes` applies that at hydration.
+
+Both depths **save a NEW record** in the source's folder and never rewrite the
+one they came from: `cat.png` becomes `cat (erased).png` or `cat (edited).png`
+beside it. That is the snapshot principle again: a placed copy draws the asset
+it was placed from, so rewriting the PNG under it would change boards the user
+never touched. The two dialogs say so in one line each. Because nothing on a
+board changes, **neither action pushes an undo entry** (the undo stance the
+folder actions already take): the way back from an edit is deleting the copy it
+made, and the original is still in the library. The erased copy carries no
+recipe: its pixels are hand work, so a later Re-edit would silently drop the
+strokes; Erase is its door, and Erase again on its own alpha composes.
+
+A `.koma.json` save rebuilds photos from their data URLs without the recipe, so
+a sticker imported from a file offers Erase only.
 
 Entry is the top bar's Photo menu (both views); the route is the shape the
 future hub hangs off (grid making / photo management / sticker management).
@@ -623,6 +681,7 @@ src/
   lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot), file download / clipboard copy, crop report export
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
   lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts, folder CRUD (pure)
+  lib/stickerRecipe.ts  a made sticker's creation recipe (subject + bake style): build, validate, read
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
   lib/fonts.ts       curated Google Fonts catalog + runtime loading (with mirror fallback) and text measurement
   lib/browser.ts     which WebView the page was opened in (WeChat's UA) + the best-effort escape from it
@@ -632,7 +691,7 @@ src/
     TopBar.tsx       category menus (workspace / photo / help) + hidden file inputs
     FloatActions.tsx floating back / split / reset buttons under the top bar
     LibraryDrawer.tsx / Library.tsx
-    StickerManager.tsx  #/stickers: the sticker library (folder chips, usage, move / delete)
+    StickerManager.tsx  #/stickers: the sticker library (folder chips, usage, erase / re-edit / move / delete)
     SettingsPanel.tsx
     HelpOverlay.tsx
     ExportDialog.tsx    the preview every export lands in: download / copy / long-press
