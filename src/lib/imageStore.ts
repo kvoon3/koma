@@ -8,6 +8,10 @@ export interface Photo {
   videoFile?: File
   trueW: number
   trueH: number
+  /** WGS-84 camera fix read from the JPEG's EXIF; absent when it has none. */
+  gps?: { lat: number, lng: number }
+  /** EXIF DateTimeOriginal as written by the camera; absent when it has none. */
+  takenAt?: string
 }
 
 export interface Dims {
