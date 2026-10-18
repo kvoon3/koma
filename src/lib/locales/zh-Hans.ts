@@ -508,4 +508,19 @@ export const zhHans: Record<string, string> = {
   'Add a group': '新增分组',
   'Open group {name}': '打开分组 {name}',
   'Delete group?': '删除分组？',
+
+  // Filters (tactile texture filters over a pane's photo)
+  'Filter': '滤镜',
+  'Texture': '质感',
+  'Texture the photo': '给照片加上质感',
+  'Clear filter': '清除滤镜',
+  'None': '无',
+  'Film Grain': '胶片颗粒',
+  'Warm Duotone': '暖调双色',
+  'Cool Duotone': '冷调双色',
+  'Sepia Duotone': '棕褐双色',
+  'Two-Ink Print': '双色孔版',
+  'Cyanotype': '蓝晒',
+  'Paper Tone': '纸感单色',
+  'Bit Grain': '粗粒网点',
 }

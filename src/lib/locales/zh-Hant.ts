@@ -506,4 +506,19 @@ export const zhHant: Record<string, string> = {
   'Add a group': '新增群組',
   'Open group {name}': '開啟群組 {name}',
   'Delete group?': '刪除群組？',
+
+  // Filters (tactile texture filters over a pane's photo)
+  'Filter': '濾鏡',
+  'Texture': '質感',
+  'Texture the photo': '替照片加上質感',
+  'Clear filter': '清除濾鏡',
+  'None': '無',
+  'Film Grain': '底片顆粒',
+  'Warm Duotone': '暖調雙色',
+  'Cool Duotone': '冷調雙色',
+  'Sepia Duotone': '棕褐雙色',
+  'Two-Ink Print': '雙色孔版',
+  'Cyanotype': '藍晒',
+  'Paper Tone': '紙感單色',
+  'Bit Grain': '粗粒網點',
 }

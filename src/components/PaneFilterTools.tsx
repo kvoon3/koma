@@ -1,0 +1,160 @@
+import type { FilterId } from '../lib/filters'
+import type { Photo } from '../lib/imageStore'
+import { Popover } from '@base-ui/react/popover'
+import { Blend, X } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
+import { useEffect, useState } from 'react'
+import { getFilterSwatch, peekFilterSwatch } from '../lib/filterCache'
+import { FILTER_IDS } from '../lib/filters'
+import { useT } from '../lib/i18n'
+import { findLeaf } from '../lib/panes'
+import { activeWs, useStore } from '../store'
+import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
+import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
+
+/**
+ * The drawer's texture tool: one button in the pane tools that opens a palette
+ * of eight tactile filters (see `lib/filters`), each swatch rendered from the
+ * focused pane's own photo, plus None to clear. A sibling of the pane tools
+ * rather than a member of their list, so the dock's order and the tools'
+ * existing layout are untouched (Stage.tsx renders it once, like the rotation
+ * dial next to it).
+ *
+ * Picking a filter commits one undo step (`setPaneFilter`); the pane's preview
+ * swaps to the filtered bitmap the exporter also draws, so what the swatch
+ * shows is what the export prints.
+ */
+
+/** English source names, the keys both dictionaries translate. */
+const FILTER_LABEL: Record<FilterId, string> = {
+  grain: 'Film Grain',
+  duotoneWarm: 'Warm Duotone',
+  duotoneCool: 'Cool Duotone',
+  duotoneSepia: 'Sepia Duotone',
+  print: 'Two-Ink Print',
+  cyanotype: 'Cyanotype',
+  paper: 'Paper Tone',
+  bitgrain: 'Bit Grain',
+}
+
+/** Swatch edge in CSS px (3× rendered in the cache, see `getFilterSwatch`). */
+const SWATCH = 76
+
+const tileCls = 'group/sw flex cursor-pointer flex-col items-center gap-1 rounded-none border border-transparent bg-transparent p-0.5 text-[10.5px] leading-tight text-dim outline-0 transition-[color,border-color] duration-(--dur-fast) hover:text-txt focus-visible:border-accent aria-pressed:border-accent aria-pressed:text-txt disabled:cursor-default disabled:opacity-40'
+
+/** The focused pane, or null (no focus, or the grid route's empty id). */
+function focusedLeaf(s: Parameters<typeof activeWs>[0]) {
+  return findLeaf(activeWs(s).root, activeWs(s).focusId)
+}
+
+/**
+ * One swatch bitmap. The cache does the work (square crop, filter, scale) and
+ * hands back an object URL; a tile that is still rendering keeps the previous
+ * texture-less plane, so opening the palette never flashes white holes.
+ */
+function Swatch({ photo, filterId, label }: { photo: Photo, filterId: FilterId | null, label: string }) {
+  const [url, setUrl] = useState<string | null>(() => peekFilterSwatch(photo.id, filterId, SWATCH))
+  useEffect(() => {
+    let alive = true
+    void getFilterSwatch(photo, filterId, SWATCH).then((u) => {
+      if (alive && u)
+        setUrl(u)
+    })
+    return () => {
+      alive = false
+    }
+  }, [photo, filterId])
+  return url
+    ? <img src={url} alt="" draggable={false} className="block h-full w-full object-cover" />
+    : <div className="h-full w-full animate-pulse bg-panel-2" aria-label={label} />
+}
+
+export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
+  const t = useT()
+  const paneId = useStore(s => activeWs(s).focusId)
+  const photoId = useStore(s => focusedLeaf(s)?.photoId ?? null)
+  const filter = useStore(s => focusedLeaf(s)?.filter)
+  const photo = useStore(s => (photoId ? s.photos.find(p => p.id === photoId) ?? null : null))
+  const setPaneFilter = useStore(s => s.setPaneFilter)
+  const [open, setOpen] = useState(false)
+
+  // Same rule as the pane tools: no focused pane holding a photo, no tool.
+  if (hidden || !photoId || !photo)
+    return null
+
+  const pick = (id: FilterId | null) => setPaneFilter(paneId, id)
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
+        className={`${toolsBtnCls} ${dockBtnStateCls}`}
+        title={t('Texture the photo')}
+        aria-label={t('Texture the photo')}
+        data-dock-tool={t('Filter')}
+        data-dock-filter=""
+      >
+        {/* `Blend`, not a brush or a wand: the wand is the cutout tool's glyph
+         * and a brush reads as "draw". Two layered shapes say "texture over
+         * the photo" and tell apart from every other dock tool at 22px. */}
+        <MorphIcon icon={Blend} size={22} strokeWidth={1.5} />
+        <span className={toolsLabelCls}>{t('Filter')}</span>
+      </Popover.Trigger>
+      <Popover.Portal>
+        {/*
+         * `sticky` for the same reason as the rotation tool: the trigger ends
+         * the dock's scrolling row, and the re-measure on open clamps that
+         * row's scroll, so the anchor has to be shifted back into view.
+         */}
+        <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} sticky className="z-[260] select-none outline-0">
+          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[272px] p-2 text-txt`}>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-dim">{t('Texture')}</span>
+              <button
+                type="button"
+                className="flex h-6 cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-1.5 text-[11px] text-dim outline-0 hover:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35"
+                disabled={!filter}
+                title={t('Clear filter')}
+                aria-label={t('Clear filter')}
+                onClick={() => pick(null)}
+              >
+                <MorphIcon icon={X} size={12} strokeWidth={2} />
+                {t('None')}
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                className={tileCls}
+                aria-pressed={!filter}
+                data-filter-id="none"
+                title={t('None')}
+                onClick={() => pick(null)}
+              >
+                <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
+                  <Swatch photo={photo} filterId={null} label={t('None')} />
+                </span>
+                <span className="max-w-full truncate">{t('None')}</span>
+              </button>
+              {FILTER_IDS.map(id => (
+                <button
+                  key={id}
+                  type="button"
+                  className={tileCls}
+                  aria-pressed={filter === id}
+                  data-filter-id={id}
+                  title={t(FILTER_LABEL[id])}
+                  onClick={() => pick(id)}
+                >
+                  <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
+                    <Swatch photo={photo} filterId={id} label={t(FILTER_LABEL[id])} />
+                  </span>
+                  <span className="max-w-full truncate">{t(FILTER_LABEL[id])}</span>
+                </button>
+              ))}
+            </div>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
