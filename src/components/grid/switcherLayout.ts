@@ -6,9 +6,11 @@
 import type { Node, PaneLabel, Sticker } from '../../lib/panes'
 
 /**
- * How far the board recedes behind the switcher (an app shrinking down). The
- * pager needs it because the board pans inside this scale: its own translate
- * is divided by it so the board still tracks the finger 1:1 on screen.
+ * How far the board recedes behind the switcher (an app shrinking down). This
+ * is the most it recedes: `recedeFit` keeps the whole column below the strip,
+ * so a stage too short for it gets less. The pager needs the scale that was
+ * actually used because the board pans inside it: its own translate is divided
+ * by that, so the board still tracks the finger 1:1 on screen.
  */
 export const RECEDE_SCALE = 0.65
 
@@ -37,6 +39,26 @@ export const CARD_SCALE = 1.08
 
 /** The selection ring around that card: a 2px outline at 1px offset. */
 export const CARD_RING = 3
+
+/**
+ * The board column's caption row (the workspace and snapshot chips). It is
+ * part of the column the recede transforms, so its height is part of the fit.
+ */
+export const CAPTION_H = 30
+
+/** Air under a caption row, over its board. */
+export const CAPTION_GAP = 8
+
+/** Air the stage keeps above and below a board. */
+export const STAGE_PAD_Y = 12
+
+/**
+ * The chrome the dock keeps at the bottom of the stage on the overview route:
+ * its 28px handle over the tools row (70px) over the status bar (31–44px,
+ * `--statusH`). The dock is an overlay, so every board has to be sized above
+ * it: without the reserve the third row of cells ends up under the sheet.
+ */
+export const DOCK_CHROME_H = 144
 
 /** A board's cells, as the pager and the cards read them. */
 export type BoardCells = { id: string, root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
@@ -68,6 +90,100 @@ export function switcherMetrics(stageH: number) {
   const air = Math.ceil(((CARD_SCALE - 1) * cardH) / 2 + CARD_RING) + 3
   const stripH = Math.max(baseH, cardH + 2 + air * 2)
   return { stripH, stripTop, cardH, cardW }
+}
+
+/**
+ * Air between the strip's bottom edge and the receded column's top edge. The
+ * board must read as sitting *below* the strip, not tucked under it.
+ */
+export const RECEDE_GAP = 12
+
+/**
+ * The smallest the fit may shrink the board. The recede is a zoom-out (the
+ * board stays readable as a 3×3), so short stages get a translate before they
+ * get a smaller board; this is only the point where the board stops shrinking
+ * and the stage starts overflowing instead. It only comes into play under about
+ * 310px of stage height (the floor itself near 255px), well below any phone:
+ * the sweep's shortest stage, 329px, still fits whole at the plain recede.
+ */
+export const RECEDE_SCALE_MIN = 0.45
+
+/**
+ * Where the board column (the caption row over the 3×3) sits in the stage
+ * before the recede: the stage's board area is the stage less its own air and
+ * the dock's chrome, and the column is centred in it. A column taller than the
+ * area overflows both ends by the same amount, which is how the shortest
+ * stages (a landscape phone under the 60px cell floor) render today.
+ */
+export function boardColumn(stageH: number, boardH: number) {
+  const h = CAPTION_H + CAPTION_GAP + boardH
+  const areaH = Math.max(1, stageH - STAGE_PAD_Y * 2 - DOCK_CHROME_H)
+  return { top: STAGE_PAD_Y + (areaH - h) / 2, h }
+}
+
+/** The receded board's placement: the column's transform, and where the column lands. */
+export interface Recede {
+  /** The scale the column wears behind the switcher (`RECEDE_SCALE`, or less on a short stage). */
+  scale: number
+  /** How far the whole column is pushed down, in stage px (0 = it already fits). */
+  translateY: number
+  /** The 3×3's top and bottom edges once receded, in stage px. */
+  top: number
+  bottom: number
+  /** The column's own top edge (its caption row), which has to clear the strip too. */
+  columnTop: number
+  /** It ended up whole below the strip and inside the stage (false only at the scale floor). */
+  fits: boolean
+}
+
+/**
+ * Fit the receding column under the strip.
+ *
+ * The column recedes in place (a scale about its own centre) while the strip is
+ * pinned to the top of the stage, so on any stage where the column comes close
+ * to filling its area (every height-limited stage, which is the whole desktop
+ * range) the scaled board's top row lands under the strip and is covered by it.
+ * So the recede carries the shift, and on a stage too short for it, the extra
+ * scale that puts the whole column in the room between the strip and the
+ * stage's floor: the morph stays one zoom-out, replaced end to end.
+ *
+ * The fit is on the column rather than on the 3×3 alone because the caption row
+ * rides in the same transform: shifting only until the board cleared would
+ * leave the top of that row (two chips, 30px at rest) cut off by the strip in
+ * every geometry, which is the reported bug in miniature. Shrinking the board a
+ * little on the shortest stages is the cheaper of the two, and the floor
+ * (`RECEDE_SCALE_MIN`) is what stops it.
+ *
+ * Width is not part of the fit: the column is never wider than the stage less
+ * its air, and the fit never scales past `RECEDE_SCALE`.
+ */
+export function recedeFit({ stageH, boardH, stripTop, stripH }: {
+  /** The stage's height (the box the board and the strip are placed in). */
+  stageH: number
+  /** The 3×3's height as laid out, before the recede. */
+  boardH: number
+  /** The strip's box within the stage, from `switcherMetrics`. */
+  stripTop: number
+  stripH: number
+}): Recede {
+  const column = boardColumn(stageH, boardH)
+  const centre = column.top + column.h / 2
+  const fitTop = stripTop + stripH + RECEDE_GAP
+  const fitBottom = stageH - STAGE_PAD_Y
+  const room = Math.max(1, fitBottom - fitTop)
+  // Never larger than the recede itself; smaller only when the room under the
+  // strip cannot hold the column. Floored, so the board stays a board.
+  const scale = Math.max(RECEDE_SCALE_MIN, Math.floor(Math.min(RECEDE_SCALE, room / Math.max(1, column.h)) * 1000) / 1000)
+  // Where the scaled column's top lands with no shift (a scale about the
+  // column's centre, which is the transform origin the morph already uses).
+  const naturalTop = centre - (column.h / 2) * scale
+  // Only as far down as the column has to go: past the strip's air it stops
+  // where the zoom-out leaves it. Rounded up, so the gap can only grow.
+  const translateY = Math.max(0, Math.ceil((fitTop - naturalTop) * 100) / 100)
+  const columnTop = naturalTop + translateY
+  const boardTop = columnTop + (CAPTION_H + CAPTION_GAP) * scale
+  const bottom = boardTop + boardH * scale
+  return { scale, translateY, top: boardTop, bottom, columnTop, fits: columnTop >= fitTop && bottom <= stageH }
 }
 
 /**
