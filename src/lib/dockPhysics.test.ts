@@ -13,8 +13,15 @@ describe('rubberBand', () => {
   })
   it('dampOffset passes through inside the range', () => {
     expect(dampOffset(60, 0, 200)).toBe(60)
-    expect(dampOffset(-100, 0, 200)).toBeGreaterThan(-100)
-    expect(dampOffset(-100, 0, 200)).toBeLessThan(0)
+  })
+  it('dampOffset stops dead at the largest snap (the sheet is bottom-anchored)', () => {
+    // `min` is the largest height: travel above it would lift the sheet's
+    // bottom edge off the footer and show the board behind the dock's clip.
+    expect(dampOffset(-100, 0, 200)).toBe(0)
+    expect(dampOffset(-1, 0, 200)).toBe(0)
+  })
+  it('dampOffset still gives at the put-away end', () => {
+    expect(dampOffset(300, 0, 200)).toBeGreaterThan(200)
     expect(dampOffset(300, 0, 200)).toBeLessThan(300)
   })
 })

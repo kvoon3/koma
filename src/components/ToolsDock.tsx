@@ -822,7 +822,11 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       }
     }
     const move = (v: number) => {
-      el.style.transform = `translateY(${v}px)`
+      // The sheet is bottom-anchored (its bottom edge is the footer's top, see
+      // the clip above): `y` is only ever the distance below the largest snap.
+      // A negative one (a spring overshoot on an upward flick) must not lift
+      // the sheet and show the board through the clip.
+      el.style.transform = `translateY(${Math.max(0, v)}px)`
       sync(v)
     }
     move(y.get())
