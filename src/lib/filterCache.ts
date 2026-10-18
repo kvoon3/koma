@@ -184,7 +184,7 @@ export function peekFilterSwatch(photoId: string, filter: FilterValue | null, px
  * A dock swatch: a 1:1 loupe into the photo's *filtered* preview, centred, at
  * `px` CSS pixels, one bitmap pixel per CSS pixel with no shrinking. Showing a
  * crop rather than the whole photo is what makes the texture legible: the
- * filters are resolution independent, so a photo squeezed into a 76px chip
+ * filters are resolution independent, so a photo squeezed into a 72px chip
  * averages its own grain away. 1:1 is what makes the dials honest: the dialled
  * block, tile or dither cell is counted in pixels of that same bitmap, so a
  * dial of 16 prints 16-pixel blocks in the swatch and the eye judges the

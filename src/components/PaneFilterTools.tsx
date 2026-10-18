@@ -148,7 +148,7 @@ function ParamStrip({ spec, onChange }: { spec: FilterSpec, onChange: (knob: Fil
     return null
   const label = (knob: FilterKnob) => t(KNOB_LABEL[spec.id]?.[knob] ?? knob)
   return (
-    <div className="mt-2 flex flex-col gap-1.5 border-t border-line pt-2" data-filter-strip={spec.id}>
+    <div className="mb-2 flex flex-col gap-1.5 border-b border-line pb-2" data-filter-strip={spec.id}>
       {defs.map((d) => {
         const value = spec[d.knob] ?? d.def
         if (d.knob === 'ink') {
@@ -242,9 +242,10 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
          * row's scroll, so the anchor has to be shifted back into view.
          */}
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} sticky className="z-[260] select-none outline-0">
-          {/* Scrolls inside its cap: the grid grew to fourteen tiles plus the
-           * parameter strip, and a short window must still reach the last one. */}
-          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} max-h-[min(72dvh,560px)] w-[326px] overflow-y-auto p-2 text-txt`}>
+          {/* Capped and column-laid: the header and the parameter strip are
+           * fixed, and the tile grid is what scrolls, so a short window can
+           * still reach every filter without hiding the dials being turned. */}
+          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} flex max-h-[min(72dvh,560px)] w-[326px] flex-col p-2 text-txt`}>
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-[11px] font-semibold text-dim">{t('Texture')}</span>
               <button
@@ -259,7 +260,8 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
                 {t('Clear filter')}
               </button>
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
+            {spec && <ParamStrip spec={spec} onChange={setKnob} />}
+            <div className="mt-2 grid min-h-0 grid-cols-4 gap-1.5 overflow-y-auto">
               <button
                 type="button"
                 className={tileCls}
@@ -296,7 +298,6 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
                 )
               })}
             </div>
-            {spec && <ParamStrip spec={spec} onChange={setKnob} />}
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>
