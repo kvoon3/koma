@@ -1,7 +1,7 @@
 /**
  * The board pager: the receded board inside the switcher, dragged sideways so
  * the neighbouring group's board slides in from the far edge (macOS Spaces),
- * and pulled up to leave the switcher again.
+ * tapped to leave the switcher, and pulled up to leave it as well.
  *
  * The rules are the tools dock's (`lib/dockPhysics`), by way of
  * `lib/boardPager`: a release snaps to the page its position and velocity point
@@ -12,14 +12,15 @@
  *
  * The gesture is axis-locked with the vertical pull (`lockedAxis`): sideways is
  * the pager, up is the exit, and a drag too close to the diagonal decides
- * nothing until one side wins.
+ * nothing until one side wins. A press that never leaves the slop is a tap,
+ * and a tap on the board goes back to the overview (`pagerRelease`).
  */
 import type { MotionValue } from 'motion/react'
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { animate, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { PAGER_SLOP, PAGER_SNAP_MS, pagerOffset, pagerRestOffset, pagerStep, pagerTravel } from '../../lib/boardPager'
+import { PAGER_SLOP, PAGER_SNAP_MS, pagerOffset, pagerRelease, pagerRestOffset, pagerStep, pagerTravel } from '../../lib/boardPager'
 import { EASE_OUT } from '../../lib/motionTokens'
 import { prefersReducedMotion } from '../../lib/viewTransition'
 import { useStore } from '../../store'
@@ -45,7 +46,7 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recede
   gridIds: string[]
   /** Where the open group sits in that row. */
   activeIdx: number
-  /** Leave the switcher: the pull-up exit, the mirror of the overview's pull-down. */
+  /** Leave the switcher: the tap exit and the pull-up one (the same path as the dim click). */
   onExit: () => void
 }) {
   /**
@@ -60,8 +61,9 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recede
   const trackRef = useRef<HTMLDivElement | null>(null)
   const geomRef = useRef({ travel: 0 })
   // The press's origin (x0/y0, the 1:1 reference) and its last sample (x/t,
-  // for the release speed).
-  const dragRef = useRef<null | { id: number, x0: number, y0: number, x: number, y: number, t: number, v: number, axis: 'x' | 'y' | null }>(null)
+  // for the release speed); `settling` is whether the board was still landing
+  // when the press began.
+  const dragRef = useRef<null | { id: number, x0: number, y0: number, x: number, y: number, t: number, v: number, axis: 'x' | 'y' | null, settling: boolean }>(null)
   const snapRef = useRef<null | { stop: () => void }>(null)
   const settlingRef = useRef(false)
 
@@ -180,12 +182,39 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recede
   }
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    // A settling board owns the pager until it lands (200ms): a second press
-    // mid-settle would fight the animation.
-    if (e.button !== 0 || settlingRef.current)
+    // A settling board owns the pager until it lands (200ms), but the press is
+    // still recorded: a tap mid-settle is a tap like any other (leaving must
+    // never feel dead), while a drag there is dropped at the slop below so it
+    // cannot fight the animation.
+    if (e.button !== 0)
       return
-    dragRef.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: e.timeStamp, v: 0, axis: null }
+    dragRef.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: e.timeStamp, v: 0, axis: null, settling: settlingRef.current }
     e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  /**
+   * Lock the press's axis once it is past the slop. False = this move is not a
+   * drag (still a press under the slop, too close to the diagonal to decide, or
+   * dropped because the board was still landing when the press began).
+   */
+  const lockAxis = (d: NonNullable<typeof dragRef.current>, dx: number, dy: number) => {
+    if (d.axis !== null)
+      return true
+    // Under the slop the press is still a click; past it the gesture keeps the
+    // axis it picks (sideways = pager, upward = out of the switcher).
+    if (Math.abs(dx) < PAGER_SLOP && Math.abs(dy) < PAGER_SLOP)
+      return false
+    const axis = lockedAxis(dx, dy)
+    if (!axis)
+      return false
+    // A drag that starts while the board is landing would fight the settle:
+    // drop it. A tap never locks an axis, so it still reaches the exit.
+    if (d.settling) {
+      dragRef.current = null
+      return false
+    }
+    d.axis = axis
+    return true
   }
 
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -194,16 +223,8 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recede
       return
     const dx = e.clientX - d.x0
     const dy = e.clientY - d.y0
-    if (d.axis === null) {
-      // Under the slop the press is still a click; past it the gesture keeps
-      // the axis it picks (sideways = pager, upward = out of the switcher).
-      if (Math.abs(dx) < PAGER_SLOP && Math.abs(dy) < PAGER_SLOP)
-        return
-      const axis = lockedAxis(dx, dy)
-      if (!axis)
-        return
-      d.axis = axis
-    }
+    if (!lockAxis(d, dx, dy))
+      return
     if (d.axis === 'y') {
       pullUp(e, dy)
       return
@@ -231,11 +252,19 @@ export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recede
       return
     dragRef.current = null
     releaseCapture(e.currentTarget, e.pointerId)
-    // A click, or a vertical gesture: nothing moved, nothing switches.
-    if (d.axis !== 'x')
+    const cancelled = e.type === 'pointercancel'
+    const release = pagerRelease({ axis: d.axis, dx: e.clientX - d.x0, dy: e.clientY - d.y0, cancelled })
+    // A tap on the board is the way out: the surface covers the biggest target
+    // on screen, so it must not swallow the click (the dim's exit, reused).
+    if (release === 'tap') {
+      onExit()
+      return
+    }
+    // A vertical gesture under the pull's commit: nothing moved, nothing switches.
+    if (release === 'stay')
       return
     // A held release has no momentum left (and a cancelled one never had it).
-    settle(e.type === 'pointercancel' || e.timeStamp - d.t > 80 ? 0 : d.v)
+    settle(cancelled || e.timeStamp - d.t > 80 ? 0 : d.v)
   }
 
   /** A capture lost mid-gesture (the element going away, the OS taking the pointer) is still a release. */

@@ -277,8 +277,8 @@ into the receded one and back; the strip drops in and lifts out as its own
 anywhere on the board area (a vertical axis lock past a small slop, then 70px,
 so a tap, a short drag and a sideways drag all stay put). A card click zooms
 back into that workspace (a neighbour first switches the open group,
-navigation, no undo step), and the backdrop, Esc or a pull up on the receded
-board returns to the overview as it was. The strip is **browsing only**: it
+navigation, no undo step), and the backdrop, a tap on the receded board, Esc or
+a pull up on it returns to the overview as it was. The strip is **browsing only**: it
 scrolls sideways (scroll-snap on the cards, free scroll, on open the open
 group's card is centred) and never switches the group, so the ring always
 marks the open one and the board pager is the one way to change it.
@@ -308,9 +308,11 @@ settle is 200ms of `--ease-out`; `prefers-reduced-motion` makes it instant,
 while the drag itself stays 1:1, because user-driven motion is not decoration.
 A drag that is upward instead of sideways is the way out: 70px up and the
 switcher closes, the mirror of the pull down that opened it, on the same axis
-lock so neither gesture steals the other early. A click on the board (under the
-slop) does nothing, and Esc or the backdrop put the board home again
-mid-gesture.
+lock so neither gesture steals the other early. A tap on the board (under the
+slop) is the way out, the same exit the backdrop gives: the surface covers the
+biggest target on screen and must not swallow it, while a drag too close to the
+diagonal to lock an axis decides nothing. Esc or the backdrop put the board
+home again mid-gesture.
 
 The store keeps the open group's cells in `workspaces`, so every pane and board
 action, and every reader of "the board", still works on the board in view, and

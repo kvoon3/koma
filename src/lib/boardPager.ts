@@ -80,3 +80,44 @@ export function pagerStep(pos: number, velocity: number, travel: number, hasPrev
 export function pagerRestOffset(step: -1 | 0 | 1, travel: number): number {
   return step === 0 ? 0 : step > 0 ? -travel : travel
 }
+
+/**
+ * What letting go of the receded board means: `tap` leaves the switcher (back
+ * to the overview), `page` settles onto a board, `stay` does nothing.
+ */
+export type PagerRelease = 'tap' | 'page' | 'stay'
+
+/**
+ * The release rule, decided in one place.
+ *
+ * A press that never locked an axis and never left the slop is a tap: the
+ * receded board is the biggest target on screen, so a tap on it is the way back
+ * to the overview (the same exit the dim gives), where it used to be swallowed
+ * by the gesture surface. A sideways gesture settles a page (a held or
+ * cancelled one included: it lands where it is). A vertical one either already
+ * committed the pull-up exit, or was too short to be anything, so the board
+ * stays put.
+ *
+ * The `Math.max` is the diagonal: the axis lock fires on either axis alone
+ * (`lockedAxis`), so a gesture too close to the diagonal to lock a side can be
+ * past the slop and still have `axis === null`: that is a drag that decided
+ * nothing, not a tap.
+ *
+ * A cancelled pointer is never a tap: the OS or the element took the gesture,
+ * and a click is something the user completed.
+ */
+export function pagerRelease({ axis, dx, dy, cancelled }: {
+  /** The axis the gesture locked, once past `PAGER_SLOP` (null = it never did). */
+  axis: 'x' | 'y' | null
+  /** Total travel since the press, in screen px. */
+  dx: number
+  dy: number
+  /** The release was a `pointercancel` (or the capture went away). */
+  cancelled: boolean
+}): PagerRelease {
+  if (axis === 'x')
+    return 'page'
+  if (cancelled || axis === 'y')
+    return 'stay'
+  return Math.max(Math.abs(dx), Math.abs(dy)) < PAGER_SLOP ? 'tap' : 'stay'
+}

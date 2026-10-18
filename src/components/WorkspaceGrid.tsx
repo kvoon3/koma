@@ -77,7 +77,8 @@ const deleteFirst: CollisionDetection = (args) => {
  * on the board) opens the Mission Control-style switcher over the receding
  * board: a frosted strip of one card per group, where + copies the open board
  * into a new group, × deletes one, and a click zooms back into the picked
- * workspace. A pull up on the receded board, Esc or the dim leaves it again.
+ * workspace. A tap on the receded board, a pull up on it, Esc or the dim
+ * leaves it again.
  * The pieces live next door: the cell previews and the switcher's own surface
  * in `grid/CellPreview` and `grid/WorkspaceSwitcher`, the board pager's
  * physics and gestures in `grid/useBoardPager`.
@@ -207,9 +208,9 @@ export function WorkspaceGrid() {
 
   /**
    * The gesture surface over the receded board: above the dim, under the strip,
-   * so a press on the board is a pager drag (or a pull up out of the switcher)
-   * while a click there does nothing (it used to fall through to the dim and
-   * leave the switcher).
+   * so a press on the board is a pager drag, a pull up out of the switcher, or
+   * a tap that leaves it the way the dim does (the board is the biggest target
+   * on screen, and the surface used to swallow that click).
    */
   const surface = (
     <PagerSurface
