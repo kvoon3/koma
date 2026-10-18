@@ -20,12 +20,10 @@ import { animate, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { PAGER_SLOP, PAGER_SNAP_MS, pagerOffset, pagerRestOffset, pagerStep, pagerTravel } from '../../lib/boardPager'
+import { EASE_OUT } from '../../lib/motionTokens'
 import { prefersReducedMotion } from '../../lib/viewTransition'
 import { useStore } from '../../store'
 import { lockedAxis, PULL_COMMIT, releaseCapture } from './switcherLayout'
-
-/** `--ease-out` as JS: the pager's settle uses the same curve as the CSS. */
-const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1]
 
 export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recedeScale, cell, boxH, gap, cellCount, gridIds, activeIdx, onExit }: {
   /** The switcher is open: the surface is measured, and a close resets the pan. */
