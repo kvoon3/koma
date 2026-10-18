@@ -79,7 +79,7 @@ function variantSummary(history: History<unknown>, t: ReturnType<typeof useT>, i
 export function HistoryPanel({ open, onOpenChange, anchor }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** What the panel hangs under: the top bar's history anchor. */
+  /** What the panel hangs under: the float cluster's History button. */
   anchor: RefObject<HTMLElement | null>
 }) {
   const t = useT()
@@ -163,7 +163,7 @@ export function HistoryPanel({ open, onOpenChange, anchor }: {
         <Popover.Positioner
           anchor={anchor}
           side="bottom"
-          align="start"
+          align="end"
           sideOffset={4}
           collisionPadding={6}
           className="z-[260] select-none outline-0"

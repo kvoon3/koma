@@ -666,6 +666,7 @@ export const zhHans: Record<string, string> = {
 
   // History (wave35/history-tree): the step tree panel and its step labels
   'History': '历史',
+  'History · all steps': '历史 · 全部步骤',
   '{n} steps': '{n} 步',
   '{n} variants': '{n} 个分支',
   'No steps yet': '还没有步骤',
