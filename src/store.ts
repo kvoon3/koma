@@ -9,6 +9,7 @@ import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { clearFilterCaches } from './lib/filterCache'
+import { readExif } from './lib/exif'
 import {
   clearTreePhotos,
   GRID_CELL_RATIO,
@@ -333,8 +334,21 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       }))
     }
 
-    for (const p of added)
+    // EXIF is a second header read, run beside the dimension probe: GPS and
+    // capture time land on the library entry without blocking the import.
+    const probeExif = async (p: Photo) => {
+      const exif = await readExif(p.file)
+      if (!exif?.gps && !exif?.takenAt)
+        return
+      set(s => ({
+        photos: s.photos.map(x => (x.id === p.id ? { ...x, gps: exif.gps, takenAt: exif.takenAt } : x)),
+      }))
+    }
+
+    for (const p of added) {
       void probeDims(p)
+      void probeExif(p)
+    }
 
     // The library itself is not undoable (an undo never drops imported files:
     // the snapshot leaves `photos` alone), but the auto-fill it triggers is,
