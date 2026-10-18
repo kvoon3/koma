@@ -35,11 +35,27 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - lib/motionTokens.ts for the shared ease curve hardcoded in dockSwap/dockFlip/boardPager (S)
 - paneCommands.ts: one file one job (S)
 
+## Wave 3.5 (approved order)
+
+1. **Pixelation filters** (replaces the glyph/painterly tier-2 direction): mosaic, tiled-grout, diamond lattice, AM halftone (screen angle, mono/duotone), Bayer ordered dither (1-bit + color-preserving), constant dot screen; sliders WYSIWYG in stage px; clean-room as before
+2. **Sticker management first**: CRUD, categories, a dedicated management page (the original roadmap item)
+3. **Sticker erase second**: re-editing EXISTING stickers (reopen the mask editor from the library/board)
+4. **History tree**: undo/redo as a step tree with a /tree-style jump UI
+- Deferred (enhanced sticker-making batch): stamp as a separate flow, wrinkled paper, camera capture
+
 ## Wave 3: content features (read-only on the exporter)
 
 - **Detent rotation common component** + pane rotation/flip (`panes.ts`, `Pane.tsx`): every later rotation UI reuses it.
 - **Dock rework** (`ToolsDock.tsx`, `toolsDockMode.ts`, `dockPhysics.ts`): whole-drawer drag gesture, fix text-insert tools display, drop the minimized state for the three display modes, ratio control when nothing is selected. One agent owns the dock.
 - **Dual 9-grid comparison** (`workspaces.ts`, `WorkspaceGrid.tsx`, `Stage.tsx`).
+
+## Wave 3.5 (approved order)
+
+1. **Pixelation filters** (replaces the glyph/painterly tier-2 direction): mosaic, tiled-grout, diamond lattice, AM halftone (screen angle, mono/duotone), Bayer ordered dither (1-bit + color-preserving), constant dot screen; sliders WYSIWYG in stage px; clean-room as before
+2. **Sticker management first**: CRUD, categories, a dedicated management page (the original roadmap item)
+3. **Sticker erase second**: re-editing EXISTING stickers (reopen the mask editor from the library/board)
+4. **History tree**: undo/redo as a step tree with a /tree-style jump UI
+- Deferred (enhanced sticker-making batch): stamp as a separate flow, wrinkled paper, camera capture
 
 ## Wave 3: content features (read-only on the exporter)
 
