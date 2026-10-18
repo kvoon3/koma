@@ -3,7 +3,7 @@ import type { Photo } from '../lib/imageStore'
 import { Popover } from '@base-ui/react/popover'
 import { Blend, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { getFilterSwatch, peekFilterSwatch } from '../lib/filterCache'
 import { defaultFilter, FILTER_IDS, FILTER_PARAMS, filterKey, resolveFilter } from '../lib/filters'
 import { useT } from '../lib/i18n'
@@ -69,6 +69,13 @@ const KNOB_LABEL: Partial<Record<FilterId, Partial<Record<FilterKnob, string>>>>
 
 /** Unit written after a knob's number (the two enums carry none). */
 const KNOB_UNIT: Partial<Record<FilterKnob, string>> = { block: 'px', angle: '°' }
+
+/** The window's size, as the one external value the popover's bounds depend on. */
+const viewportKey = () => `${window.innerWidth}x${window.innerHeight}`
+function subscribeViewport(onChange: () => void) {
+  window.addEventListener('resize', onChange)
+  return () => window.removeEventListener('resize', onChange)
+}
 
 /** Swatch edge in CSS px. The cache draws it 1:1, so this is also the loupe's window in bitmap pixels. */
 const SWATCH = 72
@@ -206,6 +213,32 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   const photo = useStore(s => (photoId ? s.photos.find(p => p.id === photoId) ?? null : null))
   const setPaneFilter = useStore(s => s.setPaneFilter)
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const viewport = useSyncExternalStore(subscribeViewport, viewportKey, () => '0x0')
+
+  /**
+   * The dock is a bottom sheet overlaying the stage, so "above the trigger" is
+   * not "above the dock": at a short window the palette's lower rows land under
+   * the sheet's chrome. Anchor the popup above the sheet's top edge instead, and
+   * cap its height to the room over that edge. Measured while open, and again
+   * whenever the window resizes (the sheet only changes size when the dock's
+   * mode does, and that tap closes the popover first).
+   */
+  const bounds = useMemo(() => {
+    const trigger = triggerRef.current
+    if (!open || !trigger)
+      return null
+    const t = trigger.getBoundingClientRect()
+    const sheet = trigger.closest('[data-dock-mode]')
+    const sheetTop = sheet ? sheet.getBoundingClientRect().top : t.top
+    // The container's height is the last resort, in case the sheet's own box is
+    // mid-animation when it is read.
+    const room = Number(viewport.split('x')[1]) || window.innerHeight
+    return {
+      offset: Math.max(6, Math.round(t.top - sheetTop) + 6),
+      maxH: Math.max(180, Math.min(560, Math.round(sheetTop) - 16, room - 16)),
+    }
+  }, [open, viewport])
 
   // Same rule as the pane tools: no focused pane holding a photo, no tool.
   if (hidden || !photoId || !photo)
@@ -223,6 +256,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
+        ref={triggerRef}
         className={`${toolsBtnCls} ${dockBtnStateCls}`}
         title={t('Texture the photo')}
         aria-label={t('Texture the photo')}
@@ -241,11 +275,21 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
          * the dock's scrolling row, and the re-measure on open clamps that
          * row's scroll, so the anchor has to be shifted back into view.
          */}
-        <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} sticky className="z-[260] select-none outline-0">
-          {/* Capped and column-laid: the header and the parameter strip are
-           * fixed, and the tile grid is what scrolls, so a short window can
-           * still reach every filter without hiding the dials being turned. */}
-          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} flex max-h-[min(72dvh,560px)] w-[326px] flex-col p-2 text-txt`}>
+        <Popover.Positioner
+          side="top"
+          align="center"
+          sideOffset={bounds?.offset ?? 6}
+          collisionPadding={8}
+          sticky
+          className="z-[260] select-none outline-0"
+        >
+          {/* Capped to the room above the dock (`bounds`), with the strip and the
+           * tiles in one scrolling body: a short window reaches every filter and
+           * the last row still sits above the sheet, never behind it. */}
+          <Popover.Popup
+            className={`${menuSurfaceCls} ${dockPopupMotionCls} flex w-[326px] flex-col p-2 text-txt`}
+            style={bounds ? { maxHeight: bounds.maxH } : undefined}
+          >
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-[11px] font-semibold text-dim">{t('Texture')}</span>
               <button
@@ -260,43 +304,45 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
                 {t('Clear filter')}
               </button>
             </div>
-            {spec && <ParamStrip spec={spec} onChange={setKnob} />}
-            <div className="mt-2 grid min-h-0 grid-cols-4 gap-1.5 overflow-y-auto">
-              <button
-                type="button"
-                className={tileCls}
-                aria-pressed={!filter}
-                data-filter-id="none"
-                title={t('None')}
-                onClick={() => pick(null)}
-              >
-                <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
-                  <Swatch photo={photo} filter={null} />
-                </span>
-                <span className="max-w-full truncate">{t('None')}</span>
-              </button>
-              {FILTER_IDS.map((id) => {
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-filter-body="">
+              {spec && <ParamStrip spec={spec} onChange={setKnob} />}
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                <button
+                  type="button"
+                  className={tileCls}
+                  aria-pressed={!filter}
+                  data-filter-id="none"
+                  title={t('None')}
+                  onClick={() => pick(null)}
+                >
+                  <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
+                    <Swatch photo={photo} filter={null} />
+                  </span>
+                  <span className="max-w-full truncate">{t('None')}</span>
+                </button>
+                {FILTER_IDS.map((id) => {
                 // The active tile shows the live setting; the others their
                 // defaults, so the palette is one glance per filter.
-                const active = spec?.id === id
-                const value: FilterValue = active && filter ? filter : defaultFilter(id)
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    className={tileCls}
-                    aria-pressed={active}
-                    data-filter-id={id}
-                    title={t(FILTER_LABEL[id])}
-                    onClick={() => pick(id)}
-                  >
-                    <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
-                      <Swatch photo={photo} filter={value} />
-                    </span>
-                    <span className="max-w-full truncate">{t(FILTER_LABEL[id])}</span>
-                  </button>
-                )
-              })}
+                  const active = spec?.id === id
+                  const value: FilterValue = active && filter ? filter : defaultFilter(id)
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={tileCls}
+                      aria-pressed={active}
+                      data-filter-id={id}
+                      title={t(FILTER_LABEL[id])}
+                      onClick={() => pick(id)}
+                    >
+                      <span className="block overflow-hidden rounded-none border border-line-strong" style={{ width: SWATCH, height: SWATCH }}>
+                        <Swatch photo={photo} filter={value} />
+                      </span>
+                      <span className="max-w-full truncate">{t(FILTER_LABEL[id])}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </Popover.Popup>
         </Popover.Positioner>
