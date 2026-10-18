@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import type { FilterId } from './filters'
 
 export interface Rect {
   x: number
@@ -100,6 +101,14 @@ export interface Leaf {
   flipX?: boolean
   /** Mirror the pane's photo top/bottom; absent means not flipped. */
   flipY?: boolean
+  /**
+   * Tactile texture filter over the photo (see `lib/filters`); absent means
+   * none. It travels with the photo like `rot` and the mirrors: it resets when
+   * a photo arrives, and copies with duplicate / copy+paste / swap. Preview and
+   * export both run the filter on the photo's pixels before placement and the
+   * turn, so the texture is baked into the photo rather than laid over the pane.
+   */
+  filter?: FilterId
   /**
    * Legacy per-pane stickers. New inserts live on `Workspace.stickers` (board
    * space). Kept so session / `.koma.json` files migrate without data loss.
@@ -363,6 +372,7 @@ export function swapLeafContents(root: Node, a: string, b: string): Node {
     rot: l.rot,
     flipX: l.flipX,
     flipY: l.flipY,
+    filter: l.filter,
     stickers: [],
     label: null,
   })

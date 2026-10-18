@@ -1,4 +1,5 @@
 import type { CutoutMap } from './lib/cutout'
+import type { FilterId } from './lib/filters'
 import type { History } from './lib/history'
 import type { Photo } from './lib/imageStore'
 import type { FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
@@ -7,6 +8,7 @@ import type { PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { clearFilterCaches } from './lib/filterCache'
 import {
   clearTreePhotos,
   GRID_CELL_RATIO,
@@ -88,10 +90,11 @@ export interface PaneClip {
   zoom: number
   cx: number
   cy: number
-  /** Framing that travels with the photo: its turn and its mirrors. */
+  /** Framing that travels with the photo: its turn, its mirrors, its texture. */
   rot?: number
   flipX?: boolean
   flipY?: boolean
+  filter?: FilterId
   stickers: Sticker[]
   label: PaneLabel | null
 }
@@ -343,6 +346,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   clearLibrary: () => {
     clearImageCaches()
+    clearFilterCaches()
     void clearSession()
     set(s => ({
       photos: [],
@@ -611,6 +615,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       rot: src.rot,
       flipX: src.flipX,
       flipY: src.flipY,
+      filter: src.filter,
       stickers: [],
       label: null,
     })
@@ -635,6 +640,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           rot: 0,
           flipX: false,
           flipY: false,
+          filter: undefined,
           stickers: [],
           label: null,
         }),
@@ -656,6 +662,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           rot: leaf.rot,
           flipX: leaf.flipX,
           flipY: leaf.flipY,
+          filter: leaf.filter,
           stickers: [],
           label: null,
         },
@@ -679,6 +686,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           rot: clip.rot ?? 0,
           flipX: clip.flipX ?? false,
           flipY: clip.flipY ?? false,
+          filter: clip.filter,
           stickers: [],
           label: null,
         }),
@@ -788,6 +796,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           rot: 0,
           flipX: false,
           flipY: false,
+          filter: undefined,
           stickers: [],
         }),
       })),
@@ -819,6 +828,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
           rot: 0,
           flipX: false,
           flipY: false,
+          filter: undefined,
           stickers: [],
         }),
         focusId: paneId,
@@ -848,6 +858,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         rot: 0,
         flipX: false,
         flipY: false,
+        filter: undefined,
         stickers: [],
       })
       focusId = leaf.id
@@ -888,6 +899,21 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const patch: Partial<Leaf> = axis === 'x' ? { flipX: !leaf.flipX } : { flipY: !leaf.flipY }
     commit()
     set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) }))
+  },
+
+  /**
+   * Set or clear a pane's texture filter: one tap, one undo step (untagged, like
+   * a flip). Clearing stores `undefined` so an untouched pane and a cleared one
+   * serialize the same, and so a session round-trip cannot resurrect it.
+   */
+  setPaneFilter: (paneId, filter) => {
+    const leaf = findLeaf(activeWs(get()).root, paneId)
+    if (!leaf || (leaf.filter ?? null) === (filter ?? null))
+      return
+    commit()
+    set(s => ({
+      workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, { filter: filter ?? undefined }) })),
+    }))
   },
 
   /** Back upright and unflipped in one step (the dial's 0 / double-click). */
@@ -1184,6 +1210,8 @@ interface Actions {
   flipPane: (paneId: string, axis: 'x' | 'y') => void
   /** Back upright and unflipped in one step. */
   resetPaneRotation: (paneId: string) => void
+  /** Apply one texture filter to the pane's photo, or null to clear it. */
+  setPaneFilter: (paneId: string, filter: FilterId | null) => void
   focus: (paneId: string) => void
   focusNeighbor: (dir: FocusDir) => void
   selectLabel: (labelId: string | null) => void
