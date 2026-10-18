@@ -50,7 +50,7 @@ export function Hub() {
       icon: Images,
       title: t('Photo management'),
       blurb: t('Every imported photo in one contact sheet, tagged and searchable.'),
-      count: t('{n} photos', { n: photos }),
+      count: t('{n} in the photo library', { n: photos }),
     },
     {
       key: 'stickers',
@@ -58,7 +58,7 @@ export function Hub() {
       icon: StickerIcon,
       title: t('Sticker management'),
       blurb: t('The stickers you made, in folders, with where each one is used.'),
-      count: t('{n} stickers', { n: stickers }),
+      count: t('{n} in the sticker library', { n: stickers }),
     },
   ]
 
