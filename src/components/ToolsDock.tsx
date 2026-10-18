@@ -40,7 +40,17 @@ const FALLBACK_ICON_ROW = 48
 
 const handleCls = 'relative z-1 flex h-[28px] w-full shrink-0 cursor-grab touch-none select-none items-center justify-center border-0 bg-transparent p-0 text-float-icon transition-[color,scale] duration-(--dur-surface) active:cursor-grabbing active:scale-[0.97] hover:text-txt'
 const scrollRowCls = 'overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
-const scrollExpCls = 'overflow-x-hidden overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
+/**
+ * The expanded list scrolls with `overflow-y: scroll`, never `auto`: the wrap
+ * only depends on the list's width, and a classic scrollbar (Windows, macOS
+ * with always-show) takes 9px of that width. With `auto` the gutter appears
+ * and disappears with the overflow, so the width, the wrap and the overflow
+ * feed each other: the wrapped rows flip between 2 and 3, the sheet's snap
+ * height with them, and the items jitter at frame rate. Always reserving the
+ * gutter makes the width independent of the overflow. Overlay scrollbars
+ * reserve nothing, so those environments are unchanged (measured).
+ */
+const scrollExpCls = 'overflow-x-hidden overflow-y-scroll overscroll-contain [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
 /** While the drawer itself is being dragged its lists hold still (see `data-swiping`). */
 const scrollLockCls = 'group-data-swiping/dock:overflow-hidden group-data-swiping/dock:touch-none'
 const rowCls = 'flex w-max items-stretch'
@@ -504,6 +514,11 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     el.style.width = prevW
     el.style.maxWidth = prevMax
     el.style.visibility = prevVis
+    // Commit the restored display while transitions are still off: the icons
+    // pass forces the caption to max-height 0, and restoring it alone would
+    // animate the caption back, so every pass started a fade whose mid-fade
+    // height flipped the list's overflow and re-triggered the pass.
+    void el.offsetHeight
     sheet?.removeAttribute('data-dock-measuring')
     // Styles are back and nothing has painted since the clamp: put the row
     // where the user left it, so tapping a tool does not scroll the row (and
