@@ -602,5 +602,5 @@ export const zhHant: Record<string, string> = {
   'Unused': '未使用',
   'Used in {n} places on the board': '在畫布上被使用了 {n} 處',
   'Not placed on the board': '還沒有放到畫布上',
-  'No stickers here yet. Make one from a pane with the Make tool and it lands in this library.': '這裡還沒有貼圖。在窗格裡用「製作」工具做一張，它就會進到這個素材庫。',
+  'No stickers here yet. Make one with the New sticker button above.': '這裡還沒有貼圖。點上方「製作貼圖」做一張，它就會進到這個素材庫。',
 }
