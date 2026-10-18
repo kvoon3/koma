@@ -25,8 +25,14 @@ export const fieldValueCls = 'col-start-2 row-start-1 justify-self-end text-righ
  */
 export const colorInputCls = 'box-border h-[26px] cursor-pointer rounded-none border bg-panel-2 p-0 focus-visible:border-accent focus-visible:outline-1 focus-visible:outline-accent [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-0'
 
-/** The drawer's square slider thumb: accent hairline, panel fill. */
-const sliderThumbCls = 'box-border h-3 w-3 select-none rounded-none border border-accent bg-panel has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2'
+/**
+ * The drawer's square slider thumb: accent face inside a panel hairline, so it
+ * reads as a handle at every value. A panel fill with an accent border only
+ * looked like a handle while the accent track ran into it: at the minimum (a
+ * zero-length fill) the same square read as a bare checkbox, which is what the
+ * parameter strip's 0-valued Speckle dial showed.
+ */
+const sliderThumbCls = 'box-border h-3 w-3 select-none rounded-none border border-panel bg-accent has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2'
 
 /**
  * The shared Base UI slider chrome (track + square thumb). Settings and the
