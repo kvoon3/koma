@@ -70,11 +70,12 @@ function Marker({ current }: { current: boolean }) {
 }
 
 /**
- * The steps beside this one, under a visible tree gutter: the branches a
- * linear undo stack would have thrown away. A child that is already on the
- * root-to-cursor path renders below as its own row, so the expanded list
- * shows only the OFF-path variants, so there are no duplicate labels and the
- * cursor's row never leaves the list.
+ * The steps beside this one, under a visible tree gutter. Acting from a step
+ * replaces the line below it (see lib/history), so a session's tree is normally
+ * one chain and this list is empty; a forked tree that does arrive still shows
+ * its variants here. A child already on the root-to-cursor path renders below
+ * as its own row, so the expanded list holds only the OFF-path variants: no
+ * duplicate labels, and the cursor's row never leaves the list.
  */
 function variantSummary(history: History<unknown>, t: ReturnType<typeof useT>, id: string): string {
   const labels: string[] = []

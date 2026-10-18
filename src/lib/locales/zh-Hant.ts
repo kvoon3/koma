@@ -709,5 +709,4 @@ export const zhHant: Record<string, string> = {
   'Blend': '混合',
   'Workspace list': '工作區列表',
   'Board': '版面',
-  'Edit': '編輯',
 }
