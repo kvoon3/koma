@@ -11,7 +11,7 @@ import { t } from './i18n'
 import { acquireFullBatch } from './imageStore'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, labelIconNode, loadLabelIcon } from './labelIcons'
 import { labelPreviewUnit } from './labelMetrics'
-import { blendFadePx, boardStickerRect, expandRectForBlend, labelAlign, labelAlignOffset, labelPaint, labelRect, labelTextLines, layoutTree, leafCornerRadii, leafList, paneTransform, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
+import { blendFadePx, boardStickerRect, expandRectForBlend, LABEL_GLOW_CANVAS_SCALE, labelAlign, labelAlignOffset, labelGlowLayers, labelPaint, labelRect, labelTextLines, layoutTree, leafCornerRadii, leafList, paneTransform, placement, rotationOf, seamFadeWidth, seamSides } from './panes'
 import { say } from './toast'
 
 export interface ExportOptions {
@@ -498,6 +498,22 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
   ctx.font = `400 ${fontPx}px ${meta.cssStack}`
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
+  // The glow theme has no CSS text-shadow on canvas: each halo layer is one
+  // pass of the glyphs under a shadow at the layer's em blur, exactly the
+  // stack the preview paints, then the crisp text lands on top of it.
+  const glow = labelGlowLayers(lab.theme)
+  if (glow) {
+    for (const layer of glow) {
+      ctx.save()
+      ctx.shadowColor = layer.color
+      ctx.shadowBlur = layer.blur * fontPx * LABEL_GLOW_CANVAS_SCALE
+      for (const line of lines) {
+        if (line.text)
+          ctx.fillText(line.text, line.x - cx, line.baseline - cy)
+      }
+      ctx.restore()
+    }
+  }
   for (const line of lines) {
     if (line.text)
       ctx.fillText(line.text, line.x - cx, line.baseline - cy)

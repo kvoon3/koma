@@ -83,6 +83,12 @@ export const zhHans: Record<string, string> = {
   'Reset rotation': '重置角度',
   'Invert colors': '对调颜色',
   'Label font': '文字字体',
+  // Label themes (wave4/glow-font): the box pairs and the glowing pure white
+  'Label theme': '文字主题',
+  'Theme': '主题',
+  'White on black': '黑底白字',
+  'Black on white': '白底黑字',
+  'White glow': '发光纯白',
   'Choose a photo': '选择照片',
   'Loading...': '加载中…',
   'Live Photo: press and hold or use the play button': '实况照片：长按或点播放按钮播放',
