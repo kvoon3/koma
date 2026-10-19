@@ -7,6 +7,13 @@ import { router } from './router'
 import { useStore } from './store'
 import './index.css'
 
+// React Grab, dev server only: hover an element, press ⌘C / Ctrl+C, and paste
+// the component stack with source locations into an agent. The dynamic import
+// sits behind `import.meta.env.DEV`, which Vite folds to `false` in a build, so
+// neither the chunk nor the package reaches the deploy or koma.html.
+if (import.meta.env.DEV)
+  void import('react-grab')
+
 installDebugHandle()
 
 /** Persist the current state. Photos are put incrementally (see sessionStore). */
