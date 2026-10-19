@@ -6,13 +6,26 @@
 # turns 11.7s of work into 3.0s, keyed on the commit so every run saves its own
 # snapshot and the next one restores it by prefix. The bun download cache is
 # not restored: 7s to restore it against the 3s it saves on `bun install`.
+#
+# `paths-ignore` skips the run for documentation-only changes (design notes,
+# agent briefs, roadmaps) that cannot affect lint, tests or the bundle. `main`
+# has no branch protection, so a skipped run can never leave a PR waiting on a
+# status check that never arrives.
 
 name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.agents/**'
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.agents/**'
 
 permissions:
   contents: read
