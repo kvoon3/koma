@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">koma app icon light</title>
+  <rect width="256" height="256" rx="56" fill="#F5F5F5"/>
+  <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#E5E5E5" stroke-width="2"/>
+  <g transform="translate(23.04 21.04) scale(0.82)"><path fill="#171717" d="M24 24H232V123H24Z M24 147H131V232H24Z M155 147H232V232H155Z"/></g>
+</svg>
