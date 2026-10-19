@@ -36,6 +36,7 @@ const MOUSE: [string, string][] = [
   ['Drag inside a pane', 'Pan the photo; whatever falls outside the pane is cropped'],
   ['Press and hold a pane, then drag (touch)', 'The hold picks the pane up: drop its photo on another pane to swap the two panes\' contents (an empty pane takes it in); release anywhere else to cancel'],
   ['Scroll / pinch', 'Zoom the photo around the cursor'],
+  ['Scroll / pinch on the stage around the canvas', 'Scale the whole canvas view, 1.1x a notch between 0.25 and 2.5: a view, so it is never an undo step and never saved. Off fit a percentage chip appears at the stage\'s top left and a click (or a double-click out there) fits the canvas again. Zoomed in far enough the canvas covers that air, and the chip is the way back'],
   ['Pinch past the minimum zoom (or pinch an empty pane)', 'Zoom out all the way into the 3×3 grid overview'],
   ['Double-click inside a pane', 'Reset the photo in that pane'],
   ['Right-click a pane', 'Menu led by Move, then grouped by what each row acts on: the photo (replace / remove, reset zoom, fit, follow the canvas ratio, save the file, play the Live Photo), the pane itself (split either way, duplicate, reset), its decoration (stickers, the sticker maker, the text label), the arrangement (swap with the focused pane, copy / paste, focus), then closing it: other panes, empty panes, this pane (shortcut hints ride along: S / V / D / R / X)'],
