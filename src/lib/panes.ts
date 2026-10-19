@@ -22,27 +22,22 @@ export interface Sticker {
 }
 
 /**
- * Label box themes. `dark` and `light` are opaque black/white pairs so the
- * text stays readable over any photo; `glow` drops the box entirely and paints
- * pure white text inside a soft white/blue halo (neon on a lightbox), so it
- * reads over a photo without a plate hiding it. All three draw identically in
- * the preview (CSS) and the exporter (canvas).
+ * Label box themes. `dark` and `light` are opaque black/white text pairs on an
+ * opaque box, so the text stays readable over any photo. The glow effect is
+ * orthogonal to the theme (see `labelPaint`): it drops the box and paints pure
+ * white text inside the halo stack below, whatever the theme.
  */
 export const LABEL_THEMES = {
   dark: { bg: '#000000', fg: '#ffffff' },
   light: { bg: '#ffffff', fg: '#000000' },
-  glow: { bg: 'transparent', fg: '#ffffff', glow: true },
 } as const
 
 export type LabelTheme = keyof typeof LABEL_THEMES
 
-/** One theme's pair, plus the glow marker only the box-less theme carries. */
-export type LabelThemeSpec = (typeof LABEL_THEMES)[LabelTheme]
-
 export const DEFAULT_LABEL_THEME: LabelTheme = 'dark'
 
-/** Picker order: the two box themes, then the box-less glow. */
-export const LABEL_THEME_IDS = ['dark', 'light', 'glow'] as const satisfies readonly LabelTheme[]
+/** Picker order: black box, white box. */
+export const LABEL_THEME_IDS = ['dark', 'light'] as const satisfies readonly LabelTheme[]
 
 export const nextLabelTheme = (theme: LabelTheme): LabelTheme => (theme === 'dark' ? 'light' : 'dark')
 
@@ -52,7 +47,20 @@ export function labelColors(theme?: LabelTheme) {
 }
 
 /**
- * One halo layer under the glow theme's text. The blur is in em of the label's
+ * A saved label, brought onto the effect model. Before the glow was an effect
+ * of its own it was a third theme, `theme: 'glow'`; such a label becomes the
+ * default theme plus `glow: true`, which draws the exact same look. Every
+ * other label (including one that already carries `glow`) is returned as the
+ * same object, so hydration can compare by identity and skip the copy.
+ */
+export function normalizeLabelGlow<T extends { theme?: string, glow?: boolean }>(lab: T): T {
+  if (lab.theme !== 'glow')
+    return lab
+  return { ...lab, theme: DEFAULT_LABEL_THEME, glow: true }
+}
+
+/**
+ * One halo layer under a glowing label's text. The blur is in em of the label's
  * font size, so the preview (CSS `em`) and the exporter (`blur × font px`)
  * share one scale and the halo grows with the text instead of staying a fixed
  * px halo on a giant label.
@@ -96,19 +104,25 @@ export const LABEL_GLOW_LAYERS: readonly LabelGlowLayer[] = [
  */
 export const LABEL_GLOW_CANVAS_SCALE = 1
 
-/** The halo layers of a theme; undefined for the two plain box themes. */
-export function labelGlowLayers(theme?: LabelTheme): readonly LabelGlowLayer[] | undefined {
-  const spec: LabelThemeSpec = labelColors(theme)
-  return 'glow' in spec && spec.glow ? LABEL_GLOW_LAYERS : undefined
+/** The halo layers of a label: only a glowing label has them. */
+export function labelGlowLayers(lab: { glow?: boolean }): readonly LabelGlowLayer[] | undefined {
+  return lab.glow ? LABEL_GLOW_LAYERS : undefined
 }
 
-/** The preview's CSS `text-shadow` for a theme, or undefined when it has no glow. */
-export function labelTextShadow(theme?: LabelTheme): string | undefined {
-  return labelGlowLayers(theme)?.map(layer => `0 0 ${layer.blur}em ${layer.color}`).join(', ')
+/** The preview's CSS `text-shadow` for a label, or undefined when it does not glow. */
+export function labelTextShadow(lab: { glow?: boolean }): string | undefined {
+  return labelGlowLayers(lab)?.map(layer => `0 0 ${layer.blur}em ${layer.color}`).join(', ')
 }
 
-/** A label's effective colors: custom fg / bg win over its theme pair. */
-export function labelPaint(lab: { theme?: LabelTheme, fg?: string, bg?: string, bgAlpha?: number }) {
+/**
+ * A label's effective paint. Without glow, custom fg / bg win over its theme
+ * pair. Glow is an effect, not a theme: it forces pure white text and a
+ * transparent box, so a glowing label never carries a plate (and the theme
+ * underneath is simply invisible; switching glow off brings its box back).
+ */
+export function labelPaint(lab: { theme?: LabelTheme, glow?: boolean, fg?: string, bg?: string, bgAlpha?: number }) {
+  if (lab.glow)
+    return { fg: '#ffffff', bg: 'transparent', fill: 'transparent' }
   const base = labelColors(lab.theme)
   const bg = lab.bg ?? base.bg
   return { fg: lab.fg ?? base.fg, bg, fill: withAlpha(bg, labelBgAlpha(lab)) }
@@ -186,6 +200,12 @@ export interface PaneLabel {
   bg?: string
   /** Box opacity in [0, 1]; absent means opaque. */
   bgAlpha?: number
+  /**
+   * Glow effect, independent of the theme: forces a transparent box and pure
+   * white text with the halo stack (see `labelPaint`). Absent = no glow, so
+   * every label saved before the effect existed hydrates unchanged.
+   */
+  glow?: boolean
   /** Leading icon id from `LABEL_ICONS`; absent means text only. */
   icon?: string
   /** Board-normalized center in [0, 1] of the canvas (legacy Leaf.label: pane-normalized). */

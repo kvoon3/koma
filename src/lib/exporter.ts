@@ -502,7 +502,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
   // under a shadow at the layer's em blur, then the crisp text on top. Canvas
   // stacks later passes over earlier ones, the opposite of CSS, so run them
   // backwards (dark rim first).
-  const glow = labelGlowLayers(lab.theme)
+  const glow = labelGlowLayers(lab)
   if (glow) {
     for (let i = glow.length - 1; i >= 0; i--) {
       const layer = glow[i]!
