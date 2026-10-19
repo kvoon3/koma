@@ -8,17 +8,17 @@ import { zhHant } from './locales/zh-Hant'
 /**
  * Pins the i18n dictionaries to the call sites.
  *
- * `local/i18n-coverage` (scripts/i18n-coverage.mjs) enforces this at lint time;
- * this test enforces the same rules on every `bun test` run, so a dictionary
- * edit that removes or renames a key fails here too. Both failure modes are
- * silent at runtime: a key no dictionary defines renders in English (a typo is
+ * `bun scripts/i18n-coverage.mjs` runs this scan from the pre-commit hook,
+ * while the edit is still one file; this test repeats it on every `bun test`,
+ * which is what puts the check in CI. Both failure modes are silent at
+ * runtime: a key no dictionary defines renders in English (a typo is
  * indistinguishable from an untranslated string), and a dictionary entry no
  * call site passes is dead weight that outlives its refactor.
  *
  * A key can reach the translate call as a literal (first argument, either
  * quote style, or the k attribute of the T element) or through a variable over
  * a table (the dock's labels): the second kind still has to appear in the
- * source as a string literal, exactly the rule the lint plugin uses. This
+ * source as a string literal, exactly the rule the i18n scan uses. This
  * comment deliberately spells none of those forms out, since the scan reads
  * every file, this one included.
  */

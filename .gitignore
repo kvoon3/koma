@@ -6,3 +6,4 @@ build
 *.local
 .DS_Store
 .turbo
+.eslintcache
