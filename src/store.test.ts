@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { degToRad, radToDeg } from './lib/detent'
 import { mulberry32 } from './lib/gridTools'
 import { canRedo, canUndo, emptyHistory, HISTORY_LIMIT, historyPath, stepCount } from './lib/history'
-import { leafList, rotationOf } from './lib/panes'
+import { leafList, newLabel, rotationOf } from './lib/panes'
 import { MAX_GRIDS } from './lib/workspaces'
 
 // The board's mutations run inside `runPaneMorph`, which falls back to a
@@ -152,16 +152,17 @@ describe('undo / redo over the pane tree', () => {
     expect(ws().stickers).toHaveLength(1)
   })
 
-  test('a theme switch is one coalesced label step, like every other label patch', () => {
+  test('the glow toggle is one coalesced label step, like every other label patch', () => {
     const labelId = useStore.getState().addLabel(0.5, 0.5)
-    const beforeTheme = depth()
-    useStore.getState().setLabel(labelId, { theme: 'glow', fg: undefined, bg: undefined })
-    expect(ws().labels[0]!.theme).toBe('glow')
-    // A second patch inside the same gesture window rides the same step.
+    const beforeGlow = depth()
+    useStore.getState().setLabel(labelId, { glow: true })
+    expect(ws().labels[0]!.glow).toBe(true)
+    // A theme pick inside the same gesture window rides the same step.
     useStore.getState().setLabel(labelId, { theme: 'light' })
     expect(ws().labels[0]!.theme).toBe('light')
-    expect(depth()).toBe(beforeTheme + 1)
+    expect(depth()).toBe(beforeGlow + 1)
     useStore.getState().undo()
+    expect(ws().labels[0]!.glow).toBeFalsy()
     expect(ws().labels[0]!.theme).toBe('dark')
   })
 
@@ -684,6 +685,30 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(state().workspaces.map(w => w.id)).toEqual(['b0'])
     expect(state().parkedBoards.gA!.workspaces.map(w => w.id)).toEqual(['a0', 'a1'])
     expect(boardOf(state(), 'gA')).toBe(state().parkedBoards.gA!.workspaces)
+  })
+
+  test('a label saved while glow was a theme hydrates as dark plus the glow effect', () => {
+    const cell = { ...state().workspaces[0]! }
+    const label = { ...newLabel(0.5, 0.5), id: 'legacy-glow', theme: 'glow' as never }
+    const saved = { ...cell, labels: [label] }
+    state().hydrate({
+      meta: {
+        workspaces: [saved],
+        activeId: saved.id,
+        gap: 0,
+        radius: 0,
+        bg: '#000000',
+        longSide: 2048,
+        format: 'image/jpeg',
+        quality: 0.92,
+      },
+      photos: [],
+    })
+    const hydrated = state().workspaces[0]!.labels![0]!
+    expect(hydrated.id).toBe('legacy-glow')
+    expect(hydrated.theme).toBe('dark')
+    expect(hydrated.glow).toBe(true)
+    expect(stepsOf()).toBe(0)
   })
 })
 

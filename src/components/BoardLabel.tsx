@@ -3,6 +3,7 @@ import type { FontMeta } from '../lib/fonts'
 import type { LabelAlign, LabelTheme, PaneLabel } from '../lib/panes'
 import { Popover } from '@base-ui/react/popover'
 import { Select } from '@base-ui/react/select'
+import { Switch } from '@base-ui/react/switch'
 import { AlignCenter, AlignLeft, AlignRight, Ban, Baseline, Blend, Check, ChevronDown, Contrast, MapPin, Moon, PaintBucket, RefreshCw, RotateCcw, Smile, Sparkles, Sun, Trash2, Type as TypeIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
@@ -67,14 +68,31 @@ const FONT_CATS: { id: FontMeta['cat'], label: string }[] = [
 const THEME_ICON: Record<LabelTheme, typeof AlignLeft> = {
   dark: Moon,
   light: Sun,
-  glow: Sparkles,
 }
 const THEME_LABEL: Record<LabelTheme, string> = {
   dark: 'White on black',
   light: 'Black on white',
-  glow: 'White glow',
 }
 const LABEL_THEME_ITEMS = LABEL_THEME_IDS.map(id => ({ value: id, label: THEME_LABEL[id], icon: THEME_ICON[id] }))
+
+/**
+ * The switch chrome shared with the appearance drawer's SwitchField (see
+ * AppearanceTools): same box, thumb and checked fill, so the glow toggle reads
+ * as the app's own switch rather than a label-only control.
+ */
+const glowSwitchCls = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
+const glowSwitchThumbCls = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-(--dur-fast) group-data-checked/switch:translate-x-3.5'
+const glowSwitchRowCls = 'flex items-center justify-between gap-3 px-2 py-[5px]'
+const glowSwitchLabelCls = 'text-[12px] text-txt'
+
+/** The glow on/off switch: one `setLabel({ glow })` patch, one undo step. */
+function GlowSwitch({ checked, label, onChange }: { checked: boolean, label: string, onChange: (checked: boolean) => void }) {
+  return (
+    <Switch.Root className={glowSwitchCls} aria-label={label} checked={checked} onCheckedChange={onChange}>
+      <Switch.Thumb className={glowSwitchThumbCls} />
+    </Switch.Root>
+  )
+}
 
 // Loads a Google font for the preview and bumps a counter once a web font finishes
 // loading, so the label re-renders with the real metrics.
@@ -579,49 +597,49 @@ function LabelFontSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
 }
 
 /**
- * The label's theme: the two opaque box pairs and the box-less glow. Choosing
- * a theme drops custom text/box colors (they would overpaint it), so the pick
- * always shows the theme it names in one `setLabel` patch, one undo step.
+ * The label's look: the two box themes plus the glow effect, in one panel so
+ * the relationship is visible (glow hides the box). A theme pick and the glow
+ * switch are each one `setLabel` patch, so undo coalescing is unchanged.
  */
 function LabelThemeSelect({ labelId, lab, setLabel, selectLabel, triggerClassName }: LabelControlProps & { triggerClassName: string }) {
   const t = useT()
+  const currentTheme = lab.theme ?? DEFAULT_LABEL_THEME
   return (
-    <Select.Root
-      items={LABEL_THEME_ITEMS}
-      value={lab.theme ?? DEFAULT_LABEL_THEME}
-      onValueChange={(value) => {
-        setLabel(labelId, { theme: value as LabelTheme, fg: undefined, bg: undefined })
-      }}
+    <Popover.Root
       onOpenChange={(open) => {
         if (open)
           selectLabel(labelId)
       }}
     >
-      <Select.Trigger className={triggerClassName} title={t('Label theme')} aria-label={t('Label theme')} data-label-theme-trigger="">
-        <MorphIcon icon={THEME_ICON[lab.theme] ?? Contrast} size={13} strokeWidth={1.75} />
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
-          <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
-            <Select.List className="relative">
+      <Popover.Trigger className={triggerClassName} title={t('Label theme')} aria-label={t('Label theme')} data-label-theme-trigger="">
+        <MorphIcon icon={lab.glow ? Sparkles : THEME_ICON[currentTheme] ?? Contrast} size={13} strokeWidth={1.75} />
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} className="z-[260] select-none outline-0">
+          <Popover.Popup className="box-border w-[196px] rounded-none border border-line bg-panel p-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]" data-label-theme-panel="">
+            <div className="grid gap-0.5" role="group" aria-label={t('Label theme')}>
               {LABEL_THEME_ITEMS.map(item => (
-                <Select.Item
+                <button
                   key={item.value}
-                  value={item.value}
-                  className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-[13px] outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent"
+                  type="button"
+                  className="flex cursor-pointer items-center gap-2 border-0 bg-transparent px-2 py-[6px] text-left text-[13px] text-txt hover:bg-chip-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
+                  aria-pressed={currentTheme === item.value}
+                  onClick={() => setLabel(labelId, { theme: item.value })}
                 >
-                  <Select.ItemIndicator className="flex w-3.5 text-current">
-                    <MorphIcon icon={Check} size={12} strokeWidth={2} />
-                  </Select.ItemIndicator>
+                  <span className="flex w-3.5 flex-none items-center">{currentTheme === item.value && <MorphIcon icon={Check} size={12} strokeWidth={2} />}</span>
                   <span className="flex w-4 flex-none items-center"><MorphIcon icon={item.icon} size={13} strokeWidth={1.75} /></span>
-                  <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
-                </Select.Item>
+                  <span className="flex-1">{t(item.label)}</span>
+                </button>
               ))}
-            </Select.List>
-          </Select.Popup>
-        </Select.Positioner>
-      </Select.Portal>
-    </Select.Root>
+            </div>
+            <div className={`${glowSwitchRowCls} mt-1 border-t border-line-strong pt-1.5`}>
+              <span className={glowSwitchLabelCls}>{t('Glow')}</span>
+              <GlowSwitch checked={!!lab.glow} label={t('Glow')} onChange={glow => setLabel(labelId, { glow })} />
+            </div>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }
 
@@ -938,21 +956,27 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
         {...pop}
         label={t('Label theme')}
         caption={t('Theme')}
-        trigger={<MorphIcon icon={THEME_ICON[lab.theme] ?? Contrast} size={22} strokeWidth={1.5} />}
+        trigger={<MorphIcon icon={lab.glow ? Sparkles : THEME_ICON[lab.theme ?? DEFAULT_LABEL_THEME] ?? Contrast} size={22} strokeWidth={1.5} />}
       >
-        <div className="grid w-[180px] gap-1">
-          {LABEL_THEME_IDS.map(id => (
-            <button
-              key={id}
-              type="button"
-              className="flex cursor-pointer items-center gap-2 rounded-none border border-line-strong bg-transparent px-2.5 py-2 text-left text-[13px] text-txt hover:bg-chip-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
-              aria-pressed={(lab.theme ?? DEFAULT_LABEL_THEME) === id}
-              onClick={() => setLabel(labelId, { theme: id, fg: undefined, bg: undefined })}
-            >
-              <MorphIcon icon={THEME_ICON[id]} size={15} strokeWidth={1.75} />
-              {t(THEME_LABEL[id])}
-            </button>
-          ))}
+        <div className="w-[196px]">
+          <div className="grid gap-1" role="group" aria-label={t('Label theme')}>
+            {LABEL_THEME_IDS.map(id => (
+              <button
+                key={id}
+                type="button"
+                className="flex cursor-pointer items-center gap-2 rounded-none border border-line-strong bg-transparent px-2.5 py-2 text-left text-[13px] text-txt hover:bg-chip-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
+                aria-pressed={(lab.theme ?? DEFAULT_LABEL_THEME) === id}
+                onClick={() => setLabel(labelId, { theme: id })}
+              >
+                <MorphIcon icon={THEME_ICON[id]} size={15} strokeWidth={1.75} />
+                {t(THEME_LABEL[id])}
+              </button>
+            ))}
+          </div>
+          <div className={`${glowSwitchRowCls} mt-1 border-t border-line-strong px-1 pt-2`}>
+            <span className={glowSwitchLabelCls}>{t('Glow')}</span>
+            <GlowSwitch checked={!!lab.glow} label={t('Glow')} onChange={glow => setLabel(labelId, { glow })} />
+          </div>
         </div>
       </DockPopover>
       <DockPopover
@@ -1108,7 +1132,7 @@ function LabelView({
         color: colors.fg,
         // Inherited by the text (and the editor): one em-relative stack, so the
         // glow keeps its proportions at any label size.
-        textShadow: labelTextShadow(lab.theme),
+        textShadow: labelTextShadow(lab),
       }}
       onPointerDown={onBoxDown}
       onPointerMove={onBoxMove}
