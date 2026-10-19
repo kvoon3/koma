@@ -1,3 +1,6 @@
 [tools]
 node = "24"
-# CI's bun is pinned by the BUN_VERSION build variable, not here.
+# `bun check` needs 1.4.3 or newer. package.json `packageManager` is the same
+# pin, read by setup-bun in CI; mise does not read it, so it is repeated here.
+# Keep the two in step.
+bun = "1.4.3"

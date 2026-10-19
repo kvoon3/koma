@@ -2,7 +2,6 @@ import antfu, { parserPlain } from '@antfu/eslint-config'
 import { plugin as shadcn } from '@shadcn/lint'
 import tsParser from '@typescript-eslint/parser'
 import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect'
-import { i18nCoverage } from './scripts/i18n-coverage.mjs'
 
 // Ban comments written in Chinese (CJK ideographs).
 const noChineseComment = {
@@ -33,17 +32,21 @@ export default antfu({
   antislop: true,
   react: true,
   typescript: true,
+  // TIMING=all: jsdoc is 778ms of 3.9s rule time, so it goes. markdown, yaml
+  // and toml are 16ms between them and catch prose problems, so they stay.
+  // i18n coverage is a bun script, not a rule: --cache is per-file and cannot
+  // see a deleted t() in another file.
+  jsdoc: false,
   // Generated district polygons (scripts/build-districts.mjs): a 5 MB data
   // file, not source. Linting it parses the whole array as code.
   ignores: ['src/data/districts.json'],
 }, {
   name: 'local/no-chinese-comment',
   plugins: {
-    local: { rules: { 'no-chinese-comment': noChineseComment, 'i18n-coverage': i18nCoverage } },
+    local: { rules: { 'no-chinese-comment': noChineseComment } },
   },
   rules: {
     'local/no-chinese-comment': 'error',
-    'local/i18n-coverage': 'error',
   },
 }, {
   // espree-scoped .js/.mjs files break unused-imports/no-unused-vars (it delegates to
