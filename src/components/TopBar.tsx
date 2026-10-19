@@ -194,18 +194,19 @@ function TopBarActions({
  * text's, and the two read as one line only when those baselines agree. The
  * mark is the 16px small cut, as tall as the type; the tight 224 crop keeps
  * it from carrying transparent padding into the gap, and the wider small-cut
- * gutters keep the three panes apart at 1×. Below `sm` the bar
- * is down to the menus and four icon buttons, and the lockup stands aside.
+ * gutters keep the three panes apart at 1×. Below `sm` the wordmark stands
+ * aside and the mark alone carries the brand, so the phone bar is not left
+ * with no lockup at all.
  */
 function Wordmark() {
   return (
     <span
       aria-hidden
-      className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt max-sm:hidden"
+      className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt"
     >
       <span className="flex items-baseline gap-2">
         <BrandMark className="h-4 w-4 flex-none" />
-        koma
+        <span className="max-sm:hidden">koma</span>
       </span>
     </span>
   )

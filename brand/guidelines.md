@@ -37,10 +37,11 @@ favicon size. Use it below 24 px; never scale the primary mark down to 16 px.
 
 - Keep the ink/paper pair. Do not use a mid-grey for either.
 - On photographs, use a solid tile or a scrim; never place the ink mark directly on a busy image.
-- The favicon (`favicon/favicon.svg`) is theme-aware: light tile + ink mark, switching to ink tile +
-  paper mark with `prefers-color-scheme: dark`. The `.ico` is the dark tile fallback for browsers
-  without SVG favicon support.
-- The in-app wordmark follows the app theme (live text); the favicon follows the OS.
+- The favicon is the mark alone, no tile and no outer margin: the 16 px small cut, edge to edge.
+  The app swaps it with the resolved theme (`applyTheme` calls `syncFavicon`); the SVG's
+  `prefers-color-scheme` block is the pre-JS/OS fallback, and the `.ico` is the ink fallback for
+  browsers without SVG favicons. The app icon keeps its tile; the favicon does not.
+- The in-app wordmark follows the app theme (live text); the favicon follows the app theme too.
 
 ## 3. Clear space
 
@@ -81,6 +82,8 @@ Below the minimum, use the app icon tile or the wordmark alone.
 - Square (`-square`) files are full-bleed for platforms that mask the icon (iOS, maskable manifest
   icons, app stores). Do not add your own rounding to those.
 - The 16 px PNG is the smallest raster; the SVG is the master.
+- The favicon is separate from the app icon: mark only, no tile, 16 px small cut, edge to edge. The
+  tile is for the dock/home screen; do not put it in the tab favicon.
 - The MyGo desktop icon is `png/app-icon/dark-1024.png` (transparent outside the rounded tile).
 
 ## 7. Colour
