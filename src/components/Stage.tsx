@@ -8,8 +8,9 @@ import { Popover } from '@base-ui/react/popover'
 import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, useMediaQuery, usePreview } from '../hooks'
+import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
+import { viewScaleAt, viewTransform } from '../lib/canvasView'
 import { cutoutAction, restoreOriginalAction } from '../lib/cutout'
 import { GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
@@ -32,6 +33,7 @@ import { PaneRotateTool } from './PaneRotateTools'
 import { StickerMakerDialog } from './StickerMakerDialog'
 import { toolsBtnCls, ToolsDock, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls, menuItemCls, menuSurfaceCls } from './ui/menu'
+import { ViewZoomChip } from './ViewZoomChip'
 
 const NO_STICKERS: Sticker[] = []
 const NO_LABELS: PaneLabel[] = []
@@ -195,9 +197,12 @@ function useDividerDrag(
       const r = stageRef.current?.getBoundingClientRect()
       if (!d || !r)
         return
+      // The canvas may carry the view zoom (a CSS scale), so its client rect is
+      // in screen pixels: the divider math wants the canvas's own.
+      const s = viewScaleAt(stageRef.current)
       resizeSplit(
         d.id,
-        ratioFromPointer(d, e.clientX - r.left, e.clientY - r.top, view.gap, MIN_PANE_PX),
+        ratioFromPointer(d, (e.clientX - r.left) / s, (e.clientY - r.top) / s, view.gap, MIN_PANE_PX),
       )
     }
     const up = () => {
@@ -225,6 +230,7 @@ function useDividerDrag(
  */
 function useCanvasResize(
   wrapRef: React.RefObject<HTMLDivElement | null>,
+  canvasRef: React.RefObject<HTMLDivElement | null>,
   focus: (paneId: string) => void,
   setCanvasSize: (ratio: number, fill: number) => void,
 ) {
@@ -262,8 +268,12 @@ function useCanvasResize(
       const d = sizeRef.current
       if (!d)
         return
-      const hx = Math.max(MIN_CANVAS / 2, e.clientX - d.cx)
-      const hy = Math.max(MIN_CANVAS / 2, e.clientY - d.cy)
+      // The handle rides the canvas, which the view zoom scales about its own
+      // centre: the pointer's distance from that centre is in screen pixels,
+      // and the canvas it has to become is in canvas pixels.
+      const s = viewScaleAt(canvasRef.current)
+      const hx = Math.max(MIN_CANVAS / 2, (e.clientX - d.cx) / s)
+      const hy = Math.max(MIN_CANVAS / 2, (e.clientY - d.cy) / s)
       const ratio = hx / hy
       const fit = fitCanvas(ratio, d.availW, d.availH)
       setCanvasSize(ratio, (2 * hx) / fit.W)
@@ -280,7 +290,7 @@ function useCanvasResize(
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
     }
-  }, [sizing, setCanvasSize])
+  }, [sizing, setCanvasSize, canvasRef])
 
   const resetRatio = useCallback(() => {
     const s = useStore.getState()
@@ -349,8 +359,13 @@ export function Stage() {
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
 
+  // The view zoom: the stage margin around the canvas scales the whole canvas
+  // (a session working view, never part of the board). The canvas itself keeps
+  // every gesture it had, so the wheel there is still the pane's photo zoom.
+  const viewZoom = useCanvasViewZoom(wrapRef, stageRef)
+
   const { dragId, setHotId, isLit, beginDrag } = useDividerDrag(view, stageRef, resizeSplit)
-  const { sizing, beginResize, resetRatio } = useCanvasResize(wrapRef, focus, setCanvasSize)
+  const { sizing, beginResize, resetRatio } = useCanvasResize(wrapRef, stageRef, focus, setCanvasSize)
   const { tools, toolsHidden: paneToolsHidden } = usePaneTools(focusId, view, photoById)
   // The label dock's location action follows the focused pane's photo, not the
   // selected label: it inserts a new label for that photo's EXIF fix.
@@ -359,11 +374,15 @@ export function Stage() {
   return (
     <div
       ref={wrapRef}
-      className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragId ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
+      className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center overflow-hidden ${dragId ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
+      // A double-click on the stage margin (the empty air around the canvas)
+      // fits the view again; on the canvas it stays the pane's own reset.
+      onDoubleClick={viewZoom.onStageDoubleClick}
     >
       <DeleteZone label={t('Drop here to delete')} />
       <StageCanvas
         view={view}
+        viewScale={viewZoom.scale}
         seams={seams}
         stickers={boardStickers}
         labels={boardLabels}
@@ -389,6 +408,10 @@ export function Stage() {
         onClose={closePane}
       />
 
+      {/* Off fit, a small chip says how far and puts it back (below the back
+          button, which stands 30px tall on a mouse and 38px under a finger). */}
+      <ViewZoomChip scale={viewZoom.scale} onFit={viewZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
+
       {/* Canvas appearance tools always live in the dock; pane/label tools join
           when relevant. The dock itself is mounted by the root layout. */}
       <StageToolsDock
@@ -410,6 +433,7 @@ export function Stage() {
 /** The board itself: backdrop, panes, inserts, divider chrome and resize handle. */
 function StageCanvas({
   view,
+  viewScale,
   seams,
   stickers,
   labels,
@@ -435,6 +459,8 @@ function StageCanvas({
   onClose,
 }: {
   view: Derived
+  /** The view zoom's scale, written on the canvas as a centre transform. */
+  viewScale: number
   seams: Map<string, SeamSides>
   stickers: Sticker[]
   labels: PaneLabel[]
@@ -477,8 +503,9 @@ function StageCanvas({
       >
         <div
           ref={stageRef}
+          data-canvas-view={viewScale}
           className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
-          style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
+          style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, transform: viewTransform(viewScale), viewTransitionName: `ws-${wsId}` }}
         >
           <CollageBgLayer W={view.W} H={view.H} photoById={photoById} />
           {!blendCrossfade && (
