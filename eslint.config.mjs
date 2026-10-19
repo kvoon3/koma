@@ -29,7 +29,15 @@ const noChineseComment = {
 
 export default antfu({
   type: 'app',
-  antislop: true,
+  // `inspection: 'full'` scans every line of every linted file. The default
+  // (`recent-changes`) only reports a construct sitting on an added line, so
+  // old prose stays invisible until it changes. Full makes the gate a property
+  // of the tree, not the diff.
+  antislop: {
+    slop: {
+      inspection: 'full',
+    },
+  },
   react: true,
   typescript: true,
   // TIMING=all: jsdoc is 778ms of 3.9s rule time, so it goes. markdown, yaml
