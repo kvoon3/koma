@@ -609,10 +609,20 @@ function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
   )
 }
 
+/**
+ * The glyph per alignment, keyed by the type so a fourth alignment is a
+ * compile error here rather than a dock trigger with no icon.
+ */
+const ALIGN_ICON: Record<LabelAlign, typeof AlignLeft> = {
+  left: AlignLeft,
+  center: AlignCenter,
+  right: AlignRight,
+}
+
 const ALIGN_ITEMS: { id: LabelAlign, icon: typeof AlignLeft, label: string }[] = [
-  { id: 'left', icon: AlignLeft, label: 'Align left' },
-  { id: 'center', icon: AlignCenter, label: 'Align center' },
-  { id: 'right', icon: AlignRight, label: 'Align right' },
+  { id: 'left', icon: ALIGN_ICON.left, label: 'Align left' },
+  { id: 'center', icon: ALIGN_ICON.center, label: 'Align center' },
+  { id: 'right', icon: ALIGN_ICON.right, label: 'Align right' },
 ]
 
 /**
@@ -861,7 +871,7 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
         {...pop}
         label={t('Label alignment')}
         caption={t('Align')}
-        trigger={<MorphIcon icon={ALIGN_ITEMS.find(i => i.id === labelAlign(lab))!.icon} size={22} strokeWidth={1.5} />}
+        trigger={<MorphIcon icon={ALIGN_ICON[labelAlign(lab)]} size={22} strokeWidth={1.5} />}
       >
         <AlignButtons
           labelId={labelId}

@@ -102,6 +102,10 @@ function EraseSurface({ photo, src, onDone }: { photo: Photo, src: string, onDon
     }
     catch {
       say(t('Failed to save sticker'))
+      // Only a failure needs the flag cleared: a commit that landed closes the
+      // dialog (this surface unmounts), and clearing it first would put a live
+      // Apply back on screen for the length of the close.
+      // react-doctor-disable-next-line react-doctor/no-loading-flag-reset-outside-finally -- the success path unmounts
       setBusy(false)
     }
   }

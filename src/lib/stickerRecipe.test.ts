@@ -46,7 +46,7 @@ function photo(id: string, extra: Partial<Photo> = {}): Photo {
 
 /** What IndexedDB hands back on the next load: the record without its File identity. */
 function throughSession(record: Photo): Photo {
-  const stored = JSON.parse(JSON.stringify({ ...record, file: undefined })) as Photo
+  const stored = structuredClone({ ...record, file: undefined })
   return { ...stored, file: record.file }
 }
 
