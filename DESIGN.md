@@ -41,6 +41,8 @@ rows.
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
+| Wheel / pinch on the stage around the canvas | Scale the whole canvas view (1.1× a notch, clamped 0.25–2.5): a view, not the board, so no undo step and nothing saved. The percentage chip that appears at the stage's top left fits it again on a click, so does a double-click out there |
+| Drag the pane's minimap (photo zoom above ~1.05) | Pan the photo; a tap without a drag recentres it on that point |
 | Double-click inside a pane | Reset that pane's photo |
 | Right-click a pane | Context menu, led by Move, then grouped by what each row acts on: the photo (replace / remove, reset zoom, fit, follow its ratio, save the file, play the Live Photo), the pane itself (split either way, duplicate, reset), its decoration (add / clear stickers, the sticker maker, add / edit / remove the text label), the arrangement (swap with the focused pane, copy / paste, focus), then closing it (other panes, empty panes, this pane). Rows carry the keyboard hints where one exists (S, V, D, R, X) |
 | Right-click the stage around the canvas | Workspace menu: add photos / a folder, the library, fill the empty panes from the library, canvas ratio (follow the first photo, flip the orientation), export, crop report, reset this workspace, settings |
@@ -98,6 +100,45 @@ handle sits precisely under the pointer (measured offset: 0,0). At the bounds,
 `canvasFill` only affects how large the canvas appears in the preview; **it does
 not affect export** (export resolution comes from the long-edge setting in
 Settings; the ratio comes from `ratio`).
+
+### The canvas view zoom (`lib/canvasView.ts`, `hooks.useCanvasViewZoom`)
+
+The stage and the grid overview are the same beast: a board centred on a
+checker stage with air around it. The wheel (and a trackpad pinch, which arrives
+as a ctrl+wheel: neither stage tracks pointers of its own) on that air scales
+the WHOLE canvas as a view: a CSS `transform: scale()` about the canvas's
+centre, 1.1× per notch, one event never moving more than 1.1^1.5, clamped to
+0.25–2.5. In the editor the transform rides the canvas box (`Stage.tsx`'s
+`stageRef`); in the overview it rides the board column, caption row included.
+It is session working view only: not part of a workspace, not in the undo
+history, not persisted, and it resets to fit on a route change. The switcher
+owns the stage while it is open, so the overview renders the view at fit and
+ignores the wheel there (the recede and the pager keep the geometry they were
+written against); the scale it had comes back on close.
+
+Composition with the board's own gestures:
+
+- **Hit testing needs no correction.** Clicks, buttons, focus, drag targets are
+  mapped by the browser through the transform, so everything that hit-tests
+  natively works untouched.
+- **Pointer math does.** Every gesture that turns client pixels into canvas
+  pixels divides by `viewScaleAt(node)` (the live scale riding the canvas's
+  `data-canvas-view` attribute, read from the nearest wrapper: no context, no
+  re-render on a wheel notch): the divider drag, the canvas resize handle, a
+  pane's pointer-local maths and drop points, board sticker drags. Ratios are
+  scale-free and stay as they are: label drags, rotations, the minimap's own
+  mapping.
+- **dnd-kit does.** Its translate is measured in screen pixels while the cells
+  are laid out in canvas pixels, so the sortable's transform is divided back by
+  the scale, the drag ghost is drawn at the scaled size, and collisions are
+  decided by `pointerWithin` first (pointer and droppable rects are read in the
+  same space) with `closestCenter` as the gap fallback. Measured at 0.5: a cell
+  dragged onto its neighbour's centre lands in that slot, and a 40px pointer
+  drag on a divider moves the divider 40px on screen (80 canvas px).
+
+Trade-off: zooming in grows the canvas over the stage's air, so past ~1.2 there
+is no margin left to wheel and the percentage chip (or a double-click out
+there, while any margin remains) is the way back to fit.
 
 ### Multi-line text labels
 
@@ -170,22 +211,24 @@ the back and reset buttons, so a split is never far away. That page-row copy is
 the one a phone gets: below the sm breakpoint the hover copy is dropped, since
 there is no hover to fade it in, and the page row keeps its chip on every
 width. Everything else a pane shows stays focus-only, the × close button at
-the top right and the zoom pair below.
-The focused pane that holds a photo also carries a **zoom pair** (− and +, two
-clicks exactly 2×, disabled at the floor and the ceiling): a single chip
-inside the photo, parked at the corner of the photo's *visible* rect, 20px in
-from it, never at the pane's corner, so a zoomed-out photo pulls the chip in
-with it and a zoomed-in one pins it to the pane's inner edge, clear of
-dividers and neighbours. The 20px (not the 8px the corner alone wants) is what
-clears the canvas resize handle, which sits 15px inside the canvas corner. It
-rests at 0.7 so the photo stays the subject and comes to full weight under the
-pointer or once a button takes focus; a finger has no hover to confirm it
-exists, so touch rests at 0.9 and the button is the 44px target itself. Sizes:
-44px coarse, 30px in a narrow window, 26px otherwise. The chip behind the
-glyphs is the floating-chip scrim, so busy content never swallows it. The
-tools sheet overlays the stage with no put-away state and a tall canvas runs
-underneath it, so the chip stops at the sheet's top edge (8px above it) rather
-than sitting behind its glass, and follows the sheet as it cycles displays.
+the top right and the photo minimap below.
+A focused pane whose photo overflows it (zoom above ~1.05) carries a
+**minimap** in one chip: a thumbnail of the whole photo with the pane's window
+drawn on it as an accent-bordered rect over a white hairline, dragged to pan (a
+tap without a drag recentres on the point). A +/− pair used to sit beside it
+and was only repeating the wheel and pinch zoom the pane already has, so the
+chip is the map and nothing else. It is parked at the corner of the photo's
+*visible* rect, 20px in from it, never at the pane's corner, so a zoomed-out
+photo pulls the chip in with it and a zoomed-in one pins it to the pane's inner
+edge, clear of dividers and neighbours. The 20px (not the 8px the corner alone
+wants) is what clears the canvas resize handle, which sits 15px inside the
+canvas corner. It rests at 0.7 so the photo stays the subject and comes to full
+weight under the pointer; a finger has no hover to confirm it exists, so touch
+rests at 0.9 and the frame steps up to 44×58. The chip behind the thumbnail is
+the floating-chip scrim, so busy content never swallows it. The tools sheet
+overlays the stage with no put-away state and a tall canvas runs underneath it,
+so the chip stops at the sheet's top edge (8px above it) rather than sitting
+behind its glass, and follows the sheet as it cycles displays.
 The focused pane's tools (sticker / replace photo / text label)
 live in a panel that overlays the canvas above the footer, open by default and
 moved only by the handle on its top edge; the tools act on the focused pane, so

@@ -5,6 +5,7 @@ import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
 import { usePreview } from '../hooks'
+import { viewScaleAt } from '../lib/canvasView'
 import { useT } from '../lib/i18n'
 import { boardStickerRect, rotateOffset, rotationCss, rotationOf } from '../lib/panes'
 import { useStore } from '../store'
@@ -179,7 +180,9 @@ export function BoardInserts({
     const box = stageRef.current?.getBoundingClientRect()
     if (!box)
       return { x: 0, y: 0 }
-    return { x: clientX - box.left, y: clientY - box.top }
+    // Screen pixels to canvas pixels: the canvas may carry the view zoom.
+    const s = viewScaleAt(stageRef.current)
+    return { x: (clientX - box.left) / s, y: (clientY - box.top) / s }
   }
 
   return (

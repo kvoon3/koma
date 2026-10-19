@@ -1,6 +1,7 @@
 import type { FilterValue } from './lib/filters'
 import type { Photo, Preview } from './lib/imageStore'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { clampViewScale, viewWheelFactor } from './lib/canvasView'
 import { getFilteredPreview, peekFilteredPreview } from './lib/filterCache'
 import { filterKey, resolveFilter } from './lib/filters'
 import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
@@ -166,6 +167,57 @@ export function useElementSize<T extends HTMLElement>() {
   }, [])
 
   return [ref, size] as const
+}
+
+/**
+ * The canvas view zoom (see `lib/canvasView`): the live scale, the wheel
+ * gesture on the stage AROUND the canvas, and the fit reset.
+ *
+ * The wheel only acts when the event lands outside the canvas element, so the
+ * board keeps every gesture it had: a wheel over a photo is that pane's photo
+ * zoom (it marks the event handled, and the guard honours that too), and the
+ * canvas's own drags never see this listener. A trackpad pinch arrives as a
+ * ctrl+wheel (the stage tracks no pointers of its own), so the same listener
+ * covers it. `enabled` lets a surface hand the stage back (the overview's
+ * switcher owns it while it is open).
+ */
+export function useCanvasViewZoom(
+  stageRef: React.RefObject<HTMLElement | null>,
+  canvasRef: React.RefObject<HTMLElement | null>,
+  enabled = true,
+) {
+  const [scale, setScale] = useState(1)
+  // The listener binds once; the gesture reads the live value from here.
+  const scaleRef = useRef(1)
+  const apply = useCallback((next: number) => {
+    scaleRef.current = next
+    setScale(next)
+  }, [])
+  const fit = useCallback(() => apply(1), [apply])
+
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage || !enabled)
+      return
+    const onWheel = (e: WheelEvent) => {
+      if (e.defaultPrevented || canvasRef.current?.contains(e.target as Node))
+        return
+      // The margin is a view: never let the browser zoom the page instead.
+      e.preventDefault()
+      apply(clampViewScale(scaleRef.current * viewWheelFactor(e.deltaY, e.ctrlKey || e.metaKey)))
+    }
+    stage.addEventListener('wheel', onWheel, { passive: false })
+    return () => stage.removeEventListener('wheel', onWheel)
+  }, [stageRef, canvasRef, enabled, apply])
+
+  /** A double-click on the margin (never on the canvas itself) fits it again. */
+  const onStageDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (canvasRef.current?.contains(e.target as Node))
+      return
+    fit()
+  }, [canvasRef, fit])
+
+  return { scale, fit, onStageDoubleClick }
 }
 
 export function useInView<T extends HTMLElement>(rootMargin = '200px') {
