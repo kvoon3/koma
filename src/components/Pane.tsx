@@ -2,11 +2,11 @@ import type { ContextMenu } from '@base-ui/react/context-menu'
 import type { Photo, Preview } from '../lib/imageStore'
 import type { Leaf, Rect, SeamSides } from '../lib/panes'
 import { useNavigate } from '@tanstack/react-router'
-import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
+import { ImagePlus, Minus, Plus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
-import { usePanePreview } from '../hooks'
+import { usePanePreview, useToolsSheetTop } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
@@ -183,6 +183,130 @@ export function PaneSplitTools({
       >
         <MorphIcon icon={SquareSplitHorizontal} size={15} strokeWidth={1.75} />
       </button>
+    </div>
+  )
+}
+
+/* One zoom button: the pane's own quiet chip weight (the split chip's
+   float-bg + blur, chip-hover on hover), small at rest and comfortable under a
+   finger. */
+const zoomBtnCls = 'grid h-[26px] w-[26px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[34px] pointer-coarse:w-[34px]'
+
+/* Two clicks of the cluster are exactly 2×, the step the e2e check measures. */
+const ZOOM_STEP = Math.SQRT2
+
+/**
+ * The focused pane's zoom cluster: the app's floating chip (float-bg + blur,
+ * chip-hover on hover), pinned INSIDE the photo at its bottom-right corner.
+ *
+ * The corner is the placed photo's own rect (`lib/panes.placement`) clipped to
+ * the pane, not the pane's corner: a zoomed-out photo pulls the cluster in with
+ * it, and the 8px inset (`p-2` on the box it is aligned in) keeps it clear of
+ * the pane's edge, so it can never land on a divider or a neighbour's photo.
+ * The tools sheet is a fixed overlay with no put-away state, and a tall canvas
+ * keeps running underneath it, so the box also stops at the sheet's top edge and
+ * the cluster lifts itself over the sheet instead of living behind its glass.
+ *
+ * Quiet while the photo is the subject (0.7), full weight under the pointer or
+ * once a button takes focus, and the chip behind the glyphs is the app's usual
+ * scrim, so busy photo content never swallows it.
+ */
+function PaneZoomControls({
+  paneEl,
+  leaf,
+  place,
+  rect,
+  onStep,
+}: {
+  paneEl: React.RefObject<HTMLDivElement | null>
+  leaf: Leaf
+  /** The photo's placed rect, in canvas coordinates. */
+  place: { x: number, y: number, w: number, h: number }
+  /** The pane's own rect, in canvas coordinates. */
+  rect: Rect
+  onStep: (factor: number) => void
+}) {
+  const t = useT()
+  const sheetTop = useToolsSheetTop()
+  // The pane's viewport top, for comparing the sheet's edge (viewport px) with
+  // the pane-local box. Measured, not derived, and kept fresh by observation
+  // rather than by every commit: a pan inside the pane moves neither box.
+  const [paneTop, setPaneTop] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const el = paneEl.current
+    if (!el)
+      return
+    // The pane moves only when the layout does (a split, a ratio drag, the
+    // canvas refit on a window resize), never on a pan inside it, so a size
+    // observer plus a window resize is the whole signal.
+    const read = () => {
+      const next = el.getBoundingClientRect().top
+      setPaneTop(prev => (prev != null && Math.abs(prev - next) < 0.5 ? prev : next))
+    }
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    window.addEventListener('resize', read)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', read)
+    }
+  }, [paneEl])
+
+  const photoX = place.x - rect.x
+  const photoY = place.y - rect.y
+  // The photo's visible part: the placed rect clipped to the pane, and to the
+  // room the tools sheet leaves. Cover-fit means zoom 1 (and anything above it)
+  // already spans the pane, so this is the pane's own box unless the photo has
+  // been zoomed out from under it.
+  const visL = Math.max(0, photoX)
+  const visT = Math.max(0, photoY)
+  const visR = Math.min(rect.w, photoX + place.w)
+  const sheetLimit = sheetTop == null || paneTop == null ? rect.h : sheetTop - paneTop
+  const visB = Math.min(rect.h, photoY + place.h, sheetLimit)
+  const box: React.CSSProperties = {
+    left: visL,
+    top: visT,
+    width: Math.max(0, visR - visL),
+    height: Math.max(0, visB - visT),
+  }
+
+  return (
+    <div
+      data-pane-zoom-box=""
+      className="pointer-events-none absolute z-[3] flex items-end justify-end p-2 opacity-70 transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100"
+      style={box}
+    >
+      <div
+        data-pane-zoom=""
+        className="pointer-events-auto flex drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+        // A double click on a zoom button must not reach the pane's own
+        // double-click (reset the view): the cluster is not the photo.
+        onDoubleClick={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          data-pane-zoom-out=""
+          className={zoomBtnCls}
+          title={t('Zoom out')}
+          aria-label={t('Zoom out')}
+          disabled={leaf.zoom <= MIN_ZOOM}
+          onClick={() => onStep(1 / ZOOM_STEP)}
+        >
+          <MorphIcon icon={Minus} size={14} strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
+          data-pane-zoom-in=""
+          className={`${zoomBtnCls} -ml-px`}
+          title={t('Zoom in')}
+          aria-label={t('Zoom in')}
+          disabled={leaf.zoom >= MAX_ZOOM}
+          onClick={() => onStep(ZOOM_STEP)}
+        >
+          <MorphIcon icon={Plus} size={14} strokeWidth={1.75} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -1490,6 +1614,15 @@ function PaneImpl({
   // original's live box (the pane can shift while the carry is in flight).
   const swapReturnTo = swapReturnLanding(swapReturn, place, rect, elRef.current)
 
+  // The zoom cluster steps about the pane's centre through the very zoomAbout
+  // the pinch/wheel machine uses: same clamp, same cover math, same clamped
+  // commit, so a click and a gesture cannot disagree. Step count is the only
+  // new thing here; the zoom/pan logic itself is untouched.
+  const stepZoom = useCallback(
+    (factor: number) => zoomAbout(leaf, leaf.zoom * factor, cell.x + cell.w / 2, cell.y + cell.h / 2),
+    [zoomAbout, leaf, cell],
+  )
+
   const paneNode = (
     <div
       ref={elRef}
@@ -1544,6 +1677,12 @@ function PaneImpl({
         onSplit={onSplit}
         className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-(--dur-fast) group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-lg:hidden"
       />
+
+      {/* Focus-only, like the × close button: the photo's own zoom pair,
+          parked inside the photo at its bottom-right (PaneZoomControls). */}
+      {place && focused && (
+        <PaneZoomControls paneEl={elRef} leaf={leaf} place={place} rect={rect} onStep={stepZoom} />
+      )}
 
       {dropChoice && (
         <DropChoiceOverlay
