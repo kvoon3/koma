@@ -13,7 +13,7 @@ import { usePanePreview, usePreview } from '../../hooks'
 import { fontById } from '../../lib/fonts'
 import { useT } from '../../lib/i18n'
 import { LABEL_ICON_GAP_EM, labelIconNode } from '../../lib/labelIcons'
-import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelAlign, labelPaint, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../../lib/panes'
+import { blendFadePx, boardStickerRect, cornerRadiiCss, expandRectForBlend, labelAlign, labelPaint, labelTextShadow, layoutTree, leafCornerRadii, leafList, placement, rotationCss, seamFadeWidth, seamMaskStyle, seamSides } from '../../lib/panes'
 import { isTransparentBg, useStore } from '../../store'
 import { LabelIconGlyph } from '../BoardLabel'
 import { SeamBackdrop } from '../Stage'
@@ -232,6 +232,7 @@ export function CellPreview({ root, canvasRatio, box, photoById, stickers = [], 
               fontFamily: fontById(lab.font).cssStack,
               background: labelPaint(lab).fill,
               color: labelPaint(lab).fg,
+              textShadow: labelTextShadow(lab.theme),
               padding: '0.22em 0.38em',
               display: 'flex',
               alignItems: 'center',

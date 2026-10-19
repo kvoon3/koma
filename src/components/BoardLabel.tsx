@@ -1,16 +1,16 @@
 import type { IconNode } from 'lucide'
 import type { FontMeta } from '../lib/fonts'
-import type { LabelAlign, PaneLabel } from '../lib/panes'
+import type { LabelAlign, LabelTheme, PaneLabel } from '../lib/panes'
 import { Popover } from '@base-ui/react/popover'
 import { Select } from '@base-ui/react/select'
-import { AlignCenter, AlignLeft, AlignRight, Ban, Baseline, Blend, Check, ChevronDown, Contrast, MapPin, PaintBucket, RefreshCw, RotateCcw, Smile, Trash2, Type as TypeIcon, X } from 'lucide'
+import { AlignCenter, AlignLeft, AlignRight, Ban, Baseline, Blend, Check, ChevronDown, Contrast, MapPin, Moon, PaintBucket, RefreshCw, RotateCcw, Smile, Sparkles, Sun, Trash2, Type as TypeIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
 import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/components/ui/field'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
-import { labelAlign, labelBgAlpha, labelPaint, normalizeLabelText, rotationCss, rotationOf, snapRotation } from '../lib/panes'
+import { DEFAULT_LABEL_THEME, LABEL_THEME_IDS, labelAlign, labelBgAlpha, labelPaint, labelTextShadow, normalizeLabelText, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
@@ -62,6 +62,19 @@ const FONT_CATS: { id: FontMeta['cat'], label: string }[] = [
   { id: 'hand', label: 'Handwriting' },
   { id: 'mono', label: 'Mono' },
 ]
+
+/** One read of the theme table: the label the picker shows and the glyph it draws. */
+const THEME_ICON: Record<LabelTheme, typeof AlignLeft> = {
+  dark: Moon,
+  light: Sun,
+  glow: Sparkles,
+}
+const THEME_LABEL: Record<LabelTheme, string> = {
+  dark: 'White on black',
+  light: 'Black on white',
+  glow: 'White glow',
+}
+const LABEL_THEME_ITEMS = LABEL_THEME_IDS.map(id => ({ value: id, label: THEME_LABEL[id], icon: THEME_ICON[id] }))
 
 // Loads a Google font for the preview and bumps a counter once a web font finishes
 // loading, so the label re-renders with the real metrics.
@@ -565,6 +578,53 @@ function LabelFontSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
   )
 }
 
+/**
+ * The label's theme: the two opaque box pairs and the box-less glow. Choosing
+ * a theme drops custom text/box colors (they would overpaint it), so the pick
+ * always shows the theme it names in one `setLabel` patch, one undo step.
+ */
+function LabelThemeSelect({ labelId, lab, setLabel, selectLabel, triggerClassName }: LabelControlProps & { triggerClassName: string }) {
+  const t = useT()
+  return (
+    <Select.Root
+      items={LABEL_THEME_ITEMS}
+      value={lab.theme ?? DEFAULT_LABEL_THEME}
+      onValueChange={(value) => {
+        setLabel(labelId, { theme: value as LabelTheme, fg: undefined, bg: undefined })
+      }}
+      onOpenChange={(open) => {
+        if (open)
+          selectLabel(labelId)
+      }}
+    >
+      <Select.Trigger className={triggerClassName} title={t('Label theme')} aria-label={t('Label theme')} data-label-theme-trigger="">
+        <MorphIcon icon={THEME_ICON[lab.theme] ?? Contrast} size={13} strokeWidth={1.75} />
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Positioner className="z-[260] select-none outline-0" sideOffset={4} align="start" alignItemWithTrigger={false}>
+          <Select.Popup className="box-border rounded-none border border-line bg-panel py-1 text-txt outline-0 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+            <Select.List className="relative">
+              {LABEL_THEME_ITEMS.map(item => (
+                <Select.Item
+                  key={item.value}
+                  value={item.value}
+                  className="flex cursor-default select-none items-center gap-2 px-2.5 py-[5px] text-[13px] outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent"
+                >
+                  <Select.ItemIndicator className="flex w-3.5 text-current">
+                    <MorphIcon icon={Check} size={12} strokeWidth={2} />
+                  </Select.ItemIndicator>
+                  <span className="flex w-4 flex-none items-center"><MorphIcon icon={item.icon} size={13} strokeWidth={1.75} /></span>
+                  <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
+                </Select.Item>
+              ))}
+            </Select.List>
+          </Select.Popup>
+        </Select.Positioner>
+      </Select.Portal>
+    </Select.Root>
+  )
+}
+
 function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName, glyphSize = '13' }: LabelControlProps & { triggerClassName: string, glyphSize?: string }) {
   const iconFadeRef = useScrollFade<HTMLDivElement>()
   const t = useT()
@@ -682,6 +742,13 @@ export function LabelControls({ labelId, lab, setLabel, selectLabel }: LabelCont
         triggerClassName="box-border inline-flex h-[22px] min-w-[92px] max-w-[150px] cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-none border border-float-line bg-float-bg-2 px-1.5 text-[11px] whitespace-nowrap text-txt hover:bg-chip-hover"
       />
       <AlignButtons labelId={labelId} lab={lab} setLabel={setLabel} />
+      <LabelThemeSelect
+        labelId={labelId}
+        lab={lab}
+        setLabel={setLabel}
+        selectLabel={selectLabel}
+        triggerClassName="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
+      />
       <button
         className="grid h-[22px] w-[22px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg-2 p-0 text-txt hover:bg-chip-hover"
         title={t('Invert colors')}
@@ -743,7 +810,7 @@ const dockToolCls = `${toolsBtnCls} ${dockBtnStateCls}`
 const dockPopupCls = 'box-border max-w-[calc(100vw-16px)] rounded-none border border-line-strong bg-panel p-2 text-txt shadow-pop outline-0'
 const swatchCls = 'box-border h-7 w-7 cursor-pointer rounded-none border border-line-strong p-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] aria-pressed:outline-2 aria-pressed:outline-accent aria-pressed:outline-offset-1'
 
-type DockTool = 'font' | 'fg' | 'bg' | 'alpha' | 'icon' | 'align'
+type DockTool = 'font' | 'theme' | 'fg' | 'bg' | 'alpha' | 'icon' | 'align'
 
 /**
  * One dock tool that opens its control in a small popover just above it. The
@@ -864,6 +931,28 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
               </div>
             )
           })}
+        </div>
+      </DockPopover>
+      <DockPopover
+        id="theme"
+        {...pop}
+        label={t('Label theme')}
+        caption={t('Theme')}
+        trigger={<MorphIcon icon={THEME_ICON[lab.theme] ?? Contrast} size={22} strokeWidth={1.5} />}
+      >
+        <div className="grid w-[180px] gap-1">
+          {LABEL_THEME_IDS.map(id => (
+            <button
+              key={id}
+              type="button"
+              className="flex cursor-pointer items-center gap-2 rounded-none border border-line-strong bg-transparent px-2.5 py-2 text-left text-[13px] text-txt hover:bg-chip-hover aria-pressed:bg-accent aria-pressed:text-on-accent"
+              aria-pressed={(lab.theme ?? DEFAULT_LABEL_THEME) === id}
+              onClick={() => setLabel(labelId, { theme: id, fg: undefined, bg: undefined })}
+            >
+              <MorphIcon icon={THEME_ICON[id]} size={15} strokeWidth={1.75} />
+              {t(THEME_LABEL[id])}
+            </button>
+          ))}
         </div>
       </DockPopover>
       <DockPopover
@@ -1017,6 +1106,9 @@ function LabelView({
         fontFamily: fontById(lab.font).cssStack,
         background: colors.fill,
         color: colors.fg,
+        // Inherited by the text (and the editor): one em-relative stack, so the
+        // glow keeps its proportions at any label size.
+        textShadow: labelTextShadow(lab.theme),
       }}
       onPointerDown={onBoxDown}
       onPointerMove={onBoxMove}

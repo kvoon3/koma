@@ -22,23 +22,79 @@ export interface Sticker {
 }
 
 /**
- * Label box themes: always opaque so they stay readable over any photo; both
- *  are plain black/white pairs drawn identically in preview and exporter.
+ * Label box themes. `dark` and `light` are opaque black/white pairs so the
+ * text stays readable over any photo; `glow` drops the box entirely and paints
+ * pure white text inside a soft white/blue halo (neon on a lightbox), so it
+ * reads over a photo without a plate hiding it. All three draw identically in
+ * the preview (CSS) and the exporter (canvas).
  */
 export const LABEL_THEMES = {
   dark: { bg: '#000000', fg: '#ffffff' },
   light: { bg: '#ffffff', fg: '#000000' },
+  glow: { bg: 'transparent', fg: '#ffffff', glow: true },
 } as const
 
 export type LabelTheme = keyof typeof LABEL_THEMES
 
+/** One theme's pair, plus the glow marker only the box-less theme carries. */
+export type LabelThemeSpec = (typeof LABEL_THEMES)[LabelTheme]
+
 export const DEFAULT_LABEL_THEME: LabelTheme = 'dark'
+
+/** Picker order: the two box themes, then the box-less glow. */
+export const LABEL_THEME_IDS = ['dark', 'light', 'glow'] as const satisfies readonly LabelTheme[]
 
 export const nextLabelTheme = (theme: LabelTheme): LabelTheme => (theme === 'dark' ? 'light' : 'dark')
 
 /** Tolerates a missing/unknown theme (e.g. a hand-built export option). */
 export function labelColors(theme?: LabelTheme) {
   return LABEL_THEMES[theme && theme in LABEL_THEMES ? theme : DEFAULT_LABEL_THEME]
+}
+
+/**
+ * One halo layer under the glow theme's text. The blur is in em of the label's
+ * font size, so the preview (CSS `em`) and the exporter (`blur × font px`)
+ * share one scale and the halo grows with the text instead of staying a fixed
+ * px halo on a giant label.
+ */
+export interface LabelGlowLayer {
+  /** Gaussian blur radius, as a fraction of the font size. */
+  blur: number
+  /** Halo color, `rgba()` so layering adds up the same way in CSS and canvas. */
+  color: string
+}
+
+/**
+ * The glow stack, tightest first: CSS paints text shadows back to front, so the
+ * tight blue rim listed first sits on top of the wide cool halo. The white
+ * layer carries the light on a dark photo; the blue rim and outer halo give the
+ * white glyph an edge on a light one, where white alone would wash out.
+ */
+export const LABEL_GLOW_LAYERS: readonly LabelGlowLayer[] = [
+  { blur: 0.05, color: 'rgba(40, 120, 255, 1)' },
+  { blur: 0.1, color: 'rgba(255, 255, 255, 0.95)' },
+  { blur: 0.22, color: 'rgba(190, 222, 255, 0.9)' },
+  { blur: 0.5, color: 'rgba(70, 140, 255, 0.85)' },
+]
+
+/**
+ * How the exporter maps a layer's em blur onto `ctx.shadowBlur`. Measured at
+ * 1:1 against a DOM screenshot of the same CSS stack (see the lane's halo
+ * check: decay radii within 2 px at a 128 px font), so the CSS stack stays the
+ * single source; the knob exists because the two blur models are only
+ * empirically equal and a Chrome change may need re-measuring.
+ */
+export const LABEL_GLOW_CANVAS_SCALE = 1
+
+/** The halo layers of a theme; undefined for the two plain box themes. */
+export function labelGlowLayers(theme?: LabelTheme): readonly LabelGlowLayer[] | undefined {
+  const spec: LabelThemeSpec = labelColors(theme)
+  return 'glow' in spec && spec.glow ? LABEL_GLOW_LAYERS : undefined
+}
+
+/** The preview's CSS `text-shadow` for a theme, or undefined when it has no glow. */
+export function labelTextShadow(theme?: LabelTheme): string | undefined {
+  return labelGlowLayers(theme)?.map(layer => `0 0 ${layer.blur}em ${layer.color}`).join(', ')
 }
 
 /** A label's effective colors: custom fg / bg win over its theme pair. */

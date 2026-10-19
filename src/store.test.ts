@@ -152,6 +152,19 @@ describe('undo / redo over the pane tree', () => {
     expect(ws().stickers).toHaveLength(1)
   })
 
+  test('a theme switch is one coalesced label step, like every other label patch', () => {
+    const labelId = useStore.getState().addLabel(0.5, 0.5)
+    const beforeTheme = depth()
+    useStore.getState().setLabel(labelId, { theme: 'glow', fg: undefined, bg: undefined })
+    expect(ws().labels[0]!.theme).toBe('glow')
+    // A second patch inside the same gesture window rides the same step.
+    useStore.getState().setLabel(labelId, { theme: 'light' })
+    expect(ws().labels[0]!.theme).toBe('light')
+    expect(depth()).toBe(beforeTheme + 1)
+    useStore.getState().undo()
+    expect(ws().labels[0]!.theme).toBe('dark')
+  })
+
   test('canvas ratio and background changes are undoable', () => {
     useStore.getState().setCanvasSize(2 / 3, 0.8)
     expect(ws().canvasRatio).toBeCloseTo(2 / 3)
