@@ -35,12 +35,14 @@ describe('label theme registry', () => {
     const shadow = labelTextShadow('glow')!
     const parts = shadow.match(/0 0 [^)]+\)/g)!
     expect(parts).toHaveLength(LABEL_GLOW_LAYERS.length)
-    // CSS paints back to front: the tight blue rim is listed first, the wide
-    // halo last.
+    // CSS paints back to front: the tight blue rim is listed first, the dark
+    // separation rim last (under everything, so it reads on a light photo).
     expect(parts[0]).toContain('0.05em')
     expect(parts[0]).toContain('rgba(40, 120, 255, 1)')
     expect(parts[3]).toContain('0.5em')
     expect(parts[3]).toContain('rgba(70, 140, 255, 0.85)')
+    expect(parts[4]).toContain('0.55em')
+    expect(parts[4]).toContain('rgba(18, 28, 58, 0.6)')
     for (const part of parts)
       expect(part.startsWith('0 0 ')).toBe(true)
     expect(labelTextShadow('dark')).toBeUndefined()

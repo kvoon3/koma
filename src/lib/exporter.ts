@@ -498,12 +498,14 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
   ctx.font = `400 ${fontPx}px ${meta.cssStack}`
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
-  // The glow theme has no CSS text-shadow on canvas: each halo layer is one
-  // pass of the glyphs under a shadow at the layer's em blur, exactly the
-  // stack the preview paints, then the crisp text lands on top of it.
+  // Glow has no CSS text-shadow on canvas: one pass per layer draws the glyphs
+  // under a shadow at the layer's em blur, then the crisp text on top. Canvas
+  // stacks later passes over earlier ones, the opposite of CSS, so run them
+  // backwards (dark rim first).
   const glow = labelGlowLayers(lab.theme)
   if (glow) {
-    for (const layer of glow) {
+    for (let i = glow.length - 1; i >= 0; i--) {
+      const layer = glow[i]!
       ctx.save()
       ctx.shadowColor = layer.color
       ctx.shadowBlur = layer.blur * fontPx * LABEL_GLOW_CANVAS_SCALE
