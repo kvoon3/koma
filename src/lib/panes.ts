@@ -69,12 +69,22 @@ export interface LabelGlowLayer {
  * tight blue rim listed first sits on top of the wide cool halo. The white
  * layer carries the light on a dark photo; the blue rim and outer halo give the
  * white glyph an edge on a light one, where white alone would wash out.
+ *
+ * The last, widest layer is a dark navy rim behind the whole glow. It is the
+ * same trick the box themes use (a dark plate behind white text): on a light
+ * photo it takes the paper-white background under the halo down a few levels,
+ * which is what separates the white core from a white surface. On a dark photo
+ * it never darkens the background (measured: no pixel outside the glow falls
+ * below the photo's own luminance), it only trims the faint outer halo, so the
+ * neon look there is unchanged. Alpha 0.6 was the knee: 0.75 bought ~1 more
+ * grey level on light and nothing on dark (see the lane's measurements).
  */
 export const LABEL_GLOW_LAYERS: readonly LabelGlowLayer[] = [
   { blur: 0.05, color: 'rgba(40, 120, 255, 1)' },
   { blur: 0.1, color: 'rgba(255, 255, 255, 0.95)' },
   { blur: 0.22, color: 'rgba(190, 222, 255, 0.9)' },
   { blur: 0.5, color: 'rgba(70, 140, 255, 0.85)' },
+  { blur: 0.55, color: 'rgba(18, 28, 58, 0.6)' },
 ]
 
 /**
