@@ -1,5 +1,3 @@
-import type { Action } from './actionGuard'
-
 /**
  * One-tap pane cutout: pure bookkeeping (unit-tested). The side effects
  * (model run, library insert, pane swap) live in `paneCutout`.
@@ -37,36 +35,4 @@ export function originalOf(map: CutoutMap, photoId: string | null | undefined): 
 /** Record a finished cutout; cutting a cutout again still points at the first original. */
 export function recordCutout(map: CutoutMap, cutoutId: string, fromId: string): CutoutMap {
   return { ...map, [cutoutId]: originalOf(map, fromId) ?? fromId }
-}
-
-/**
- * The dock's Cut out action: requires a photo, and is unavailable while a
- * cutout is running or when the pane already shows a cutout (that pane offers
- * Original instead).
- */
-export function cutoutAction<P extends { id: string }>(
-  state: { cutouts: CutoutMap, busy: boolean },
-  run: (paneId: string, photo: P) => void,
-): Action<P> {
-  return {
-    requires: 'photo',
-    when: t => !state.busy && !originalOf(state.cutouts, t.photo.id),
-    run: t => run(t.paneId, t.photo),
-  }
-}
-
-/** Restore the original photo of a cut-out pane; requires a photo that is a cutout. */
-export function restoreOriginalAction<P extends { id: string }>(
-  state: { cutouts: CutoutMap, has: (photoId: string) => boolean },
-  run: (paneId: string, originalId: string) => void,
-): Action<P> {
-  const orig = (p: P) => originalOf(state.cutouts, p.id)
-  return {
-    requires: 'photo',
-    when: (t) => {
-      const o = orig(t.photo)
-      return !!o && state.has(o)
-    },
-    run: t => run(t.paneId, orig(t.photo)!),
-  }
 }
