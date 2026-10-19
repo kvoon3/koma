@@ -38,20 +38,19 @@ describe('glow as an independent effect', () => {
     expect(labelTextShadow({})).toBeUndefined()
   })
 
-  it('spells the halo as one em-relative CSS stack', () => {
+  it('spells the halo as one soft, continuous em-relative CSS stack', () => {
     const shadow = labelTextShadow({ glow: true })!
-    const parts = shadow.match(/0 0 [^)]+\)/g)!
+    const parts = shadow.match(/-?[\d.]+em -?[\d.]+em [^)]+\)/g)!
     expect(parts).toHaveLength(LABEL_GLOW_LAYERS.length)
-    // CSS paints back to front: the tight blue rim is listed first, the dark
-    // separation rim last (under everything, so it reads on a light photo).
-    expect(parts[0]).toContain('0.05em')
-    expect(parts[0]).toContain('rgba(40, 120, 255, 1)')
-    expect(parts[3]).toContain('0.5em')
-    expect(parts[3]).toContain('rgba(70, 140, 255, 0.85)')
-    expect(parts[4]).toContain('0.55em')
-    expect(parts[4]).toContain('rgba(18, 28, 58, 0.6)')
-    for (const part of parts)
-      expect(part.startsWith('0 0 ')).toBe(true)
+    // No layer hugs the glyph: the softest core is already 0.1em out, so the
+    // halo cannot draw a stroke at the ink edge.
+    for (const layer of LABEL_GLOW_LAYERS)
+      expect(layer.blur).toBeGreaterThanOrEqual(0.1)
+    expect(parts[0]).toBe('0em 0em 0.1em rgba(255, 255, 255, 0.9)')
+    expect(parts[1]).toContain('rgba(200, 230, 255, 0.55)')
+    expect(parts[2]).toContain('rgba(90, 150, 255, 0.4)')
+    // Depth, not a ring: the navy layer is offset below the glyph.
+    expect(parts[3]).toBe('0em 0.1em 0.5em rgba(12, 22, 48, 0.55)')
   })
 })
 
