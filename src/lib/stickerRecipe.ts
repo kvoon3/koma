@@ -209,15 +209,12 @@ export async function captureOriginal(file: File, maxEdge: number = ORIGINAL_MAX
   const image = new Image()
   image.decoding = 'async'
   image.src = url
-  try {
-    await image.decode()
-  }
-  catch {
+  // The URL's one job is the load: once the decode settles, either way, the
+  // File's bytes stop being pinned. The frame itself stays in `image`.
+  const decoded = await image.decode().then(() => true, () => false)
+  URL.revokeObjectURL(url)
+  if (!decoded)
     return null
-  }
-  finally {
-    URL.revokeObjectURL(url)
-  }
   const longEdge = Math.max(image.naturalWidth, image.naturalHeight)
   if (longEdge <= 0)
     return null
