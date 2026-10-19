@@ -416,7 +416,7 @@ function PaneZoomControls({
             )}
             <div
               data-pane-minimap-viewport=""
-              className="pointer-events-none absolute border-[1.5px] border-accent bg-accent/15"
+              className="pointer-events-none absolute border-[1.5px] border-accent outline-1 outline-white/70 bg-accent/15"
               style={{ left: `${minimap.view.x * 100}%`, top: `${minimap.view.y * 100}%`, width: `${minimap.view.w * 100}%`, height: `${minimap.view.h * 100}%` }}
             />
           </div>
