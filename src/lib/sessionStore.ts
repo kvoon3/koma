@@ -1,6 +1,7 @@
 import type { Workspace } from '../store'
 import type { BgImage } from './collageBg'
 import type { CutoutMap } from './cutout'
+import type { CutoutSets } from './cutoutVariants'
 import type { StickerRecipe } from './stickerRecipe'
 
 export interface SessionPhotoRecord {
@@ -55,6 +56,8 @@ export interface SessionMeta {
   bg: string
   /** Cutout → original photo ids; absent in sessions saved before one-tap cutout. */
   cutouts?: CutoutMap
+  /** Each cut's cutout and blurred-composite assets, by source photo id (see lib/cutoutVariants); absent before the Cut out menu. */
+  cutoutSets?: CutoutSets
   /** Absent in sessions saved before the sticker manager: no named folders yet. */
   stickerFolders?: string[]
   /** Absent in sessions saved before photo tagging: no tags yet. */
@@ -83,6 +86,7 @@ export interface SessionSource {
   radius: number
   bg: string
   cutouts: CutoutMap
+  cutoutSets: CutoutSets
   bgGradient: string | null
   bgImage: BgImage | null
   longSide: number
@@ -111,6 +115,7 @@ export function sessionMeta(s: SessionSource): SessionMeta {
     radius: s.radius,
     bg: s.bg,
     cutouts: s.cutouts,
+    cutoutSets: s.cutoutSets,
     bgGradient: s.bgGradient,
     bgImage: s.bgImage,
     longSide: s.longSide,

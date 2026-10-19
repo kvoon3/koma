@@ -306,19 +306,17 @@ export const zhHans: Record<string, string> = {
   'Loading AI model…': '正在加载 AI 模型…',
   'Cutting out…': '抠图中…',
   'Cut out': '抠图',
-  'Remove the photo background': '一键抠图，去除照片背景',
-  'Restore the original photo': '恢复原图',
   'Loading the cutout model…': '正在加载抠图模型…',
   'Could not read this photo': '无法读取这张照片',
   'Could not add the cutout to the library': '无法将抠图添加到素材库',
   'Background removed': '已去除背景',
-  'Tap Original in the tools to undo.': '点击工具栏中的“原图”即可撤销。',
   'Cutout added to the library': '抠图已添加到素材库',
   'Background removal failed': '背景移除失败',
 
-  // Cutout blurred backdrop (wave4/blur-bg)
-  'Blurred': '模糊',
-  'Cutout background': '抠图背景',
+  // Cutout states menu (wave4/blur-bg)
+  'Cut out, or switch the background': '抠图，或切换背景',
+  'Blurred background': '模糊背景',
+  'The original photo is gone': '原图已不在素材库',
   'Blurring the background…': '正在模糊背景…',
   'Kept the blurred background': '已保留模糊背景',
   'Blurred cutout added to the library': '带模糊背景的抠图已添加到素材库',

@@ -1,9 +1,11 @@
 import type { BgRemovalProgress } from './bgRemoval'
+import type { CutoutState, CutoutVariants } from './cutoutVariants'
 import type { Photo } from './imageStore'
 import { activeWs, useStore } from '../store'
 import { removeBackground } from './bgRemoval'
-import { blurredCutoutFileName, cutoutFileName, originalOf, recordCutout } from './cutout'
+import { blurredCutoutFileName, cutoutFileName, recordCutout } from './cutout'
 import { bakeBlurredBackdrop } from './cutoutBackdrop'
+import { recordBlurredSet, recordCutoutSet, variantsOf } from './cutoutVariants'
 import { t } from './i18n'
 import { getPreview } from './imageStore'
 import { findLeaf } from './panes'
@@ -15,137 +17,153 @@ function progressTitle(p: BgRemovalProgress): string {
   return p.phase === 'loading' ? `${t('Loading the cutout model…')}${pct}` : t('Cutting out…')
 }
 
-/**
- * The two frames a finished cutout was made of, held until its background
- * choice resolves: the pane's own preview (the exact pixels the model read)
- * and the cutout PNG. Session-only and one at a time, like the job: nothing
- * else can reach them, and the next cutout replaces them.
- */
-let backdropSource: { cutoutId: string, photo: Blob, cutout: Blob } | null = null
+/** Is `photoId` in the library (an orphaned snapshot still counts: it still renders)? */
+function hasPhoto(photoId: string): boolean {
+  return useStore.getState().photos.some(p => p.id === photoId)
+}
+
+function photoById(photoId: string): Photo | null {
+  return useStore.getState().photos.find(p => p.id === photoId) ?? null
+}
 
 /**
- * One-tap cutout of a pane's photo with the sticker maker's local model
- * (`removeBackground`). The cutout lands in the library as a new PNG and
- * replaces the pane's photo, keeping its zoom and focus; the original stays
- * in the library and the pane can go back to it (`restorePaneOriginal`).
- *
- * The model reads the decoded preview (≤1800px, already oriented and
- * HEIC-decoded), so the cutout is at most that size.
- *
- * The finished cutout then offers its background (`lib/cutoutBackdrop`): the
- * pane shows the transparent cutout straight away, as it always has, and a
- * chip on the pane can keep the photo's own frame behind it, blurred. Baking
- * that choice into a PNG is what keeps the rest of the app free of it: the
- * preview, the export and undo see a photo, like any other.
+ * The cutout PNG of `source`, running the local U²-Netp model when the library
+ * does not have one yet. The model reads the source's decoded preview (≤1800px,
+ * already oriented and HEIC-decoded), so the cutout is at most that size.
  */
-export async function cutOutPane(paneId: string, photo: Photo): Promise<void> {
+async function ensureCutout(source: Photo, paneId: string): Promise<string> {
   const { patch } = useStore.getState()
-  if (useStore.getState().cutoutJob)
-    return
-  const wsId = useStore.getState().activeId
   patch({ cutoutJob: { paneId, phase: 'loading' } })
   const toastId = toastManager.add({ title: t('Cutting out…'), timeout: 0 })
   try {
-    const pv = await getPreview(photo)
+    const pv = await getPreview(source)
     if (!pv?.url)
       throw new Error(t('Could not read this photo'))
     const res = await fetch(pv.url)
     if (!res.ok)
       throw new Error(t('Could not read this photo'))
-    const preview = await res.blob()
-    const blob = await removeBackground(preview, (p) => {
+    const blob = await removeBackground(await res.blob(), (p) => {
       patch({ cutoutJob: { paneId, phase: p.phase, progress: p.progress } })
       toastManager.update(toastId, { title: progressTitle(p) })
     })
     const s = useStore.getState()
-    const cut = s.addPhotos([new File([blob], cutoutFileName(photo.name), { type: 'image/png' })], false)[0]
+    const cut = s.addPhotos([new File([blob], cutoutFileName(source.name), { type: 'image/png' })], false)[0]
     if (!cut)
       throw new Error(t('Could not add the cutout to the library'))
-    s.patch({ cutouts: recordCutout(s.cutouts, cut.id, photo.id) })
-    // Only swap if the pane still shows the photo that was cut out; otherwise
-    // the cutout simply waits in the library.
-    const now = useStore.getState()
-    const leaf = now.activeId === wsId ? findLeaf(activeWs(now).root, paneId) : null
-    if (leaf?.photoId === photo.id) {
-      now.updateLeaf(paneId, { photoId: cut.id })
-      // The choice rides the cutout's own undo step (see `updateLeafJoined`):
-      // picking a backdrop refines this cutout, it is not a second action.
-      backdropSource = { cutoutId: cut.id, photo: preview, cutout: blob }
-      now.patch({ cutoutBackdrop: { paneId, cutoutId: cut.id } })
-      toastManager.update(toastId, { title: t('Background removed'), description: t('Tap Original in the tools to undo.'), timeout: 5000 })
-    }
-    else {
-      toastManager.update(toastId, { title: t('Cutout added to the library'), timeout: 4000 })
-    }
+    s.patch({
+      cutouts: recordCutout(s.cutouts, cut.id, source.id),
+      cutoutSets: recordCutoutSet(s.cutoutSets, source.id, cut.id),
+    })
+    toastManager.update(toastId, { title: t('Background removed'), timeout: 2500 })
+    return cut.id
   }
   catch (error) {
     console.error('[cutout]', error)
     const detail = error instanceof Error ? error.message : String(error)
     toastManager.update(toastId, { title: t('Background removal failed'), description: detail, timeout: 8000 })
+    throw error
   }
   finally {
     useStore.getState().patch({ cutoutJob: null })
   }
 }
 
-/** Close the background choice without using it (the cutout stays transparent). */
-export function dismissCutoutBackdrop() {
-  backdropSource = null
-  useStore.getState().patch({ cutoutBackdrop: null })
-}
-
 /**
- * Keep the blurred portrait backdrop under the cutout the pane is showing.
- *
- * The composite is baked into a NEW library photo (the cutout PNG stays), and
- * that photo replaces the cutout in this pane within the cutout's own undo
- * step: one undo leaves the cutout, the same way it did before the choice
- * existed, and the pane can still go back to the original from the tools.
+ * The blurred composite of `source`: its cutout PNG over its own frame,
+ * blurred (see `lib/cutoutBackdrop`). Baked on demand, because the two halves
+ * are library assets and always can be rebuilt: the source's preview and the
+ * cutout PNG that the model left in the library.
  */
-export async function applyBlurredBackdrop(): Promise<void> {
-  const s = useStore.getState()
-  const choice = s.cutoutBackdrop
-  const src = backdropSource
-  if (!choice || !src || src.cutoutId !== choice.cutoutId)
-    return
-  // One shot: the choice is consumed before the bake, so a double tap cannot
-  // bake twice or race the swap.
-  backdropSource = null
-  s.patch({ cutoutBackdrop: null })
-  const wsId = s.activeId
+async function ensureBlurred(source: Photo, cutoutId: string): Promise<string> {
   const toastId = toastManager.add({ title: t('Blurring the background…'), timeout: 0 })
   try {
-    const composite = await bakeBlurredBackdrop(src.photo, src.cutout)
-    const now = useStore.getState()
-    // Name it after the photo the subject was cut from, not after the cutout
-    // that is already called `-cutout`: one suffix, one history.
-    const from = now.photos.find(p => p.id === originalOf(now.cutouts, choice.cutoutId))
-      ?? now.photos.find(p => p.id === choice.cutoutId)
-    const file = new File([composite], blurredCutoutFileName(from?.name ?? 'photo.png'), { type: 'image/png' })
-    const blurred = now.addPhotos([file], false)[0]
+    const cutout = photoById(cutoutId)
+    if (!cutout)
+      throw new Error(t('Could not read this photo'))
+    const pv = await getPreview(source)
+    if (!pv?.url)
+      throw new Error(t('Could not read this photo'))
+    const res = await fetch(pv.url)
+    if (!res.ok)
+      throw new Error(t('Could not read this photo'))
+    const composite = await bakeBlurredBackdrop(await res.blob(), cutout.file)
+    const s = useStore.getState()
+    const file = new File([composite], blurredCutoutFileName(source.name), { type: 'image/png' })
+    const blurred = s.addPhotos([file], false)[0]
     if (!blurred)
       throw new Error(t('Could not add the blurred cutout to the library'))
-    // The composite is a cutout too: Original keeps pointing at the photo the
-    // subject was cut from, not at the transparent cutout in between.
-    now.patch({ cutouts: recordCutout(now.cutouts, blurred.id, choice.cutoutId) })
-    const live = useStore.getState()
-    const leaf = live.activeId === wsId ? findLeaf(activeWs(live).root, choice.paneId) : null
-    if (leaf?.photoId === choice.cutoutId) {
-      live.updateLeafJoined(choice.paneId, { photoId: blurred.id })
-      toastManager.update(toastId, { title: t('Kept the blurred background'), description: t('Tap Original in the tools to undo.'), timeout: 4000 })
-    }
-    else {
-      toastManager.update(toastId, { title: t('Blurred cutout added to the library'), timeout: 4000 })
-    }
+    // A composite is a cutout too: Original still resolves to the photo the
+    // subject was cut from, never to the transparent PNG in between.
+    s.patch({
+      cutouts: recordCutout(s.cutouts, blurred.id, cutoutId),
+      cutoutSets: recordBlurredSet(s.cutoutSets, source.id, cutoutId, blurred.id),
+    })
+    toastManager.update(toastId, { title: t('Kept the blurred background'), timeout: 2000 })
+    return blurred.id
   }
   catch (error) {
     console.error('[cutout-backdrop]', error)
     const detail = error instanceof Error ? error.message : String(error)
     toastManager.update(toastId, { title: t('Could not blur the background'), description: detail, timeout: 8000 })
+    throw error
   }
 }
 
-/** Put the original photo back into a cut-out pane (the cutout stays in the library). */
-export function restorePaneOriginal(paneId: string, originalId: string) {
-  useStore.getState().updateLeaf(paneId, { photoId: originalId })
+/** The library asset a cutout target needs, running the model / bake only when it is missing. */
+async function variantPhotoFor(paneId: string, target: 'cutout' | 'blurred', variants: CutoutVariants): Promise<string> {
+  const source = variants.source
+  const sourcePhoto = source ? photoById(source) : null
+  if (!source || !sourcePhoto)
+    throw new Error(t('The original photo is gone'))
+  const cutoutId = variants.cutout ?? await ensureCutout(sourcePhoto, paneId)
+  if (target === 'cutout')
+    return cutoutId
+  return variants.blurred ?? await ensureBlurred(sourcePhoto, cutoutId)
+}
+
+/** Hand the pane the resolved photo, or say where it went if the pane moved on meanwhile. */
+function swapPanePhoto(paneId: string, fromId: string, toId: string, wsId: string, target: CutoutState) {
+  const now = useStore.getState()
+  const leaf = now.activeId === wsId ? findLeaf(activeWs(now).root, paneId) : null
+  if (leaf?.photoId === fromId) {
+    now.updateLeaf(paneId, { photoId: toId })
+    return
+  }
+  toastManager.add({ title: target === 'blurred' ? t('Blurred cutout added to the library') : t('Cutout added to the library'), timeout: 4000 })
+}
+
+/**
+ * Put one of a photo's three states into its pane, from the dock's Cut out
+ * menu (Original, Transparent or Blurred background).
+ *
+ * Switching is a plain `photoId` swap, so it is ONE committed undo step, and
+ * it is instant whenever the asset exists: the cutout PNG and the blurred
+ * composite are library photos (see `lib/cutoutVariants` for the graph). Only
+ * the first visit to Transparent or Blurred runs the model (and, for Blurred,
+ * the bake) with the pane's progress veil.
+ */
+export async function applyCutoutState(paneId: string, photo: Photo, target: CutoutState): Promise<void> {
+  const start = useStore.getState()
+  // One cutout at a time: the progress veil and the worker are single-flight.
+  if (start.cutoutJob)
+    return
+  const variants = variantsOf(start.cutouts, start.cutoutSets, photo.id, hasPhoto)
+  if (target === 'original') {
+    if (!variants.source) {
+      toastManager.add({ title: t('The original photo is gone'), timeout: 4000 })
+      return
+    }
+    if (variants.source !== photo.id)
+      useStore.getState().updateLeaf(paneId, { photoId: variants.source })
+    return
+  }
+  try {
+    const nextId = await variantPhotoFor(paneId, target, variants)
+    swapPanePhoto(paneId, photo.id, nextId, start.activeId, target)
+  }
+  catch (error) {
+    // The step that failed has toasted its own reason (see `ensureCutout` /
+    // `ensureBlurred`); the pane simply did not change.
+    console.error('[cutout]', error)
+  }
 }

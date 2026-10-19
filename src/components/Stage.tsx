@@ -1,22 +1,24 @@
 import type { IconInput } from 'morphicons/react'
 import type { Action, DockRoute } from '../lib/actionGuard'
+import type { CutoutMap } from '../lib/cutout'
+import type { CutoutSets, CutoutState } from '../lib/cutoutVariants'
 import type { Photo } from '../lib/imageStore'
 import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { StickerTarget } from '../lib/stickerAssets'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
+import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
-import { cutoutAction, restoreOriginalAction } from '../lib/cutout'
+import { variantsOf } from '../lib/cutoutVariants'
 import { GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { setLabelPreviewUnit } from '../lib/labelMetrics'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
-import { applyBlurredBackdrop, cutOutPane, dismissCutoutBackdrop, restorePaneOriginal } from '../lib/paneCutout'
+import { applyCutoutState } from '../lib/paneCutout'
 import { blendFadePx, dividerLine, expandRectForBlend, leafList, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
@@ -87,6 +89,10 @@ interface ToolOption {
   label: string
   /** Bound by `bindAction`: null when the precondition fails → disabled. */
   onClick: (() => void) | null
+  /** This row is what the pane already shows: a check, `aria-pressed`. */
+  active?: boolean
+  /** Why the row is off, said in the row itself rather than only in a tooltip. */
+  reason?: string
 }
 
 const toolDisabledCls = 'disabled:cursor-default disabled:opacity-35 disabled:active:scale-100 disabled:hover:bg-transparent'
@@ -114,8 +120,11 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
             {options.map(o => (
               <button
                 key={o.key}
+                data-tool-option={o.key}
                 className={`${menuItemCls} hover:bg-chip-hover disabled:cursor-default disabled:opacity-35`}
                 disabled={!o.onClick}
+                aria-pressed={o.active ?? false}
+                title={o.reason}
                 onClick={() => {
                   setOpen(false)
                   o.onClick?.()
@@ -123,6 +132,11 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
               >
                 <MorphIcon icon={o.icon} size={15} strokeWidth={1.75} />
                 {o.label}
+                {/* The row's own state: a check for the one the pane shows, a
+                    short reason for one that cannot be used right now. */}
+                {o.active
+                  ? <MorphIcon icon={Check} size={13} strokeWidth={2} className="ml-auto text-accent" />
+                  : o.reason ? <span className="ml-auto pl-3 text-[10px] text-faint">{o.reason}</span> : null}
               </button>
             ))}
           </Popover.Popup>
@@ -527,7 +541,6 @@ function StageCanvas({
           />
 
           <CutoutProgress view={view} />
-          <CutoutBackdropChoice view={view} photoById={photoById} />
 
           <BoardInserts
             stickers={stickers}
@@ -910,12 +923,56 @@ export function DockToolset({ route }: { route: DockRoute }) {
   )
 }
 
+/**
+ * The dock's Cut out tool: ONE icon whose popover holds the three states of the
+ * photo's cutout (see `lib/cutoutVariants`). A row is checked when the pane
+ * already shows it and disabled with its reason when the asset behind it
+ * cannot be reached; the first visit to a cut state runs the model, and
+ * Blurred also bakes the composite. Picking the state the pane is already in
+ * is a no-op, not an error, so those rows stay usable.
+ */
+function cutoutMenuTool(t: (key: string) => string, ctx: {
+  photo: Photo | null
+  cutouts: CutoutMap
+  sets: CutoutSets
+  busy: boolean
+  has: (id: string) => boolean
+  apply: (paneId: string, photo: Photo, target: CutoutState) => void
+  paneId: string | null
+}): ToolDef {
+  const variants = ctx.photo ? variantsOf(ctx.cutouts, ctx.sets, ctx.photo.id, ctx.has) : null
+  const source = variants?.source ?? null
+  const canPick = !ctx.busy && !!ctx.paneId && !!ctx.photo
+  const row = (key: CutoutState, icon: IconInput, label: string, reachable: boolean): ToolOption => ({
+    key,
+    icon,
+    label,
+    active: variants?.state === key,
+    reason: ctx.busy ? t('Cutting out…') : reachable ? undefined : t('The original photo is gone'),
+    onClick: canPick && reachable ? () => ctx.apply(ctx.paneId!, ctx.photo!, key) : null,
+  })
+  return {
+    key: 'cutout',
+    icon: Scissors,
+    label: t('Cut out'),
+    hint: t('Cut out, or switch the background'),
+    options: [
+      // Original needs the source itself; the two cut rows need either their
+      // own asset or a source to make it from.
+      row('original', Undo2, t('Original'), !!source),
+      row('cutout', Scissors, t('Cut out'), !!variants?.cutout || !!source),
+      row('blurred', Blend, t('Blurred background'), !!variants?.blurred || !!source),
+    ],
+  }
+}
+
 function usePaneTools(focusId: string, view: Derived | null, photoById: Map<string, Photo>, route: DockRoute = 'stage') {
   const t = useT()
   const removePhoto = useStore(s => s.removePhoto)
   const resetPane = useStore(s => s.resetPane)
   const openStickerMaker = useStore(s => s.openStickerMaker)
   const cutouts = useStore(s => s.cutouts)
+  const cutoutSets = useStore(s => s.cutoutSets)
   const cutoutBusy = useStore(s => !!s.cutoutJob)
 
   const focusHit = focusId && view ? view.leaves.find(l => l.node.id === focusId) : undefined
@@ -946,11 +1003,17 @@ function usePaneTools(focusId: string, view: Derived | null, photoById: Map<stri
       { key: 'row', icon: SquareSplitHorizontal, label: t('Split left/right'), onClick: bind(onPane(id => splitPane(id, 'row'))) },
     ],
   }
-  // One-tap cutout, or the way back to the original once the pane shows one.
-  const restoreAction = restoreOriginalAction<Photo>({ cutouts, has: id => photoById.has(id) }, restorePaneOriginal)
-  const cutoutTool: ToolDef = bind(restoreAction)
-    ? { key: 'original', icon: Undo2, label: t('Original'), hint: t('Restore the original photo'), onClick: bind(restoreAction) }
-    : { key: 'cutout', icon: Scissors, label: t('Cut out'), hint: t('Remove the photo background'), onClick: bind(cutoutAction<Photo>({ cutouts, busy: cutoutBusy }, (id, ph) => void cutOutPane(id, ph))) }
+  // The cutout's three states, switchable any time from one menu (see
+  // lib/cutoutVariants for what each row resolves to).
+  const cutoutTool: ToolDef = cutoutMenuTool(t, {
+    photo: focusLeaf?.photoId ? photoById.get(focusLeaf.photoId) ?? null : null,
+    cutouts,
+    sets: cutoutSets,
+    busy: cutoutBusy,
+    has: id => photoById.has(id),
+    apply: (paneId, photo, target) => void applyCutoutState(paneId, photo, target),
+    paneId: focusId || null,
+  })
   const textTool: ToolDef = { key: 'text', icon: Type, label: t('Text'), hint: t('Add a text label'), onClick: bind(onPane(addLabelToPane)) }
   // The photo's EXIF fix, when it has one. Disabled (not hidden) without GPS,
   // like every other tool that does not apply to the focused pane.
@@ -982,59 +1045,6 @@ function usePaneTools(focusId: string, view: Derived | null, photoById: Map<stri
   ]
 
   return { tools, toolsHidden }
-}
-
-/** A pick inside the cutout's background chip: compact, flat, chip-tinted on hover. */
-const backdropPickCls = 'cursor-pointer whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-1 text-[11px] font-semibold text-txt transition-colors duration-(--dur-fast) hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt focus-visible:outline-1 focus-visible:outline-accent'
-
-/**
- * The finished cutout's background choice, on the pane that shows it (see
- * `lib/paneCutout`): the cutout arrives transparent, exactly as it always has,
- * and this chip offers the photo's own frame behind it instead, blurred. It
- * rides the cutout it was made for: undo, Original or a swap changes the pane's
- * photo and the chip goes with it, since it can only refine that one photo.
- *
- * Top-left of the pane, beside the photo its own title bar has no room for: the
- * pane's BOTTOM is not safe ground, since the canvas runs under the tools dock
- * on both sizes (measured: the chip was unclickable at 375 and hidden at 1280).
- * The one thing already parked there is the Live Photo badge, so a video pane
- * pushes the chip below it.
- */
-function CutoutBackdropChoice({ view, photoById }: { view: Derived, photoById: Map<string, Photo> }) {
-  const choice = useStore(s => s.cutoutBackdrop)
-  const t = useT()
-  const hit = choice ? view.leaves.find(l => l.node.id === choice.paneId) : undefined
-  if (!choice || !hit || hit.node.photoId !== choice.cutoutId)
-    return null
-  const live = !!photoById.get(choice.cutoutId)?.videoFile
-  return (
-    <div
-      data-cutout-backdrop=""
-      role="group"
-      aria-label={t('Cutout background')}
-      className="absolute z-20 flex items-center gap-0.5 rounded-none border border-float-line bg-float-bg p-0.5 text-[11px] shadow-pop backdrop-blur-[7px]"
-      style={{ left: hit.rect.x + 9, top: hit.rect.y + (live ? 36 : 9) }}
-      onPointerDown={e => e.stopPropagation()}
-    >
-      <span className="px-1.5 text-[10px] font-semibold text-dim">{t('Background')}</span>
-      <button
-        type="button"
-        data-cutout-backdrop-pick="transparent"
-        className={backdropPickCls}
-        onClick={() => dismissCutoutBackdrop()}
-      >
-        {t('Transparent')}
-      </button>
-      <button
-        type="button"
-        data-cutout-backdrop-pick="blur"
-        className={backdropPickCls}
-        onClick={() => void applyBlurredBackdrop()}
-      >
-        {t('Blurred')}
-      </button>
-    </div>
-  )
 }
 
 /** Progress veil over the pane whose photo is being cut out (see lib/paneCutout). */
