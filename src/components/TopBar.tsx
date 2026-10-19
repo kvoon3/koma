@@ -7,6 +7,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Images, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { clearFilterCaches } from '../lib/filterCache'
 import { setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
@@ -515,6 +516,10 @@ export function TopBar({
       radius: doc.settings.radius,
       bg: doc.settings.bg,
       cutouts: doc.cutouts ?? {},
+      // A file from a build before the Cut out menu has no variant table, and
+      // one from anywhere else is untrusted: keep only well-formed rows whose
+      // photos actually came along.
+      cutoutSets: pruneCutoutSets(normalizeCutoutSets(doc.cutoutSets), new Set(photos.map(p => p.id))),
       // Sticker folders ride with the file; a file saved before them has none.
       stickerFolders: doc.stickerFolders ?? [],
       bgGradient: doc.settings.bgGradient ?? null,

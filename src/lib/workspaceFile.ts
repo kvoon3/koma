@@ -1,6 +1,7 @@
 import type { Workspace } from '../store'
 import type { BgImage } from './collageBg'
 import type { CutoutMap } from './cutout'
+import type { CutoutSets } from './cutoutVariants'
 import type { Photo } from './imageStore'
 import { mapSeq } from './async'
 import { downloadBlob } from './exporter'
@@ -13,6 +14,8 @@ export interface WorkspaceDocV1 {
   activeId: string
   /** Cutout → original photo ids; absent in files saved before one-tap cutout. */
   cutouts?: CutoutMap
+  /** Each cut's cutout and blurred-composite assets (see lib/cutoutVariants); absent before the Cut out menu. */
+  cutoutSets?: CutoutSets
   /** Sticker folders; absent in files saved before the sticker manager. */
   stickerFolders?: string[]
   settings: {
@@ -53,6 +56,7 @@ export interface WorkspaceFileState {
   quality: number
   photos: Photo[]
   cutouts: CutoutMap
+  cutoutSets: CutoutSets
   stickerFolders: string[]
 }
 
@@ -109,6 +113,7 @@ export async function buildDoc(s: WorkspaceFileState): Promise<WorkspaceDocV1> {
     workspaces: s.workspaces,
     activeId: s.activeId,
     cutouts: s.cutouts,
+    cutoutSets: s.cutoutSets,
     stickerFolders: s.stickerFolders,
     settings: {
       gap: s.gap,

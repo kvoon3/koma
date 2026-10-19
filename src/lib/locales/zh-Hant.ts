@@ -304,19 +304,17 @@ export const zhHant: Record<string, string> = {
   'Loading AI model…': '正在載入 AI 模型…',
   'Cutting out…': '去背中…',
   'Cut out': '去背',
-  'Remove the photo background': '一鍵去背，移除照片背景',
-  'Restore the original photo': '恢復原圖',
   'Loading the cutout model…': '正在載入去背模型…',
   'Could not read this photo': '無法讀取這張照片',
   'Could not add the cutout to the library': '無法將去背圖加入素材庫',
   'Background removed': '已移除背景',
-  'Tap Original in the tools to undo.': '點選工具列中的「原圖」即可復原。',
   'Cutout added to the library': '去背圖已加入素材庫',
   'Background removal failed': '背景移除失敗',
 
-  // Cutout blurred backdrop (wave4/blur-bg)
-  'Blurred': '模糊',
-  'Cutout background': '去背背景',
+  // Cutout states menu (wave4/blur-bg)
+  'Cut out, or switch the background': '去背，或切換背景',
+  'Blurred background': '模糊背景',
+  'The original photo is gone': '原圖已不在素材庫',
   'Blurring the background…': '正在模糊背景…',
   'Kept the blurred background': '已保留模糊背景',
   'Blurred cutout added to the library': '含模糊背景的去背圖已加入素材庫',

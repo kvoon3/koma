@@ -22,6 +22,7 @@ function source() {
     radius: 0,
     bg: '#000000',
     cutouts: {},
+    cutoutSets: {},
     bgGradient: null,
     bgImage: null,
     longSide: 2048,
@@ -54,6 +55,8 @@ describe('sessionMeta', () => {
     // Named folders and tags are library state and travel with the session.
     expect(meta.stickerFolders).toEqual(['Faces'])
     expect(meta.photoTags).toEqual(['trip'])
+    // The cutout variant table travels too, so the Cut out menu works after a reload.
+    expect(meta.cutoutSets).toEqual({})
   })
 
   it('round-trips through the hydration migration', () => {
