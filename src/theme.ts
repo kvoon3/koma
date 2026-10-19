@@ -1,3 +1,5 @@
+import { syncFavicon } from './lib/favicon'
+
 const KEY = 'theme'
 
 export type ThemePref = 'auto' | 'light' | 'dark'
@@ -20,7 +22,12 @@ export function applyTheme() {
   const pref = storedPref()
   const dark = pref === 'dark' || ((pref === 'auto' || pref == null) && osDark())
   document.documentElement.classList.toggle('dark', dark)
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0a0a0a' : '#ffffff')
+  const themeColor = dark ? '#0a0a0a' : '#ffffff'
+  for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+    meta.content = themeColor
+    meta.removeAttribute('media')
+  }
+  syncFavicon(dark)
   notify()
 }
 

@@ -30,10 +30,10 @@ app-icon/
   koma-app-icon-dark-square.svg  full-bleed
 
 favicon/
-  favicon.svg                    theme-aware tile (light ⇄ dark via prefers-color-scheme)
-  favicon-light.svg              fixed light tile
-  favicon-dark.svg               fixed dark tile
-  favicon.ico                    16/32/48 fallback (dark tile)
+  favicon.svg                    the mark alone, theme-aware (light/dark via prefers-color-scheme)
+  favicon-light.svg              fixed ink mark, no tile
+  favicon-dark.svg               fixed paper mark, no tile
+  favicon.ico                    16/32/48 ink fallback (no tile)
 
 web/
   favicon.svg, favicon.ico, site.webmanifest, head-snippet.html
@@ -59,7 +59,7 @@ guidelines.md                          usage rules, clear space, colours, misuse
 | Logo on a dark page / in dark UI | `symbol/koma-symbol-dark.svg`, `lockup/…-dark.svg` |
 | One-colour print / engraving | `-black` or `-white` (or `currentColor` for inline) |
 | 16–24 px symbol | `symbol/koma-symbol-small-light.svg` / `-dark` |
-| Favicon | `favicon/favicon.svg` (theme-aware) + `favicon.ico` fallback |
+| Favicon | `favicon/favicon.svg` (mark only, theme-aware) + `favicon.ico` ink fallback |
 | App icon / PWA | `app-icon/…` or `png/app-icon/…`; square for maskable |
 | Desktop (MyGo) icon | `png/app-icon/dark-1024.png` |
 | Wordmark only | `wordmark/…` |
@@ -73,16 +73,18 @@ guidelines.md                          usage rules, clear space, colours, misuse
 4. If you build a **single-file** HTML, inline `favicon.svg` as a data URI (`data:image/svg+xml,…`),
    because the separate files will not travel with it.
 
-The favicon SVG carries a `prefers-color-scheme` style block (a deliberate exception to the
-no-style-block rule) so one file serves both themes. The `.ico` is the dark tile for browsers that
-ignore SVG favicons.
+The favicon is the mark itself, edge to edge: no tile, no outer margin. At 16 px the small cut's
+28-unit gutters become 2 px, so the three panes stay apart. Its `prefers-color-scheme` block is the
+pre-JS/OS fallback; in koma the app calls `syncFavicon(dark)` from `applyTheme` so the tab follows
+the app theme. The `.ico` is the ink fallback for browsers that ignore SVG favicons.
 
 ## koma integration
 
 - Runtime files live in `public/`: `favicon.svg`, `favicon.ico`, `apple-touch-icon.png`,
   `site.webmanifest`, `icons/…`.
 - `index.html` carries the icon links; the SVG favicon is inlined as a data URI so the single-file
-  `koma.html` build also gets a favicon.
+  `koma.html` build also gets a favicon. `src/assets/brand/favicon-light.svg` / `-dark.svg` feed
+  `src/lib/favicon.ts`, which swaps the tab icon on every theme change.
 - `resources/icon.png` is the dark 1024 app icon for MyGo.
 
 ## Credits and limits

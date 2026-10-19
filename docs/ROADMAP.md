@@ -105,7 +105,8 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 Shipped:
 - B direction: three-pane T mark, light/dark, 16 px small cut; symbol, outlined mincho wordmark, horizontal/stacked lockups.
 - App icons (rounded + full-bleed), theme-aware favicon + ICO, apple-touch, web manifest, MyGo 1024 icon.
-- Top-bar lockup: the mark sits on the wordmark baseline (currentColor, both themes).
+- Top-bar lockup: the mark sits on the wordmark baseline (currentColor, both themes); the mark alone carries the phone bar below `sm`.
+- Favicon: mark-only (no tile, no outer margin), 16 px small cut, synced to the resolved app theme; ink `.ico` fallback.
 
 Open brand applications (no editor-code dependency):
 - README header lockup (light + dark).
@@ -114,7 +115,6 @@ Open brand applications (no editor-code dependency):
 - OS light/dark app-icon pair once MyGo exposes an icon slot.
 - Optional shu (#C8402F) seal variant for marketing.
 - Brand page on the website track (link the kit, guidelines and sheet).
-- Mobile top bar: show the symbol alone below `sm` (the lockup stays hidden).
 
 ## Rules of engagement
 
