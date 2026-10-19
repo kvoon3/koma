@@ -4,7 +4,7 @@ import type { Leaf, Rect, SeamSides } from '../lib/panes'
 import { useNavigate } from '@tanstack/react-router'
 import { ImagePlus, Minus, Plus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
@@ -241,6 +241,8 @@ function PaneZoomControls({
   place,
   rect,
   onStep,
+  previewUrl,
+  onPan,
 }: {
   paneEl: React.RefObject<HTMLDivElement | null>
   leaf: Leaf
@@ -249,10 +251,15 @@ function PaneZoomControls({
   /** The pane's own rect, in canvas coordinates. */
   rect: Rect
   onStep: (factor: number) => void
+  /** The pane's own preview URL (filter baked), for the minimap thumbnail. */
+  previewUrl: string | undefined
+  /** Grab-pan to a photo fraction, through the pane's clamped commit. */
+  onPan: (cx: number, cy: number) => void
 }) {
   const t = useT()
   const sheetTop = useToolsSheetTop()
   const chrome = zoomChrome(useMediaQuery('(pointer: coarse)'), useMediaQuery('(max-width: 639.98px)'))
+  const coarse = useMediaQuery('(pointer: coarse)')
   // The pane's viewport top, for comparing the sheet's edge (viewport px) with
   // the pane-local box. Measured, not derived, and kept fresh by observation
   // rather than by every commit: a pan inside the pane moves neither box.
@@ -295,6 +302,65 @@ function PaneZoomControls({
     height: Math.max(0, visB - visT),
   }
 
+  // The minimap appears once the photo overflows the pane (zoom above
+  // ~1.05) and the visible box is wide enough to seat it. The viewport
+  // rect is the pane's window as photo fractions: placement inverted.
+  // Dragging feeds cx/cy through the pane's clamped commit, so the pan
+  // path's coalescing and undo carry.
+  const minimap = useMemo(() => {
+    const MINIMAP_ZOOM = 1.05
+    const w = Math.max(0, visR - visL)
+    if (leaf.zoom <= MINIMAP_ZOOM || w < 260 || !previewUrl)
+      return null
+    const frame = coarse ? 'h-[44px] w-[58px]' : 'h-[40px] w-[52px]'
+    const view = {
+      x: Math.max(0, (rect.x - place.x) / place.w),
+      y: Math.max(0, (rect.y - place.y) / place.h),
+      w: Math.min(1, rect.w / place.w),
+      h: Math.min(1, rect.h / place.h),
+    }
+    const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+      e.stopPropagation()
+      const el = e.currentTarget
+      el.setPointerCapture(e.pointerId)
+      // The centre the photo should show: the grab point in fractions, with
+      // the drag's start offset from the current viewport centre kept, so a
+      // drag inside the viewport rect carries the view rather than jumping.
+      const grab = {
+        u: view.x + view.w / 2 - (e.clientX - el.getBoundingClientRect().left) / el.clientWidth,
+        v: view.y + view.h / 2 - (e.clientY - el.getBoundingClientRect().top) / el.clientHeight,
+      }
+      const move = (ev: PointerEvent) => {
+        const r = el.getBoundingClientRect()
+        const u = (ev.clientX - r.left) / r.width + grab.u
+        const v = (ev.clientY - r.top) / r.height + grab.v
+        onPan(u, v)
+      }
+      const up = () => {
+        el.removeEventListener('pointermove', move)
+        el.removeEventListener('pointerup', up)
+        el.removeEventListener('pointercancel', up)
+      }
+      el.addEventListener('pointermove', move)
+      el.addEventListener('pointerup', up)
+      el.addEventListener('pointercancel', up)
+      // A plain click (no move) centres on the point: the same handler with
+      // the grab offset zeroed would jump; instead treat click as recenter.
+      const wasDrag = { moved: false }
+      const track = () => {
+        wasDrag.moved = true
+      }
+      el.addEventListener('pointermove', track, { once: true })
+      el.addEventListener('pointerup', () => {
+        if (!wasDrag.moved) {
+          const r = el.getBoundingClientRect()
+          onPan((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
+        }
+      }, { once: true })
+    }
+    return { frame, view, onPointerDown }
+  }, [leaf.zoom, visR, visL, rect.x, rect.y, rect.w, rect.h, place.x, place.y, place.w, place.h, previewUrl, onPan, coarse])
+
   return (
     <div
       data-pane-zoom-box=""
@@ -331,6 +397,30 @@ function PaneZoomControls({
         >
           <MorphIcon icon={Plus} size={chrome.glyph} strokeWidth={1.75} />
         </button>
+        {minimap && (
+          <div
+            data-pane-minimap=""
+            aria-label={t('Photo minimap, drag to pan')}
+            title={t('Photo minimap, drag to pan')}
+            className={`relative -ml-px cursor-grab overflow-hidden bg-float-bg ${minimap.frame}`}
+            style={{ aspectRatio: `${place.w} / ${place.h}` }}
+            onPointerDown={minimap.onPointerDown}
+          >
+            {previewUrl && (
+              <img
+                src={previewUrl}
+                alt=""
+                draggable={false}
+                className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+              />
+            )}
+            <div
+              data-pane-minimap-viewport=""
+              className="pointer-events-none absolute border-[1.5px] border-accent bg-accent/15"
+              style={{ left: `${minimap.view.x * 100}%`, top: `${minimap.view.y * 100}%`, width: `${minimap.view.w * 100}%`, height: `${minimap.view.h * 100}%` }}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1706,7 +1796,15 @@ function PaneImpl({
       {/* Focus-only, like the × close button: the photo's own zoom pair,
           parked inside the photo at its bottom-right (PaneZoomControls). */}
       {place && focused && (
-        <PaneZoomControls paneEl={elRef} leaf={leaf} place={place} rect={rect} onStep={stepZoom} />
+        <PaneZoomControls
+          paneEl={elRef}
+          leaf={leaf}
+          place={place}
+          rect={rect}
+          onStep={stepZoom}
+          previewUrl={preview?.url}
+          onPan={(cx, cy) => commit({ ...leaf, cx, cy })}
+        />
       )}
 
       {dropChoice && (
