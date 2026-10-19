@@ -1,3 +1,4 @@
+import type { BgImage } from '../lib/collageBg'
 import type { Photo } from '../lib/imageStore'
 import { Popover } from '@base-ui/react/popover'
 import { Radio } from '@base-ui/react/radio'
@@ -41,33 +42,42 @@ function BgPhotoSwatch({ photo, label }: { photo: Photo, label: string }) {
 
 type BgMode = 'black' | 'white' | 'transparent' | 'custom'
 type BgKind = 'solid' | 'gradient' | 'image'
+type Patch = ReturnType<typeof useStore.getState>['patch']
+
+/** The fill kind the board currently paints. */
+function bgKindOf(bg: string, bgGradient: string | null, bgImage: BgImage | null): BgKind {
+  if (bgImage)
+    return 'image'
+  if (bgGradient && !isTransparentBg(bg))
+    return 'gradient'
+  return 'solid'
+}
+
+/** The solid-colour preset the board currently shows. */
+function bgModeOf(bg: string): BgMode {
+  if (isTransparentBg(bg))
+    return 'transparent'
+  if (bg === '#000000')
+    return 'black'
+  if (bg === '#ffffff')
+    return 'white'
+  return 'custom'
+}
 
 /**
- * The one canvas-appearance Tools entry on the collage stage: Border.
- * Opens a panel with gap, fill, radius, pane border, crossfade, blend, reset.
- * Grid gap is enabled on the grid route only (see GridDockTool).
+ * The background panel's state: the fill kind and colour preset on show, and
+ * the writes that move between them. A picked image stays `pending` until a
+ * photo lands, so the panel shows the picker instead of snapping back to solid.
  */
-export function AppearanceDockTools() {
-  const [open, setOpen] = useState(false)
-  const gap = useStore(s => s.gap)
-  const radius = useStore(s => s.radius)
-  const edgeFade = useStore(s => s.edgeFade)
-  const edgeFadeStrength = useStore(s => s.edgeFadeStrength)
-  const blendCrossfade = useStore(s => s.blendCrossfade)
-  const paneBorder = useStore(s => s.paneBorder)
+function useBackgroundChoice() {
   const bg = useStore(s => s.bg)
   const bgGradient = useStore(s => s.bgGradient)
   const bgImage = useStore(s => s.bgImage)
-  const allPhotos = useStore(s => s.photos)
-  // A sticker as the collage background is not a thing; the swatches list photos.
-  const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
   const patch = useStore(s => s.patch)
-  const resetSettings = useStore(s => s.resetSettings)
-  const t = useT()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const storedKind: BgKind = bgImage ? 'image' : bgGradient && !isTransparentBg(bg) ? 'gradient' : 'solid'
   const [pendingImage, setPendingImage] = useState(false)
+  const storedKind = bgKindOf(bg, bgGradient, bgImage)
   const kind: BgKind = pendingImage && storedKind === 'solid' ? 'image' : storedKind
+  const mode = bgModeOf(bg)
 
   const setKind = (next: BgKind) => {
     setPendingImage(next === 'image')
@@ -79,14 +89,6 @@ export function AppearanceDockTools() {
       patch({ bgGradient: null })
   }
 
-  const mode: BgMode = isTransparentBg(bg)
-    ? 'transparent'
-    : bg === '#000000'
-      ? 'black'
-      : bg === '#ffffff'
-        ? 'white'
-        : 'custom'
-
   const setMode = (next: BgMode) => {
     if (next === 'black')
       patch({ bg: '#000000' })
@@ -97,6 +99,197 @@ export function AppearanceDockTools() {
     else
       patch({ bg: CUSTOM_BG })
   }
+
+  return { bg, bgGradient, bgImage, kind, mode, setKind, setMode, patch }
+}
+
+/** The solid / gradient start colour, and the custom picker. */
+function ColorModeField({ kind, mode, bg, onMode, onColor }: {
+  kind: BgKind
+  mode: BgMode
+  bg: string
+  onMode: (mode: BgMode) => void
+  onColor: (color: string) => void
+}) {
+  const t = useT()
+  return (
+    <div className={fieldRowCls}>
+      <span className={fieldLabelCls}>{kind === 'gradient' ? t('Gradient start color') : t('Color')}</span>
+      <RadioGroup
+        className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
+        aria-label={t('Background')}
+        value={mode}
+        onValueChange={next => onMode(next)}
+      >
+        <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
+          <Radio.Indicator className={swatchDot} />
+        </Radio.Root>
+        <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
+          <Radio.Indicator className={swatchDot} />
+        </Radio.Root>
+        {kind === 'solid' && (
+          <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
+            <Radio.Indicator className={swatchDot} />
+          </Radio.Root>
+        )}
+        <input
+          type="color"
+          className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
+          aria-label={t('Custom background color')}
+          title={t('Pick a custom color')}
+          value={mode === 'custom' ? bg : CUSTOM_BG}
+          onChange={e => onColor(e.target.value)}
+        />
+      </RadioGroup>
+    </div>
+  )
+}
+
+/** The gradient's second stop: only a gradient has one. */
+function GradientEndField({ value, onChange }: { value: string, onChange: (color: string) => void }) {
+  const t = useT()
+  return (
+    <div className={fieldRowCls}>
+      <span className={fieldLabelCls}>{t('Gradient end color')}</span>
+      <div className={`${fieldControlCls} col-start-1 flex items-center gap-1.5`}>
+        <input
+          type="color"
+          className={`${colorInputCls} w-9 border-line-strong`}
+          aria-label={t('Gradient end color')}
+          title={t('Gradient end color')}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+        />
+      </div>
+    </div>
+  )
+}
+
+/** The image fill: upload, a library photo, or none; plus its blur switch. */
+function ImageBackgroundField({ photos, bgImage, patch }: {
+  photos: Photo[]
+  bgImage: BgImage | null
+  patch: Patch
+}) {
+  const t = useT()
+  const fileRef = useRef<HTMLInputElement>(null)
+  return (
+    <>
+      <div className={fieldRowCls}>
+        <span className={fieldLabelCls}>{t('Image')}</span>
+        <RadioGroup
+          className={`${fieldControlCls} col-span-2 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] sm:col-span-2`}
+          aria-label={t('Background photo')}
+          value={bgImage?.photoId ?? ''}
+          onValueChange={id => patch({ bgImage: id ? { photoId: id as string, blur: bgImage?.blur ?? true } : null })}
+        >
+          <button
+            type="button"
+            aria-label={t('Upload background photo')}
+            title={t('Upload background photo')}
+            className={`${swatch} shrink-0 bg-panel-2 text-dim`}
+            onClick={() => fileRef.current?.click()}
+          >
+            <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
+          </button>
+          <Radio.Root value="" aria-label={t('No background photo')} title={t('No background photo')} className={`${swatch} shrink-0 swatch-clear`}>
+            <Radio.Indicator className={swatchDot} />
+          </Radio.Root>
+          {photos.map(p => <BgPhotoSwatch key={p.id} photo={p} label={t('Background photo')} />)}
+        </RadioGroup>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (!file)
+              return
+            const added = useStore.getState().addPhotos([file], false)[0]
+            if (added)
+              patch({ bgImage: { photoId: added.id, blur: bgImage?.blur ?? true } })
+          }}
+        />
+      </div>
+      {bgImage && (
+        <SwitchField label={t('Blur photo')} checked={bgImage.blur} onChange={blur => patch({ bgImage: { ...bgImage, blur } })} />
+      )}
+    </>
+  )
+}
+
+/** The fill controls: kind, then the stop(s) that kind actually has. */
+function BackgroundFields() {
+  const t = useT()
+  const allPhotos = useStore(s => s.photos)
+  // A sticker as the collage background is not a thing; the swatches list photos.
+  const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
+  const { bg, bgGradient, bgImage, kind, mode, setKind, setMode, patch } = useBackgroundChoice()
+  return (
+    <>
+      <SegmentedField
+        label={t('Background')}
+        value={kind}
+        items={[{ value: 'solid', label: t('Solid color') }, { value: 'gradient', label: t('Gradient') }, { value: 'image', label: t('Image') }]}
+        onChange={setKind}
+      />
+      {kind !== 'image' && (
+        <ColorModeField kind={kind} mode={mode} bg={bg} onMode={setMode} onColor={color => patch({ bg: color })} />
+      )}
+      {kind === 'gradient' && bgGradient && (
+        <GradientEndField value={bgGradient} onChange={color => patch({ bgGradient: color })} />
+      )}
+      {kind === 'image' && <ImageBackgroundField photos={photos} bgImage={bgImage} patch={patch} />}
+    </>
+  )
+}
+
+/** One switch row: label on the left, the thumb on the right. */
+function SwitchField({ label, checked, onChange }: { label: string, checked: boolean, onChange: (checked: boolean) => void }) {
+  return (
+    <div className={fieldRowCls}>
+      <span className={fieldLabelCls}>{label}</span>
+      <Switch.Root className={toggle} aria-label={label} checked={checked} onCheckedChange={onChange}>
+        <Switch.Thumb className={toggleThumb} />
+      </Switch.Root>
+    </div>
+  )
+}
+
+/** Every field in the Border panel, in one fixed order. */
+function AppearanceFields() {
+  const t = useT()
+  const gap = useStore(s => s.gap)
+  const radius = useStore(s => s.radius)
+  const edgeFade = useStore(s => s.edgeFade)
+  const edgeFadeStrength = useStore(s => s.edgeFadeStrength)
+  const blendCrossfade = useStore(s => s.blendCrossfade)
+  const paneBorder = useStore(s => s.paneBorder)
+  const patch = useStore(s => s.patch)
+  return (
+    <section className={fields}>
+      <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
+      <BackgroundFields />
+      <RangeField label={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} value={radius} onChange={v => patch({ radius: v })} />
+      <SwitchField label={t('Pane border')} checked={paneBorder} onChange={checked => patch({ paneBorder: checked })} />
+      <SwitchField label={t('Photo crossfade')} checked={blendCrossfade} onChange={checked => patch({ blendCrossfade: checked })} />
+      <RangeField label={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} value={edgeFade} onChange={v => patch({ edgeFade: v })} />
+      <RangeField label={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} value={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
+    </section>
+  )
+}
+
+/**
+ * The one canvas-appearance Tools entry on the collage stage: Border.
+ * Opens a panel with gap, fill, radius, pane border, crossfade, blend, reset.
+ * Grid gap is enabled on the grid route only (see GridDockTool).
+ */
+export function AppearanceDockTools() {
+  const [open, setOpen] = useState(false)
+  const resetSettings = useStore(s => s.resetSettings)
+  const t = useT()
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -126,139 +319,7 @@ export function AppearanceDockTools() {
                 {t('Reset')}
               </button>
             </div>
-            <section className={fields}>
-              <RangeField label={t('Photo gap')} text={`${(gap / 10).toFixed(1)}%`} max={120} value={gap} onChange={v => patch({ gap: v })} />
-              <SegmentedField
-                label={t('Background')}
-                value={kind}
-                items={[{ value: 'solid', label: t('Solid color') }, { value: 'gradient', label: t('Gradient') }, { value: 'image', label: t('Image') }]}
-                onChange={setKind}
-              />
-              {kind !== 'image' && (
-                <div className={fieldRowCls}>
-                  <span className={fieldLabelCls}>{kind === 'gradient' ? t('Gradient start color') : t('Color')}</span>
-                  <RadioGroup
-                    className={`${fieldControlCls} col-start-1 flex flex-wrap items-center gap-1.5`}
-                    aria-label={t('Background')}
-                    value={mode}
-                    onValueChange={next => setMode(next)}
-                  >
-                    <Radio.Root value="black" aria-label={t('Black')} className={`${swatch} bg-black`}>
-                      <Radio.Indicator className={swatchDot} />
-                    </Radio.Root>
-                    <Radio.Root value="white" aria-label={t('White')} className={`${swatch} bg-white`}>
-                      <Radio.Indicator className={swatchDot} />
-                    </Radio.Root>
-                    {kind === 'solid' && (
-                      <Radio.Root value="transparent" aria-label={t('Transparent')} className={`${swatch} swatch-clear`}>
-                        <Radio.Indicator className={swatchDot} />
-                      </Radio.Root>
-                    )}
-                    <input
-                      type="color"
-                      className={`${colorInputCls} w-9 ${mode === 'custom' ? 'border-accent shadow-[inset_0_0_0_1px_var(--accent)]' : 'border-line-strong'}`}
-                      aria-label={t('Custom background color')}
-                      title={t('Pick a custom color')}
-                      value={mode === 'custom' ? bg : CUSTOM_BG}
-                      onChange={e => patch({ bg: e.target.value })}
-                    />
-                  </RadioGroup>
-                </div>
-              )}
-              {kind === 'gradient' && bgGradient && (
-                <div className={fieldRowCls}>
-                  <span className={fieldLabelCls}>{t('Gradient end color')}</span>
-                  <div className={`${fieldControlCls} col-start-1 flex items-center gap-1.5`}>
-                    <input
-                      type="color"
-                      className={`${colorInputCls} w-9 border-line-strong`}
-                      aria-label={t('Gradient end color')}
-                      title={t('Gradient end color')}
-                      value={bgGradient}
-                      onChange={e => patch({ bgGradient: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-              {kind === 'image' && (
-                <div className={fieldRowCls}>
-                  <span className={fieldLabelCls}>{t('Image')}</span>
-                  <RadioGroup
-                    className={`${fieldControlCls} col-span-2 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] sm:col-span-2`}
-                    aria-label={t('Background photo')}
-                    value={bgImage?.photoId ?? ''}
-                    onValueChange={id => patch({ bgImage: id ? { photoId: id as string, blur: bgImage?.blur ?? true } : null })}
-                  >
-                    <button
-                      type="button"
-                      aria-label={t('Upload background photo')}
-                      title={t('Upload background photo')}
-                      className={`${swatch} shrink-0 bg-panel-2 text-dim`}
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      <MorphIcon icon={ImagePlus} size={14} strokeWidth={1.75} />
-                    </button>
-                    <Radio.Root value="" aria-label={t('No background photo')} title={t('No background photo')} className={`${swatch} shrink-0 swatch-clear`}>
-                      <Radio.Indicator className={swatchDot} />
-                    </Radio.Root>
-                    {photos.map(p => <BgPhotoSwatch key={p.id} photo={p} label={t('Background photo')} />)}
-                  </RadioGroup>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      e.target.value = ''
-                      if (!file)
-                        return
-                      const added = useStore.getState().addPhotos([file], false)[0]
-                      if (added)
-                        patch({ bgImage: { photoId: added.id, blur: bgImage?.blur ?? true } })
-                    }}
-                  />
-                </div>
-              )}
-              {kind === 'image' && bgImage && (
-                <div className={fieldRowCls}>
-                  <span className={fieldLabelCls}>{t('Blur photo')}</span>
-                  <Switch.Root
-                    className={toggle}
-                    aria-label={t('Blur photo')}
-                    checked={bgImage.blur}
-                    onCheckedChange={checked => patch({ bgImage: { ...bgImage, blur: checked } })}
-                  >
-                    <Switch.Thumb className={toggleThumb} />
-                  </Switch.Root>
-                </div>
-              )}
-              <RangeField label={t('Photo radius')} text={`${(radius / 10).toFixed(1)}%`} max={200} value={radius} onChange={v => patch({ radius: v })} />
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Pane border')}</span>
-                <Switch.Root
-                  className={toggle}
-                  aria-label={t('Pane border')}
-                  checked={paneBorder}
-                  onCheckedChange={checked => patch({ paneBorder: checked })}
-                >
-                  <Switch.Thumb className={toggleThumb} />
-                </Switch.Root>
-              </div>
-              <div className={fieldRowCls}>
-                <span className={fieldLabelCls}>{t('Photo crossfade')}</span>
-                <Switch.Root
-                  className={toggle}
-                  aria-label={t('Photo crossfade')}
-                  checked={blendCrossfade}
-                  onCheckedChange={checked => patch({ blendCrossfade: checked })}
-                >
-                  <Switch.Thumb className={toggleThumb} />
-                </Switch.Root>
-              </div>
-              <RangeField label={t('Blend width')} text={`${(edgeFade / 10).toFixed(1)}%`} max={250} value={edgeFade} onChange={v => patch({ edgeFade: v })} />
-              <RangeField label={t('Blend strength')} text={`${edgeFadeStrength}%`} max={100} value={edgeFadeStrength} onChange={v => patch({ edgeFadeStrength: v })} />
-            </section>
+            <AppearanceFields />
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>

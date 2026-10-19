@@ -213,6 +213,144 @@ function Wordmark() {
  * library-less navigation (the grid is a pure overview) and export goes
  * batch-mode.
  */
+/**
+ * The left-hand category menus: whole-board save/open, the photo actions (or
+ * the grid's library-only links) and Help. They read the bar's hand-over
+ * wiring, so opening one follows the pointer to its neighbour.
+ */
+function TopBarMenus({
+  grid,
+  saving,
+  anyFilled,
+  photos,
+  hop,
+  menuAt,
+  onSaveFile,
+  onOpenWorkspaceFile,
+  onAddPhotos,
+  onAddFolder,
+  onToggleLib,
+  onGoPhotos,
+  onGoStickers,
+  onClearAsk,
+  onToggleHelp,
+  onCrops,
+}: {
+  grid: boolean
+  saving: boolean
+  anyFilled: boolean
+  photos: number
+  hop: number
+  menuAt: (id: HeaderMenuId) => MenuWiring
+  onSaveFile: () => void
+  onOpenWorkspaceFile: () => void
+  onAddPhotos: () => void
+  onAddFolder: () => void
+  onToggleLib: () => void
+  onGoPhotos: () => void
+  onGoStickers: () => void
+  onClearAsk: () => void
+  onToggleHelp: () => void
+  onCrops: () => void
+}) {
+  const t = useT()
+  return (
+    <Menubar className="flex items-stretch max-sm:gap-0">
+      {/* Whole-board save/open lives outside the Photo menu: it is available
+          in both views and covers the grid + library, not just photos. */}
+      <CatMenu label={t('Workspace')} icon={LayoutDashboard} hop={hop} {...menuAt('workspace')}>
+        <Menu.Item className={itemCls} onClick={onSaveFile} disabled={saving || !anyFilled}>
+          <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
+          {t('Save workspace file…')}
+        </Menu.Item>
+        <Menu.Item className={itemCls} onClick={onOpenWorkspaceFile}>
+          <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="flex text-dim" />
+          {t('Open workspace file…')}
+        </Menu.Item>
+      </CatMenu>
+
+      {grid
+        ? (
+          // Grid view is pure navigation: the sticker library is the one
+          // asset surface it reaches (crop report is an editing aid and the
+          // photo tools stay hidden), plus Help.
+            <>
+              <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
+                <Menu.Item className={itemCls} onClick={onGoPhotos}>
+                  <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Photos')}
+                </Menu.Item>
+                <Menu.Item className={itemCls} onClick={onGoStickers}>
+                  <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Stickers')}
+                </Menu.Item>
+              </CatMenu>
+              <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
+                <Menu.Item className={itemCls} onClick={onToggleHelp}>
+                  <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Keyboard shortcuts')}
+                  <span className={hintCls}>?</span>
+                </Menu.Item>
+              </CatMenu>
+            </>
+          )
+        : (
+            <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
+              <Menu.Item className={itemCls} onClick={onAddPhotos}>
+                <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
+                {t('Add photos…')}
+              </Menu.Item>
+              <Menu.Item className={itemCls} onClick={onAddFolder}>
+                <MorphIcon icon={FolderPlus} size={13} strokeWidth={1.75} className="flex text-dim" />
+                {t('Add folder…')}
+              </Menu.Item>
+              <Menu.Item className={itemCls} onClick={onToggleLib}>
+                <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
+                {t('Library')}
+                <span className={hintCls}>
+                  {photos ? `${photos} · ` : ''}
+                  I
+                </span>
+              </Menu.Item>
+              {/* The two libraries are hub destinations, one page away. */}
+              <Menu.Item className={itemCls} onClick={onGoPhotos}>
+                <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
+                {t('Photos')}
+              </Menu.Item>
+              <Menu.Item className={itemCls} onClick={onGoStickers}>
+                <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
+                {t('Stickers')}
+              </Menu.Item>
+              <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
+              <Menu.Item
+                className={itemCls}
+                onClick={onClearAsk}
+                disabled={!photos}
+              >
+                <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
+                {t('Clear library…')}
+              </Menu.Item>
+            </CatMenu>
+          )}
+
+      {!grid && (
+        <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
+          <Menu.Item className={itemCls} onClick={onToggleHelp}>
+            <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
+            {t('Keyboard shortcuts')}
+            <span className={hintCls}>?</span>
+          </Menu.Item>
+          <Menu.Item className={itemCls} onClick={onCrops}>
+            <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
+            {t('Crop report')}
+            <span className={hintCls}>C</span>
+          </Menu.Item>
+        </CatMenu>
+      )}
+    </Menubar>
+  )
+}
+
 export function TopBar({
   busy,
   settingsOpen,
@@ -396,99 +534,24 @@ export function TopBar({
       <Wordmark />
       {/* The menubar is what makes a click-opened menu hand over to the next
           trigger on hover: the panel follows the open trigger. */}
-      <Menubar className="flex items-stretch max-sm:gap-0">
-        {/* Whole-board save/open lives outside the Photo menu: it is available
-            in both views and covers the grid + library, not just photos. */}
-        <CatMenu label={t('Workspace')} icon={LayoutDashboard} hop={hop} {...menuAt('workspace')}>
-          <Menu.Item className={itemCls} onClick={() => void doSaveFile()} disabled={saving || !anyFilled}>
-            <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
-            {t('Save workspace file…')}
-          </Menu.Item>
-          <Menu.Item className={itemCls} onClick={() => wsFileRef.current?.click()}>
-            <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="flex text-dim" />
-            {t('Open workspace file…')}
-          </Menu.Item>
-        </CatMenu>
-
-        {grid
-          ? (
-            // Grid view is pure navigation: the sticker library is the one
-            // asset surface it reaches (crop report is an editing aid and the
-            // photo tools stay hidden), plus Help.
-              <>
-                <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
-                  <Menu.Item className={itemCls} onClick={() => void navigate({ to: PHOTOS_PATH })}>
-                    <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
-                    {t('Photos')}
-                  </Menu.Item>
-                  <Menu.Item className={itemCls} onClick={() => void navigate({ to: STICKERS_PATH })}>
-                    <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
-                    {t('Stickers')}
-                  </Menu.Item>
-                </CatMenu>
-                <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
-                  <Menu.Item className={itemCls} onClick={onToggleHelp}>
-                    <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-                    {t('Keyboard shortcuts')}
-                    <span className={hintCls}>?</span>
-                  </Menu.Item>
-                </CatMenu>
-              </>
-            )
-          : (
-              <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
-                <Menu.Item className={itemCls} onClick={() => fileRef.current?.click()}>
-                  <MorphIcon icon={ImagePlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Add photos…')}
-                </Menu.Item>
-                <Menu.Item className={itemCls} onClick={() => dirRef.current?.click()}>
-                  <MorphIcon icon={FolderPlus} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Add folder…')}
-                </Menu.Item>
-                <Menu.Item className={itemCls} onClick={onToggleLib}>
-                  <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Library')}
-                  <span className={hintCls}>
-                    {photos ? `${photos} · ` : ''}
-                    I
-                  </span>
-                </Menu.Item>
-                {/* The two libraries are hub destinations, one page away. */}
-                <Menu.Item className={itemCls} onClick={() => void navigate({ to: PHOTOS_PATH })}>
-                  <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Photos')}
-                </Menu.Item>
-                <Menu.Item className={itemCls} onClick={() => void navigate({ to: STICKERS_PATH })}>
-                  <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Stickers')}
-                </Menu.Item>
-                <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
-                <Menu.Item
-                  className={itemCls}
-                  onClick={onClearAsk}
-                  disabled={!photos}
-                >
-                  <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Clear library…')}
-                </Menu.Item>
-              </CatMenu>
-            )}
-
-        {!grid && (
-          <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
-            <Menu.Item className={itemCls} onClick={onToggleHelp}>
-              <MorphIcon icon={CircleHelp} size={13} strokeWidth={1.75} className="flex text-dim" />
-              {t('Keyboard shortcuts')}
-              <span className={hintCls}>?</span>
-            </Menu.Item>
-            <Menu.Item className={itemCls} onClick={onCrops}>
-              <MorphIcon icon={FileText} size={13} strokeWidth={1.75} className="flex text-dim" />
-              {t('Crop report')}
-              <span className={hintCls}>C</span>
-            </Menu.Item>
-          </CatMenu>
-        )}
-      </Menubar>
+      <TopBarMenus
+        grid={grid}
+        saving={saving}
+        anyFilled={anyFilled}
+        photos={photos}
+        hop={hop}
+        menuAt={menuAt}
+        onSaveFile={() => void doSaveFile()}
+        onOpenWorkspaceFile={() => wsFileRef.current?.click()}
+        onAddPhotos={() => fileRef.current?.click()}
+        onAddFolder={() => dirRef.current?.click()}
+        onToggleLib={onToggleLib}
+        onGoPhotos={() => void navigate({ to: PHOTOS_PATH })}
+        onGoStickers={() => void navigate({ to: STICKERS_PATH })}
+        onClearAsk={onClearAsk}
+        onToggleHelp={onToggleHelp}
+        onCrops={onCrops}
+      />
 
       <span className="flex-1" />
 

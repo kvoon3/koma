@@ -1,3 +1,4 @@
+import type { Photo } from '../lib/imageStore'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { ArrowLeft, ImagePlus, Images, Pencil, Search, Tag, Trash2 } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -39,18 +40,10 @@ const toolCls = 'grid h-[26px] w-[26px] flex-none cursor-pointer place-items-cen
  */
 export function PhotoManager() {
   const t = useT()
-  const navigate = useNavigate()
-  const router = useRouter()
-  const fileRef = useRef<HTMLInputElement>(null)
-
   const allPhotos = useStore(s => s.photos)
   const tags = useStore(s => s.photoTags)
-  const addPhotoTag = useStore(s => s.addPhotoTag)
-  const renamePhotoTag = useStore(s => s.renamePhotoTag)
-  const deletePhotoTag = useStore(s => s.deletePhotoTag)
   const tagPhoto = useStore(s => s.tagPhoto)
   const untagPhoto = useStore(s => s.untagPhoto)
-  const deletePhotoAsset = useStore(s => s.deletePhotoAsset)
 
   const uses = useAssetUses()
 
@@ -61,20 +54,12 @@ export function PhotoManager() {
   // A tag that vanished (deleted on another surface) falls back to All.
   const pick: TagPick = rawPick && !tags.includes(rawPick) ? null : rawPick
   const [query, setQuery] = useState('')
-  /**
-   * The open name dialog: a new tag, or the one being renamed. `seq` makes
-   * every opening its own mount, so the field starts from that opening's name.
-   */
-  const [prompt, setPrompt] = useState<{ mode: 'create' | 'rename', seq: number } | null>(null)
-  const [promptError, setPromptError] = useState<string | null>(null)
   /** The photo on show in the detail dialog. */
   const [openId, setOpenId] = useState<string | null>(null)
   /** The photo awaiting a delete confirm. */
   const [deleting, setDeleting] = useState<string | null>(null)
   const [tagAsk, setTagAsk] = useState<string | null>(null)
-  // The chip bar scrolls sideways on a phone; its cut edge fades like the tools
-  // dock's row (the sticker page's folder chips read the same way).
-  const chipFadeRef = useScrollFade<HTMLDivElement>('x')
+  const tagPrompt = useTagPrompt(tags, pick, setRawPick)
 
   const countIn = (tag: TagPick) => (tag == null
     ? photos.length
@@ -90,183 +75,18 @@ export function PhotoManager() {
   /** The photo the detail dialog is showing (null while it is closed). */
   const openPhoto = openId ? photos.find(p => p.id === openId) ?? null : null
 
-  const back = () => {
-    useStore.getState().clearSelection()
-    // Opened from a board, back goes there; a direct URL has nothing behind
-    // it, so it lands on the hub instead of leaving the app.
-    if (router.history.length > 1)
-      router.history.back()
-    else
-      void navigate({ to: '/' })
-  }
-
-  const submitTag = (name: string): boolean => {
-    const res = prompt?.mode === 'rename'
-      ? renameTag(tags, pick as string, name)
-      : addTag(tags, name)
-    if (!res.ok) {
-      setPromptError(res.reason === 'empty'
-        ? t('Type a tag name')
-        : res.reason === 'duplicate' ? t('A tag with that name already exists') : t('That tag no longer exists'))
-      return false
-    }
-    const done = prompt?.mode === 'rename'
-      ? renamePhotoTag(pick as string, name)
-      : addPhotoTag(name)
-    if (!done) {
-      setPromptError(t('That tag no longer exists'))
-      return false
-    }
-    // A rename keeps its tag open; a new tag leaves the view where it was
-    // (jumping into an empty tag hides the photos you just sorted).
-    if (prompt?.mode === 'rename')
-      setRawPick(res.name)
-    setPromptError(null)
-    return true
-  }
-
-  const confirmDeleteTag = () => {
-    if (tagAsk == null)
-      return
-    const count = countIn(tagAsk)
-    deletePhotoTag(tagAsk)
-    setTagAsk(null)
-    setRawPick(null)
-    say(count
-      ? t('Tag deleted · it came off every photo that wore it')
-      : t('Tag deleted'))
-  }
-
-  const confirmDeletePhoto = () => {
-    const id = deleting
-    if (!id)
-      return
-    const placed = uses.get(id) ?? 0
-    deletePhotoAsset(id)
-    setDeleting(null)
-    setOpenId(null)
-    say(placed
-      ? t('Photo deleted · the copies placed on a board stay there')
-      : t('Photo deleted'))
-  }
-
-  const deletingName = allPhotos.find(p => p.id === deleting)?.name ?? ''
-
   return (
     <div className="absolute inset-0 flex flex-col bg-canvas" data-photo-manager="">
-      <header className="flex flex-none flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-line bg-panel px-3 py-2 sm:px-4">
-        <Tip
-          label={t('Back')}
-          trigger={(
-            <button type="button" className={toolCls} aria-label={t('Back')} onClick={back} data-photos-back="">
-              <MorphIcon icon={ArrowLeft} size={15} strokeWidth={1.75} />
-            </button>
-          )}
-        />
-        <h1 className="m-0 text-[13.5px] font-semibold text-txt">{t('Photos')}</h1>
-        <span className="text-[11.5px] text-dim tabular-nums" data-photo-total="">{photos.length}</span>
-        <span className="flex-1" />
-        <label className="flex h-[26px] w-full min-w-0 items-center gap-1.5 border border-line-strong bg-panel-2 px-1.5 sm:w-[190px]">
-          <MorphIcon icon={Search} size={12} strokeWidth={1.75} className="flex-none text-faint" />
-          <input
-            className="min-w-0 flex-1 border-0 bg-transparent text-[11.5px] text-txt outline-0 placeholder:text-faint"
-            value={query}
-            placeholder={t('Search photos')}
-            aria-label={t('Search photos')}
-            data-photo-search=""
-            onChange={e => setQuery(e.target.value)}
-          />
-        </label>
-      </header>
-
-      {/* A phone stacks this row: at 320 the icon buttons leave the chip
-          scroller ~220px, where the fade's 48px band is a fifth of it and the
-          cut chip's border ghosts at the boundary, reading as a hard clip. */}
-      <div className="flex flex-none flex-col gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:flex-row sm:items-center sm:px-4">
-        {/* Chips scroll on their own; the tag actions stay put at the end of the
-            row, so a phone never scrolls to reach them. */}
-        <div
-          ref={chipFadeRef}
-          style={scrollFadeStyleX}
-          data-tag-chips=""
-          className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb"
-        >
-          <div className="flex w-max items-center gap-1.5">
-            <TagChip active={pick == null} label={t('All')} count={countIn(null)} onClick={() => setRawPick(null)} pick="__all" />
-            <TagChip active={pick === ''} label={untagged} count={countIn('')} onClick={() => setRawPick('')} pick={untagged} />
-            {tags.map(tag => (
-              <TagChip key={tag} active={pick === tag} label={tag} count={countIn(tag)} onClick={() => setRawPick(tag)} pick={tag} />
-            ))}
-          </div>
-        </div>
-        {/* The actions, as one cluster: their own line on a phone. */}
-        <div className="flex flex-none items-center justify-end gap-1.5 sm:justify-start">
-          {/* Rename / delete act on the picked tag; All has neither and Untagged
-            only groups what wears nothing. */}
-          {pick != null && pick !== '' && (
-            <>
-              <Tip
-                label={t('Rename tag')}
-                trigger={(
-                  <button
-                    type="button"
-                    className={toolCls}
-                    aria-label={t('Rename tag')}
-                    data-tag-rename=""
-                    onClick={() => {
-                      setPromptError(null)
-                      setPrompt(p => ({ mode: 'rename', seq: (p?.seq ?? 0) + 1 }))
-                    }}
-                  >
-                    <MorphIcon icon={Pencil} size={13} strokeWidth={1.75} />
-                  </button>
-                )}
-              />
-              <Tip
-                label={t('Delete tag')}
-                trigger={(
-                  <button
-                    type="button"
-                    className={toolCls}
-                    aria-label={t('Delete tag')}
-                    data-tag-delete=""
-                    onClick={() => setTagAsk(pick)}
-                  >
-                    <MorphIcon icon={Trash2} size={13} strokeWidth={1.75} />
-                  </button>
-                )}
-              />
-            </>
-          )}
-          <span className="flex flex-none">
-            <Button
-              variant="strong"
-              aria-label={t('New tag')}
-              data-tag-new=""
-              onClick={() => {
-                setPromptError(null)
-                setPrompt(p => ({ mode: 'create', seq: (p?.seq ?? 0) + 1 }))
-              }}
-            >
-              <MorphIcon icon={Tag} size={12} strokeWidth={1.75} />
-              <span className="max-sm:hidden">{t('New tag')}</span>
-            </Button>
-          </span>
-          {/* The page's own import door: the library surface adds to the library
-            without touching whatever board happens to be open (autoFill off). */}
-          <span className="flex flex-none">
-            <Button
-              variant="strong"
-              aria-label={t('Add photos')}
-              data-photo-add=""
-              onClick={() => fileRef.current?.click()}
-            >
-              <MorphIcon icon={ImagePlus} size={12} strokeWidth={1.75} />
-              <span className="max-sm:hidden">{t('Add photos')}</span>
-            </Button>
-          </span>
-        </div>
-      </div>
+      <PhotoManagerHeader photoCount={photos.length} query={query} onQueryChange={setQuery} />
+      <PhotoTagBar
+        pick={pick}
+        tags={tags}
+        untagged={untagged}
+        countIn={countIn}
+        onPick={setRawPick}
+        onOpenPrompt={tagPrompt.open}
+        onAskDelete={setTagAsk}
+      />
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb sm:p-4">
         {shown.length > 0
@@ -298,6 +118,188 @@ export function PhotoManager() {
           : <PhotoEmptyState />}
       </div>
 
+      <PhotoDetailDialog
+        photo={openPhoto}
+        allTags={tags}
+        uses={uses}
+        onRequestDelete={(id) => {
+          setDeleting(id)
+          setOpenId(null)
+        }}
+        onClose={() => setOpenId(null)}
+      />
+
+      <PhotoTagNamePrompt
+        prompt={tagPrompt.prompt}
+        error={tagPrompt.error}
+        pick={pick}
+        onSubmit={tagPrompt.submit}
+        onClose={tagPrompt.close}
+      />
+
+      <PhotoTagDeleteDialog
+        tag={tagAsk}
+        onClose={() => setTagAsk(null)}
+        onDeleted={() => {
+          setTagAsk(null)
+          setRawPick(null)
+        }}
+      />
+
+      <PhotoDeleteDialog photoId={deleting} onClose={() => setDeleting(null)} />
+    </div>
+  )
+}
+
+/** The page header: back, title, the library total, and the search field. */
+function PhotoManagerHeader({ photoCount, query, onQueryChange }: {
+  photoCount: number
+  query: string
+  onQueryChange: (query: string) => void
+}) {
+  const t = useT()
+  const navigate = useNavigate()
+  const router = useRouter()
+
+  const back = () => {
+    useStore.getState().clearSelection()
+    // Opened from a board, back goes there; a direct URL has nothing behind
+    // it, so it lands on the hub instead of leaving the app.
+    if (router.history.length > 1)
+      router.history.back()
+    else
+      void navigate({ to: '/' })
+  }
+
+  return (
+    <header className="flex flex-none flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-line bg-panel px-3 py-2 sm:px-4">
+      <Tip
+        label={t('Back')}
+        trigger={(
+          <button type="button" className={toolCls} aria-label={t('Back')} onClick={back} data-photos-back="">
+            <MorphIcon icon={ArrowLeft} size={15} strokeWidth={1.75} />
+          </button>
+        )}
+      />
+      <h1 className="m-0 text-[13.5px] font-semibold text-txt">{t('Photos')}</h1>
+      <span className="text-[11.5px] text-dim tabular-nums" data-photo-total="">{photoCount}</span>
+      <span className="flex-1" />
+      <label className="flex h-[26px] w-full min-w-0 items-center gap-1.5 border border-line-strong bg-panel-2 px-1.5 sm:w-[190px]">
+        <MorphIcon icon={Search} size={12} strokeWidth={1.75} className="flex-none text-faint" />
+        <input
+          className="min-w-0 flex-1 border-0 bg-transparent text-[11.5px] text-txt outline-0 placeholder:text-faint"
+          value={query}
+          placeholder={t('Search photos')}
+          aria-label={t('Search photos')}
+          data-photo-search=""
+          onChange={e => onQueryChange(e.target.value)}
+        />
+      </label>
+    </header>
+  )
+}
+
+/**
+ * The chip bar and its actions. The chips scroll on their own; the tag actions
+ * stay put at the end of the row, so a phone never scrolls to reach them. The
+ * page's import door lives here too: adding photos is a library action, not a
+ * board one (`autoFill` off).
+ */
+function PhotoTagBar({ pick, tags, untagged, countIn, onPick, onOpenPrompt, onAskDelete }: {
+  pick: TagPick
+  tags: string[]
+  untagged: string
+  countIn: (tag: TagPick) => number
+  onPick: (pick: TagPick) => void
+  onOpenPrompt: (mode: 'create' | 'rename') => void
+  onAskDelete: (tag: string) => void
+}) {
+  const t = useT()
+  const fileRef = useRef<HTMLInputElement>(null)
+  // The chip bar scrolls sideways on a phone; its cut edge fades like the tools
+  // dock's row (the sticker page's folder chips read the same way).
+  const chipFadeRef = useScrollFade<HTMLDivElement>('x')
+
+  return (
+    // A phone stacks this row: at 320 the icon buttons leave the chip
+    // scroller ~220px, where the fade's 48px band is a fifth of it and the
+    // cut chip's border ghosts at the boundary, reading as a hard clip.
+    <div className="flex flex-none flex-col gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:flex-row sm:items-center sm:px-4">
+      <div
+        ref={chipFadeRef}
+        style={scrollFadeStyleX}
+        data-tag-chips=""
+        className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:h-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb"
+      >
+        <div className="flex w-max items-center gap-1.5">
+          <TagChip active={pick == null} label={t('All')} count={countIn(null)} onClick={() => onPick(null)} pick="__all" />
+          <TagChip active={pick === ''} label={untagged} count={countIn('')} onClick={() => onPick('')} pick={untagged} />
+          {tags.map(tag => (
+            <TagChip key={tag} active={pick === tag} label={tag} count={countIn(tag)} onClick={() => onPick(tag)} pick={tag} />
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-none items-center justify-end gap-1.5 sm:justify-start">
+        {/* Rename / delete act on the picked tag; All has neither and
+            Untagged only groups what wears nothing. */}
+        {pick != null && pick !== '' && (
+          <>
+            <Tip
+              label={t('Rename tag')}
+              trigger={(
+                <button
+                  type="button"
+                  className={toolCls}
+                  aria-label={t('Rename tag')}
+                  data-tag-rename=""
+                  onClick={() => onOpenPrompt('rename')}
+                >
+                  <MorphIcon icon={Pencil} size={13} strokeWidth={1.75} />
+                </button>
+              )}
+            />
+            <Tip
+              label={t('Delete tag')}
+              trigger={(
+                <button
+                  type="button"
+                  className={toolCls}
+                  aria-label={t('Delete tag')}
+                  data-tag-delete=""
+                  onClick={() => onAskDelete(pick)}
+                >
+                  <MorphIcon icon={Trash2} size={13} strokeWidth={1.75} />
+                </button>
+              )}
+            />
+          </>
+        )}
+        <span className="flex flex-none">
+          <Button
+            variant="strong"
+            aria-label={t('New tag')}
+            data-tag-new=""
+            onClick={() => onOpenPrompt('create')}
+          >
+            <MorphIcon icon={Tag} size={12} strokeWidth={1.75} />
+            <span className="max-sm:hidden">{t('New tag')}</span>
+          </Button>
+        </span>
+        {/* The page's own import door: the library surface adds to the library
+            without touching whatever board happens to be open (autoFill off). */}
+        <span className="flex flex-none">
+          <Button
+            variant="strong"
+            aria-label={t('Add photos')}
+            data-photo-add=""
+            onClick={() => fileRef.current?.click()}
+          >
+            <MorphIcon icon={ImagePlus} size={12} strokeWidth={1.75} />
+            <span className="max-sm:hidden">{t('Add photos')}</span>
+          </Button>
+        </span>
+      </div>
+
       <input
         ref={fileRef}
         type="file"
@@ -313,63 +315,6 @@ export function PhotoManager() {
           const created = useStore.getState().addPhotos(files, false)
           say(created.length ? t('Added {n} photos', { n: created.length }) : t('No image files found'))
         }}
-      />
-
-      <PhotoDetail
-        photo={openPhoto}
-        uses={openPhoto ? uses.get(openPhoto.id) ?? 0 : 0}
-        allTags={tags}
-        onTag={tag => openPhoto && tagPhoto(openPhoto.id, tag)}
-        onUntag={tag => openPhoto && untagPhoto(openPhoto.id, tag)}
-        onDelete={() => {
-          if (!openPhoto)
-            return
-          // One modal at a time: the confirm names the photo it will remove.
-          setDeleting(openPhoto.id)
-          setOpenId(null)
-        }}
-        onClose={() => setOpenId(null)}
-      />
-
-      <NamePrompt
-        key={prompt == null ? 'closed' : `${prompt.mode}:${prompt.seq}`}
-        open={prompt != null}
-        title={prompt?.mode === 'rename' ? t('Rename tag') : t('New tag')}
-        initial={prompt?.mode === 'rename' ? (pick ?? '') : ''}
-        confirmLabel={prompt?.mode === 'rename' ? t('Rename') : t('Create')}
-        error={promptError}
-        field="tag"
-        placeholder={t('Tag name')}
-        maxLength={MAX_TAG_NAME}
-        onSubmit={submitTag}
-        onClose={() => {
-          setPrompt(null)
-          setPromptError(null)
-        }}
-      />
-
-      <ConfirmDialog
-        open={tagAsk != null}
-        title={t('Delete tag?')}
-        description={countIn(tagAsk)
-          ? t('It comes off every photo that wears it. The photos themselves are not deleted.')
-          : t('No photo wears this tag.')}
-        confirmLabel={t('Delete tag')}
-        danger
-        onClose={() => setTagAsk(null)}
-        onConfirm={confirmDeleteTag}
-      />
-
-      <ConfirmDialog
-        open={deleting != null}
-        title={t('Delete photo?')}
-        description={(uses.get(deleting ?? '') ?? 0) > 0
-          ? t('“{name}” leaves the library. The copies already placed on a board stay where they are and keep rendering in the preview and the export.', { name: deletingName })
-          : t('“{name}” leaves the library. It is not placed anywhere yet.', { name: deletingName })}
-        confirmLabel={t('Delete photo')}
-        danger
-        onClose={() => setDeleting(null)}
-        onConfirm={confirmDeletePhoto}
       />
     </div>
   )
@@ -393,6 +338,181 @@ function TagChip({ active, label, count, onClick, pick }: {
       {label}
       <span className={countCls}>{count}</span>
     </button>
+  )
+}
+
+/** The detail dialog: usage count and store writes live with it, not the page. */
+function PhotoDetailDialog({ photo, allTags, uses, onRequestDelete, onClose }: {
+  photo: Photo | null
+  allTags: string[]
+  uses: Map<string, number>
+  onRequestDelete: (id: string) => void
+  onClose: () => void
+}) {
+  const tagPhoto = useStore(s => s.tagPhoto)
+  const untagPhoto = useStore(s => s.untagPhoto)
+  return (
+    <PhotoDetail
+      photo={photo}
+      uses={photo ? uses.get(photo.id) ?? 0 : 0}
+      allTags={allTags}
+      onTag={tag => photo && tagPhoto(photo.id, tag)}
+      onUntag={tag => photo && untagPhoto(photo.id, tag)}
+      onDelete={() => photo && onRequestDelete(photo.id)}
+      onClose={onClose}
+    />
+  )
+}
+
+/** The open name dialog: a new tag, or the one being renamed. */
+interface TagPromptState {
+  mode: 'create' | 'rename'
+  seq: number
+}
+
+/**
+ * The tag name dialog's state: `seq` makes every opening its own mount, so the
+ * field starts from that opening's name, and a rename keeps its tag open while
+ * a new tag leaves the view where it was.
+ */
+function useTagPrompt(tags: string[], pick: TagPick, setRawPick: (pick: TagPick) => void) {
+  const t = useT()
+  const addPhotoTag = useStore(s => s.addPhotoTag)
+  const renamePhotoTag = useStore(s => s.renamePhotoTag)
+  const [prompt, setPrompt] = useState<TagPromptState | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const open = (mode: TagPromptState['mode']) => {
+    setError(null)
+    setPrompt(p => ({ mode, seq: (p?.seq ?? 0) + 1 }))
+  }
+
+  const close = () => {
+    setPrompt(null)
+    setError(null)
+  }
+
+  const submit = (name: string): boolean => {
+    const res = prompt?.mode === 'rename'
+      ? renameTag(tags, pick as string, name)
+      : addTag(tags, name)
+    if (!res.ok) {
+      setError(res.reason === 'empty'
+        ? t('Type a tag name')
+        : res.reason === 'duplicate' ? t('A tag with that name already exists') : t('That tag no longer exists'))
+      return false
+    }
+    const done = prompt?.mode === 'rename'
+      ? renamePhotoTag(pick as string, name)
+      : addPhotoTag(name)
+    if (!done) {
+      setError(t('That tag no longer exists'))
+      return false
+    }
+    // A rename keeps its tag open; a new tag leaves the view where it was
+    // (jumping into an empty tag hides the photos you just sorted).
+    if (prompt?.mode === 'rename')
+      setRawPick(res.name)
+    setError(null)
+    return true
+  }
+
+  return { prompt, error, open, close, submit }
+}
+
+function PhotoTagNamePrompt({ prompt, error, pick, onSubmit, onClose }: {
+  prompt: TagPromptState | null
+  error: string | null
+  pick: TagPick
+  onSubmit: (name: string) => boolean
+  onClose: () => void
+}) {
+  const t = useT()
+  return (
+    <NamePrompt
+      key={prompt == null ? 'closed' : `${prompt.mode}:${prompt.seq}`}
+      open={prompt != null}
+      title={prompt?.mode === 'rename' ? t('Rename tag') : t('New tag')}
+      initial={prompt?.mode === 'rename' ? (pick ?? '') : ''}
+      confirmLabel={prompt?.mode === 'rename' ? t('Rename') : t('Create')}
+      error={error}
+      field="tag"
+      placeholder={t('Tag name')}
+      maxLength={MAX_TAG_NAME}
+      onSubmit={onSubmit}
+      onClose={onClose}
+    />
+  )
+}
+
+/** Deleting a tag takes it off every photo that wears it; the photos stay. */
+function PhotoTagDeleteDialog({ tag, onClose, onDeleted }: {
+  tag: string | null
+  onClose: () => void
+  onDeleted: () => void
+}) {
+  const t = useT()
+  const allPhotos = useStore(s => s.photos)
+  const deletePhotoTag = useStore(s => s.deletePhotoTag)
+  const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
+  const count = tag == null ? 0 : photos.filter(p => hasTag(p, tag)).length
+
+  const confirm = () => {
+    if (tag == null)
+      return
+    deletePhotoTag(tag)
+    onDeleted()
+    say(count
+      ? t('Tag deleted · it came off every photo that wore it')
+      : t('Tag deleted'))
+  }
+
+  return (
+    <ConfirmDialog
+      open={tag != null}
+      title={t('Delete tag?')}
+      description={count
+        ? t('It comes off every photo that wears it. The photos themselves are not deleted.')
+        : t('No photo wears this tag.')}
+      confirmLabel={t('Delete tag')}
+      danger
+      onClose={onClose}
+      onConfirm={confirm}
+    />
+  )
+}
+
+/** Deleting a photo leaves placed copies on the board: they stay as snapshots. */
+function PhotoDeleteDialog({ photoId, onClose }: { photoId: string | null, onClose: () => void }) {
+  const t = useT()
+  const allPhotos = useStore(s => s.photos)
+  const deletePhotoAsset = useStore(s => s.deletePhotoAsset)
+  const uses = useAssetUses()
+  const placed = photoId == null ? 0 : uses.get(photoId) ?? 0
+  const name = allPhotos.find(p => p.id === photoId)?.name ?? ''
+
+  const confirm = () => {
+    if (!photoId)
+      return
+    deletePhotoAsset(photoId)
+    onClose()
+    say(placed
+      ? t('Photo deleted · the copies placed on a board stay there')
+      : t('Photo deleted'))
+  }
+
+  return (
+    <ConfirmDialog
+      open={photoId != null}
+      title={t('Delete photo?')}
+      description={placed > 0
+        ? t('“{name}” leaves the library. The copies already placed on a board stay where they are and keep rendering in the preview and the export.', { name })
+        : t('“{name}” leaves the library. It is not placed anywhere yet.', { name })}
+      confirmLabel={t('Delete photo')}
+      danger
+      onClose={onClose}
+      onConfirm={confirm}
+    />
   )
 }
 
