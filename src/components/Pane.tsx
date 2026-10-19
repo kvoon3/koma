@@ -6,7 +6,7 @@ import { ImagePlus, Minus, Plus, SquareSplitHorizontal, SquareSplitVertical, Sti
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
-import { usePanePreview, useToolsSheetTop } from '../hooks'
+import { useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
@@ -187,10 +187,33 @@ export function PaneSplitTools({
   )
 }
 
-/* One zoom button: the pane's own quiet chip weight (the split chip's
-   float-bg + blur, chip-hover on hover), small at rest and comfortable under a
-   finger. */
-const zoomBtnCls = 'grid h-[26px] w-[26px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[34px] pointer-coarse:w-[34px]'
+/* One zoom button: the pane's own quiet chip weight (the split chip's float-bg
+   + blur, chip-hover on hover). Size is picked in `zoomChrome`, not by a
+   `pointer-coarse:` variant, so the target never depends on variant order. */
+const zoomBtnCls = 'grid cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35'
+
+/**
+ * Button size and resting weight per input and pane size. A finger gets the
+ * 44px minimum on the visible box itself (padding would leave the measured rect
+ * small, and that rect is what a user aims at) and rests at 0.9, since a touch
+ * screen has no hover to confirm the control exists; a narrow mouse window
+ * steps up to 30px.
+ */
+function zoomChrome(coarse: boolean, narrow: boolean) {
+  return {
+    size: coarse ? 'h-[44px] w-[44px]' : narrow ? 'h-[30px] w-[30px]' : 'h-[26px] w-[26px]',
+    rest: coarse ? 'opacity-90' : 'opacity-70',
+    glyph: coarse ? 18 : 14,
+  }
+}
+
+/**
+ * The chip's inset inside the photo. 20px, not the 8px the corner alone needs:
+ * the canvas resize handle sits 15px inside the canvas corner (`Stage.tsx`), so
+ * an 8px chip would share the corner with it and lose the hit test to it. 20px
+ * clears the handle by 5px at every width and pane size.
+ */
+const ZOOM_INSET = 'p-5'
 
 /* Two clicks of the cluster are exactly 2×, the step the e2e check measures. */
 const ZOOM_STEP = Math.SQRT2
@@ -207,9 +230,10 @@ const ZOOM_STEP = Math.SQRT2
  * keeps running underneath it, so the box also stops at the sheet's top edge and
  * the cluster lifts itself over the sheet instead of living behind its glass.
  *
- * Quiet while the photo is the subject (0.7), full weight under the pointer or
- * once a button takes focus, and the chip behind the glyphs is the app's usual
- * scrim, so busy photo content never swallows it.
+ * Quiet while the photo is the subject (0.7, 0.9 for a finger, which has no
+ * hover to confirm the control exists), full weight under the pointer or once a
+ * button takes focus, and the chip behind the glyphs is the app's usual scrim,
+ * so busy photo content never swallows it.
  */
 function PaneZoomControls({
   paneEl,
@@ -228,6 +252,7 @@ function PaneZoomControls({
 }) {
   const t = useT()
   const sheetTop = useToolsSheetTop()
+  const chrome = zoomChrome(useMediaQuery('(pointer: coarse)'), useMediaQuery('(max-width: 639.98px)'))
   // The pane's viewport top, for comparing the sheet's edge (viewport px) with
   // the pane-local box. Measured, not derived, and kept fresh by observation
   // rather than by every commit: a pan inside the pane moves neither box.
@@ -273,7 +298,7 @@ function PaneZoomControls({
   return (
     <div
       data-pane-zoom-box=""
-      className="pointer-events-none absolute z-[3] flex items-end justify-end p-2 opacity-70 transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100"
+      className={`pointer-events-none absolute z-[3] flex items-end justify-end transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${ZOOM_INSET} ${chrome.rest}`}
       style={box}
     >
       <div
@@ -287,24 +312,24 @@ function PaneZoomControls({
         <button
           type="button"
           data-pane-zoom-out=""
-          className={zoomBtnCls}
+          className={`${zoomBtnCls} ${chrome.size}`}
           title={t('Zoom out')}
           aria-label={t('Zoom out')}
           disabled={leaf.zoom <= MIN_ZOOM}
           onClick={() => onStep(1 / ZOOM_STEP)}
         >
-          <MorphIcon icon={Minus} size={14} strokeWidth={1.75} />
+          <MorphIcon icon={Minus} size={chrome.glyph} strokeWidth={1.75} />
         </button>
         <button
           type="button"
           data-pane-zoom-in=""
-          className={`${zoomBtnCls} -ml-px`}
+          className={`${zoomBtnCls} ${chrome.size} -ml-px`}
           title={t('Zoom in')}
           aria-label={t('Zoom in')}
           disabled={leaf.zoom >= MAX_ZOOM}
           onClick={() => onStep(ZOOM_STEP)}
         >
-          <MorphIcon icon={Plus} size={14} strokeWidth={1.75} />
+          <MorphIcon icon={Plus} size={chrome.glyph} strokeWidth={1.75} />
         </button>
       </div>
     </div>
