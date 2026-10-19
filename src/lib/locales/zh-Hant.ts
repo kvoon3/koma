@@ -389,6 +389,8 @@ export const zhHant: Record<string, string> = {
   'Press and hold a pane, then drag (touch)': '長按窗格並拖曳（觸控）',
   'The hold picks the pane up: drop its photo on another pane to swap the two panes\' contents (an empty pane takes it in); release anywhere else to cancel': '長按可以「拿起」這個窗格：把它的照片拖到另一個窗格上即可交換兩個窗格的內容（空白窗格會直接接收）；在任何其他地方放開即取消',
   'Scroll / pinch': '滾動 / 雙指縮放',
+  'Scroll / pinch on the stage around the canvas': '在畫布外的舞台區域滾動 / 雙指縮放',
+  'Scale the whole canvas view, 1.1x a notch between 0.25 and 2.5: a view, so it is never an undo step and never saved. Off fit a percentage chip appears at the stage\'s top left and a click (or a double-click out there) fits the canvas again. Zoomed in far enough the canvas covers that air, and the chip is the way back': '以 1.1 倍為一檔在 0.25 至 2.5 之間縮放整個畫布視圖：這只是視圖，不進入復原，也不會儲存。離開適應比例時舞台左上角會出現百分比小片，點擊它（或在畫布外雙擊）即可適應。放大到一定程度畫布會蓋住那片空白，此時小片就是回去的路',
   'Zoom the photo around the cursor': '以游標為中心縮放照片',
   'Pinch past the minimum zoom (or pinch an empty pane)': '縮放到最小倍率以下（或在空白窗格上捏合）',
   'Zoom out all the way into the 3×3 grid overview': '一路縮到最小，進入 3×3 總覽',
