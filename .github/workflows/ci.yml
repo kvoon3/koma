@@ -1,8 +1,11 @@
 # Lint, type-check, build and test every PR, and `main` on every push.
 #
-# `bun run lint` is also where the i18n coverage check lives (see
-# scripts/i18n-coverage.mjs): a `t('…')` with no translation, or a dictionary
-# entry that no call site passes, fails the run here instead of shipping.
+# `bun run ci` runs the same three scripts locally, in parallel on one machine.
+#
+# ESLint is the only gate that keeps a cache: `--cache --cache-strategy content`
+# turns 11.7s of work into 3.0s, keyed on the commit so every run saves its own
+# snapshot and the next one restores it by prefix. The bun download cache is
+# not restored: 7s to restore it against the 3s it saves on `bun install`.
 
 name: CI
 
@@ -21,24 +24,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  gate:
     runs-on: ubuntu-latest
+    strategy:
+      # One runner per gate, so a failing gate never cancels its siblings.
+      fail-fast: false
+      matrix:
+        # `test` asserts wall-clock budgets (an 80ms pixel-filter frame), so it
+        # gets a machine to itself instead of sharing four vCPUs with ESLint's
+        # single worker and the bundler. `build` type-checks before Vite runs.
+        gate: [lint, test, build]
     steps:
       - uses: actions/checkout@v7
 
       - uses: oven-sh/setup-bun@v2
         with:
-          # The lockfile pins every version that matters; the runtime just has
-          # to be new enough for Vite 8 and for `bun test`.
-          bun-version: latest
+          # package.json `packageManager` pins the version. `latest` skips
+          # setup-bun's binary cache; a pinned version restores it.
+          bun-version-file: package.json
+
+      - uses: actions/cache@v4
+        if: matrix.gate == 'lint'
+        with:
+          path: .eslintcache
+          key: ${{ runner.os }}-eslint-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-eslint-
 
       - run: bun install --frozen-lockfile
 
-      - name: Lint (incl. i18n coverage)
-        run: bun run lint
-
-      - name: Type-check and build
-        run: bun run build
-
-      - name: Test
-        run: bun test src
+      - run: bun run ${{ matrix.gate }}

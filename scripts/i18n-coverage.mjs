@@ -1,5 +1,5 @@
 /**
- * `local/i18n-coverage`: keeps the dictionaries in `src/lib/locales` honest.
+ * Keeps the dictionaries in `src/lib/locales` honest.
  *
  * Keys are their English source string (`t('Export')` looks up `'Export'`), so
  * both failure modes are silent at runtime and have to be caught statically:
@@ -9,29 +9,24 @@
  * - A dictionary entry no call site passes is dead weight that survives every
  *   refactor that removes its call site.
  *
- * An ESLint rule sees one file at a time, but this check spans the tree: what is
- * `used` comes from every `t('…')` / `<T k="…">` in `src/`, and the dictionaries
- * are their own files. So the project-wide halves are read once, when the
- * config imports this module, and the rule only reports at the node it finds in
- * the file it was handed.
- *
- * Part of `bun run lint`, and so of the pre-commit hook: adding a `t('…')` with
- * no translation is a lint error at that call site, and deleting a call site
- * leaves its entry in the dictionary flagged until the entry goes too.
+ * This is a project-wide scan, not an ESLint rule: ESLint `--cache` is
+ * per-file and would keep a dictionary's "no dead keys" result after a `t()`
+ * call elsewhere was deleted. `src/lib/i18nDrift.test.ts` runs the same scan
+ * on every `bun test`, so CI catches it; this CLI is what the pre-commit hook
+ * calls, and what a quick ad-hoc check runs.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-const SRC = fileURLToPath(new URL('../src', import.meta.url))
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
+const SRC = join(ROOT, 'src')
 const LOCALES = join(SRC, 'lib', 'locales')
-/** Every locale file lives here, and nothing else does. */
-const LOCALE_DIR = '/lib/locales/'
 
-/** The selectors the rule reports through: one per way a key is written down. */
-const DICTIONARY_ENTRY = 'ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > ObjectExpression > Property'
-const T_CALL = 'CallExpression[callee.name="t"]'
-const T_ELEMENT = 'JSXOpeningElement[name.name="T"]'
+const KEY_LINE = /^\s*'((?:[^'\\]|\\.)*)'\s*:/gm
+const T_CALL = /(?<![\w.$])t\(\s*(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g
+const T_ELEMENT = /<T\s[^>]*?\bk=(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/g
 
 function walk(dir) {
   const files = []
@@ -45,118 +40,82 @@ function walk(dir) {
   return files
 }
 
-/** A key line in a dictionary: `'English source': 'translation',`. */
-const KEY_LINE = /^\s*'((?:[^'\\]|\\.)*)'\s*:/gm
-
-const files = walk(SRC)
-const localeFiles = files.filter(file => file.includes(LOCALE_DIR))
-const appFiles = files.filter(file => !file.includes(LOCALE_DIR))
-
-/**
- * Every string literal in the app. A key handed to `t` indirectly (`t(label)`
- * over a table of labels) still has to appear in the source somewhere, so
- * matching against the whole text keeps those entries from looking dead.
- */
-const appSource = appFiles.map(file => readFileSync(file, 'utf8')).join('\n')
-
-// A check that cannot see its inputs passes everything, which is the one
-// failure mode this rule must not have (the script it replaced had exactly
-// that bug): fail the lint run instead of silently reporting nothing.
-if (!localeFiles.length || !appSource)
-  throw new Error(`[local/i18n-coverage] no dictionaries or no sources under ${SRC}`)
-
-/** locale name → the keys its dictionary defines. */
-const dictionaries = new Map(localeFiles.map((file) => {
-  const name = file.slice(LOCALES.length + 1).replace(/\.ts$/, '')
-  const source = readFileSync(file, 'utf8')
-  const keys = new Set([...source.matchAll(KEY_LINE)].map(([, key]) => key.replace(/\\(.)/g, '$1')))
-  return [name, keys]
-}))
-
-/** `key` in the source form it would have as a `t()` argument, either quote style. */
-function isUsed(key) {
-  return appSource.includes(`'${key.replace(/'/g, '\\\'')}'`) || appSource.includes(`"${key}"`)
+function unescape(body) {
+  return body.replace(/\\(.)/g, '$1')
 }
 
-/** The string value of a string literal node, or null for anything dynamic. */
-function literalString(node) {
-  if (node?.type === 'Literal' && typeof node.value === 'string')
-    return node.value
-  return null
+function lineAt(source, index) {
+  return source.slice(0, index).split('\n').length
 }
 
-/** Report a dictionary entry that no `t()` call passes. */
-function checkDeadKey(context, node) {
-  const key = literalString(node.key)
-  if (key != null && !isUsed(key))
-    context.report({ node, messageId: 'dead' })
+function rel(path) {
+  return relative(ROOT, path)
 }
 
-/** The locales whose dictionary does not define `key`. */
-function absentIn(key) {
-  return [...dictionaries.keys()].filter(name => !dictionaries.get(name).has(key))
+function loadTree() {
+  const files = walk(SRC)
+  const localeFiles = files.filter(file => file.startsWith(`${LOCALES}/`) || file.startsWith(`${LOCALES}\\`))
+  const appFiles = files.filter(file => !localeFiles.includes(file))
+  const appSource = appFiles.map(file => readFileSync(file, 'utf8')).join('\n')
+  if (!localeFiles.length || !appSource)
+    throw new Error(`[i18n-coverage] no dictionaries or no sources under ${SRC}`)
+  const dictionaries = new Map(localeFiles.map((file) => {
+    const name = file.slice(LOCALES.length + 1).replace(/\.ts$/, '')
+    const source = readFileSync(file, 'utf8')
+    const keys = new Set([...source.matchAll(KEY_LINE)].map(([, key]) => unescape(key)))
+    return [name, { file, source, keys }]
+  }))
+  return { appFiles, appSource, dictionaries }
 }
 
-/**
- * Report an entry some other dictionary lacks. Keys reached through a table
- * (`t(label)` over the font names) have no call site to check, so the
- * dictionaries have to agree with each other instead.
- */
-function checkParity(context, node) {
-  const key = literalString(node.key)
-  const absent = key == null ? [] : absentIn(key)
-  if (absent.length)
-    context.report({ node, messageId: 'untranslated', data: { locales: absent.join(', ') } })
+function dictionaryIssues(dictionaries, isUsed) {
+  const issues = []
+  for (const [name, dict] of dictionaries) {
+    KEY_LINE.lastIndex = 0
+    for (const match of dict.source.matchAll(KEY_LINE)) {
+      const key = unescape(match[1])
+      const where = `${rel(dict.file)}:${lineAt(dict.source, match.index)}`
+      if (!isUsed(key))
+        issues.push(`${where}  No \`t()\` call passes '${key}', so the translation is dead weight. Use it or delete it.`)
+      const absent = [...dictionaries.keys()].filter(other => other !== name && !dictionaries.get(other).keys.has(key))
+      if (absent.length)
+        issues.push(`${where}  '${key}' is not in ${absent.join(', ')}, so it falls back to English there.`)
+    }
+  }
+  return issues
 }
 
-/** Report a key that at least one dictionary cannot translate. */
-function checkTranslated(context, node, key) {
-  const absent = absentIn(key)
-  if (absent.length)
-    context.report({ node, messageId: 'missing', data: { locales: absent.join(', ') } })
-}
-
-export const i18nCoverage = {
-  meta: {
-    type: 'problem',
-    docs: {
-      description: 'Keys must exist in every dictionary, and dictionary entries must be used.',
-    },
-    schema: [],
-    messages: {
-      missing: 'No dictionary has this key, so it renders in English (missing from {{locales}}).',
-      dead: 'No `t()` call passes this key, so the translation is dead weight. Use it or delete it.',
-      untranslated: 'This key is not in {{locales}}, so it falls back to English there.',
-    },
-  },
-  create(context) {
-    const filename = context.filename ?? context.getFilename()
-
-    if (filename.includes(LOCALE_DIR)) {
-      const visitor = {}
-      visitor[DICTIONARY_ENTRY] = (node) => {
-        checkDeadKey(context, node)
-        checkParity(context, node)
+function callSiteIssues(appFiles, dictionaries) {
+  const issues = []
+  const absentIn = key => [...dictionaries.keys()].filter(name => !dictionaries.get(name).keys.has(key))
+  for (const file of appFiles) {
+    const source = readFileSync(file, 'utf8')
+    for (const re of [T_CALL, T_ELEMENT]) {
+      re.lastIndex = 0
+      for (const match of source.matchAll(re)) {
+        const key = unescape(match[1] ?? match[2])
+        const absent = absentIn(key)
+        if (!absent.length)
+          continue
+        issues.push(`${rel(file)}:${lineAt(source, match.index)}  No dictionary has '${key}', so it renders in English (missing from ${absent.join(', ')}).`)
       }
-      return visitor
     }
+  }
+  return issues
+}
 
-    // Only `t()` in the app is ours to check; the config, scripts and tests are not translated.
-    if (!filename.includes('/src/'))
-      return {}
+export function collectI18nIssues() {
+  const { appFiles, appSource, dictionaries } = loadTree()
+  const isUsed = key => appSource.includes(`'${key.replace(/'/g, '\\\'')}'`) || appSource.includes(`"${key}"`)
+  return [...dictionaryIssues(dictionaries, isUsed), ...callSiteIssues(appFiles, dictionaries)]
+}
 
-    const visitor = {}
-    visitor[T_CALL] = (node) => {
-      const key = literalString(node.arguments[0])
-      if (key != null)
-        checkTranslated(context, node, key)
-    }
-    visitor[T_ELEMENT] = (node) => {
-      const attr = node.attributes.find(a => a.type === 'JSXAttribute' && a.name.name === 'k')
-      const key = literalString(attr?.value)
-      if (key != null)
-        checkTranslated(context, attr, key)
-    }
-    return visitor
-  },
+if (import.meta.main) {
+  const issues = collectI18nIssues()
+  for (const issue of issues)
+    console.error(issue)
+  if (issues.length) {
+    console.error(`i18n-coverage: ${issues.length} problem${issues.length === 1 ? '' : 's'}`)
+    process.exit(1)
+  }
 }

@@ -3,18 +3,21 @@
   "type": "module",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "bun@1.4.3",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "build:single": "tsc --noEmit && vite build --mode single && cp dist/index.html koma.html",
+    "build": "bun run check-types && vite build",
+    "build:single": "bun run check-types && vite build --mode single && cp dist/index.html koma.html",
     "deploy": "bun run build && wrangler deploy",
     "preview": "vite preview",
     "dev:desktop": "mygo dev",
     "build:desktop": "mygo build",
-    "lint": "eslint .",
+    "lint": "eslint . --cache --cache-strategy content --concurrency off",
+    "lint:fix": "eslint . --fix --cache --cache-strategy content --concurrency off",
+    "check-types": "bun check",
     "test": "bun test src",
-    "lint:fix": "eslint . --fix",
+    "ci": "bun run --no-exit-on-error --parallel lint test build",
     "up": "taze major -Ii",
     "prepare": "simple-git-hooks",
     "doctor": "npx react-doctor@latest"
@@ -72,8 +75,9 @@
   },
   "nano-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
-      "react-doctor --no-telemetry --blocking error"
+      "eslint --fix --cache --cache-strategy content --concurrency off",
+      "react-doctor --no-telemetry --blocking error",
+      "bun scripts/i18n-coverage.mjs"
     ]
   }
 }
