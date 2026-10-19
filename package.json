@@ -20,7 +20,7 @@
     "ci": "bun run --no-exit-on-error --parallel lint test build",
     "up": "taze major -Ii",
     "prepare": "simple-git-hooks",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "bunx react-doctor@latest"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
