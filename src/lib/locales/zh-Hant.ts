@@ -81,6 +81,12 @@ export const zhHant: Record<string, string> = {
   'Reset rotation': '重設角度',
   'Invert colors': '對調顏色',
   'Label font': '文字字體',
+  // Label themes (wave4/glow-font): the box pairs and the glowing pure white
+  'Label theme': '文字主題',
+  'Theme': '主題',
+  'White on black': '黑底白字',
+  'Black on white': '白底黑字',
+  'White glow': '發光純白',
   'Choose a photo': '挑選照片',
   'Loading...': '載入中…',
   'Live Photo: press and hold or use the play button': '即時照片：長按或點選播放鍵播放',
