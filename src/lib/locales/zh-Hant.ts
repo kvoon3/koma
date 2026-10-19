@@ -314,6 +314,15 @@ export const zhHant: Record<string, string> = {
   'Cutout added to the library': '去背圖已加入素材庫',
   'Background removal failed': '背景移除失敗',
 
+  // Cutout blurred backdrop (wave4/blur-bg)
+  'Blurred': '模糊',
+  'Cutout background': '去背背景',
+  'Blurring the background…': '正在模糊背景…',
+  'Kept the blurred background': '已保留模糊背景',
+  'Blurred cutout added to the library': '含模糊背景的去背圖已加入素材庫',
+  'Could not blur the background': '無法模糊背景',
+  'Could not add the blurred cutout to the library': '無法將含模糊背景的去背圖加入素材庫',
+
   // Sticker maker: stamp edge and manual mask (wave3/stickers)
   'Edge': '邊緣',
   'Smooth': '平滑',

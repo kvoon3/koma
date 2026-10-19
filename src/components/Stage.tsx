@@ -16,7 +16,7 @@ import { GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { setLabelPreviewUnit } from '../lib/labelMetrics'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
-import { cutOutPane, restorePaneOriginal } from '../lib/paneCutout'
+import { applyBlurredBackdrop, cutOutPane, dismissCutoutBackdrop, restorePaneOriginal } from '../lib/paneCutout'
 import { blendFadePx, dividerLine, expandRectForBlend, leafList, placement, ratioFromPointer, seamSides } from '../lib/panes'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
@@ -527,6 +527,7 @@ function StageCanvas({
           />
 
           <CutoutProgress view={view} />
+          <CutoutBackdropChoice view={view} photoById={photoById} />
 
           <BoardInserts
             stickers={stickers}
@@ -981,6 +982,59 @@ function usePaneTools(focusId: string, view: Derived | null, photoById: Map<stri
   ]
 
   return { tools, toolsHidden }
+}
+
+/** A pick inside the cutout's background chip: compact, flat, chip-tinted on hover. */
+const backdropPickCls = 'cursor-pointer whitespace-nowrap rounded-none border-0 bg-transparent px-2 py-1 text-[11px] font-semibold text-txt transition-colors duration-(--dur-fast) hover:bg-chip-hover active:bg-chip-on active:text-chip-on-txt focus-visible:outline-1 focus-visible:outline-accent'
+
+/**
+ * The finished cutout's background choice, on the pane that shows it (see
+ * `lib/paneCutout`): the cutout arrives transparent, exactly as it always has,
+ * and this chip offers the photo's own frame behind it instead, blurred. It
+ * rides the cutout it was made for: undo, Original or a swap changes the pane's
+ * photo and the chip goes with it, since it can only refine that one photo.
+ *
+ * Top-left of the pane, beside the photo its own title bar has no room for: the
+ * pane's BOTTOM is not safe ground, since the canvas runs under the tools dock
+ * on both sizes (measured: the chip was unclickable at 375 and hidden at 1280).
+ * The one thing already parked there is the Live Photo badge, so a video pane
+ * pushes the chip below it.
+ */
+function CutoutBackdropChoice({ view, photoById }: { view: Derived, photoById: Map<string, Photo> }) {
+  const choice = useStore(s => s.cutoutBackdrop)
+  const t = useT()
+  const hit = choice ? view.leaves.find(l => l.node.id === choice.paneId) : undefined
+  if (!choice || !hit || hit.node.photoId !== choice.cutoutId)
+    return null
+  const live = !!photoById.get(choice.cutoutId)?.videoFile
+  return (
+    <div
+      data-cutout-backdrop=""
+      role="group"
+      aria-label={t('Cutout background')}
+      className="absolute z-20 flex items-center gap-0.5 rounded-none border border-float-line bg-float-bg p-0.5 text-[11px] shadow-pop backdrop-blur-[7px]"
+      style={{ left: hit.rect.x + 9, top: hit.rect.y + (live ? 36 : 9) }}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <span className="px-1.5 text-[10px] font-semibold text-dim">{t('Background')}</span>
+      <button
+        type="button"
+        data-cutout-backdrop-pick="transparent"
+        className={backdropPickCls}
+        onClick={() => dismissCutoutBackdrop()}
+      >
+        {t('Transparent')}
+      </button>
+      <button
+        type="button"
+        data-cutout-backdrop-pick="blur"
+        className={backdropPickCls}
+        onClick={() => void applyBlurredBackdrop()}
+      >
+        {t('Blurred')}
+      </button>
+    </div>
+  )
 }
 
 /** Progress veil over the pane whose photo is being cut out (see lib/paneCutout). */
