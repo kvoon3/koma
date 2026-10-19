@@ -35,6 +35,12 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - lib/motionTokens.ts for the shared ease curve hardcoded in dockSwap/dockFlip/boardPager (S)
 - paneCommands.ts: one file one job (S)
 
+## Shipped in Wave 4 (PRs #46/#47/#48)
+
+- Pane minimap (photo pan navigator) + whole-canvas view zoom from the stage margin (0.25–2.5, % chip, double-click fit); the +/- pair removed
+- Cutout tool as a live three-state menu (original / cutout / blurred background), switchable anytime from library assets
+- Glowing pure-white label: an independent effect (theme forced transparent) with continuous falloff
+
 ## Shipped in Wave 3.5 (PRs #41/#40/#42/#43/#44)
 
 - Pixelation filter family (six, stage-px WYSIWYG dials) + the tactile eight from Wave 3
@@ -55,6 +61,12 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - **Detent rotation common component** + pane rotation/flip (`panes.ts`, `Pane.tsx`): every later rotation UI reuses it.
 - **Dock rework** (`ToolsDock.tsx`, `toolsDockMode.ts`, `dockPhysics.ts`): whole-drawer drag gesture, fix text-insert tools display, drop the minimized state for the three display modes, ratio control when nothing is selected. One agent owns the dock.
 - **Dual 9-grid comparison** (`workspaces.ts`, `WorkspaceGrid.tsx`, `Stage.tsx`).
+
+## Shipped in Wave 4 (PRs #46/#47/#48)
+
+- Pane minimap (photo pan navigator) + whole-canvas view zoom from the stage margin (0.25–2.5, % chip, double-click fit); the +/- pair removed
+- Cutout tool as a live three-state menu (original / cutout / blurred background), switchable anytime from library assets
+- Glowing pure-white label: an independent effect (theme forced transparent) with continuous falloff
 
 ## Shipped in Wave 3.5 (PRs #41/#40/#42/#43/#44)
 
