@@ -173,16 +173,19 @@ width. Everything else a pane shows stays focus-only, the × close button at
 the top right and the zoom pair below.
 The focused pane that holds a photo also carries a **zoom pair** (− and +, two
 clicks exactly 2×, disabled at the floor and the ceiling): a single chip
-inside the photo, parked at the corner of the photo's *visible* rect, 8px in
+inside the photo, parked at the corner of the photo's *visible* rect, 20px in
 from it, never at the pane's corner, so a zoomed-out photo pulls the chip in
 with it and a zoomed-in one pins it to the pane's inner edge, clear of
-dividers and neighbours. It rests at 0.7 so the photo stays the subject, and
-comes to full weight under the pointer or once a button takes focus; the chip
-behind the glyphs is the floating-chip scrim, so busy content never swallows
-it, and a coarse pointer gets 34px targets. The tools sheet overlays the stage
-with no put-away state and a tall canvas runs underneath it, so the chip stops
-at the sheet's top edge (8px above it) rather than sitting behind its glass,
-and follows the sheet as it cycles displays.
+dividers and neighbours. The 20px (not the 8px the corner alone wants) is what
+clears the canvas resize handle, which sits 15px inside the canvas corner. It
+rests at 0.7 so the photo stays the subject and comes to full weight under the
+pointer or once a button takes focus; a finger has no hover to confirm it
+exists, so touch rests at 0.9 and the button is the 44px target itself. Sizes:
+44px coarse, 30px in a narrow window, 26px otherwise. The chip behind the
+glyphs is the floating-chip scrim, so busy content never swallows it. The
+tools sheet overlays the stage with no put-away state and a tall canvas runs
+underneath it, so the chip stops at the sheet's top edge (8px above it) rather
+than sitting behind its glass, and follows the sheet as it cycles displays.
 The focused pane's tools (sticker / replace photo / text label)
 live in a panel that overlays the canvas above the footer, open by default and
 moved only by the handle on its top edge; the tools act on the focused pane, so
