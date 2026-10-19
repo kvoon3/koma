@@ -156,9 +156,16 @@ function paneTarget(paneId: string | null): StickerTarget | null {
   return paneId ? { kind: 'pane', paneId } : null
 }
 
-export function Stage() {
-  const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  const stageRef = useRef<HTMLDivElement | null>(null)
+/**
+ * The divider drag: which divider is down, which one a mouse is over, and the
+ * window listeners that resize it. The stage owns the geometry; this owns the
+ * gesture.
+ */
+function useDividerDrag(
+  view: Derived,
+  stageRef: React.RefObject<HTMLDivElement | null>,
+  resizeSplit: (splitId: string, ratio: number) => void,
+) {
   /**
    * The divider being dragged, by id: its grip stays lit even once the pointer
    * has left the 15px band it lives in.
@@ -169,65 +176,6 @@ export function Stage() {
    * (the grip rides above the lines, so it cannot use `group-hover`).
    */
   const [hotId, setHotId] = useState<string | null>(null)
-  /** Hovered or being dragged: what lights a divider's grip and its line. */
-  const isLit = (id: string) => hotId === id || dragId === id
-  const [sizing, setSizing] = useState(false)
-  const t = useT()
-
-  const root = useStore(s => activeWs(s).root)
-  const wsId = useStore(s => s.activeId)
-  const focusId = useStore(s => activeWs(s).focusId)
-  const canvasRatio = useStore(s => activeWs(s).canvasRatio)
-  const canvasFill = useStore(s => activeWs(s).canvasFill)
-  const gapValue = useStore(s => s.gap)
-  const radiusValue = useStore(s => s.radius)
-  const fadeValue = useStore(s => s.edgeFade)
-  const fadeStrength = useStore(s => s.edgeFadeStrength)
-  const blendCrossfade = useStore(s => s.blendCrossfade)
-  const paneBorder = useStore(s => s.paneBorder)
-  const bg = useStore(s => s.bg)
-  const photos = useStore(s => s.photos)
-  const focus = useStore(s => s.focus)
-  const selectLabel = useStore(s => s.selectLabel)
-  const updateLeaf = useStore(s => s.updateLeaf)
-  const split = useStore(s => s.split)
-  const closePane = useStore(s => s.closePane)
-  const resizeSplit = useStore(s => s.resizeSplit)
-  const setCanvasSize = useStore(s => s.setCanvasSize)
-  // The sticker maker dialog is store-driven: the pane menu opens it too.
-  const stickerMakerFor = useStore(s => s.stickerMakerFor)
-  const boardStickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
-  const boardLabels = useStore(s => activeWs(s).labels ?? NO_LABELS)
-  const openStickerMaker = useStore(s => s.openStickerMaker)
-
-  const transparent = isTransparentBg(bg)
-
-  const view = useMemo(
-    () =>
-      computeLayout(
-        root,
-        canvasRatio,
-        canvasFill,
-        Math.max(160, wrapSize.w - 48),
-        Math.max(160, wrapSize.h - 48),
-        gapValue,
-        radiusValue,
-        fadeValue,
-      ),
-    [root, canvasRatio, canvasFill, wrapSize, gapValue, radiusValue, fadeValue],
-  )
-
-  // Which pane edges are seams (face another photo); recomputed with the layout.
-  const seams = useMemo(() => seamSides(view.leaves, view.gap), [view])
-  // Publish the preview's label unit: the exporter measures labels at this
-  // size rather than at export px so multi-line x matches the preview.
-  useEffect(() => setLabelPreviewUnit(view.unit), [view.unit])
-  // Backdrop blend: pane edges feather into the shared blurred field behind
-  // everything (width 0 turns the whole treatment off).
-  const paneFade = view.fade
-
-  const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
-
   const dragRef = useRef<Divider | null>(null)
 
   const beginDrag = useCallback((d: Divider) => {
@@ -264,8 +212,23 @@ export function Stage() {
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
     }
-  }, [dragId, view.gap, resizeSplit])
+  }, [dragId, view.gap, resizeSplit, stageRef])
 
+  /** Hovered or being dragged: what lights a divider's grip and its line. */
+  const isLit = (id: string) => hotId === id || dragId === id
+  return { dragId, setHotId, isLit, beginDrag }
+}
+
+/**
+ * The canvas resize handle's gesture: drag a corner to change the canvas
+ * aspect, double-click to fit it to the first photo again.
+ */
+function useCanvasResize(
+  wrapRef: React.RefObject<HTMLDivElement | null>,
+  focus: (paneId: string) => void,
+  setCanvasSize: (ratio: number, fill: number) => void,
+) {
+  const [sizing, setSizing] = useState(false)
   const sizeRef = useRef<{
     cx: number
     cy: number
@@ -319,26 +282,6 @@ export function Stage() {
     }
   }, [sizing, setCanvasSize])
 
-  useEffect(() => {
-    // Pinch/ctrl+wheel over the canvas background (or a pane without a photo)
-    // must never zoom the browser page: send it to the focused pane instead.
-    const el = wrapRef.current
-    if (!el)
-      return
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey || e.defaultPrevented)
-        return
-      e.preventDefault()
-      const focusId = activeWs(useStore.getState()).focusId
-      if (!focusId)
-        return
-      el.querySelector<HTMLElement>(`[data-pane-id="${CSS.escape(focusId)}"]`)
-        ?.dispatchEvent(new WheelEvent('wheel', e))
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [wrapRef])
-
   const resetRatio = useCallback(() => {
     const s = useStore.getState()
     const first = photoAssetsOf(s.photos).find(p => p.trueW)
@@ -347,19 +290,71 @@ export function Stage() {
     s.setCanvasSize(first ? first.trueW / first.trueH : (activeWs(s).canvasRatio ?? 1.5), 1)
   }, [])
 
+  return { sizing, beginResize, resetRatio }
+}
+
+export function Stage() {
+  const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const t = useT()
+
+  const root = useStore(s => activeWs(s).root)
+  const wsId = useStore(s => s.activeId)
+  const focusId = useStore(s => activeWs(s).focusId)
+  const canvasRatio = useStore(s => activeWs(s).canvasRatio)
+  const canvasFill = useStore(s => activeWs(s).canvasFill)
+  const gapValue = useStore(s => s.gap)
+  const radiusValue = useStore(s => s.radius)
+  const fadeValue = useStore(s => s.edgeFade)
+  const fadeStrength = useStore(s => s.edgeFadeStrength)
+  const blendCrossfade = useStore(s => s.blendCrossfade)
+  const paneBorder = useStore(s => s.paneBorder)
+  const bg = useStore(s => s.bg)
+  const photos = useStore(s => s.photos)
+  const focus = useStore(s => s.focus)
+  const selectLabel = useStore(s => s.selectLabel)
+  const updateLeaf = useStore(s => s.updateLeaf)
+  const split = useStore(s => s.split)
+  const closePane = useStore(s => s.closePane)
+  const resizeSplit = useStore(s => s.resizeSplit)
+  const setCanvasSize = useStore(s => s.setCanvasSize)
+  // The sticker maker dialog is store-driven: the pane menu opens it too.
+  const stickerMakerFor = useStore(s => s.stickerMakerFor)
+  const boardStickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
+  const boardLabels = useStore(s => activeWs(s).labels ?? NO_LABELS)
+  const openStickerMaker = useStore(s => s.openStickerMaker)
+
+  const transparent = isTransparentBg(bg)
+
+  const view = useMemo(
+    () =>
+      computeLayout(
+        root,
+        canvasRatio,
+        canvasFill,
+        Math.max(160, wrapSize.w - 48),
+        Math.max(160, wrapSize.h - 48),
+        gapValue,
+        radiusValue,
+        fadeValue,
+      ),
+    [root, canvasRatio, canvasFill, wrapSize, gapValue, radiusValue, fadeValue],
+  )
+
+  // Which pane edges are seams (face another photo); recomputed with the layout.
+  const seams = useMemo(() => seamSides(view.leaves, view.gap), [view])
+  // Publish the preview's label unit: the exporter measures labels at this
+  // size rather than at export px so multi-line x matches the preview.
+  useEffect(() => setLabelPreviewUnit(view.unit), [view.unit])
+
+  const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
+
+  const { dragId, setHotId, isLit, beginDrag } = useDividerDrag(view, stageRef, resizeSplit)
+  const { sizing, beginResize, resetRatio } = useCanvasResize(wrapRef, focus, setCanvasSize)
   const { tools, toolsHidden: paneToolsHidden } = usePaneTools(focusId, view, photoById)
-  const labelSel = useStore(s => s.labelSel)
-  const setLabel = useStore(s => s.setLabel)
-  const removeLabel = useStore(s => s.removeLabel)
-  // Below lg the label's floating toolbar is hidden, so the dock takes over
-  // its controls while a label is selected.
-  const compact = useMediaQuery('(max-width: 1023.98px)')
-  const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
   // The label dock's location action follows the focused pane's photo, not the
   // selected label: it inserts a new label for that photo's EXIF fix.
   const focusHasGps = focusPhotoHasGps(view, focusId, photoById)
-  // Canvas appearance tools always live in the dock; pane/label tools join when relevant.
-  const toolsHidden = false
 
   return (
     <div
@@ -367,96 +362,41 @@ export function Stage() {
       className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center ${dragId ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
     >
       <DeleteZone label={t('Drop here to delete')} />
-      <CanvasMenu>
-        <div
-          className="flex min-h-0 w-full flex-1 items-center justify-center"
-          onPointerDown={(e) => {
-            if (e.target === e.currentTarget) {
-              focus('')
-              selectLabel(null)
-            }
-          }}
-        >
-          <div
-            ref={stageRef}
-            className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
-            style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
-          >
-            <CollageBgLayer W={view.W} H={view.H} photoById={photoById} />
-            {!blendCrossfade && (
-              <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
-            )}
+      <StageCanvas
+        view={view}
+        seams={seams}
+        stickers={boardStickers}
+        labels={boardLabels}
+        photoById={photoById}
+        focusId={focusId}
+        paneBorder={paneBorder}
+        blendCrossfade={blendCrossfade}
+        fadeStrength={fadeStrength}
+        transparent={transparent}
+        bg={bg}
+        wsId={wsId}
+        stageRef={stageRef}
+        sizing={sizing}
+        isLit={isLit}
+        onHotChange={setHotId}
+        onBeginDrag={beginDrag}
+        onBeginResize={beginResize}
+        onResetRatio={resetRatio}
+        onFocus={focus}
+        onSelectLabel={selectLabel}
+        onUpdate={updateLeaf}
+        onSplit={split}
+        onClose={closePane}
+      />
 
-            <PaneLayers
-              view={view}
-              seams={seams}
-              photoById={photoById}
-              focusId={focusId}
-              paneBorder={paneBorder}
-              paneFade={blendCrossfade ? blendFadePx(paneFade, fadeStrength, view.gap) : paneFade}
-              crossfade={blendCrossfade}
-              onFocus={focus}
-              onUpdate={updateLeaf}
-              onSplit={split}
-              onClose={closePane}
-            />
-
-            <CutoutProgress view={view} />
-
-            <BoardInserts
-              stickers={boardStickers}
-              labels={boardLabels}
-              unit={view.unit}
-              photoById={photoById}
-              board={{ w: view.W, h: view.H }}
-              stageRef={stageRef}
-            />
-
-            <DividerChrome
-              view={view}
-              focused={!!focusId}
-              isLit={isLit}
-              onBeginDrag={beginDrag}
-              onHotChange={setHotId}
-            />
-
-            <CanvasResizeHandle
-              sizing={sizing}
-              label={t('Drag to change canvas aspect · double-click to reset')}
-              onPointerDown={beginResize}
-              onDoubleClick={resetRatio}
-            />
-          </div>
-        </div>
-      </CanvasMenu>
-
-      {/* Tools dock: full-width Base UI Drawer (collapsed / row / expanded) with
-          Footer in the sheet. Border + pane/label tools when relevant. */}
-      <ToolsDock
-        hidden={toolsHidden}
-        contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}
-      >
-        <AppearanceDockTools />
-        <GridDockTool disabled />
-        <GridBoardTools route="stage" />
-        {dockLabel
-          ? (
-              <LabelDockTools
-                labelId={dockLabel.id}
-                lab={dockLabel}
-                setLabel={setLabel}
-                onDelete={() => removeLabel(dockLabel.id)}
-                onInsertLocation={focusHasGps && focusId ? () => insertLocationLabel(focusId) : undefined}
-              />
-            )
-          : tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
-        {/* The detent rotation dial + flips: a sibling of the pane tools, so
-            their fixed order and list stay untouched. */}
-        <PaneRotateTool hidden={!!dockLabel} />
-        {/* Texture filters: also a sibling, next to the turn controls. Both
-            act on the photo a pane holds, and neither disturbs the list. */}
-        <PaneFilterTool hidden={!!dockLabel} />
-      </ToolsDock>
+      {/* Canvas appearance tools always live in the dock; pane/label tools join
+          when relevant. The dock itself is mounted by the root layout. */}
+      <StageToolsDock
+        tools={tools}
+        paneToolsHidden={paneToolsHidden}
+        focusHasGps={focusHasGps}
+        focusId={focusId}
+      />
 
       <StickerMakerDialog
         open={stickerMakerFor != null}
@@ -464,6 +404,177 @@ export function Stage() {
         onClose={() => openStickerMaker(null)}
       />
     </div>
+  )
+}
+
+/** The board itself: backdrop, panes, inserts, divider chrome and resize handle. */
+function StageCanvas({
+  view,
+  seams,
+  stickers,
+  labels,
+  photoById,
+  focusId,
+  paneBorder,
+  blendCrossfade,
+  fadeStrength,
+  transparent,
+  bg,
+  wsId,
+  stageRef,
+  sizing,
+  isLit,
+  onHotChange,
+  onBeginDrag,
+  onBeginResize,
+  onResetRatio,
+  onFocus,
+  onSelectLabel,
+  onUpdate,
+  onSplit,
+  onClose,
+}: {
+  view: Derived
+  seams: Map<string, SeamSides>
+  stickers: Sticker[]
+  labels: PaneLabel[]
+  photoById: Map<string, Photo>
+  focusId: string
+  paneBorder: boolean
+  blendCrossfade: boolean
+  fadeStrength: number
+  transparent: boolean
+  bg: string
+  wsId: string
+  stageRef: React.RefObject<HTMLDivElement | null>
+  sizing: boolean
+  isLit: (id: string) => boolean
+  onHotChange: React.Dispatch<React.SetStateAction<string | null>>
+  onBeginDrag: (d: Divider) => (e: React.PointerEvent) => void
+  onBeginResize: React.PointerEventHandler<HTMLDivElement>
+  onResetRatio: () => void
+  onFocus: (paneId: string) => void
+  onSelectLabel: (labelId: string | null) => void
+  onUpdate: React.ComponentProps<typeof Pane>['onUpdate']
+  onSplit: React.ComponentProps<typeof Pane>['onSplit']
+  onClose: React.ComponentProps<typeof Pane>['onClose']
+}) {
+  const t = useT()
+  // Backdrop blend: pane edges feather into the shared blurred field behind
+  // everything (width 0 turns the whole treatment off).
+  const paneFade = view.fade
+
+  return (
+    <CanvasMenu>
+      <div
+        className="flex min-h-0 w-full flex-1 items-center justify-center"
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) {
+            onFocus('')
+            onSelectLabel(null)
+          }
+        }}
+      >
+        <div
+          ref={stageRef}
+          className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
+          style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, viewTransitionName: `ws-${wsId}` }}
+        >
+          <CollageBgLayer W={view.W} H={view.H} photoById={photoById} />
+          {!blendCrossfade && (
+            <SeamLayer view={view} photoById={photoById} paneFade={paneFade} fadeStrength={fadeStrength} />
+          )}
+
+          <PaneLayers
+            view={view}
+            seams={seams}
+            photoById={photoById}
+            focusId={focusId}
+            paneBorder={paneBorder}
+            paneFade={blendCrossfade ? blendFadePx(paneFade, fadeStrength, view.gap) : paneFade}
+            crossfade={blendCrossfade}
+            onFocus={onFocus}
+            onUpdate={onUpdate}
+            onSplit={onSplit}
+            onClose={onClose}
+          />
+
+          <CutoutProgress view={view} />
+
+          <BoardInserts
+            stickers={stickers}
+            labels={labels}
+            unit={view.unit}
+            photoById={photoById}
+            board={{ w: view.W, h: view.H }}
+            stageRef={stageRef}
+          />
+
+          <DividerChrome
+            view={view}
+            focused={!!focusId}
+            isLit={isLit}
+            onBeginDrag={onBeginDrag}
+            onHotChange={onHotChange}
+          />
+
+          <CanvasResizeHandle
+            sizing={sizing}
+            label={t('Drag to change canvas aspect · double-click to reset')}
+            onPointerDown={onBeginResize}
+            onDoubleClick={onResetRatio}
+          />
+        </div>
+      </div>
+    </CanvasMenu>
+  )
+}
+
+/**
+ * The dock's content for the stage: appearance and grid tools, then either the
+ * selected label's controls or the focused pane's tools, in one fixed order.
+ */
+function StageToolsDock({ tools, paneToolsHidden, focusHasGps, focusId }: {
+  tools: ToolDef[]
+  paneToolsHidden: boolean
+  focusHasGps: boolean
+  focusId: string
+}) {
+  const labelSel = useStore(s => s.labelSel)
+  const setLabel = useStore(s => s.setLabel)
+  const removeLabel = useStore(s => s.removeLabel)
+  const boardLabels = useStore(s => activeWs(s).labels ?? NO_LABELS)
+  // Below lg the label's floating toolbar is hidden, so the dock takes over
+  // its controls while a label is selected.
+  const compact = useMediaQuery('(max-width: 1023.98px)')
+  const dockLabel = compact && labelSel ? boardLabels.find(l => l.id === labelSel) ?? null : null
+
+  return (
+    <ToolsDock
+      hidden={false}
+      contextKey={dockLabel ? 'label' : (paneToolsHidden ? 'canvas' : 'pane')}
+    >
+      <AppearanceDockTools />
+      <GridDockTool disabled />
+      <GridBoardTools route="stage" />
+      {dockLabel
+        ? (
+            <LabelDockTools
+              labelId={dockLabel.id}
+              lab={dockLabel}
+              setLabel={setLabel}
+              onDelete={() => removeLabel(dockLabel.id)}
+              onInsertLocation={focusHasGps && focusId ? () => insertLocationLabel(focusId) : undefined}
+            />
+          )
+        : tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+      {/* The detent rotation dial + flips: a sibling of the pane tools, so
+          their fixed order and list stay untouched. */}
+      <PaneRotateTool hidden={!!dockLabel} />
+      {/* Texture filters: also a sibling, next to the turn controls. Both
+          act on the photo a pane holds, and neither disturbs the list. */}
+      <PaneFilterTool hidden={!!dockLabel} />
+    </ToolsDock>
   )
 }
 

@@ -681,6 +681,139 @@ function MakerFooter({ reEdit, canInsert, saveLabel, onClose, onInsert, onReset 
  * stage, cutout, edge effects and mask editor, and every door saves a NEW
  * record rather than rewriting one.
  */
+/** The Text / Image door pair above the stage. */
+function MakerTabs({ tab, onChange }: { tab: 'text' | 'image', onChange: (tab: 'text' | 'image') => void }) {
+  const t = useT()
+  return (
+    <div className="flex gap-[5px]">
+      <Button variant={tab === 'image' ? 'on' : 'flat'} aria-pressed={tab === 'image'} onClick={() => onChange('image')}>{t('Image')}</Button>
+      <Button variant={tab === 'text' ? 'on' : 'flat'} aria-pressed={tab === 'text'} onClick={() => onChange('text')}>{t('Text')}</Button>
+    </div>
+  )
+}
+
+/** The text tab's subject: what the sticker says, in which face and colour. */
+function MakerTextFields({ text, font, fontMeta, color, onText, onFont, onColor }: {
+  text: string
+  font: string
+  fontMeta: typeof FONTS[number]
+  color: string
+  onText: (text: string) => void
+  onFont: (font: string) => void
+  onColor: (color: string) => void
+}) {
+  const t = useT()
+  return (
+    <div className="flex flex-col gap-2.5">
+      <textarea
+        className="box-border min-h-[64px] w-full resize-none border border-line-strong bg-panel-2 px-2.5 py-2 text-[18px] leading-[1.3] text-txt outline-0 focus-visible:border-accent"
+        style={{ fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }}
+        value={text}
+        placeholder={t('Type some text')}
+        onChange={e => onText(e.target.value)}
+        rows={2}
+      />
+      <SelectField
+        label={t('Font')}
+        value={font}
+        items={FONTS.map(f => ({ value: f.id, label: t(f.label), fontFamily: f.stack }))}
+        onChange={onFont}
+      />
+      <ColorField label={t('Text color')} value={color} onChange={onColor} />
+    </div>
+  )
+}
+
+/**
+ * What fills the stage slot: the library picker, the mask editor, or the live
+ * stage. One door at a time, in the order the page offers them.
+ */
+function MakerStageSlot({
+  pickingLibrary,
+  editingMask,
+  baseSrc,
+  imageSrc,
+  onCancelPick,
+  onPickPhoto,
+  onApplyMask,
+  onCancelMask,
+  stage,
+}: {
+  pickingLibrary: boolean
+  editingMask: boolean
+  baseSrc: string | null
+  imageSrc: string | null
+  onCancelPick: () => void
+  onPickPhoto: (photo: Photo) => void
+  onApplyMask: (url: string) => void
+  onCancelMask: () => void
+  stage: React.ComponentProps<typeof StickerStage>
+}) {
+  if (pickingLibrary)
+    return <LibraryPickPanel onCancel={onCancelPick} onPick={onPickPhoto} />
+  if (editingMask && baseSrc)
+    return <StickerMaskEditor key={imageSrc ?? baseSrc} src={imageSrc ?? baseSrc} onCancel={onCancelMask} onApply={onApplyMask} />
+  return <StickerStage {...stage} />
+}
+
+/** The edge effects: outline, stamp teeth and material. */
+function MakerEffectsFields({
+  outlineWidth,
+  outlineColor,
+  material,
+  stamp,
+  toothDepth,
+  toothSpacing,
+  onOutlineWidth,
+  onOutlineColor,
+  onMaterial,
+  onStamp,
+  onToothDepth,
+  onToothSpacing,
+}: {
+  outlineWidth: number
+  outlineColor: string
+  material: StickerMaterialType
+  stamp: boolean
+  toothDepth: number
+  toothSpacing: number
+  onOutlineWidth: (width: number) => void
+  onOutlineColor: (color: string) => void
+  onMaterial: (material: StickerMaterialType) => void
+  onStamp: (stamp: boolean) => void
+  onToothDepth: (depth: number) => void
+  onToothSpacing: (spacing: number) => void
+}) {
+  const t = useT()
+  return (
+    <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+      <ColorField label={t('Outline color')} value={outlineColor} onChange={onOutlineColor} />
+      <RangeField label={t('Outline width')} text={`${outlineWidth}`} max={40} value={outlineWidth} onChange={onOutlineWidth} />
+      <SegmentedField
+        label={t('Edge')}
+        value={stamp ? 'stamp' : 'smooth'}
+        items={[
+          { value: 'smooth', label: t('Smooth') },
+          { value: 'stamp', label: t('Stamp') },
+        ]}
+        onChange={v => onStamp(v === 'stamp')}
+      />
+      {stamp && (
+        <>
+          <RangeField label={t('Tooth depth')} text={`${toothDepth}`} min={MIN_TOOTH_DEPTH} max={MAX_TOOTH_DEPTH} value={toothDepth} onChange={onToothDepth} />
+          <RangeField label={t('Tooth spacing')} text={`${toothSpacing}`} min={MIN_TOOTH_SPACING} max={MAX_TOOTH_SPACING} value={toothSpacing} onChange={onToothSpacing} />
+        </>
+      )}
+      <SelectField
+        label={t('Material')}
+        value={material}
+        items={MATERIALS.map(m => ({ value: m.value, label: t(m.label) }))}
+        onChange={v => onMaterial(v as StickerMaterialType)}
+      />
+    </div>
+  )
+}
+
 export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   open: boolean
   target: StickerTarget | null
@@ -793,103 +926,73 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-            <div className="flex gap-[5px]">
-              <Button variant={tab === 'image' ? 'on' : 'flat'} aria-pressed={tab === 'image'} onClick={() => setTab('image')}>{t('Image')}</Button>
-              <Button variant={tab === 'text' ? 'on' : 'flat'} aria-pressed={tab === 'text'} onClick={() => setTab('text')}>{t('Text')}</Button>
-            </div>
+            <MakerTabs tab={tab} onChange={setTab} />
 
             {tab === 'text' && (
-              <div className="flex flex-col gap-2.5">
-                <textarea
-                  className="box-border min-h-[64px] w-full resize-none border border-line-strong bg-panel-2 px-2.5 py-2 text-[18px] leading-[1.3] text-txt outline-0 focus-visible:border-accent"
-                  style={{ fontFamily: fontMeta.stack, fontWeight: fontMeta.weight }}
-                  value={text}
-                  placeholder={t('Type some text')}
-                  onChange={e => setText(e.target.value)}
-                  rows={2}
-                />
-                <SelectField
-                  label={t('Font')}
-                  value={font}
-                  items={FONTS.map(f => ({ value: f.id, label: t(f.label), fontFamily: f.stack }))}
-                  onChange={setFont}
-                />
-                <ColorField label={t('Text color')} value={color} onChange={setColor} />
-              </div>
+              <MakerTextFields
+                text={text}
+                font={font}
+                fontMeta={fontMeta}
+                color={color}
+                onText={setText}
+                onFont={setFont}
+                onColor={setColor}
+              />
             )}
 
             {/* Upload + live preview share one stage; cutout progress frosts the raw pick. */}
-            {libraryMode && pickingLibrary
-              ? (
-                  <LibraryPickPanel
-                    onCancel={() => setPickingLibrary(false)}
-                    onPick={(photo: Photo) => {
-                      setPickingLibrary(false)
-                      // The photo's own File is the source, so the cutout, the
-                      // effects and the bake are the ones a file pick runs.
-                      loadFile(photo.file)
-                    }}
-                  />
-                )
-              : editingMask && baseSrc
-                ? (
-                    <StickerMaskEditor
-                      key={imageSrc ?? baseSrc}
-                      src={imageSrc ?? baseSrc}
-                      onCancel={() => setEditingMask(false)}
-                      onApply={(url) => {
-                        applyMask(url)
-                        setEditingMask(false)
-                      }}
-                    />
-                  )
-                : (
-                    <StickerStage
-                      tab={tab}
-                      imageStage={imageStage}
-                      imageSrc={imageSrc}
-                      bgJob={bgJob}
-                      hasCutout={hasCutout}
-                      source={source}
-                      outlineWidth={outlineWidth}
-                      outlineColor={outlineColor}
-                      material={material}
-                      perforation={perforation}
-                      displayLongEdge={displayLongEdge}
-                      onDisplaySize={setDisplayLongEdge}
-                      onPick={pickImage}
-                      onRemoveBg={removeBg}
-                      onRestore={restoreOriginal}
-                      onAdjust={() => setEditingMask(true)}
-                      onPickLibrary={libraryMode ? () => setPickingLibrary(true) : null}
-                    />
-                  )}
+            <MakerStageSlot
+              pickingLibrary={pickingLibrary}
+              editingMask={editingMask}
+              baseSrc={baseSrc}
+              imageSrc={imageSrc}
+              onCancelPick={() => setPickingLibrary(false)}
+              onPickPhoto={(photo: Photo) => {
+                setPickingLibrary(false)
+                // The photo's own File is the source, so the cutout, the
+                // effects and the bake are the ones a file pick runs.
+                loadFile(photo.file)
+              }}
+              onApplyMask={(url) => {
+                applyMask(url)
+                setEditingMask(false)
+              }}
+              onCancelMask={() => setEditingMask(false)}
+              stage={{
+                tab,
+                imageStage,
+                imageSrc,
+                bgJob,
+                hasCutout,
+                source,
+                outlineWidth,
+                outlineColor,
+                material,
+                perforation,
+                displayLongEdge,
+                onDisplaySize: setDisplayLongEdge,
+                onPick: pickImage,
+                onRemoveBg: removeBg,
+                onRestore: restoreOriginal,
+                onAdjust: () => setEditingMask(true),
+                onPickLibrary: libraryMode ? () => setPickingLibrary(true) : null,
+              }}
+            />
 
-            <div className="flex flex-col gap-2.5 border-t border-line pt-3">
-              <ColorField label={t('Outline color')} value={outlineColor} onChange={setOutlineColor} />
-              <RangeField label={t('Outline width')} text={`${outlineWidth}`} max={40} value={outlineWidth} onChange={setOutlineWidth} />
-              <SegmentedField
-                label={t('Edge')}
-                value={stamp ? 'stamp' : 'smooth'}
-                items={[
-                  { value: 'smooth', label: t('Smooth') },
-                  { value: 'stamp', label: t('Stamp') },
-                ]}
-                onChange={v => setStamp(v === 'stamp')}
-              />
-              {stamp && (
-                <>
-                  <RangeField label={t('Tooth depth')} text={`${toothDepth}`} min={MIN_TOOTH_DEPTH} max={MAX_TOOTH_DEPTH} value={toothDepth} onChange={setToothDepth} />
-                  <RangeField label={t('Tooth spacing')} text={`${toothSpacing}`} min={MIN_TOOTH_SPACING} max={MAX_TOOTH_SPACING} value={toothSpacing} onChange={setToothSpacing} />
-                </>
-              )}
-              <SelectField
-                label={t('Material')}
-                value={material}
-                items={MATERIALS.map(m => ({ value: m.value, label: t(m.label) }))}
-                onChange={v => setMaterial(v as StickerMaterialType)}
-              />
-            </div>
+            <MakerEffectsFields
+              outlineWidth={outlineWidth}
+              outlineColor={outlineColor}
+              material={material}
+              stamp={stamp}
+              toothDepth={toothDepth}
+              toothSpacing={toothSpacing}
+              onOutlineWidth={setOutlineWidth}
+              onOutlineColor={setOutlineColor}
+              onMaterial={setMaterial}
+              onStamp={setStamp}
+              onToothDepth={setToothDepth}
+              onToothSpacing={setToothSpacing}
+            />
           </div>
 
           <MakerFooter

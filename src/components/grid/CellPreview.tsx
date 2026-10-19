@@ -60,6 +60,54 @@ function previewLeafPlace(leaf: Leaf, layout: Rect, cell: Rect, iw: number, ih: 
     : placement({ x: 0, y: 0, w: cell.w, h: cell.h }, leaf, iw, ih)
 }
 
+/** The leaf's draw box: the layout rect, widened by the crossfade's feather. */
+function leafDrawRect(layout: Rect, leaf: Leaf, seam: SeamSides | undefined, fade: number, crossfade: boolean): Rect {
+  if (!crossfade || !leaf.photoId)
+    return layout
+  return expandRectForBlend(layout, seam, fade)
+}
+
+/** The pan/zoom transform of a leaf's photo inside its draw box. */
+function leafImageTransform(place: { x: number, y: number, scale: number } | null, cell: Rect, crossfade: boolean): string {
+  if (!place)
+    return ''
+  const x = crossfade ? place.x - cell.x : place.x
+  const y = crossfade ? place.y - cell.y : place.y
+  return `translate(${x}px, ${y}px) scale(${place.scale})`
+}
+
+/** A leaf's photo layer: the image panned/zoomed and blended into the seam field. */
+function PreviewLeafPhoto({ preview, transform, mask, crossfade }: {
+  preview: { url: string }
+  transform: string
+  mask: React.CSSProperties | undefined
+  crossfade: boolean
+}) {
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        ...mask,
+        mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
+      }}
+    >
+      <img
+        src={preview.url}
+        alt=""
+        draggable={false}
+        className="block max-w-none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          transformOrigin: '0 0',
+          transform,
+        }}
+      />
+    </div>
+  )
+}
+
 /** One leaf of a workspace preview: the photo, panned/zoomed like the editor. */
 function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: {
   leaf: Leaf
@@ -80,7 +128,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
   const preview = usePanePreview(photo ?? null, leaf.filter)
   const radius = useStore(s => s.radius)
   const layout: Rect = { x: rect.x * k, y: rect.y * k, w: rect.w * k, h: rect.h * k }
-  const cell = crossfade && leaf.photoId ? expandRectForBlend(layout, seam, fade) : layout
+  const cell = leafDrawRect(layout, leaf, seam, fade, crossfade)
   const style: React.CSSProperties = {
     left: cell.x,
     top: cell.y,
@@ -90,37 +138,11 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
   }
   const place = previewLeafPlace(leaf, layout, cell, preview?.w ?? 0, preview?.h ?? 0, crossfade)
   const mask = leaf.photoId ? seamMaskStyle(seam, seamFadeWidth(fade, crossfade ? layout : cell)) : undefined
-  const imgTx = place
-    ? (crossfade
-        ? `translate(${place.x - cell.x}px, ${place.y - cell.y}px) scale(${place.scale})`
-        : `translate(${place.x}px, ${place.y}px) scale(${place.scale})`)
-    : ''
+  const transform = leafImageTransform(place, cell, crossfade)
   return (
     <div className={`absolute overflow-hidden ${leaf.photoId ? '' : ' bg-pane-bg bg-pane-empty'}`} style={style}>
       {preview && place
-        ? (
-            <div
-              className="absolute inset-0"
-              style={{
-                ...mask,
-                mixBlendMode: crossfade && mask ? 'plus-lighter' : undefined,
-              }}
-            >
-              <img
-                src={preview.url}
-                alt=""
-                draggable={false}
-                className="block max-w-none"
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  transformOrigin: '0 0',
-                  transform: imgTx,
-                }}
-              />
-            </div>
-          )
+        ? <PreviewLeafPhoto preview={preview} transform={transform} mask={mask} crossfade={crossfade} />
         : null}
     </div>
   )
