@@ -10,10 +10,23 @@ import type { Action } from './actionGuard'
  */
 export type CutoutMap = Record<string, string>
 
+/** The chosen name without its extension; a nameless file is still a photo. */
+function baseName(name: string): string {
+  return name.replace(/\.[^./]+$/, '') || 'photo'
+}
+
 /** `IMG_1234.HEIC` → `IMG_1234-cutout.png` (always a PNG: it carries alpha). */
 export function cutoutFileName(name: string): string {
-  const base = name.replace(/\.[^./]+$/, '') || 'photo'
-  return `${base}-cutout.png`
+  return `${baseName(name)}-cutout.png`
+}
+
+/**
+ * `IMG_1234.HEIC` → `IMG_1234-cutout-blur.png`: the cutout with its blurred
+ * backdrop baked in (see `lib/cutoutBackdrop`). Still a cutout, since the
+ * Original tool and the library read it as one, so the name says what it kept.
+ */
+export function blurredCutoutFileName(name: string): string {
+  return `${baseName(name)}-cutout-blur.png`
 }
 
 /** The photo `photoId` was cut from, or null when it is not a cutout. */

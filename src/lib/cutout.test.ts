@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, mock, test } from 'bun:test'
 import { bindAction } from './actionGuard'
-import { cutoutAction, cutoutFileName, originalOf, recordCutout, restoreOriginalAction } from './cutout'
+import { blurredCutoutFileName, cutoutAction, cutoutFileName, originalOf, recordCutout, restoreOriginalAction } from './cutout'
 
 interface Ph { id: string }
 const pane = (photo: Ph | null) => ({ pane: { paneId: 'pane1', photo } })
@@ -12,6 +12,11 @@ describe('cutout bookkeeping', () => {
     expect(cutoutFileName('a.b.jpg')).toBe('a.b-cutout.png')
     expect(cutoutFileName('noext')).toBe('noext-cutout.png')
     expect(cutoutFileName('.png')).toBe('photo-cutout.png')
+  })
+  test('a cutout that kept its blurred backdrop stays recognisable', () => {
+    expect(blurredCutoutFileName('IMG_1234.HEIC')).toBe('IMG_1234-cutout-blur.png')
+    expect(blurredCutoutFileName('noext')).toBe('noext-cutout-blur.png')
+    expect(blurredCutoutFileName('.png')).toBe('photo-cutout-blur.png')
   })
   test('record / original', () => {
     let m = recordCutout({}, 'c1', 'p1')

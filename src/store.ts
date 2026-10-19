@@ -180,6 +180,13 @@ interface State extends PersistedSettings {
   /** The one running pane cutout, for the pane's progress overlay. Session-only. */
   cutoutJob: { paneId: string, phase: 'loading' | 'processing', progress?: number } | null
   /**
+   * The cutout just finished, while its background choice is still open (see
+   * `lib/paneCutout`): the pane that shows it and the cutout photo the choice
+   * would refine. Session-only, like the job above: the choice is about this
+   * run, not about the board.
+   */
+  cutoutBackdrop: { paneId: string, cutoutId: string } | null
+  /**
    * Undo / redo over the workspace board as a tree of steps (see
    * `lib/history`): app-global and session-only, never persisted, and a reload
    * forgets it.
@@ -360,6 +367,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   photoTags: [],
   cutouts: {},
   cutoutJob: null,
+  cutoutBackdrop: null,
   workspaces: bootWorkspaces,
   activeId: bootWorkspaces[0].id,
   grids: [{ id: bootGridId, name: '1' }],
@@ -663,6 +671,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       // Sessions saved before one-tap cutout have no map.
       cutouts: pruneCutouts(session.meta.cutouts ?? {}, new Set(photos.map(p => p.id))),
       cutoutJob: null,
+      cutoutBackdrop: null,
       labelSel: null,
       stickerSel: null,
       labelEditReq: null,
@@ -976,6 +985,21 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   /** Panning and zooming a pane streams patches: one gesture is one undo step. */
   updateLeaf: (paneId, patch) => {
     commit(`updateLeaf:${paneId}`)
+    set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) }))
+  },
+
+  /**
+   * Change a pane as the tail of the action just recorded, opening no step of
+   * its own: the cutout's background choice refines the cutout rather than
+   * following it (`lib/paneCutout`), so one undo must leave both. History
+   * already works this way: a step's snapshot settles over whatever the board
+   * is when the cursor next leaves it (see `lib/history`), so a change made
+   * between that commit and the next one rides the cutout's own step, and a
+   * redo into that step brings the choice back.
+   */
+  updateLeafJoined: (paneId, patch) => {
+    if (!findLeaf(activeWs(get()).root, paneId))
+      return
     set(s => ({ workspaces: mapActive(s, w => ({ ...w, root: updateLeafIn(w.root, paneId, patch) })) }))
   },
 
@@ -1480,6 +1504,8 @@ interface Actions {
   /** Swap two panes' contents: photo, view, stickers and label. */
   swapPhotos: (a: string, b: string) => void
   updateLeaf: (paneId: string, patch: Partial<Leaf>) => void
+  /** Change a pane as the tail of the step already recorded (see `lib/history`). */
+  updateLeafJoined: (paneId: string, patch: Partial<Leaf>) => void
   /** Turn a pane's photo (radians, wrapped); a drag streams and coalesces. */
   rotatePane: (paneId: string, rot: number) => void
   /** Mirror a pane's photo on one axis. */

@@ -118,6 +118,30 @@ describe('undo / redo over the pane tree', () => {
     expect(ws().root).toBe(narrow)
   })
 
+  test('a leaf change joined to the step before it costs one undo, not two', () => {
+    const paneId = ws().focusId
+    const beforeCutout = ws().root
+
+    // The cutout: its own step, as every pane action gets.
+    useStore.getState().updateLeaf(paneId, { photoId: 'cutout-1' })
+    expect(leaves()[0]!.photoId).toBe('cutout-1')
+    expect(depth()).toBe(1)
+
+    // The background choice refines that cutout, so it opens no second step.
+    useStore.getState().updateLeafJoined(paneId, { photoId: 'cutout-1-blurred' })
+    expect(leaves()[0]!.photoId).toBe('cutout-1-blurred')
+    expect(depth()).toBe(1)
+
+    // One undo leaves the whole cutout: the pre-cutout board comes back.
+    useStore.getState().undo()
+    expect(ws().root).toBe(beforeCutout)
+    expect(leaves()[0]!.photoId).toBeNull()
+
+    // And a redo returns to the choice, not to the transparent cutout before it.
+    useStore.getState().redo()
+    expect(leaves()[0]!.photoId).toBe('cutout-1-blurred')
+  })
+
   test('a drag\'s stream of resolutions is one undo step', () => {
     useStore.getState().split(ws().focusId, 'row')
     const split = ws().root as { type: 'split', id: string }
