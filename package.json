@@ -74,8 +74,10 @@
     "commit-msg": "bunx commitlint --edit $1"
   },
   "nano-staged": {
+    "*": [
+      "eslint --fix --cache --cache-strategy content --concurrency off"
+    ],
     "*.{ts,tsx}": [
-      "eslint --fix --cache --cache-strategy content --concurrency off",
       "react-doctor --no-telemetry --blocking error",
       "bun scripts/i18n-coverage.mjs"
     ]
