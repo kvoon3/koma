@@ -2,11 +2,12 @@ import type { ContextMenu } from '@base-ui/react/context-menu'
 import type { Photo, Preview } from '../lib/imageStore'
 import type { Leaf, Rect, SeamSides } from '../lib/panes'
 import { useNavigate } from '@tanstack/react-router'
-import { ImagePlus, Minus, Plus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
+import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
+import { viewScaleAt } from '../lib/canvasView'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
@@ -187,60 +188,38 @@ export function PaneSplitTools({
   )
 }
 
-/* One zoom button: the pane's own quiet chip weight (the split chip's float-bg
-   + blur, chip-hover on hover). Size is picked in `zoomChrome`, not by a
-   `pointer-coarse:` variant, so the target never depends on variant order. */
-const zoomBtnCls = 'grid cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35'
-
-/**
- * Button size and resting weight per input and pane size. A finger gets the
- * 44px minimum on the visible box itself (padding would leave the measured rect
- * small, and that rect is what a user aims at) and rests at 0.9, since a touch
- * screen has no hover to confirm the control exists; a narrow mouse window
- * steps up to 30px.
- */
-function zoomChrome(coarse: boolean, narrow: boolean) {
-  return {
-    size: coarse ? 'h-[44px] w-[44px]' : narrow ? 'h-[30px] w-[30px]' : 'h-[26px] w-[26px]',
-    rest: coarse ? 'opacity-90' : 'opacity-70',
-    glyph: coarse ? 18 : 14,
-  }
-}
-
 /**
  * The chip's inset inside the photo. 20px, not the 8px the corner alone needs:
  * the canvas resize handle sits 15px inside the canvas corner (`Stage.tsx`), so
  * an 8px chip would share the corner with it and lose the hit test to it. 20px
  * clears the handle by 5px at every width and pane size.
  */
-const ZOOM_INSET = 'p-5'
-
-/* Two clicks of the cluster are exactly 2×, the step the e2e check measures. */
-const ZOOM_STEP = Math.SQRT2
+const MINIMAP_INSET = 'p-5'
 
 /**
- * The focused pane's zoom cluster: the app's floating chip (float-bg + blur,
- * chip-hover on hover), pinned INSIDE the photo at its bottom-right corner.
+ * The focused pane's minimap: the app's floating chip (float-bg + blur),
+ * pinned INSIDE the photo at its bottom-right corner once the photo overflows
+ * the pane. It is the only zoom chrome left on a pane: the photo's own zoom is
+ * the wheel / pinch gesture and the dock's Fit commands, and a pair of +/-
+ * buttons next to it only repeated them.
  *
  * The corner is the placed photo's own rect (`lib/panes.placement`) clipped to
- * the pane, not the pane's corner: a zoomed-out photo pulls the cluster in with
- * it, and the 8px inset (`p-2` on the box it is aligned in) keeps it clear of
- * the pane's edge, so it can never land on a divider or a neighbour's photo.
- * The tools sheet is a fixed overlay with no put-away state, and a tall canvas
- * keeps running underneath it, so the box also stops at the sheet's top edge and
- * the cluster lifts itself over the sheet instead of living behind its glass.
+ * the pane, not the pane's corner: a zoomed-out photo pulls the chip in with
+ * it, and the inset keeps it clear of the pane's edge, so it can never land on
+ * a divider or a neighbour's photo. The tools sheet is a fixed overlay with no
+ * put-away state, and a tall canvas keeps running underneath it, so the box
+ * also stops at the sheet's top edge and the chip lifts itself over the sheet
+ * instead of living behind its glass.
  *
  * Quiet while the photo is the subject (0.7, 0.9 for a finger, which has no
- * hover to confirm the control exists), full weight under the pointer or once a
- * button takes focus, and the chip behind the glyphs is the app's usual scrim,
- * so busy photo content never swallows it.
+ * hover to confirm the control exists) and full weight under the pointer, so
+ * busy photo content never swallows it.
  */
-function PaneZoomControls({
+function PaneMinimap({
   paneEl,
   leaf,
   place,
   rect,
-  onStep,
   previewUrl,
   onPan,
 }: {
@@ -250,7 +229,6 @@ function PaneZoomControls({
   place: { x: number, y: number, w: number, h: number }
   /** The pane's own rect, in canvas coordinates. */
   rect: Rect
-  onStep: (factor: number) => void
   /** The pane's own preview URL (filter baked), for the minimap thumbnail. */
   previewUrl: string | undefined
   /** Grab-pan to a photo fraction, through the pane's clamped commit. */
@@ -258,8 +236,10 @@ function PaneZoomControls({
 }) {
   const t = useT()
   const sheetTop = useToolsSheetTop()
-  const chrome = zoomChrome(useMediaQuery('(pointer: coarse)'), useMediaQuery('(max-width: 639.98px)'))
   const coarse = useMediaQuery('(pointer: coarse)')
+  // A finger gets no hover to confirm the control exists, so the chip rests
+  // brighter; a mouse leaves it quiet until the pointer arrives.
+  const rest = coarse ? 'opacity-90' : 'opacity-70'
   // The pane's viewport top, for comparing the sheet's edge (viewport px) with
   // the pane-local box. Measured, not derived, and kept fresh by observation
   // rather than by every commit: a pan inside the pane moves neither box.
@@ -323,12 +303,14 @@ function PaneZoomControls({
       e.stopPropagation()
       const el = e.currentTarget
       el.setPointerCapture(e.pointerId)
-      // The centre the photo should show: the grab point in fractions, with
-      // the drag's start offset from the current viewport centre kept, so a
-      // drag inside the viewport rect carries the view rather than jumping.
+      // The grab point in photo fractions, keeping the drag's start offset from
+      // the viewport centre so a drag carries the view instead of jumping. Both
+      // reads are ratios against the chip's measured box, so they hold under the
+      // canvas view zoom as well.
+      const start = el.getBoundingClientRect()
       const grab = {
-        u: view.x + view.w / 2 - (e.clientX - el.getBoundingClientRect().left) / el.clientWidth,
-        v: view.y + view.h / 2 - (e.clientY - el.getBoundingClientRect().top) / el.clientHeight,
+        u: view.x + view.w / 2 - (e.clientX - start.left) / start.width,
+        v: view.y + view.h / 2 - (e.clientY - start.top) / start.height,
       }
       const move = (ev: PointerEvent) => {
         const r = el.getBoundingClientRect()
@@ -361,66 +343,47 @@ function PaneZoomControls({
     return { frame, view, onPointerDown }
   }, [leaf.zoom, visR, visL, rect.x, rect.y, rect.w, rect.h, place.x, place.y, place.w, place.h, previewUrl, onPan, coarse])
 
+  // Nothing to show while the photo fits the pane: the chip appears with the
+  // overflow it exists to navigate.
+  if (!minimap)
+    return null
+
   return (
     <div
-      data-pane-zoom-box=""
-      className={`pointer-events-none absolute z-[3] flex items-end justify-end transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${ZOOM_INSET} ${chrome.rest}`}
+      data-pane-minimap-box=""
+      className={`pointer-events-none absolute z-[3] flex items-end justify-end transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${MINIMAP_INSET} ${rest}`}
       style={box}
     >
       <div
-        data-pane-zoom=""
+        data-pane-minimap-chip=""
         className="pointer-events-auto flex drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-        // A double click on a zoom button must not reach the pane's own
-        // double-click (reset the view): the cluster is not the photo.
+        // A double click on the chip must not reach the pane's own
+        // double-click (reset the view): the chip is not the photo.
         onDoubleClick={e => e.stopPropagation()}
         onPointerDown={e => e.stopPropagation()}
       >
-        <button
-          type="button"
-          data-pane-zoom-out=""
-          className={`${zoomBtnCls} ${chrome.size}`}
-          title={t('Zoom out')}
-          aria-label={t('Zoom out')}
-          disabled={leaf.zoom <= MIN_ZOOM}
-          onClick={() => onStep(1 / ZOOM_STEP)}
+        <div
+          data-pane-minimap=""
+          aria-label={t('Photo minimap, drag to pan')}
+          title={t('Photo minimap, drag to pan')}
+          className={`relative cursor-grab overflow-hidden bg-float-bg ${minimap.frame}`}
+          style={{ aspectRatio: `${place.w} / ${place.h}` }}
+          onPointerDown={minimap.onPointerDown}
         >
-          <MorphIcon icon={Minus} size={chrome.glyph} strokeWidth={1.75} />
-        </button>
-        <button
-          type="button"
-          data-pane-zoom-in=""
-          className={`${zoomBtnCls} ${chrome.size} -ml-px`}
-          title={t('Zoom in')}
-          aria-label={t('Zoom in')}
-          disabled={leaf.zoom >= MAX_ZOOM}
-          onClick={() => onStep(ZOOM_STEP)}
-        >
-          <MorphIcon icon={Plus} size={chrome.glyph} strokeWidth={1.75} />
-        </button>
-        {minimap && (
-          <div
-            data-pane-minimap=""
-            aria-label={t('Photo minimap, drag to pan')}
-            title={t('Photo minimap, drag to pan')}
-            className={`relative -ml-px cursor-grab overflow-hidden bg-float-bg ${minimap.frame}`}
-            style={{ aspectRatio: `${place.w} / ${place.h}` }}
-            onPointerDown={minimap.onPointerDown}
-          >
-            {previewUrl && (
-              <img
-                src={previewUrl}
-                alt=""
-                draggable={false}
-                className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-              />
-            )}
-            <div
-              data-pane-minimap-viewport=""
-              className="pointer-events-none absolute border-[1.5px] border-accent outline-1 outline-white/70 bg-accent/15"
-              style={{ left: `${minimap.view.x * 100}%`, top: `${minimap.view.y * 100}%`, width: `${minimap.view.w * 100}%`, height: `${minimap.view.h * 100}%` }}
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
             />
-          </div>
-        )}
+          )}
+          <div
+            data-pane-minimap-viewport=""
+            className="pointer-events-none absolute border-[1.5px] border-accent outline-1 outline-white/70 bg-accent/15"
+            style={{ left: `${minimap.view.x * 100}%`, top: `${minimap.view.y * 100}%`, width: `${minimap.view.w * 100}%`, height: `${minimap.view.h * 100}%` }}
+          />
+        </div>
       </div>
     </div>
   )
@@ -537,9 +500,12 @@ function swapReturnLanding(
   const box = el?.getBoundingClientRect()
   if (!box)
     return null
+  // The ghost is a fixed-position layer, so its landing point is in screen
+  // pixels: the pane-local offset scales by the canvas view zoom.
+  const s = viewScaleAt(el)
   return {
-    x: box.left + place.x - rect.x + place.w / 2,
-    y: box.top + place.y - rect.y + place.h / 2,
+    x: box.left + (place.x - rect.x + place.w / 2) * s,
+    y: box.top + (place.y - rect.y + place.h / 2) * s,
   }
 }
 
@@ -941,7 +907,12 @@ function usePaneViewport({
 }) {
   const local = useCallback((cx: number, cy: number) => {
     const r = elRef.current?.getBoundingClientRect()
-    return r ? { x: cx - r.left, y: cy - r.top } : { x: 0, y: 0 }
+    if (!r)
+      return { x: 0, y: 0 }
+    // The canvas may carry the view zoom: its client rect is in screen pixels,
+    // the gesture math wants the pane's own.
+    const s = viewScaleAt(elRef.current)
+    return { x: (cx - r.left) / s, y: (cy - r.top) / s }
   }, [elRef])
 
   const commit = useCallback(
@@ -1675,7 +1646,9 @@ function PaneImpl({
       const b = elRef.current?.getBoundingClientRect()
       const lx = b ? clientX - b.left : 0
       const ly = b ? clientY - b.top : 0
-      return { x: rect.x + lx, y: rect.y + ly }
+      // Screen pixels to canvas pixels: the view zoom scales the whole canvas.
+      const s = viewScaleAt(elRef.current)
+      return { x: rect.x + lx / s, y: rect.y + ly / s }
     },
     [rect.x, rect.y],
   )
@@ -1728,15 +1701,6 @@ function PaneImpl({
   // Where a cancelled carry lands, computed once per render from the dimmed
   // original's live box (the pane can shift while the carry is in flight).
   const swapReturnTo = swapReturnLanding(swapReturn, place, rect, elRef.current)
-
-  // The zoom cluster steps about the pane's centre through the very zoomAbout
-  // the pinch/wheel machine uses: same clamp, same cover math, same clamped
-  // commit, so a click and a gesture cannot disagree. Step count is the only
-  // new thing here; the zoom/pan logic itself is untouched.
-  const stepZoom = useCallback(
-    (factor: number) => zoomAbout(leaf, leaf.zoom * factor, cell.x + cell.w / 2, cell.y + cell.h / 2),
-    [zoomAbout, leaf, cell],
-  )
 
   const paneNode = (
     <div
@@ -1793,15 +1757,14 @@ function PaneImpl({
         className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-(--dur-fast) group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-lg:hidden"
       />
 
-      {/* Focus-only, like the × close button: the photo's own zoom pair,
-          parked inside the photo at its bottom-right (PaneZoomControls). */}
+      {/* Focus-only, like the × close button: the minimap, parked inside the
+          photo at its bottom-right once the photo overflows the pane. */}
       {place && focused && (
-        <PaneZoomControls
+        <PaneMinimap
           paneEl={elRef}
           leaf={leaf}
           place={place}
           rect={rect}
-          onStep={stepZoom}
           previewUrl={preview?.url}
           onPan={(cx, cy) => commit({ ...leaf, cx, cy })}
         />
