@@ -711,4 +711,7 @@ export const zhHans: Record<string, string> = {
   'Blend': '混合',
   'Workspace list': '工作区列表',
   'Board': '版面',
+  // Pane zoom cluster (wave4/pane-controls): the photo's own zoom pair.
+  'Zoom in': '放大',
+  'Zoom out': '缩小',
 }
