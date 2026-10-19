@@ -33,6 +33,7 @@ import {
 
   newLabel,
   newLeaf,
+  normalizeLabelGlow,
 
   removeLeaf,
   rotationOf,
@@ -643,7 +644,15 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       newWorkspace,
       () => uid('g'),
     )
-    const lift = (list: Workspace[]) => list.map(w => migrateWorkspaceInserts(w, session.photos))
+    // A label saved while glow was still a third theme hydrates as the default
+    // theme plus the glow effect (see `normalizeLabelGlow`), so every label in
+    // memory speaks the current model.
+    const lift = (list: Workspace[]) => list.map((w) => {
+      const ws = migrateWorkspaceInserts(w, session.photos)
+      const labels = ws.labels ?? []
+      const migrated = labels.map(normalizeLabelGlow)
+      return migrated.some((lab, i) => lab !== labels[i]) ? { ...ws, labels: migrated } : ws
+    })
     const parkedBoards: Record<string, ParkedBoard<Workspace>> = {}
     for (const [id, board] of Object.entries(hydrated.parked))
       parkedBoards[id] = { workspaces: lift(board.workspaces), activeId: board.activeId }
