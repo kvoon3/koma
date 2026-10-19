@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">koma</title>
+  <style>
+    .tile { fill: #F5F5F5; stroke: #E5E5E5; stroke-width: 2; }
+    .mark { fill: #171717; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #171717; stroke: none; }
+      .mark { fill: #FAFAFA; }
+    }
+  </style>
+  <rect class="tile" width="256" height="256" rx="56"/>
+  <g transform="translate(23.04 21.04) scale(0.82)"><path class="mark" d="M24 24H232V123H24Z M24 147H131V232H24Z M155 147H232V232H155Z"/></g>
+</svg>

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>koma logo system</title>
+<style>
+  :root {
+    --ink: #171717;
+    --paper: #fafafa;
+    --line: #e5e5e5;
+    --dim: #737373;
+    --faint: #a3a3a3;
+    --tile: #f5f5f5;
+    --shu: #c8402f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    width: 1600px;
+    min-height: 1740px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 56px 64px 60px;
+  }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+  }
+  header h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 6px; }
+  header p { margin: 0; color: var(--dim); font-size: 13px; line-height: 1.5; }
+  header .meta { text-align: right; color: var(--dim); font-size: 11px; line-height: 1.8; letter-spacing: 0.04em; }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .panel { border: 1px solid var(--line); padding: 28px 32px 26px; display: flex; flex-direction: column; }
+  .panel.light { background: var(--paper); }
+  .panel.dark { background: var(--ink); border-color: #2a2a2a; color: var(--paper); }
+  .panel .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+  .panel.dark .eyebrow { color: #8a8a8a; }
+  .panel .tag { font-size: 11px; color: var(--dim); letter-spacing: 0.06em; }
+  .panel.dark .tag { color: #8a8a8a; }
+  .symbol-row { display: flex; align-items: center; gap: 34px; min-height: 196px; }
+  .symbol-row img.symbol { width: 168px; height: 168px; }
+  .symbol-row .note { font-size: 12px; line-height: 1.7; color: var(--dim); max-width: 220px; }
+  .panel.dark .symbol-row .note { color: #9a9a9a; }
+  .lockup { width: 100%; max-width: 600px; margin-top: 26px; }
+  .panel.dark .lockup { filter: none; }
+  .bottom { display: flex; align-items: center; gap: 18px; margin-top: auto; padding-top: 26px; border-top: 1px solid var(--line); }
+  .panel.dark .bottom { border-color: #2a2a2a; }
+  .appicon { width: 84px; height: 84px; display: block; }
+  .panel.light .appicon { box-shadow: 0 0 0 1px #d4d4d4, 0 2px 10px rgba(0,0,0,0.06); border-radius: 18px; }
+  .panel.dark .appicon { box-shadow: 0 0 0 1px #2a2a2a; border-radius: 18px; }
+  .tabbar { flex: 1; display: flex; align-items: center; gap: 8px; height: 38px; border-radius: 9px; padding: 0 12px; font-size: 12px; }
+  .panel.light .tabbar { background: #dee1e6; color: #3c4043; }
+  .panel.dark .tabbar { background: #202124; color: #e8eaed; }
+  .tab { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 8px; border-radius: 8px 8px 0 0; }
+  .panel.light .tab { background: #fff; box-shadow: 0 -1px 0 var(--line) inset; }
+  .panel.dark .tab { background: #35363a; }
+  .tab img { width: 16px; height: 16px; display: block; }
+  .tab .close { margin-left: auto; color: var(--faint); font-size: 13px; line-height: 1; }
+  .caption { font-size: 11px; color: var(--dim); margin-top: 8px; letter-spacing: 0.02em; }
+  .panel.dark .caption { color: #8a8a8a; }
+
+  section.block { margin-top: 38px; }
+  .block-head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 22px; }
+  .block-head h2 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
+  .block-head span { font-size: 11px; color: var(--dim); letter-spacing: 0.05em; }
+  .grid3 { display: grid; grid-template-columns: 1.05fr 1fr 1fr; gap: 28px; }
+  .diagram { border: 1px solid var(--line); background: #fff; padding: 14px; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+  .spec h3 { font-size: 12px; margin: 0 0 10px; font-weight: 600; letter-spacing: 0.02em; }
+  .spec ul { margin: 0; padding: 0; list-style: none; }
+  .spec li { font-size: 12px; line-height: 1.65; color: var(--dim); display: flex; gap: 10px; }
+  .spec li b { color: var(--ink); font-weight: 600; min-width: 108px; display: inline-block; }
+  .spec li + li { margin-top: 6px; }
+  .palette { display: flex; gap: 12px; }
+  .sw { flex: 1; }
+  .sw .chip { height: 58px; border: 1px solid #d4d4d4; margin-bottom: 8px; }
+  .sw .name { font-size: 11px; font-weight: 600; }
+  .sw .hex { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .rules { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 32px; }
+  .rules p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--dim); }
+  .rules p b { color: var(--ink); }
+  .rules .do::before { content: "Yes"; display: inline-block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #3f7d4e; margin-right: 8px; }
+  .rules .dont::before { content: "No"; display: inline-block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--shu); margin-right: 8px; }
+  footer { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 16px; display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); letter-spacing: 0.03em; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="eyebrow">koma コマ · logo system</div>
+      <h1>Three panes, one frame.</h1>
+      <p>B direction: the filled T. The app icon is the same mark; the wordmark stays Zen Old Mincho.</p>
+    </div>
+    <div class="meta">
+      v1.0 · 2026<br>
+      light + dark<br>
+      symbol / lockup / icons
+    </div>
+  </header>
+
+  <div class="duo">
+    <div class="panel light">
+      <div class="head">
+        <div class="eyebrow">Light</div>
+        <div class="tag">ink on paper</div>
+      </div>
+      <div class="symbol-row">
+        <img class="symbol" src="symbol/koma-symbol-light.svg" alt="koma symbol light">
+        <div class="note">Three filled panes, two gutters. The split is asymmetric: 54 / 58.<br><br>Ink #171717.</div>
+      </div>
+      <img class="lockup" src="lockup/koma-lockup-horizontal-light.svg" alt="koma lockup light">
+      <div class="caption">Horizontal lockup · symbol at 520 units, gap 260</div>
+      <div class="bottom">
+        <img class="appicon" src="app-icon/koma-app-icon-light.svg" alt="koma app icon light">
+        <div class="tabbar">
+          <div class="tab"><img src="favicon/favicon-light.svg" alt=""><span>koma</span><span class="close">×</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel dark">
+      <div class="head">
+        <div class="eyebrow">Dark</div>
+        <div class="tag">paper on ink</div>
+      </div>
+      <div class="symbol-row">
+        <img class="symbol" src="symbol/koma-symbol-dark.svg" alt="koma symbol dark">
+        <div class="note">Same geometry, reversed.<br><br>Paper #FAFAFA on ink #171717.</div>
+      </div>
+      <img class="lockup" src="lockup/koma-lockup-horizontal-dark.svg" alt="koma lockup dark">
+      <div class="caption">Horizontal lockup · reversed</div>
+      <div class="bottom">
+        <img class="appicon" src="app-icon/koma-app-icon-dark.svg" alt="koma app icon dark">
+        <div class="tabbar">
+          <div class="tab"><img src="favicon/favicon-dark.svg" alt=""><span>koma</span><span class="close">×</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="block">
+    <div class="block-head"><h2>Construction</h2><span>256 canvas · 208 mark · 24 margin · 24 gutters</span></div>
+    <div class="grid3">
+      <div class="diagram">
+        <svg viewBox="0 0 360 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="T construction">
+          <rect x="18" y="18" width="324" height="324" fill="none" stroke="#e5e5e5" stroke-dasharray="3 4"/>
+          <g transform="translate(18 18) scale(1.5577)">
+            <rect x="0" y="0" width="208" height="208" fill="none" stroke="#d4d4d4"/>
+            <path fill="#171717" d="M0 0H208V99H0Z M0 123H107V208H0Z M131 123H208V208H131Z"/>
+          </g>
+          <g font-family="-apple-system, Helvetica, Arial" font-size="10" fill="#737373">
+            <text x="180" y="10" text-anchor="middle">208</text>
+            <text x="8" y="190" transform="rotate(-90 8 190)" text-anchor="middle">208</text>
+            <text x="180" y="348" text-anchor="middle">margin 24 · gutter 24</text>
+            <text x="350" y="190" transform="rotate(90 350 190)" text-anchor="middle">54 / 58</text>
+          </g>
+        </svg>
+      </div>
+      <div class="spec">
+        <h3>Geometry</h3>
+        <ul>
+          <li><b>Mark</b>208 × 208 in a 256 canvas</li>
+          <li><b>Margin</b>24 (9.4% of canvas)</li>
+          <li><b>Gutter</b>24 (11.5% of mark)</li>
+          <li><b>Top pane</b>208 × 99</li>
+          <li><b>Bottom left</b>107 × 85</li>
+          <li><b>Bottom right</b>77 × 85</li>
+          <li><b>Small cut</b>16 margin · 28 gap</li>
+        </ul>
+      </div>
+      <div class="spec">
+        <h3>Usage</h3>
+        <ul>
+          <li><b>Clear space</b>one gutter (24 / 208 ≈ 11.5%) on all sides</li>
+          <li><b>Symbol min</b>24 px primary · 16 px small cut</li>
+          <li><b>Lockup min</b>112 px wide</li>
+          <li><b>App icon</b>mark at ~66% of the tile</li>
+          <li><b>Light</b>ink on paper / white</li>
+          <li><b>Dark</b>paper on ink / #0a0a0a</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h2>Colour</h2><span>the photos bring the colour; the brand stays ink</span></div>
+    <div class="palette">
+      <div class="sw"><div class="chip" style="background:#171717"></div><div class="name">Ink</div><div class="hex">#171717</div></div>
+      <div class="sw"><div class="chip" style="background:#fafafa"></div><div class="name">Paper</div><div class="hex">#FAFAFA</div></div>
+      <div class="sw"><div class="chip" style="background:#f5f5f5"></div><div class="name">Tile light</div><div class="hex">#F5F5F5</div></div>
+      <div class="sw"><div class="chip" style="background:#0a0a0a"></div><div class="name">Tile dark</div><div class="hex">#0A0A0A</div></div>
+      <div class="sw"><div class="chip" style="background:#e5e5e5"></div><div class="name">Line</div><div class="hex">#E5E5E5</div></div>
+      <div class="sw"><div class="chip" style="background:#c8402f"></div><div class="name">Shu (optional)</div><div class="hex">#C8402F</div></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h2>Rules</h2><span>keep the split; change nothing else</span></div>
+    <div class="rules">
+      <p class="do"><b>Do</b> keep the three-pane proportion and the 24-unit gutters.</p>
+      <p class="dont"><b>Don't</b> add a camera, aperture, photo stack or rounded photo cards.</p>
+      <p class="do"><b>Do</b> use the light mark on paper/white, the dark mark on ink/#0a0a0a.</p>
+      <p class="dont"><b>Don't</b> outline the panes, add strokes, shadows, gradients or a fourth pane.</p>
+      <p class="do"><b>Do</b> use the small cut below 24 px; use the tile icons for app/favicon.</p>
+      <p class="dont"><b>Don't</b> stretch, rotate, or change the 54/58 split.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>koma · B / three panes · light + dark</span>
+    <span>symbol · wordmark · lockup · app icon · favicon · guidelines</span>
+  </footer>
+</body>
+</html>

@@ -100,6 +100,22 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - **Website**: landing page + video, roadmap board (feed it from this file), release notes, feedback.
 - **Accounts + cloud sync / void deployment**: one design decision, not a coding task. Run a feasibility comparison (void vs current Cloudflare deploy, backend shape for sync/sharing) and decide before scheduling implementation.
 
+## Brand (shipped + open)
+
+Shipped:
+- B direction: three-pane T mark, light/dark, 16 px small cut; symbol, outlined mincho wordmark, horizontal/stacked lockups.
+- App icons (rounded + full-bleed), theme-aware favicon + ICO, apple-touch, web manifest, MyGo 1024 icon.
+- Top-bar lockup: the mark sits on the wordmark baseline (currentColor, both themes).
+
+Open brand applications (no editor-code dependency):
+- README header lockup (light + dark).
+- Social avatar and Open Graph / social card.
+- Opt-in export watermark on saved collages.
+- OS light/dark app-icon pair once MyGo exposes an icon slot.
+- Optional shu (#C8402F) seal variant for marketing.
+- Brand page on the website track (link the kit, guidelines and sheet).
+- Mobile top bar: show the symbol alone below `sm` (the lockup stays hidden).
+
 ## Rules of engagement
 
 - 2–3 code agents per wave, one worktree each, fresh agent per item; parent reviews every diff.

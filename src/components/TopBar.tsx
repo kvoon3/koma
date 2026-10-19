@@ -18,6 +18,7 @@ import { say } from '../lib/toast'
 import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, migrateWorkspaceInserts, normalizeWorkspaces, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
+import { BrandMark } from './BrandMark'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
@@ -184,14 +185,17 @@ function TopBarActions({
 }
 
 /**
- * The wordmark, left of the menus: the one piece of chrome that speaks in a face
- * of its own. The face is a 1.4 KB subset that ships with the bundle (see
- * assets/fonts/SOURCE.md), so it is painted in the first frame, offline, with no
- * CDN face to swap in later. The 1px lift puts it on the menus' baseline: a
+ * The brand lockup, left of the menus: the mark rides the wordmark's baseline,
+ * and the wordmark stays the one piece of chrome that speaks in a face of its
+ * own. The face is a 1.4 KB subset that ships with the bundle (see
+ * assets/fonts/SOURCE.md), so it is painted in the first frame, offline, with
+ * no CDN face to swap in later. The 1px lift puts it on the menus' baseline: a
  * centered line box drops the mincho's baseline 1px below the 11.5px system
- * text's, and the two read as one line only when those baselines agree. Below
- * `sm` the bar is down to the menus and four icon buttons, and the wordmark
- * stands aside.
+ * text's, and the two read as one line only when those baselines agree. The
+ * mark is the 16px small cut, as tall as the type; the tight 224 crop keeps
+ * it from carrying transparent padding into the gap, and the wider small-cut
+ * gutters keep the three panes apart at 1×. Below `sm` the bar
+ * is down to the menus and four icon buttons, and the lockup stands aside.
  */
 function Wordmark() {
   return (
@@ -199,7 +203,10 @@ function Wordmark() {
       aria-hidden
       className="relative top-[-1px] mr-2 flex flex-none items-center font-brand text-base leading-none font-bold text-txt max-sm:hidden"
     >
-      koma
+      <span className="flex items-baseline gap-2">
+        <BrandMark className="h-4 w-4 flex-none" />
+        koma
+      </span>
     </span>
   )
 }
