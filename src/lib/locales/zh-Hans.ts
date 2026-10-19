@@ -714,4 +714,6 @@ export const zhHans: Record<string, string> = {
   // Pane zoom cluster (wave4/pane-controls): the photo's own zoom pair.
   'Zoom in': '放大',
   'Zoom out': '缩小',
+  // Pane zoom minimap
+  'Photo minimap, drag to pan': '照片小地图，拖动平移',
 }
