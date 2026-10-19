@@ -485,9 +485,10 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
   // (where the label rotation pivots), so bring them back into that frame.
   const cx = r.x + r.w / 2
   const cy = r.y + r.h / 2
+  const rot = rotationOf(lab)
   ctx.save()
   ctx.translate(cx, cy)
-  ctx.rotate(rotationOf(lab))
+  ctx.rotate(rot)
   ctx.fillStyle = colors.fill
   ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h)
   if (icon) {
@@ -498,17 +499,23 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
   ctx.font = `400 ${fontPx}px ${meta.cssStack}`
   ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
-  // Glow has no CSS text-shadow on canvas: one pass per layer draws the glyphs
-  // under a shadow at the layer's em blur, then the crisp text on top. Canvas
-  // stacks later passes over earlier ones, the opposite of CSS, so run them
-  // backwards (dark rim first).
+  // Glow has no CSS text-shadow on canvas: one pass per layer shadows the
+  // glyphs at the layer's em blur, then the crisp text on top. Canvas stacks
+  // later passes over earlier ones, so run backwards. Shadow offsets ignore the
+  // canvas transform, so rotate them by the label angle.
   const glow = labelGlowLayers(lab)
   if (glow) {
+    const cos = Math.cos(rot)
+    const sin = Math.sin(rot)
     for (let i = glow.length - 1; i >= 0; i--) {
       const layer = glow[i]!
+      const ox = layer.offset?.x ?? 0
+      const oy = layer.offset?.y ?? 0
       ctx.save()
       ctx.shadowColor = layer.color
       ctx.shadowBlur = layer.blur * fontPx * LABEL_GLOW_CANVAS_SCALE
+      ctx.shadowOffsetX = (ox * cos - oy * sin) * fontPx
+      ctx.shadowOffsetY = (ox * sin + oy * cos) * fontPx
       for (const line of lines) {
         if (line.text)
           ctx.fillText(line.text, line.x - cx, line.baseline - cy)

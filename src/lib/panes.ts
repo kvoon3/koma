@@ -70,29 +70,30 @@ export interface LabelGlowLayer {
   blur: number
   /** Halo color, `rgba()` so layering adds up the same way in CSS and canvas. */
   color: string
+  /** Shadow offset in em of the font size; absent means centered on the glyph. */
+  offset?: { x: number, y: number }
 }
 
 /**
- * The glow stack, tightest first: CSS paints text shadows back to front, so the
- * tight blue rim listed first sits on top of the wide cool halo. The white
- * layer carries the light on a dark photo; the blue rim and outer halo give the
- * white glyph an edge on a light one, where white alone would wash out.
+ * The glow stack, softest core outward. The falloff has no edge band: every
+ * layer is a wide blur at a moderate alpha, so no ring ever forms at a fixed
+ * distance from the glyph. The first layer starts at 0.1em instead of hugging
+ * the glyph with an opaque rim: that tight saturated layer was what read as a
+ * stroke.
  *
- * The last, widest layer is a dark navy rim behind the whole glow. It is the
- * same trick the box themes use (a dark plate behind white text): on a light
- * photo it takes the paper-white background under the halo down a few levels,
- * which is what separates the white core from a white surface. On a dark photo
- * it never darkens the background (measured: no pixel outside the glow falls
- * below the photo's own luminance), it only trims the faint outer halo, so the
- * neon look there is unchanged. Alpha 0.6 was the knee: 0.75 bought ~1 more
- * grey level on light and nothing on dark (see the lane's measurements).
+ * The last layer is depth, not an outline: a navy shadow offset downward by
+ * 0.1em and blurred at 0.5em, i.e. a drop shadow under the glow. It gives a
+ * light photo the few levels of separation the white core needs, but it is
+ * asymmetric and soft enough that it never draws a ring: on a dark photo no
+ * pixel outside the glow falls below the photo's own luminance, and on a
+ * mid-gray one the darkening is only under the glyph (see the lane's
+ * measurements).
  */
 export const LABEL_GLOW_LAYERS: readonly LabelGlowLayer[] = [
-  { blur: 0.05, color: 'rgba(40, 120, 255, 1)' },
-  { blur: 0.1, color: 'rgba(255, 255, 255, 0.95)' },
-  { blur: 0.22, color: 'rgba(190, 222, 255, 0.9)' },
-  { blur: 0.5, color: 'rgba(70, 140, 255, 0.85)' },
-  { blur: 0.55, color: 'rgba(18, 28, 58, 0.6)' },
+  { blur: 0.1, color: 'rgba(255, 255, 255, 0.9)' },
+  { blur: 0.28, color: 'rgba(200, 230, 255, 0.55)' },
+  { blur: 0.55, color: 'rgba(90, 150, 255, 0.4)' },
+  { blur: 0.5, color: 'rgba(12, 22, 48, 0.55)', offset: { x: 0, y: 0.1 } },
 ]
 
 /**
@@ -111,7 +112,11 @@ export function labelGlowLayers(lab: { glow?: boolean }): readonly LabelGlowLaye
 
 /** The preview's CSS `text-shadow` for a label, or undefined when it does not glow. */
 export function labelTextShadow(lab: { glow?: boolean }): string | undefined {
-  return labelGlowLayers(lab)?.map(layer => `0 0 ${layer.blur}em ${layer.color}`).join(', ')
+  return labelGlowLayers(lab)?.map((layer) => {
+    const x = layer.offset?.x ?? 0
+    const y = layer.offset?.y ?? 0
+    return `${x}em ${y}em ${layer.blur}em ${layer.color}`
+  }).join(', ')
 }
 
 /**
