@@ -1000,8 +1000,8 @@ bottom of the screen.
 ## Build & deploy
 
 ```bash
-bun run build         # tsc + vite build (regular chunked bundle)
-bun run build:single  # tsc + vite build --mode single → koma.html
+bun run build         # bun check + vite build (regular chunked bundle)
+bun run build:single  # bun check + vite build --mode single → koma.html
 bun run deploy        # build + wrangler deploy (Cloudflare, koma.kvoon.me)
 ```
 
