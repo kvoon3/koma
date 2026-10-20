@@ -12,11 +12,15 @@ outside a pane is cropped away; arranging panes is the whole editor.
 ```bash
 bun install
 bun dev
-bun run build
+bun run build     # bun check, then vite build
 bun run lint
+bun test          # type-checked first, then the suite
 ```
 
-Requires [mise](https://mise.jdx.dev) (provides Bun); `mise.toml` pins `bun = 1`.
+Requires [mise](https://mise.jdx.dev) (provides Bun); `mise.toml` pins
+`bun = 1.4.3`. Type checking is Bun's own `bun check` (a port of
+`typescript-go`, needs 1.4.3 or newer), not `tsc`; TypeScript stays installed
+only for the editor and typescript-eslint.
 
 Design notes: pane tree model, interaction reference, implementation details
 live in [DESIGN.md](DESIGN.md).
