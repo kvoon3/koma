@@ -2,24 +2,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { emptyHistory, historyPath } from './history'
 
-// Same bare stand-ins as store.test.ts (see the notes there): the store's
-// mutations run through `runPaneMorph`, whose browser path needs nothing more,
-// and zustand's `persist` writes through `window.localStorage`.
-Object.assign(globalThis, {
-  document: {
-    startViewTransition: undefined,
-    querySelectorAll: () => [],
-    documentElement: { dataset: {} },
-  },
-})
-const saved = new Map<string, string>()
-const storage = {
-  getItem: (k: string) => saved.get(k) ?? null,
-  setItem: (k: string, v: string) => void saved.set(k, v),
-  removeItem: (k: string) => void saved.delete(k),
-  clear: () => saved.clear(),
-}
-Object.assign(globalThis, { window: { localStorage: storage }, localStorage: storage })
+// The store's `document` / `localStorage` stand-ins are the shared ones every
+// test file boots on (src/testSetup.ts, via bunfig `[test] preload`).
 
 const { activeWs, useStore } = await import('../store')
 const { clampCanvasRatio, flipCanvasRatio, flippedRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO } = await import('./canvasCommands')
