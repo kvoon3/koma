@@ -829,7 +829,7 @@ Exceptions: the multi-layer stage/swatch checkerboards stay as component classes
 in `index.css`, and labels/swatches legitimately use literal white/black (export
 fidelity and gap-fill picks).
 
-## Three implementation notes
+## Four implementation notes
 
 ### 1. Preview and export share one math (`src/lib/panes.ts`)
 
@@ -903,6 +903,31 @@ The HEIC decoder ([heic-to](https://github.com/hoppergee/heic-to), libheif
 compiled to WASM) is dynamically imported and warmed the moment a dropped set
 contains a HEIC, so its parse overlaps probing and rendering: it only loads
 when an actual HEIC is encountered, costing pure JPEG/PNG users nothing.
+
+### 4. Gestures paint the board, React renders it (`src/lib/boardPaint.ts`)
+
+A drag must not cost a render. Panning a photo, pinching it and dragging a
+divider change pixels *inside* a pane, or the panes' boxes, and a store commit
+per pointermove re-rendered the board, the tools dock and the canvas menu every
+frame: on a phone, one gesture ate a whole frame budget while the browser's own
+layout of the same change stayed free (panes are absolutely positioned).
+
+So those three gestures write the DOM themselves and commit once, on release
+(one undo step, coalesced in `lib/history`). The mapping they write lives in one
+module, `lib/boardPaint.ts`, and the JSX uses it too (`paneDraws`,
+`paneBoxStyle`, `photoTransform`, `minimapStyles`, `dividerBandStyle`,
+`dividerGripStyle`), so a painted frame and a rendered frame are the same frame
+by construction: a divider drag's committed layout matches what it painted to
+0px, with the crossfade on or off.
+
+What keeps the painted set small is the model: stickers and labels are
+board-positioned, so a pane resize does not move them. The photo, its held Live
+Photo and its minimap ride the placement and are painted; a render that lands
+mid-gesture reads the gesture's draft (`draftRef` in `Pane`, the repaint in
+`useDividerDrag`) so it cannot snap the board back to the committed value.
+
+Measured on a 9-pane board at 375×812 with a 6× CPU throttle, script per frame:
+pan 12.4ms → 0.7ms, pinch 19.4ms → 0.7ms, divider drag 9.1ms → 0.4ms.
 
 ## Layout
 

@@ -73,8 +73,8 @@ export { isTransparentBg } from './lib/collageBg'
 // The seams this file was split along are re-exported here, so every other
 // module keeps importing the store (see lib/layout, lib/photoLibrary,
 // lib/settingsStore).
-export { computeLayout, fitCanvas, migrateWorkspaceInserts } from './lib/layout'
-export type { Derived } from './lib/layout'
+export { cachedGeometry, cachedSeams, computeGeometry, computeLayout, emptyGeometryCache, emptySeamsCache, fitCanvas, migrateWorkspaceInserts, paneShape, withLiveLeaves } from './lib/layout'
+export type { Derived, Geometry } from './lib/layout'
 export { photoMap } from './lib/photoLibrary'
 export {
   BG,

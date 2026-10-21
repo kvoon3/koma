@@ -1,17 +1,20 @@
 import type { IconInput } from 'morphicons/react'
 import type { Action, DockRoute } from '../lib/actionGuard'
+import type { PaintedBoard, PaneDraw } from '../lib/boardPaint'
 import type { CutoutMap } from '../lib/cutout'
 import type { CutoutSets, CutoutState } from '../lib/cutoutVariants'
 import type { Photo } from '../lib/imageStore'
+import type { GeometryCache, SeamsCache } from '../lib/layout'
 import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { StickerTarget } from '../lib/stickerAssets'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
 import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
+import { collectBoard, dividerBandStyle, dividerGripStyle, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
 import { variantsOf } from '../lib/cutoutVariants'
 import { GRID_CELL_RATIOS } from '../lib/gridTools'
@@ -19,9 +22,9 @@ import { useT } from '../lib/i18n'
 import { setLabelPreviewUnit } from '../lib/labelMetrics'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { applyCutoutState } from '../lib/paneCutout'
-import { blendFadePx, dividerLine, expandRectForBlend, leafList, placement, ratioFromPointer, seamSides } from '../lib/panes'
+import { leafList, placement, ratioFromPointer, seamSides, setSplitRatioIn } from '../lib/panes'
 import { photoAssetsOf } from '../lib/stickerLibrary'
-import { activeWs, computeLayout, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore } from '../store'
+import { activeWs, cachedGeometry, cachedSeams, computeGeometry, emptyGeometryCache, emptySeamsCache, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore, withLiveLeaves } from '../store'
 import { AppearanceDockTools, GridDockTool } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
@@ -177,11 +180,18 @@ function paneTarget(paneId: string | null): StickerTarget | null {
  * window listeners that resize it. The stage owns the geometry; this owns the
  * gesture.
  */
-function useDividerDrag(
-  view: Derived,
-  stageRef: React.RefObject<HTMLDivElement | null>,
-  resizeSplit: (splitId: string, ratio: number) => void,
-) {
+function useDividerDrag({
+  view,
+  stageRef,
+  onPaint,
+  resizeSplit,
+}: {
+  view: Derived
+  stageRef: React.RefObject<HTMLDivElement | null>
+  /** Paint the board as it would be at `ratio` (see `lib/boardPaint`). */
+  onPaint: (divider: Divider, ratio: number, board: PaintedBoard) => void
+  resizeSplit: (splitId: string, ratio: number) => void
+}) {
   /**
    * The divider being dragged, by id: its grip stays lit even once the pointer
    * has left the 15px band it lives in.
@@ -192,36 +202,48 @@ function useDividerDrag(
    * (the grip rides above the lines, so it cannot use `group-hover`).
    */
   const [hotId, setHotId] = useState<string | null>(null)
-  const dragRef = useRef<Divider | null>(null)
+  /**
+   * The drag in flight: the divider, the elements it repaints, and the ratio it
+   * has painted but not committed. A ratio drag moves every rect on both sides
+   * of its split, so a React render per pointermove cost a phone frame, while
+   * the browser's own layout of the same change is nearly free. The drag paints
+   * instead and commits once, on release.
+   */
+  const dragRef = useRef<{ divider: Divider, board: PaintedBoard, ratio: number } | null>(null)
 
   const beginDrag = useCallback((d: Divider) => {
     return (e: React.PointerEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      dragRef.current = d
+      dragRef.current = { divider: d, board: collectBoard(stageRef.current), ratio: d.ratio }
       setDragId(d.id)
     }
-  }, [])
+  }, [stageRef])
 
   useEffect(() => {
     if (dragId == null)
       return
     const move = (e: PointerEvent) => {
-      const d = dragRef.current
+      const drag = dragRef.current
       const r = stageRef.current?.getBoundingClientRect()
-      if (!d || !r)
+      if (!drag || !r)
         return
       // The canvas may carry the view zoom (a CSS scale), so its client rect is
       // in screen pixels: the divider math wants the canvas's own.
       const s = viewScaleAt(stageRef.current)
-      resizeSplit(
-        d.id,
-        ratioFromPointer(d, (e.clientX - r.left) / s, (e.clientY - r.top) / s, view.gap, MIN_PANE_PX),
-      )
+      const ratio = ratioFromPointer(drag.divider, (e.clientX - r.left) / s, (e.clientY - r.top) / s, view.gap, MIN_PANE_PX)
+      if (ratio === drag.ratio)
+        return
+      drag.ratio = ratio
+      onPaint(drag.divider, ratio, drag.board)
     }
     const up = () => {
+      const drag = dragRef.current
       dragRef.current = null
       setDragId(null)
+      // One commit, and one undo step: what the drag painted becomes the board.
+      if (drag && drag.ratio !== drag.divider.ratio)
+        resizeSplit(drag.divider.id, drag.ratio)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -231,7 +253,15 @@ function useDividerDrag(
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
     }
-  }, [dragId, view.gap, resizeSplit, stageRef])
+  }, [dragId, view.gap, resizeSplit, stageRef, onPaint])
+
+  // A render that lands mid-drag (a photo finishing its decode, say) would
+  // otherwise snap the board back to the committed ratio: repaint the draft.
+  useLayoutEffect(() => {
+    const drag = dragRef.current
+    if (drag && drag.ratio !== drag.divider.ratio)
+      onPaint(drag.divider, drag.ratio, drag.board)
+  })
 
   /** Hovered or being dragged: what lights a divider's grip and its line. */
   const isLit = (id: string) => hotId === id || dragId === id
@@ -317,6 +347,14 @@ function useCanvasResize(
   return { sizing, beginResize, resetRatio }
 }
 
+/**
+ * The dock's stage content. Memoized on purpose: `Stage` re-renders on every
+ * pointermove of a drag, and every one of these props is still (the tool list
+ * is memoized in `usePaneTools`), so the whole trigger/popover/MorphIcon tree
+ * inside stays out of the frame.
+ */
+const StageToolsDock = memo(StageToolsDockImpl)
+
 export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const stageRef = useRef<HTMLDivElement | null>(null)
@@ -347,26 +385,29 @@ export function Stage() {
   const boardStickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
   const boardLabels = useStore(s => activeWs(s).labels ?? NO_LABELS)
   const openStickerMaker = useStore(s => s.openStickerMaker)
+  const closeStickerMaker = useCallback(() => openStickerMaker(null), [openStickerMaker])
 
   const transparent = isTransparentBg(bg)
+  // One-slot layout caches, one pair per mounted stage (see `cachedGeometry`).
+  // Lazy state, because it is a plain mutable cache: created once, never set.
+  const [geometryCache] = useState<GeometryCache>(emptyGeometryCache)
+  const [seamsCache] = useState<SeamsCache>(emptySeamsCache)
+  const availW = Math.max(160, wrapSize.w - 48)
+  const availH = Math.max(160, wrapSize.h - 48)
 
-  const view = useMemo(
-    () =>
-      computeLayout(
-        root,
-        canvasRatio,
-        canvasFill,
-        Math.max(160, wrapSize.w - 48),
-        Math.max(160, wrapSize.h - 48),
-        gapValue,
-        radiusValue,
-        fadeValue,
-      ),
-    [root, canvasRatio, canvasFill, wrapSize, gapValue, radiusValue, fadeValue],
+  // Layout is cached on the board's SHAPE: panning, zooming, turning or
+  // filtering a photo moves pixels inside a rect, so a drag keeps the same
+  // geometry, and with it the same rect and seam objects. Every pane the
+  // gesture does not touch then memoizes away instead of re-rendering.
+  const geometry = cachedGeometry(
+    geometryCache,
+    root,
+    { canvasRatio, canvasFill, availW, availH, gapValue, radiusValue, fadeValue },
   )
-
-  // Which pane edges are seams (face another photo); recomputed with the layout.
-  const seams = useMemo(() => seamSides(view.leaves, view.gap), [view])
+  const view = useMemo(() => withLiveLeaves(geometry, root), [geometry, root])
+  // Which pane edges are seams (face another photo): cached on the geometry
+  // plus which panes hold a photo, the only leaf field a seam reads.
+  const seams = cachedSeams(seamsCache, root, geometry)
   // Publish the preview's label unit: the exporter measures labels at this
   // size rather than at export px so multi-line x matches the preview.
   useEffect(() => setLabelPreviewUnit(view.unit), [view.unit])
@@ -378,7 +419,15 @@ export function Stage() {
   // every gesture it had, so the wheel there is still the pane's photo zoom.
   const viewZoom = useCanvasViewZoom(wrapRef, stageRef)
 
-  const { dragId, setHotId, isLit, beginDrag } = useDividerDrag(view, stageRef, resizeSplit)
+  // A ratio drag paints the board itself (see `useDividerDrag`): this hands it
+  // the same layout the render would produce at the dragged ratio.
+  const paintRatio = useCallback((divider: Divider, ratio: number, board: PaintedBoard) => {
+    const ratioed = setSplitRatioIn(root, divider.id, ratio)
+    const geo = computeGeometry(ratioed, { canvasRatio, canvasFill, availW, availH, gapValue, radiusValue, fadeValue })
+    const draws = paneDraws(withLiveLeaves(geo, ratioed), seams, blendCrossfade, geo.fade, fadeStrength)
+    paintBoard(board, draws, geo.dividers, geo.gap, HIT_MIN)
+  }, [root, canvasRatio, canvasFill, availW, availH, gapValue, radiusValue, fadeValue, seams, blendCrossfade, fadeStrength])
+  const { dragId, setHotId, isLit, beginDrag } = useDividerDrag({ view, stageRef, onPaint: paintRatio, resizeSplit })
   const { sizing, beginResize, resetRatio } = useCanvasResize(wrapRef, stageRef, focus, setCanvasSize)
   const { tools, toolsHidden: paneToolsHidden } = usePaneTools(focusId, view, photoById)
   // The label dock's location action follows the focused pane's photo, not the
@@ -438,7 +487,7 @@ export function Stage() {
       <StickerMakerDialog
         open={stickerMakerFor != null}
         target={paneTarget(stickerMakerFor)}
-        onClose={() => openStickerMaker(null)}
+        onClose={closeStickerMaker}
       />
     </div>
   )
@@ -528,11 +577,10 @@ function StageCanvas({
 
           <PaneLayers
             view={view}
-            seams={seams}
+            draws={paneDraws(view, seams, blendCrossfade, paneFade, fadeStrength)}
             photoById={photoById}
             focusId={focusId}
             paneBorder={paneBorder}
-            paneFade={blendCrossfade ? blendFadePx(paneFade, fadeStrength, view.gap) : paneFade}
             crossfade={blendCrossfade}
             onFocus={onFocus}
             onUpdate={onUpdate}
@@ -575,7 +623,7 @@ function StageCanvas({
  * The dock's content for the stage: appearance and grid tools, then either the
  * selected label's controls or the focused pane's tools, in one fixed order.
  */
-function StageToolsDock({ tools, paneToolsHidden, focusHasGps, focusId }: {
+function StageToolsDockImpl({ tools, paneToolsHidden, focusHasGps, focusId }: {
   tools: ToolDef[]
   paneToolsHidden: boolean
   focusHasGps: boolean
@@ -700,14 +748,14 @@ function SeamLayer({ view, photoById, paneFade, fadeStrength }: {
   )
 }
 
-/** The photo panes themselves: one `Pane` per leaf of the layout. */
-function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, crossfade, onFocus, onUpdate, onSplit, onClose }: {
+/** The photo panes themselves: one `Pane` per draw of the layout. */
+function PaneLayers({ view, draws, photoById, focusId, paneBorder, crossfade, onFocus, onUpdate, onSplit, onClose }: {
   view: Derived
-  seams: Map<string, SeamSides>
+  /** Every pane's cell and drawn box, from `paneDraws` (one source of truth). */
+  draws: PaneDraw[]
   photoById: Map<string, Photo>
   focusId: string | null
   paneBorder: boolean
-  paneFade: number
   crossfade: boolean
   onFocus: React.ComponentProps<typeof Pane>['onFocus']
   onUpdate: React.ComponentProps<typeof Pane>['onUpdate']
@@ -716,10 +764,7 @@ function PaneLayers({ view, seams, photoById, focusId, paneBorder, paneFade, cro
 }) {
   return (
     <>
-      {view.leaves.map(({ node, rect }) => {
-        const seam = seams.get(node.id)
-        const draw = crossfade && node.photoId ? expandRectForBlend(rect, seam, paneFade) : rect
-        const fade = crossfade && !node.photoId ? 0 : paneFade
+      {draws.map(({ leaf: node, rect, draw, fade, seam }) => {
         return (
           <Pane
             key={node.id}
@@ -762,18 +807,13 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
   return (
     <>
       {view.dividers.map((d) => {
-        const line = dividerLine(d, view.gap)
-        const hit = Math.max(view.gap, HIT_MIN)
         const vertical = d.dir === 'row'
-        const style: React.CSSProperties
-          = vertical
-            ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
-            : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
         return (
           <div
             key={d.id}
+            data-divider-band={d.id}
             className={`absolute z-[5] touch-none ${vertical ? 'cursor-col-resize' : 'cursor-row-resize'}`}
-            style={style}
+            style={dividerBandStyle(d, view.gap, HIT_MIN)}
             onPointerDown={onBeginDrag(d)}
             // The grip lives in the layer above, so it cannot light itself
             // off this hover: a mouse is tracked here, a finger only
@@ -808,13 +848,11 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
         {view.dividers.map((d) => {
           const vertical = d.dir === 'row'
           const lit = isLit(d.id)
-          const line = dividerLine(d, view.gap)
           return (
             <span
               key={d.id}
-              style={vertical
-                ? { left: line.x, top: d.area.y + d.area.h / 2 }
-                : { left: d.area.x + d.area.w / 2, top: line.y }}
+              data-divider-grip={d.id}
+              style={dividerGripStyle(d, view.gap)}
               className={
                 `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border backdrop-blur-[7px] transition-colors duration-(--dur-fast) ${
                   lit
@@ -966,26 +1004,47 @@ function cutoutMenuTool(t: (key: string) => string, ctx: {
   }
 }
 
-function usePaneTools(focusId: string, view: Derived | null, photoById: Map<string, Photo>, route: DockRoute = 'stage') {
-  const t = useT()
-  const removePhoto = useStore(s => s.removePhoto)
-  const resetPane = useStore(s => s.resetPane)
-  const openStickerMaker = useStore(s => s.openStickerMaker)
-  const cutouts = useStore(s => s.cutouts)
-  const cutoutSets = useStore(s => s.cutoutSets)
-  const cutoutBusy = useStore(s => !!s.cutoutJob)
+/**
+ * What the dock's pane tools are built from: the focused pane as scalars (its
+ * id, whether it holds a photo, which one, where its rect is), the cutout
+ * state, and the live board for the closures to resolve a pane through.
+ *
+ * Scalars rather than the `Derived` itself are the point. A pan rewrites the
+ * focused leaf's view fields on every pointermove, so a list keyed on the board
+ * was rebuilt per frame, and every base-ui trigger, popover and MorphIcon in
+ * the dock with it. That rebuild is what made dragging a photo stutter on a
+ * phone. None of these inputs change while a photo is dragged, so none of the
+ * dock re-renders for it. `live` keeps a memoized tool honest about the board
+ * it acts on when a click finally runs it.
+ */
+interface PaneToolsInput {
+  t: ReturnType<typeof useT>
+  focusId: string
+  route: DockRoute
+  hasPhoto: boolean
+  focusPhotoId: string
+  cutouts: CutoutMap
+  cutoutSets: CutoutSets
+  cutoutBusy: boolean
+  photoById: Map<string, Photo>
+  live: React.RefObject<Derived | null>
+  removePhoto: (paneId: string) => void
+  resetPane: (paneId: string) => void
+  openStickerMaker: (paneId: string | null) => void
+}
 
-  const focusHit = focusId && view ? view.leaves.find(l => l.node.id === focusId) : undefined
-  const focusLeaf = focusHit?.node ?? null
-  const hasPhoto = !!(focusLeaf?.photoId)
+function buildPaneTools(input: PaneToolsInput) {
+  const { t, focusId, route, hasPhoto, focusPhotoId, cutouts, cutoutSets, cutoutBusy, photoById, live, removePhoto, resetPane, openStickerMaker } = input
+  // The pane's rect is read when a tool runs, not captured: a ratio drag moves
+  // every rect on every frame, and capturing one would rebuild the dock for it.
+  const rectOf = (id: string) => live.current?.leaves.find(l => l.node.id === id)?.rect
   // Context key only (the dock always shows the full set): no photo = canvas.
   const toolsHidden = !hasPhoto
-  const focusRect = focusHit?.rect
   // One context for every pane tool: a stale or empty focus yields no pane,
   // so `bindAction` disables every pane-scoped tool in the same place.
   const ctx = {
     ...paneContext<Photo>(focusId, (id) => {
-      const leaf = view?.leaves.find(l => l.node.id === id)?.node
+      const leaf = live.current?.leaves.find(l => l.node.id === id)?.node
       return leaf ? { photo: (leaf.photoId && photoById.get(leaf.photoId)) || null } : null
     }),
     route,
@@ -1006,7 +1065,7 @@ function usePaneTools(focusId: string, view: Derived | null, photoById: Map<stri
   // The cutout's three states, switchable any time from one menu (see
   // lib/cutoutVariants for what each row resolves to).
   const cutoutTool: ToolDef = cutoutMenuTool(t, {
-    photo: focusLeaf?.photoId ? photoById.get(focusLeaf.photoId) ?? null : null,
+    photo: focusPhotoId ? photoById.get(focusPhotoId) ?? null : null,
     cutouts,
     sets: cutoutSets,
     busy: cutoutBusy,
@@ -1035,16 +1094,56 @@ function usePaneTools(focusId: string, view: Derived | null, photoById: Map<stri
       hint: t('Photo'),
       options: [
         { key: 'reset', icon: Maximize, label: t('Reset zoom'), onClick: bind({ requires: 'photo', run: p => resetPaneView(p.paneId) }) },
-        { key: 'fit', icon: Frame, label: t('Fit whole photo'), onClick: bind({ requires: 'photo', run: p => fitPanePhoto(p.paneId, p.photo.trueW, p.photo.trueH, focusRect) }) },
+        { key: 'fit', icon: Frame, label: t('Fit whole photo'), onClick: bind({ requires: 'photo', run: p => fitPanePhoto(p.paneId, p.photo.trueW, p.photo.trueH, rectOf(p.paneId)) }) },
         { key: 'match', icon: Ratio, label: t('Match the canvas to this photo'), onClick: bind({ requires: 'photo', when: p => !!p.photo.trueW, run: p => matchCanvasToPhoto(p.photo.trueW, p.photo.trueH) }) },
       ],
     },
-    { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: bind(onPane(id => duplicatePaneAuto(id, focusRect))) },
+    { key: 'dup', icon: CopyPlus, label: t('Duplicate'), hint: t('Duplicate pane'), onClick: bind(onPane(id => duplicatePaneAuto(id, rectOf(id)))) },
     { key: 'remove', icon: Trash2, label: t('Remove'), hint: t('Remove photo'), onClick: bind({ requires: 'photo', run: p => removePhoto(p.paneId) }) },
     { key: 'reset', icon: RotateCcw, label: t('Reset'), hint: t('Reset this pane'), onClick: bind(onPane(resetPane)) },
   ]
 
   return { tools, toolsHidden }
+}
+
+function usePaneTools(focusId: string, view: Derived | null, photoById: Map<string, Photo>, route: DockRoute = 'stage') {
+  const t = useT()
+  const removePhoto = useStore(s => s.removePhoto)
+  const resetPane = useStore(s => s.resetPane)
+  const openStickerMaker = useStore(s => s.openStickerMaker)
+  const cutouts = useStore(s => s.cutouts)
+  const cutoutSets = useStore(s => s.cutoutSets)
+  const cutoutBusy = useStore(s => !!s.cutoutJob)
+
+  // The board a tool acts on when it finally runs: a ref, not a dependency, so
+  // the tool list is not rebuilt when the board moves under it. Updated after
+  // commit, which every click or keypress that reaches a tool follows.
+  const liveRef = useRef<Derived | null>(view)
+  useLayoutEffect(() => {
+    liveRef.current = view
+  }, [view])
+  const focusHit = focusId && view ? view.leaves.find(l => l.node.id === focusId) : undefined
+  const focusLeaf = focusHit?.node ?? null
+  const hasPhoto = !!(focusLeaf?.photoId)
+  return useMemo(
+    () =>
+      buildPaneTools({
+        t,
+        focusId,
+        route,
+        hasPhoto,
+        focusPhotoId: focusLeaf?.photoId ?? '',
+        cutouts,
+        cutoutSets,
+        cutoutBusy,
+        photoById,
+        live: liveRef,
+        removePhoto,
+        resetPane,
+        openStickerMaker,
+      }),
+    [t, focusId, route, hasPhoto, focusLeaf?.photoId, cutouts, cutoutSets, cutoutBusy, photoById, removePhoto, resetPane, openStickerMaker],
+  )
 }
 
 /** Progress veil over the pane whose photo is being cut out (see lib/paneCutout). */

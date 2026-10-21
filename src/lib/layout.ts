@@ -7,8 +7,8 @@
  */
 import type { Workspace } from '../store'
 import type { Photo } from './imageStore'
-import type { Divider, Leaf, Node, PaneLabel, Sticker } from './panes'
-import { layoutTree, leafList, placement, stickerToBoard, uid, updateLeafIn } from './panes'
+import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from './panes'
+import { layoutTree, leafList, placement, seamSides, stickerToBoard, uid, updateLeafIn } from './panes'
 
 export interface Derived {
   W: number
@@ -46,13 +46,142 @@ export function computeLayout(
   radiusValue: number,
   fadeValue: number,
 ): Derived {
-  const fit = fitCanvas(canvasRatio, availW, availH)
-  const W = Math.max(80, Math.round(fit.W * canvasFill))
-  const H = Math.max(80, Math.round(fit.H * canvasFill))
+  return withLiveLeaves(
+    computeGeometry(root, { canvasRatio, canvasFill, availW, availH, gapValue, radiusValue, fadeValue }),
+    root,
+  )
+}
+
+/**
+ * A board's geometry: the canvas box, every pane's rect by id, the dividers and
+ * the unit. This is the half of `Derived` a pan, a turn or a filter cannot
+ * change, because those move pixels inside a rect rather than the rect itself.
+ * Keeping it identical is what lets the stage leave the rest of the board out
+ * of the frame while one pane is being dragged (see `components/Stage`).
+ */
+export interface Geometry {
+  W: number
+  H: number
+  rects: Map<string, Rect>
+  dividers: Divider[]
+  gap: number
+  radius: number
+  fade: number
+  unit: number
+}
+
+/**
+ * The tree's shape as a string: leaf ids, split directions and ratios, in tree
+ * order. A board with the same shape lays out the same geometry whatever its
+ * leaves hold, so this string is a sound memo key for `cachedGeometry`. One
+ * pass over the tree, no per-node allocation beyond the key's own pieces.
+ * Ratios keep 6 decimals: below a millionth of a cell two ratios are the same
+ * line on screen.
+ */
+export function paneShape(root: Node): string {
+  const walk = (n: Node): string =>
+    n.type === 'leaf'
+      ? `l${n.id}`
+      : `s${n.dir === 'row' ? 'r' : 'c'}${n.ratio.toFixed(6)}(${walk(n.a)},${walk(n.b)})`
+  return walk(root)
+}
+
+/** Everything geometry depends on besides the tree: the canvas box and the dials. */
+interface GeometryBox {
+  canvasRatio: number | null
+  canvasFill: number
+  availW: number
+  availH: number
+  gapValue: number
+  radiusValue: number
+  fadeValue: number
+}
+
+function boxKey(shape: string, b: GeometryBox): string {
+  return `${shape}|${b.canvasRatio ?? 'x'}|${b.canvasFill}|${b.availW}|${b.availH}|${b.gapValue}|${b.radiusValue}|${b.fadeValue}`
+}
+
+/** Geometry for a tree: the canvas fit, then the layout, rects keyed by pane id. */
+export function computeGeometry(root: Node, b: GeometryBox): Geometry {
+  const fit = fitCanvas(b.canvasRatio, b.availW, b.availH)
+  const W = Math.max(80, Math.round(fit.W * b.canvasFill))
+  const H = Math.max(80, Math.round(fit.H * b.canvasFill))
   const u = Math.min(W, H) / 1000
-  const gap = gapValue * u
+  const gap = b.gapValue * u
   const l = layoutTree(root, W, H, gap)
-  return { W, H, leaves: l.leaves, dividers: l.dividers, gap, radius: radiusValue * u, fade: fadeValue * u, unit: u }
+  const rects = new Map<string, Rect>()
+  for (const { node, rect } of l.leaves)
+    rects.set(node.id, rect)
+  return { W, H, rects, dividers: l.dividers, gap, radius: b.radiusValue * u, fade: b.fadeValue * u, unit: u }
+}
+
+/**
+ * A one-slot memo across renders, for callers that compute the board's
+ * geometry during render. `Stage` is the only one: it re-renders on every
+ * pointermove of a drag, and without this cache the layout (and so every
+ * pane's rect object) would be rebuilt per frame.
+ */
+export interface GeometryCache {
+  key: string | null
+  geo: Geometry | null
+}
+
+export function emptyGeometryCache(): GeometryCache {
+  return { key: null, geo: null }
+}
+
+/** `computeGeometry`, kept across calls while the tree's shape and box hold still. */
+export function cachedGeometry(cache: GeometryCache, root: Node, b: GeometryBox): Geometry {
+  const shape = paneShape(root)
+  const key = boxKey(shape, b)
+  if (cache.geo && cache.key === key)
+    return cache.geo
+  const geo = computeGeometry(root, b)
+  cache.key = key
+  cache.geo = geo
+  return geo
+}
+
+/** A one-slot memo for `seamSides`, the same trick as `GeometryCache`. */
+export interface SeamsCache {
+  geo: Geometry | null
+  photoKey: string
+  seams: Map<string, SeamSides>
+}
+
+export function emptySeamsCache(): SeamsCache {
+  return { geo: null, photoKey: '', seams: new Map() }
+}
+
+/**
+ * Which pane edges are seams, kept across calls while the geometry holds and
+ * no pane gains or loses its photo. Those are the only inputs `seamSides`
+ * reads, so a drag inside a pane reuses the map, and with it every pane's
+ * `seam` prop.
+ */
+export function cachedSeams(cache: SeamsCache, root: Node, geo: Geometry): Map<string, SeamSides> {
+  const leaves = leafList(root)
+  const photoKey = leaves.map(l => l.photoId ?? '').join(',')
+  if (cache.geo === geo && cache.photoKey === photoKey)
+    return cache.seams
+  const seams = seamSides(withLiveLeaves(geo, root).leaves, geo.gap)
+  cache.geo = geo
+  cache.photoKey = photoKey
+  cache.seams = seams
+  return seams
+}
+
+/**
+ * Pair cached geometry with the leaves of the tree as it stands now: the
+ * `Derived` the stage draws. The rects are handed through by reference, so a
+ * pane whose cell did not move keeps the same rect object and memoizes away.
+ * A leaf the geometry does not know (a pane added since the geometry was
+ * cached) falls back to the whole canvas rather than vanishing.
+ */
+export function withLiveLeaves(geo: Geometry, root: Node): Derived {
+  const whole: Rect = { x: 0, y: 0, w: geo.W, h: geo.H }
+  const leaves = leafList(root).map(node => ({ node, rect: geo.rects.get(node.id) ?? whole }))
+  return { W: geo.W, H: geo.H, leaves, dividers: geo.dividers, gap: geo.gap, radius: geo.radius, fade: geo.fade, unit: geo.unit }
 }
 
 function liftLeafStickers(
