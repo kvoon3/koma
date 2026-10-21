@@ -1656,6 +1656,63 @@ function usePaneDrop({
   return { dropping, onDragOver, onDragLeave, onDrop }
 }
 
+/**
+ * Everything a pane's render derives from its props: the cell its photo is
+ * placed against, where that placement lands, and the chrome measured against
+ * it. Pure, so the markup below is props in, elements out.
+ *
+ * `leaf` is the shown leaf, not the committed one: a gesture paints its draft
+ * straight onto the DOM (see `paintLeaf`), and the render has to agree with it.
+ */
+function paneFrame({
+  leaf,
+  rect,
+  layoutRect,
+  preview,
+  fade,
+  seam,
+  gap,
+  radius,
+}: {
+  leaf: Leaf
+  rect: Rect
+  layoutRect: Rect | undefined
+  preview: Preview | null
+  fade: number
+  seam: SeamSides | undefined
+  gap: number
+  radius: number
+}) {
+  const iw = preview?.w ?? 0
+  const ih = preview?.h ?? 0
+  // Placement stays on the layout cell so enabling crossfade does not reframe
+  // the photo. Derived once: the transform, the Live Photo box, the minimap and
+  // the drop/return targets all read these numbers.
+  const cell: Rect = layoutRect ?? rect
+  const place = iw && ih ? placement(cell, leaf, iw, ih) : null
+  // The pane's turn and mirrors, about the pane box's center (the exporter
+  // turns about the same point, from the same `paneTransform`). Upright and
+  // unflipped panes keep the plain img, so today's rendering is untouched.
+  const transform = paneTransform(rect, leaf)
+  // The carried photo rides the pointer at roughly its pane size (capped).
+  const ghostW = Math.min(rect.w, 180)
+  return {
+    iw,
+    ih,
+    cell,
+    place,
+    /** The photo's transform, or null when nothing is placed yet. */
+    photoStyle: place ? transformOf(place, rect) : null,
+    // Feather the photo's seam edges (and the Live Photo video that replaces
+    // it visually); stickers/labels stay sharp above it.
+    mask: seamMaskStyle(seam, seamFadeWidth(fade, cell)),
+    turn: isPaneTransformed(transform) ? paneTransformCss(transform) : null,
+    radiusCss: cornerRadiiCss(leafCornerRadii(radius, seam, gap)),
+    /** The drag ghost's box, at the pane's aspect. */
+    ghost: { w: ghostW, h: iw ? (ghostW * ih) / iw : ghostW },
+  }
+}
+
 function PaneImpl({
   leaf,
   rect,
@@ -1696,15 +1753,16 @@ function PaneImpl({
 
   const pickForPane = useCallback(() => pickPhotoForPane(leaf.id), [leaf.id])
 
-  const iw = preview?.w ?? 0
-  const ih = preview?.h ?? 0
-  // Placement stays on the layout cell so enabling crossfade does not reframe the photo.
-  const cell: Rect = layoutRect ?? rect
-  // Placement stays on the layout cell so enabling crossfade does not reframe
-  // the photo. Derived once: the transform, the Live Photo box, the minimap and
-  // the drop/return targets all read these numbers.
-  const place = iw && ih ? placement(cell, shownLeaf, iw, ih) : null
-  const photoStyle = place ? transformOf(place, rect) : null
+  const { iw, ih, cell, place, photoStyle, mask: photoMask, turn, radiusCss, ghost } = paneFrame({
+    leaf: shownLeaf,
+    rect,
+    layoutRect,
+    preview,
+    fade,
+    seam,
+    gap,
+    radius,
+  })
 
   const toCanvas = useCallback(
     (clientX: number, clientY: number) => {
@@ -1750,19 +1808,6 @@ function PaneImpl({
     setDropChoice,
   })
 
-  // Feather the photo's seam edges (and the Live Photo video that replaces
-  // it visually); stickers/labels stay sharp above it.
-  const photoMask = seamMaskStyle(seam, seamFadeWidth(fade, cell))
-  // The pane's turn and mirrors, about the pane box's center (the exporter
-  // turns about the same point, from the same `paneTransform`). Upright and
-  // unflipped panes keep the plain img, so today's rendering is untouched.
-  const transform = paneTransform(rect, leaf)
-  const turn = isPaneTransformed(transform) ? paneTransformCss(transform) : null
-  const radiusCss = cornerRadiiCss(leafCornerRadii(radius, seam, gap))
-
-  // The carried photo rides the pointer at roughly its pane size (capped).
-  const ghostW = Math.min(rect.w, 180)
-  const ghostH = iw ? (ghostW * ih) / iw : ghostW
   // Where a cancelled carry lands, computed once per render from the dimmed
   // original's live box (the pane can shift while the carry is in flight).
   const swapReturnTo = swapReturnLanding(swapReturn, place, rect, elRef.current)
@@ -1848,10 +1893,10 @@ function PaneImpl({
         />
       )}
 
-      <SwapGhost at={swapAt} preview={preview} width={ghostW} height={ghostH} radius={radius} />
+      <SwapGhost at={swapAt} preview={preview} width={ghost.w} height={ghost.h} radius={radius} />
 
       {/* A cancelled carry glides back onto the dimmed original. */}
-      <SwapReturnPortal from={swapReturn} preview={preview} to={swapReturnTo} width={ghostW} height={ghostH} radius={radius} onDone={clearSwapReturn} />
+      <SwapReturnPortal from={swapReturn} preview={preview} to={swapReturnTo} width={ghost.w} height={ghost.h} radius={radius} onDone={clearSwapReturn} />
 
       {/* Move mode: one full-screen catcher so the next click drops the carried
           photo wherever it lands (source and empty space drop it back). The
