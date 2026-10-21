@@ -6,30 +6,10 @@ import { canRedo, canUndo, emptyHistory, HISTORY_LIMIT, historyPath, stepCount }
 import { leafList, newLabel, rotationOf } from './lib/panes'
 import { MAX_GRIDS } from './lib/workspaces'
 
-// The board's mutations run inside `runPaneMorph`, which falls back to a
-// synchronous change when the browser has no View Transition API. A bare
-// stand-in gives the store exactly that fallback under `bun test`.
-Object.assign(globalThis, {
-  document: {
-    startViewTransition: undefined,
-    querySelectorAll: () => [],
-    documentElement: { dataset: {} },
-  },
-})
-
-// zustand's `persist` writes through `window.localStorage`, which bun does not
-// provide: an in-memory stand-in keeps the middleware quiet and lets a test
-// read the payload it would have saved.
-const saved = new Map<string, string>()
-const storage = {
-  getItem: (k: string) => saved.get(k) ?? null,
-  setItem: (k: string, v: string) => void saved.set(k, v),
-  removeItem: (k: string) => void saved.delete(k),
-  clear: () => saved.clear(),
-}
-Object.assign(globalThis, { window: { localStorage: storage }, localStorage: storage })
-
+// The `document` / `localStorage` stand-ins this file relies on are the shared
+// ones every test file boots on (src/testSetup.ts, via bunfig `[test] preload`).
 const { activeWs, boardOf, useStore } = await import('./store')
+const { persisted } = await import('./testSetup')
 
 /** The store as it booted: each test starts from a blank board and no history. */
 const boot = useStore.getState()
@@ -349,13 +329,13 @@ describe('history bounds', () => {
     useStore.getState().split(ws().focusId, 'row')
     expect(depth()).toBe(1)
 
-    const raw = saved.get('collage:settings')
+    const raw = persisted.get('collage:settings')
     expect(raw).toBeTruthy()
-    const persisted = (JSON.parse(raw!) as { state: Record<string, unknown> }).state
-    expect(persisted.history).toBeUndefined()
-    expect(persisted.workspaces).toBeUndefined()
+    const payload = (JSON.parse(raw!) as { state: Record<string, unknown> }).state
+    expect(payload.history).toBeUndefined()
+    expect(payload.workspaces).toBeUndefined()
     // The visual settings it does save are still there.
-    expect(persisted.gap).toBe(0)
+    expect(payload.gap).toBe(0)
   })
 })
 

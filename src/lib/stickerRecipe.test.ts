@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import type { Photo } from './imageStore'
 import type { StickerBakeStyle } from './stickerAssets'
-import { describe, expect, it } from 'bun:test'
+import { beforeEach, describe, expect, it } from 'bun:test'
 import { useStore } from '../store'
 import { eraseStickerAsset } from './stickerAssets'
 import { buildStickerRecipe, editedStickerMeta, normalizePhotoRecipes, recipeOf, stickerRecipeFrom, textOriginal } from './stickerRecipe'
@@ -49,6 +49,16 @@ function throughSession(record: Photo): Photo {
   const stored = structuredClone({ ...record, file: undefined })
   return { ...stored, file: record.file }
 }
+
+/**
+ * The store this file writes: the photo list and the sticker folders. Reset per
+ * test, so no test reads what the one before it left behind.
+ */
+const boot = useStore.getState()
+
+beforeEach(() => {
+  useStore.setState({ photos: boot.photos, stickerFolders: boot.stickerFolders })
+})
 
 describe('a made sticker\'s recipe', () => {
   it('is built from the maker\'s controls and survives a session record', async () => {

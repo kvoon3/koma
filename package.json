@@ -17,6 +17,7 @@
     "lint:fix": "eslint . --fix --cache --cache-strategy content --concurrency off",
     "check-types": "bun check",
     "test": "bun test --check --isolate src",
+    "test:shuffle": "bun test --check --isolate --randomize src",
     "ci": "bun run --no-exit-on-error --parallel lint test build",
     "up": "taze major -Ii",
     "prepare": "simple-git-hooks",

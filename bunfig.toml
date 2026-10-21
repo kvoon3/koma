@@ -1,0 +1,4 @@
+[test]
+# Every test file runs on the same stand-ins (see src/testSetup.ts). Without
+# this a file that imports the store depends on another file having run first.
+preload = [ "./src/testSetup.ts" ]
