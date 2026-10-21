@@ -7,6 +7,7 @@ import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
+import { minimapStyles, minimapViewStyle, paintPanePhoto, paneBoxStyle, photoBoxStyle, transformOf } from '../lib/boardPaint'
 import { viewScaleAt } from '../lib/canvasView'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
@@ -47,8 +48,7 @@ interface Gesture {
 // filled pane's photo lives in the tools row, see Stage.tsx).
 function PanePhotoContent({
   preview,
-  place,
-  rect,
+  transform,
   photoId,
   mask,
   radius,
@@ -58,8 +58,8 @@ function PanePhotoContent({
   turn,
 }: {
   preview: Preview | null
-  place: ReturnType<typeof placement> | null
-  rect: Rect
+  /** The photo's placement, from `transformOf` (see lib/boardPaint). */
+  transform: string | null
   photoId: string | null
   mask?: React.CSSProperties
   radius: number | string
@@ -71,7 +71,7 @@ function PanePhotoContent({
   turn: string | null
 }) {
   const t = useT()
-  const img = preview && place
+  const img = preview && transform
     ? (
         <img
           src={preview.url}
@@ -84,13 +84,13 @@ function PanePhotoContent({
             left: 0,
             top: 0,
             transformOrigin: '0 0',
-            transform: `translate(${place.x - rect.x}px, ${place.y - rect.y}px) scale(${place.scale})`,
+            transform,
             maxWidth: 'none',
           }}
         />
       )
     : null
-  return preview && place
+  return preview && transform
     ? (
         // The mask wrapper spans the pane box, so the feather gradients line
         // up with the pane edges (the placed img itself overflows the pane).
@@ -218,17 +218,21 @@ const MINIMAP_INSET = 'p-5'
 function PaneMinimap({
   paneEl,
   leaf,
-  place,
+  cell,
   rect,
+  iw,
+  ih,
   previewUrl,
   onPan,
 }: {
   paneEl: React.RefObject<HTMLDivElement | null>
   leaf: Leaf
-  /** The photo's placed rect, in canvas coordinates. */
-  place: { x: number, y: number, w: number, h: number }
+  /** The layout cell the photo is placed against. */
+  cell: Rect
   /** The pane's own rect, in canvas coordinates. */
   rect: Rect
+  iw: number
+  ih: number
   /** The pane's own preview URL (filter baked), for the minimap thumbnail. */
   previewUrl: string | undefined
   /** Grab-pan to a photo fraction, through the pane's clamped commit. */
@@ -264,23 +268,10 @@ function PaneMinimap({
     }
   }, [paneEl])
 
-  const photoX = place.x - rect.x
-  const photoY = place.y - rect.y
-  // The photo's visible part: the placed rect clipped to the pane, and to the
-  // room the tools sheet leaves. Cover-fit means zoom 1 (and anything above it)
-  // already spans the pane, so this is the pane's own box unless the photo has
-  // been zoomed out from under it.
-  const visL = Math.max(0, photoX)
-  const visT = Math.max(0, photoY)
-  const visR = Math.min(rect.w, photoX + place.w)
-  const sheetLimit = sheetTop == null || paneTop == null ? rect.h : sheetTop - paneTop
-  const visB = Math.min(rect.h, photoY + place.h, sheetLimit)
-  const box: React.CSSProperties = {
-    left: visL,
-    top: visT,
-    width: Math.max(0, visR - visL),
-    height: Math.max(0, visB - visT),
-  }
+  // The photo's visible part clipped to the pane, and to the room the tools
+  // sheet leaves. The math lives in `boardPaint`, so a divider drag paints the
+  // same box through `paintPanePhoto`.
+  const sheetLimit = sheetTop == null || paneTop == null ? undefined : sheetTop - paneTop
 
   // The minimap appears once the photo overflows the pane (zoom above
   // ~1.05) and the visible box is wide enough to seat it. The viewport
@@ -289,16 +280,10 @@ function PaneMinimap({
   // path's coalescing and undo carry.
   const minimap = useMemo(() => {
     const MINIMAP_ZOOM = 1.05
-    const w = Math.max(0, visR - visL)
-    if (leaf.zoom <= MINIMAP_ZOOM || w < 260 || !previewUrl)
+    const { box, view } = minimapStyles(cell, rect, leaf, iw, ih, sheetLimit)
+    if (leaf.zoom <= MINIMAP_ZOOM || box.width < 260 || !previewUrl)
       return null
     const frame = coarse ? 'h-[44px] w-[58px]' : 'h-[40px] w-[52px]'
-    const view = {
-      x: Math.max(0, (rect.x - place.x) / place.w),
-      y: Math.max(0, (rect.y - place.y) / place.h),
-      w: Math.min(1, rect.w / place.w),
-      h: Math.min(1, rect.h / place.h),
-    }
     const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
       e.stopPropagation()
       const el = e.currentTarget
@@ -340,8 +325,8 @@ function PaneMinimap({
         }
       }, { once: true })
     }
-    return { frame, view, onPointerDown }
-  }, [leaf.zoom, visR, visL, rect.x, rect.y, rect.w, rect.h, place.x, place.y, place.w, place.h, previewUrl, onPan, coarse])
+    return { frame, box, view, onPointerDown }
+  }, [leaf, cell, rect, iw, ih, sheetLimit, previewUrl, onPan, coarse])
 
   // Nothing to show while the photo fits the pane: the chip appears with the
   // overflow it exists to navigate.
@@ -352,7 +337,7 @@ function PaneMinimap({
     <div
       data-pane-minimap-box=""
       className={`pointer-events-none absolute z-[3] flex items-end justify-end transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${MINIMAP_INSET} ${rest}`}
-      style={box}
+      style={minimap.box}
     >
       <div
         data-pane-minimap-chip=""
@@ -367,7 +352,7 @@ function PaneMinimap({
           aria-label={t('Photo minimap, drag to pan')}
           title={t('Photo minimap, drag to pan')}
           className={`relative cursor-grab overflow-hidden bg-float-bg ${minimap.frame}`}
-          style={{ aspectRatio: `${place.w} / ${place.h}` }}
+          style={{ aspectRatio: `${iw} / ${ih}` }}
           onPointerDown={minimap.onPointerDown}
         >
           {previewUrl && (
@@ -381,7 +366,7 @@ function PaneMinimap({
           <div
             data-pane-minimap-viewport=""
             className="pointer-events-none absolute border-[1.5px] border-accent outline-1 outline-white/70 bg-accent/15"
-            style={{ left: `${minimap.view.x * 100}%`, top: `${minimap.view.y * 100}%`, width: `${minimap.view.w * 100}%`, height: `${minimap.view.h * 100}%` }}
+            style={minimapViewStyle(minimap.view)}
           />
         </div>
       </div>
@@ -648,8 +633,7 @@ interface Props {
    share the pane's mask and playback flag. */
 function PaneLivePhoto({
   photo,
-  place,
-  rect,
+  box,
   mask,
   crossfade,
   live,
@@ -658,8 +642,8 @@ function PaneLivePhoto({
   onToggle,
 }: {
   photo: Photo | null
-  place: { x: number, y: number, w: number, h: number }
-  rect: Rect
+  /** The placed photo's box in pane-local px (see `photoBoxStyle`). */
+  box: { left: number, top: number, width: number, height: number }
   mask?: React.CSSProperties
   crossfade?: boolean
   live: boolean
@@ -699,13 +683,9 @@ function PaneLivePhoto({
         <div className="absolute inset-0" style={{ transform: turn ?? undefined }}>
           <video
             ref={videoRef}
+            data-live-video=""
             className={`absolute left-0 top-0 z-1 max-w-none bg-pane-bg object-cover opacity-0 pointer-events-none ${live ? ' opacity-100' : ''}`}
-            style={{
-              left: place.x - rect.x,
-              top: place.y - rect.y,
-              width: place.w,
-              height: place.h,
-            }}
+            style={box}
             muted
             loop
             playsInline
@@ -887,6 +867,23 @@ function MoveCatcher({
   )
 }
 
+/**
+ * The leaf a zoom about a canvas point lands on: the scale clamped to the
+ * pane's range, then the centre moved so the point under the cursor stays put.
+ * Pure, and the one place the math lives, so the wheel, the pinch and the
+ * minimap cannot disagree about where a zoom ends up.
+ */
+function zoomLeaf(base: Leaf, cell: Rect, iw: number, ih: number, nextZoom: number, mx: number, my: number): Leaf {
+  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
+  const before = placement(cell, base, iw, ih)
+  const u = (mx - before.x) / before.w
+  const v = (my - before.y) / before.h
+  const after = placement(cell, { ...base, zoom }, iw, ih)
+  const tx = mx - u * after.w
+  const ty = my - v * after.h
+  return { ...base, zoom, cx: (cell.w / 2 - tx) / after.w, cy: (cell.h / 2 - ty) / after.h }
+}
+
 /* The pane's viewport math: pointer-local coords, the clamped commit, and zoom
    about an anchor. Split out so the gesture hook below stays about events, not
    about the transform. */
@@ -928,14 +925,7 @@ function usePaneViewport({
     (base: Leaf, nextZoom: number, mx: number, my: number) => {
       if (!iw || !ih)
         return
-      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
-      const before = placement(cell, base, iw, ih)
-      const u = (mx - before.x) / before.w
-      const v = (my - before.y) / before.h
-      const after = placement(cell, { ...base, zoom }, iw, ih)
-      const tx = mx - u * after.w
-      const ty = my - v * after.h
-      commit({ ...base, zoom, cx: (cell.w / 2 - tx) / after.w, cy: (cell.h / 2 - ty) / after.h })
+      commit(zoomLeaf(base, cell, iw, ih, nextZoom, mx, my))
     },
     [iw, ih, commit, cell],
   )
@@ -950,6 +940,10 @@ interface PaneGestureRuntime {
   paneId: string
   leaf: Leaf
   cell: Rect
+  /** The pane's drawn box: `paintLeaf` offsets the photo transform by it. */
+  drawRect: Rect
+  /** What this gesture painted but has not committed; null when it has none. */
+  draftRef: React.RefObject<Leaf | null>
   iw: number
   ih: number
   photo: Photo | null
@@ -976,6 +970,48 @@ interface PaneGestureRuntime {
   setSwapReturn: (v: { x: number, y: number } | null) => void
   setLiveFor: (v: string | null) => void
   setMoving: (v: boolean) => void
+}
+
+/** The placement the pane is showing: the gesture's draft first, then the tree. */
+function currentLeaf(rt: { leaf: Leaf, draftRef: React.RefObject<Leaf | null> }): Leaf {
+  return rt.draftRef.current ?? rt.leaf
+}
+
+/**
+ * Put a leaf's placement straight on the pane's DOM: the photo's transform,
+ * and the minimap's two boxes when it is showing.
+ *
+ * Panning is the app's most common gesture, and a store commit per pointermove
+ * made one image move by a few pixels re-render the board, the dock and the
+ * canvas menu. On a phone that was the whole frame budget. The gesture paints
+ * here instead and commits once, on release (see `flushDraft`).
+ */
+function paintLeaf(rt: PaneGestureRuntime, leaf: Leaf) {
+  paintPanePhoto(
+    rt.elRef.current,
+    { leaf, rect: rt.cell, draw: rt.drawRect, fade: 0, seam: undefined },
+    rt.iw,
+    rt.ih,
+  )
+}
+
+/** Paint the placement and keep it as the value this gesture is carrying. */
+function paintDraft(rt: PaneGestureRuntime, leaf: Leaf) {
+  rt.draftRef.current = leaf
+  paintLeaf(rt, leaf)
+}
+
+/**
+ * Commit what the gesture painted: one store update, and one undo step (the
+ * stream of a drag coalesces in `lib/history`). A tap that painted nothing
+ * commits nothing.
+ */
+function flushDraft(rt: PaneGestureRuntime) {
+  const draft = rt.draftRef.current
+  if (!draft)
+    return
+  rt.draftRef.current = null
+  rt.commit(draft)
 }
 
 /** The slice a swap drop needs, so endSwapDrag can stay a stable callback. */
@@ -1108,12 +1144,14 @@ function panPane(rt: PaneGestureRuntime, e: React.PointerEvent, g: Gesture) {
   // Nothing placed to pan (an empty pane, or a photo still decoding).
   if (!rt.iw || !rt.ih)
     return
+  const base = currentLeaf(rt)
   const dx = p.x - g.lastX
   const dy = p.y - g.lastY
   g.lastX = p.x
   g.lastY = p.y
-  const pl = placement(rt.cell, rt.leaf, rt.iw, rt.ih)
-  rt.commit({ ...rt.leaf, cx: rt.leaf.cx - dx / pl.w, cy: rt.leaf.cy - dy / pl.h })
+  const pl = placement(rt.cell, base, rt.iw, rt.ih)
+  const next = { ...base, cx: base.cx - dx / pl.w, cy: base.cy - dy / pl.h }
+  paintDraft(rt, clampLeaf(next, rt.cell, rt.iw, rt.ih))
 }
 
 /** Start the touch hold that arms the carry (see SWAP_HOLD_MS). */
@@ -1174,7 +1212,7 @@ function beginPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
       lastX: 0,
       lastY: 0,
       startDist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
-      base: { ...rt.leaf },
+      base: { ...currentLeaf(rt) },
     }
   }
   else {
@@ -1217,10 +1255,13 @@ function movePointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     // ratio: shrinking an already-minimum photo out of the pane is the
     // explicit exit-to-grid gesture, and it must not commit a zoom either.
     if (g.base.zoom * ratio <= MIN_ZOOM && ratio < 1) {
+      // The pinch out is the exit: keep the view it painted, then leave.
+      flushDraft(rt)
       rt.exitToGrid()
       return
     }
-    rt.zoomAbout(g.base, g.base.zoom * ratio, mid.x, mid.y)
+    const zoomed = zoomLeaf(g.base, rt.cell, rt.iw, rt.ih, g.base.zoom * ratio, mid.x, mid.y)
+    paintDraft(rt, clampLeaf(zoomed, rt.cell, rt.iw, rt.ih))
   }
 }
 
@@ -1233,6 +1274,8 @@ function endPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     if (rt.swapArmedRef.current || g?.mode === 'swap')
       lastCarryEndAt = Date.now()
     rt.gestureRef.current = null
+    // What the gesture painted becomes the board: one update, one undo step.
+    flushDraft(rt)
     rt.clearHold()
     rt.clearSwapHold()
     rt.swapArmedRef.current = false
@@ -1293,6 +1336,7 @@ function paneMenuOpenChange(rt: PaneGestureRuntime, open: boolean, details: Cont
  */
 interface WheelCtx {
   leaf: Leaf
+  draftRef: React.RefObject<Leaf | null>
   iw: number
   ih: number
   exitToGrid: () => void
@@ -1322,8 +1366,13 @@ function handleWheel(rt: WheelCtx, e: WheelEvent) {
     rt.exitToGrid()
     return
   }
+  const base = currentLeaf(rt)
   const p = rt.local(e.clientX, e.clientY)
-  rt.zoomAbout(rt.leaf, nextZoom, p.x, p.y)
+  // A wheel tick is a settled step of its own, committed as it comes (the
+  // stream coalesces in lib/history), so a gesture's painted draft hands over
+  // to it here instead of waiting for a release that may never come.
+  rt.draftRef.current = null
+  rt.zoomAbout(base, nextZoom, p.x, p.y)
 }
 
 /**
@@ -1335,6 +1384,8 @@ function handleWheel(rt: WheelCtx, e: WheelEvent) {
 function usePaneGestures({
   leaf,
   cell,
+  drawRect,
+  draftRef,
   iw,
   ih,
   photo,
@@ -1347,6 +1398,8 @@ function usePaneGestures({
 }: {
   leaf: Leaf
   cell: Rect
+  drawRect: Rect
+  draftRef: React.RefObject<Leaf | null>
   iw: number
   ih: number
   photo: Photo | null
@@ -1443,6 +1496,8 @@ function usePaneGestures({
     paneId: leaf.id,
     leaf,
     cell,
+    drawRect,
+    draftRef,
     iw,
     ih,
     photo,
@@ -1501,10 +1556,10 @@ function usePaneGestures({
     const el = elRef.current
     if (!el)
       return
-    const handler = (e: WheelEvent) => handleWheel({ leaf, iw, ih, exitToGrid, local, zoomAbout }, e)
+    const handler = (e: WheelEvent) => handleWheel({ leaf, draftRef, iw, ih, exitToGrid, local, zoomAbout }, e)
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
-  }, [leaf, iw, ih, local, zoomAbout, exitToGrid, elRef])
+  }, [leaf, iw, ih, local, zoomAbout, exitToGrid, elRef, draftRef])
 
   const toggleLivePin = useCallback(() => {
     if (photo)
@@ -1622,9 +1677,15 @@ function PaneImpl({
   onClose,
 }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null)
+  // A gesture paints its placement straight onto the DOM (see `paintLeaf`), so
+  // the tree still holds the value it started from. Rendering the draft keeps
+  // any render that lands mid-gesture (a photo finishing its decode, say) in
+  // step with the finger, and the release commits the same value.
+  const draftRef = useRef<Leaf | null>(null)
+  const shownLeaf = draftRef.current ?? leaf
   // The photo as this pane shows it: with its texture filter baked in when one
   // is set (`lib/filterCache`, the same pixels the exporter draws).
-  const preview = usePanePreview(photo, leaf.filter)
+  const preview = usePanePreview(photo, shownLeaf.filter)
   const navigate = useNavigate()
 
   // Exit the editor back to the grid overview, morphing the canvas into its cell.
@@ -1639,7 +1700,11 @@ function PaneImpl({
   const ih = preview?.h ?? 0
   // Placement stays on the layout cell so enabling crossfade does not reframe the photo.
   const cell: Rect = layoutRect ?? rect
-  const place = iw && ih ? placement(cell, leaf, iw, ih) : null
+  // Placement stays on the layout cell so enabling crossfade does not reframe
+  // the photo. Derived once: the transform, the Live Photo box, the minimap and
+  // the drop/return targets all read these numbers.
+  const place = iw && ih ? placement(cell, shownLeaf, iw, ih) : null
+  const photoStyle = place ? transformOf(place, rect) : null
 
   const toCanvas = useCallback(
     (clientX: number, clientY: number) => {
@@ -1672,7 +1737,7 @@ function PaneImpl({
     moveGhostTo,
     dropMoveAt,
     cancelMove,
-  } = usePaneGestures({ leaf, cell, iw, ih, photo, elRef, onFocus, exitToGrid, local, commit, zoomAbout })
+  } = usePaneGestures({ leaf, cell, drawRect: rect, draftRef, iw, ih, photo, elRef, onFocus, exitToGrid, local, commit, zoomAbout })
 
   // A drop on a pane that already holds a photo asks what the image should
   // become; `at` is the drop point in pane-normalized coords for stickers.
@@ -1708,8 +1773,12 @@ function PaneImpl({
       data-pane-id={leaf.id}
       data-swap-armed={swapArmed ? '' : undefined}
       data-swap-source={swapAt ? '' : undefined}
+      // The preview's own size rides the element: a divider drag paints the
+      // photo straight onto the DOM and has no hook to ask for it.
+      data-photo-w={iw || undefined}
+      data-photo-h={ih || undefined}
       className={paneShellClass(focused, !!leaf.photoId)}
-      style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h, borderRadius: radiusCss }}
+      style={{ ...paneBoxStyle(rect), borderRadius: radiusCss }}
       onPointerDown={onPointerDown}
       onPointerDownCapture={onPointerDownCapture}
       onPointerMove={onPointerMove}
@@ -1723,8 +1792,7 @@ function PaneImpl({
     >
       <PanePhotoContent
         preview={preview}
-        place={place}
-        rect={rect}
+        transform={photoStyle}
         photoId={leaf.photoId}
         mask={photoMask}
         crossfade={crossfade}
@@ -1734,11 +1802,10 @@ function PaneImpl({
         turn={turn}
       />
 
-      {place && (
+      {photoStyle && (
         <PaneLivePhoto
           photo={photo}
-          place={place}
-          rect={rect}
+          box={photoBoxStyle(cell, rect, shownLeaf, iw, ih)}
           mask={photoMask}
           crossfade={crossfade}
           live={live}
@@ -1759,14 +1826,16 @@ function PaneImpl({
 
       {/* Focus-only, like the × close button: the minimap, parked inside the
           photo at its bottom-right once the photo overflows the pane. */}
-      {place && focused && (
+      {photoStyle && focused && (
         <PaneMinimap
           paneEl={elRef}
-          leaf={leaf}
-          place={place}
+          leaf={shownLeaf}
+          cell={cell}
           rect={rect}
+          iw={iw}
+          ih={ih}
           previewUrl={preview?.url}
-          onPan={(cx, cy) => commit({ ...leaf, cx, cy })}
+          onPan={(cx, cy) => commit({ ...shownLeaf, cx, cy })}
         />
       )}
 
