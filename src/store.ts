@@ -1314,19 +1314,20 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   }),
 
   /**
-   * Append a card the music tool already rendered. It is a complete 1024
-   * square PNG, so this action probes nothing, reads no EXIF, fills no pane
-   * and pushes no undo entry; library edits are outside the board history.
+   * Append a card the music tool already rendered. The renderer passes the
+   * canvas dimensions (a square style or the 4:5 poster), so this action probes
+   * nothing, reads no EXIF, fills no pane and pushes no undo entry; library
+   * edits are outside the board history.
    */
-  addMusicCard: (file, meta) => {
+  addMusicCard: (file, meta, size) => {
     const photo: Photo = {
       id: uid('m'),
       name: file.name,
       file,
       kind: 'music',
       music: meta,
-      trueW: MUSIC_CARD_SIZE,
-      trueH: MUSIC_CARD_SIZE,
+      trueW: size?.width ?? MUSIC_CARD_SIZE,
+      trueH: size?.height ?? MUSIC_CARD_SIZE,
     }
     set(s => ({ photos: [...s.photos, photo] }))
     return photo
@@ -1557,7 +1558,7 @@ interface Actions {
   /** Open the dialog, placing the finished card into `paneId` when it exists. */
   openMusicCard: (paneId: string | null) => void
   /** Append a rendered music card to the library; returns its record. */
-  addMusicCard: (file: File, meta: MusicMeta) => Photo
+  addMusicCard: (file: File, meta: MusicMeta, size?: { width: number, height: number }) => Photo
   clearLibrary: () => void
   resetWorkspace: (id: string) => void
   /** Returns the new workspace's id, or null when the board is full. */
