@@ -117,7 +117,10 @@ what moves.
 The stage's air drives the same canvas value with the wheel (`useStageZoom`), and
 the rail's own wheel steps whatever it is sizing (one notch a step, ctrl/meta
 left to the view zoom), so the two never disagree: throw the wheel on the air and
-the rail redraws at the new size.
+the rail redraws at the new size and raises its readout. A size that changed
+anywhere else (undo, the corner handle, a workspace switch) raises that readout
+too: the bar moving on its own is easy to miss, and a number is what makes it
+legible.
 
 Each target brings its own line (`RailScale`: bounds, ladder step, and the stop
 that reads as natural) and its own readout: the canvas and a sticker read as a
@@ -273,10 +276,15 @@ gesture, and the dividers already own that.
 
 The wheel's range stops at the fit for a practical reason as well as a
 compositional one: a canvas scaled past the fit covers the air the gesture lives
-on, so a wheel that could bleed would eat its own surface and leave the rail as
-the only way back. Past the fit is the deliberate bleed the rail and the corner
-handle offer, and double-clicking the air puts both the canvas and the view back
-to 100%.
+on, so a wheel that could bleed would eat its own surface and then silently
+become a photo zoom under the same pointer. Past the fit is the deliberate bleed
+the rail and the corner handle offer, and double-clicking the air puts both the
+canvas and the view back to 100%.
+
+The wheel is never silent about it: the stage hands the rail a `nudge` on every
+wheel, so the rail's readout comes up (and the rail opens) while the size turns,
+and at a bound it shows the value pinned (`100%`, `15%`) instead of nothing. That
+is the answer to "why did nothing happen": the number says you are at the end.
 
 Composition with the board's own gestures:
 

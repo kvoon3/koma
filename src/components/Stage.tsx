@@ -433,9 +433,13 @@ export function Stage() {
   // rail's canvas line drives), ctrl/meta + wheel scales the working view. The
   // canvas itself keeps every gesture it had, so the wheel there is still the
   // pane's photo zoom.
+  const [sizeNudge, setSizeNudge] = useState(0)
   const resizeByWheel = useCallback((notches: number) => {
     const s = useStore.getState()
     s.setCanvasFill(stepValue(activeWs(s).canvasFill, notches, CANVAS_WHEEL_SCALE))
+    // The readout comes up even when the wheel is already on a bound, so "nothing
+    // moved" reads as "this is the end", not as a dead wheel.
+    setSizeNudge(n => n + 1)
   }, [])
   const fitCanvas = useCallback(() => {
     useStore.getState().setCanvasFill(1)
@@ -514,8 +518,9 @@ export function Stage() {
           button, which stands 30px tall on a mouse and 38px under a finger). */}
       <ViewZoomChip scale={stageZoom.scale} onFit={stageZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
 
-      {/* The size control: a right-edge rail for what is selected. */}
-      <ScaleRail />
+      {/* The size control: a right-edge rail for what is selected. `nudge` is the
+          stage's wheel lights its readout, so the number is there while it turns. */}
+      <ScaleRail nudge={sizeNudge} />
 
       {/* Canvas appearance tools always live in the dock; pane/label tools join
           when relevant. The dock itself is mounted by the root layout. */}

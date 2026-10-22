@@ -263,10 +263,11 @@ describe('the wheel steps a line', () => {
   test('a step is clamped to the bounds', () => {
     expect(stepValue(1.4, 5, CANVAS_SCALE)).toBeCloseTo(MAX_CANVAS_FILL, 9)
     expect(stepValue(0.2, -5, CANVAS_SCALE)).toBeCloseTo(MIN_CANVAS_FILL, 9)
-    expect(stepValue(0.2, -5, CANVAS_WHEEL_SCALE)).toBeCloseTo(MIN_CANVAS_FILL, 9)
-    // The stage's wheel fits the canvas and never bleeds it past the fit.
+    // The stage's wheel fits the canvas and never bleeds it past the fit, while
+    // the rail's own wheel reaches the line's full range.
     expect(stepValue(0.9, 3, CANVAS_WHEEL_SCALE)).toBeCloseTo(1, 9)
     expect(CANVAS_WHEEL_SCALE.max).toBe(CANVAS_SCALE.ref)
+    expect(stepValue(0.9, 3, CANVAS_SCALE)).toBeCloseTo(1.1979, 4)
   })
 
   test('a step through the natural stop takes it exactly', () => {
