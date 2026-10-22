@@ -56,6 +56,18 @@ export const PROVIDER_LABELS: Record<MusicProvider, string> = {
 /** A system sans; the card is offline art, never a bundled brand font. */
 export const CARD_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
 
+/** The lyric typefaces: a system sans or a system serif, both offline. */
+export const LYRIC_FONT_IDS = ['sans', 'serif'] as const
+export type LyricFont = typeof LYRIC_FONT_IDS[number]
+export const LYRIC_FONT_STACKS: Record<LyricFont, string> = {
+  sans: CARD_FONT,
+  serif: 'Georgia, "Iowan Old Style", "Times New Roman", "Songti SC", "Noto Serif CJK SC", serif',
+}
+
+/** The lyric leading, as a multiple of the type size. */
+export const LYRIC_LEADINGS = [1.15, 1.3, 1.45] as const
+export type LyricLeading = typeof LYRIC_LEADINGS[number]
+
 export const TEXT_X = 192
 export const TITLE_MAX_W = 640
 export const TITLE_MAX_SIZE = 54
@@ -206,6 +218,10 @@ export interface MusicCardInput {
   lyrics?: string
   /** How far the lyric type steps; defaults to 1. */
   lyricScale?: number
+  /** The lyric typeface; defaults to `sans`. */
+  lyricFont?: LyricFont
+  /** The lyric leading; defaults to 1.3. */
+  lyricLeading?: LyricLeading
   /** Defaults to `cover`; the rendered PNG carries the variant itself. */
   style?: MusicCardStyle
 }
@@ -249,14 +265,14 @@ export function lyricWindow(lines: string[], measure: Measure, options: LyricWin
   return { lines: out, size, lineHeight: Math.round(size * ratio) }
 }
 
-function font(weight: number, size: number): string {
-  return `${weight} ${size}px ${CARD_FONT}`
+function font(weight: number, size: number, family = CARD_FONT): string {
+  return `${weight} ${size}px ${family}`
 }
 
-/** A measurer bound to one weight; callers only vary the size. */
-function measureFont(ctx: CanvasRenderingContext2D, weight: number): Measure {
+/** A measurer bound to one weight and family; callers only vary the size. */
+function measureFont(ctx: CanvasRenderingContext2D, weight: number, family = CARD_FONT): Measure {
   return (text, size) => {
-    ctx.font = font(weight, size)
+    ctx.font = font(weight, size, family)
     return ctx.measureText(text).width
   }
 }
@@ -403,7 +419,7 @@ function drawLyrics(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, i
   paintLiftedCover(ctx, artwork)
   paintThumbnail(ctx, artwork)
 
-  const measureAt = (weight: number) => measureFont(ctx, weight)
+  const measureAt = (weight: number, family = CARD_FONT) => measureFont(ctx, weight, family)
   const title = fitTitle(input.title, measureAt(600), {
     maxWidth: CARD_SIZE - LYRIC_TITLE_X - LYRIC_PAD,
     maxSize: 36,
@@ -425,16 +441,17 @@ function drawLyrics(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, i
     ctx.fillText(artist, LYRIC_TITLE_X, LYRIC_PAD + 52)
   }
 
-  const window = lyricWindow(firstLyricLines(input.lyrics ?? '', 3), measureAt(600), {
+  const family = LYRIC_FONT_STACKS[input.lyricFont ?? 'sans'] ?? CARD_FONT
+  const window = lyricWindow(firstLyricLines(input.lyrics ?? '', 3), measureAt(600, family), {
     maxWidth: LYRIC_W,
     size: Math.round(64 * (input.lyricScale ?? 1)),
     maxLines: 3,
-    ratio: 1.3,
+    ratio: input.lyricLeading ?? 1.3,
   })
   const blockHeight = window.lines.length * window.lineHeight
   const top = LYRIC_BLOCK_CENTER - blockHeight / 2
   ctx.fillStyle = LYRIC_COLORS.ink
-  ctx.font = font(600, window.size)
+  ctx.font = font(600, window.size, family)
   window.lines.forEach((line, i) => ctx.fillText(line, LYRIC_PAD, top + i * window.lineHeight))
 
   paintMark(ctx, input.provider, LYRIC_PAD, LYRIC_MARK_TOP, LYRIC_COLORS)
