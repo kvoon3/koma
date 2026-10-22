@@ -42,6 +42,7 @@ rows.
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
+| Wheel on the stage's air | Resize the whole canvas (⌘/Ctrl + wheel, or a pinch, zooms the working view) |
 | Wheel / pinch on the stage around the canvas | Scale the whole canvas view (1.1× a notch, clamped 0.25–2.5): a view, not the board, so no undo step and nothing saved. The percentage chip that appears at the stage's top left fits it again on a click, so does a double-click out there |
 | Drag the pane's minimap (photo zoom above ~1.05) | Pan the photo; a tap without a drag recentres it on that point |
 | Double-click inside a pane | Reset that pane's photo |
@@ -112,6 +113,11 @@ leaves the tab order and reports `aria-disabled`; the value it still shows is
 the canvas's, which is what it sizes again most often. Selecting anything draws
 it back out (`seenValue` re-opens it), and the thumb of the thing being sized is
 what moves.
+
+The stage's air drives the same canvas value with the wheel (`useStageZoom`), and
+the rail's own wheel steps whatever it is sizing (one notch a step, ctrl/meta
+left to the view zoom), so the two never disagree: throw the wheel on the air and
+the rail redraws at the new size.
 
 Each target brings its own line (`RailScale`: bounds, ladder step, and the stop
 that reads as natural) and its own readout: the canvas and a sticker read as a
@@ -238,20 +244,39 @@ carries when the sheet has lifted the handle off the corner. At the bounds
 not affect export** (export resolution comes from the long-edge setting in
 Settings; the ratio comes from `ratio`).
 
-### The canvas view zoom (`lib/canvasView.ts`, `hooks.useCanvasViewZoom`)
+### The stage's air: wheel sizes the canvas, ⌘-wheel zooms the view
+(`lib/canvasView.ts`, `hooks.useStageZoom`)
 
 The stage and the grid overview are the same beast: a board centred on a
-checker stage with air around it. The wheel (and a trackpad pinch, which arrives
-as a ctrl+wheel: neither stage tracks pointers of its own) on that air scales
-the WHOLE canvas as a view: a CSS `transform: scale()` about the canvas's
-centre, 1.1× per notch, one event never moving more than 1.1^1.5, clamped to
-0.25–2.5. In the editor the transform rides the canvas box (`Stage.tsx`'s
-`stageRef`); in the overview it rides the board column, caption row included.
-It is session working view only: not part of a workspace, not in the undo
-history, not persisted, and it resets to fit on a route change. The switcher
-owns the stage while it is open, so the overview renders the view at fit and
-ignores the wheel there (the recede and the pager keep the geometry they were
-written against); the scale it had comes back on close.
+checker stage with air around it. In the **editor** the wheel on that air sizes
+the canvas itself: `canvasFill`, the same value the size rail's canvas line
+drives, 1.1× a notch, clamped to 0.15–1 (`CANVAS_WHEEL_SCALE`). That is the
+object the air belongs to, and it is what a wheel there means now that the view
+zoom has its own gesture: a **ctrl/meta + wheel** (which is also how a trackpad
+pinch arrives: neither stage tracks pointers of its own) scales the whole canvas
+as a view, a CSS `transform: scale()` about its centre, clamped to 0.25–2.5. In
+the editor the transform rides the canvas box (`Stage.tsx`'s `stageRef`); in the
+overview, which has no canvas of its own to size, the plain wheel keeps the view
+(the board column, caption row included). That view is session working state
+only: not part of a workspace, not in the undo history, not persisted, and it
+resets to fit on a route change. The switcher owns the stage while it is open, so
+the overview renders the view at fit and ignores the wheel there (the recede and
+the pager keep the geometry they were written against); the scale it had comes
+back on close.
+
+Why the canvas and not the layout: the air is outside the canvas, so the object
+under the gesture is the canvas, and `canvasFill` is exactly what "the canvas's
+size" means in this app (width and height together, 100% = the stage fit, the
+aspect left to the corner handle). Editing the pane tree from outside the canvas,
+with no handle under the pointer, would rearrange the collage under an unrelated
+gesture, and the dividers already own that.
+
+The wheel's range stops at the fit for a practical reason as well as a
+compositional one: a canvas scaled past the fit covers the air the gesture lives
+on, so a wheel that could bleed would eat its own surface and leave the rail as
+the only way back. Past the fit is the deliberate bleed the rail and the corner
+handle offer, and double-clicking the air puts both the canvas and the view back
+to 100%.
 
 Composition with the board's own gestures:
 
@@ -273,9 +298,11 @@ Composition with the board's own gestures:
   dragged onto its neighbour's centre lands in that slot, and a 40px pointer
   drag on a divider moves the divider 40px on screen (80 canvas px).
 
-Trade-off: zooming in grows the canvas over the stage's air, so past ~1.2 there
-is no margin left to wheel and the percentage chip (or a double-click out
-there, while any margin remains) is the way back to fit.
+Trade-off, kept from the view zoom and now behind an explicit modifier: zooming
+the view *in* grows the canvas over the stage's air, so past ~1.15 there is no
+margin left to ⌘-wheel on, and the percentage chip (or the canvas one, or a
+double-click out there while any margin remains) is the way back to fit. The
+wheel itself never gets there: it stops at the fit.
 
 ### Multi-line text labels
 
