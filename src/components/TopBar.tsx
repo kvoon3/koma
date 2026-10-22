@@ -4,7 +4,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Images, Languages, LayoutDashboard, LayoutGrid, LoaderCircle, Moon, Save, Sticker as StickerIcon, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
@@ -12,7 +12,7 @@ import { clearFilterCaches } from '../lib/filterCache'
 import { isTKey, setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
-import { isGridPath, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from '../lib/routes'
+import { isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
@@ -240,8 +240,7 @@ function TopBarMenus({
   onAddPhotos,
   onAddFolder,
   onToggleLib,
-  onGoPhotos,
-  onGoStickers,
+  onGoLibrary,
   onClearAsk,
   onToggleHelp,
   onCrops,
@@ -257,8 +256,7 @@ function TopBarMenus({
   onAddPhotos: () => void
   onAddFolder: () => void
   onToggleLib: () => void
-  onGoPhotos: () => void
-  onGoStickers: () => void
+  onGoLibrary: () => void
   onClearAsk: () => void
   onToggleHelp: () => void
   onCrops: () => void
@@ -281,18 +279,14 @@ function TopBarMenus({
 
       {grid
         ? (
-          // Grid view is pure navigation: the sticker library is the one
-          // asset surface it reaches (crop report is an editing aid and the
-          // photo tools stay hidden), plus Help.
+          // Grid view is pure navigation: the library is the one asset surface
+          // it reaches (crop report is an editing aid and the photo tools stay
+          // hidden), plus Help.
             <>
               <CatMenu label={t('Photo')} icon={ImageIcon} hop={hop} {...menuAt('photo')}>
-                <Menu.Item className={itemCls} onClick={onGoPhotos}>
-                  <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Photos')}
-                </Menu.Item>
-                <Menu.Item className={itemCls} onClick={onGoStickers}>
-                  <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
-                  {t('Stickers')}
+                <Menu.Item className={itemCls} onClick={onGoLibrary}>
+                  <MorphIcon icon={Library} size={13} strokeWidth={1.75} className="flex text-dim" />
+                  {t('Library')}
                 </Menu.Item>
               </CatMenu>
               <CatMenu label={t('Help')} icon={CircleHelp} hop={hop} {...menuAt('help')}>
@@ -316,20 +310,16 @@ function TopBarMenus({
               </Menu.Item>
               <Menu.Item className={itemCls} onClick={onToggleLib}>
                 <MorphIcon icon={LayoutGrid} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Library')}
+                {t('Library drawer')}
                 <span className={hintCls}>
                   {photos ? `${photos} · ` : ''}
                   I
                 </span>
               </Menu.Item>
-              {/* The two libraries are hub destinations, one page away. */}
-              <Menu.Item className={itemCls} onClick={onGoPhotos}>
-                <MorphIcon icon={Images} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Photos')}
-              </Menu.Item>
-              <Menu.Item className={itemCls} onClick={onGoStickers}>
-                <MorphIcon icon={StickerIcon} size={13} strokeWidth={1.75} className="flex text-dim" />
-                {t('Stickers')}
+              {/* The library is a hub destination, one page away. */}
+              <Menu.Item className={itemCls} onClick={onGoLibrary}>
+                <MorphIcon icon={Library} size={13} strokeWidth={1.75} className="flex text-dim" />
+                {t('Library')}
               </Menu.Item>
               <Menu.Separator className="mx-1 my-1 h-px border-0 bg-line" />
               <Menu.Item
@@ -560,8 +550,7 @@ export function TopBar({
         onAddPhotos={() => fileRef.current?.click()}
         onAddFolder={() => dirRef.current?.click()}
         onToggleLib={onToggleLib}
-        onGoPhotos={() => void navigate({ to: PHOTOS_PATH })}
-        onGoStickers={() => void navigate({ to: STICKERS_PATH })}
+        onGoLibrary={() => void navigate({ to: LIBRARY_PATH })}
         onClearAsk={onClearAsk}
         onToggleHelp={onToggleHelp}
         onCrops={onCrops}
