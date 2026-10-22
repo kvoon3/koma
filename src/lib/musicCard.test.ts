@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   DEFAULT_MUSIC_CARD_STYLE,
   fitArtist,
+  fitLyrics,
   fitTitle,
   MUSIC_CARD_STYLE_IDS,
   musicCardFileName,
@@ -94,9 +95,42 @@ describe('the artist line', () => {
   })
 })
 
+describe('the lyric block', () => {
+  test('short lines keep the largest size and each line stays its own line', () => {
+    const fit = fitLyrics(['When you were here before', 'Couldn\'t look you in the eye'], measure)
+    expect(fit.size).toBe(56)
+    expect(fit.lines).toEqual(['When you were here before', 'Couldn\'t look you in the eye'])
+    expect(fit.lineHeight).toBe(76)
+  })
+
+  test('a long line shrinks the block until every line fits', () => {
+    const fit = fitLyrics(['a'.repeat(40), 'short'], measure)
+    expect(fit.size).toBeLessThan(56)
+    for (const line of fit.lines)
+      expect(measure(line, fit.size)).toBeLessThanOrEqual(820)
+  })
+
+  test('a line too long at the minimum gets the ellipsis', () => {
+    const fit = fitLyrics(['a'.repeat(80)], measure, { minSize: 30, maxSize: 40 })
+    expect(fit.size).toBe(30)
+    expect(fit.lines[0]!.endsWith('…')).toBe(true)
+    expect(measure(fit.lines[0]!, 30)).toBeLessThanOrEqual(820)
+  })
+
+  test('only the leading lines and non-empty lines are kept', () => {
+    const fit = fitLyrics(['one', '  ', 'two', 'three', 'four', 'five', 'six'], measure, { maxLines: 3 })
+    expect(fit.lines).toEqual(['one', 'two', 'three'])
+  })
+
+  test('no lyrics draws no block', () => {
+    expect(fitLyrics([], measure).lines).toEqual([])
+    expect(fitLyrics(['   '], measure).lines).toEqual([])
+  })
+})
+
 describe('the style list', () => {
-  test('it names the five compositions once, with classic as the default', () => {
-    expect([...MUSIC_CARD_STYLE_IDS]).toEqual(['classic', 'noir', 'polaroid', 'vinyl', 'editorial'])
+  test('it names the six compositions once, with classic as the default', () => {
+    expect([...MUSIC_CARD_STYLE_IDS]).toEqual(['classic', 'noir', 'polaroid', 'vinyl', 'editorial', 'lyric'])
     expect(new Set(MUSIC_CARD_STYLE_IDS).size).toBe(MUSIC_CARD_STYLE_IDS.length)
     expect(DEFAULT_MUSIC_CARD_STYLE).toBe('classic')
   })
