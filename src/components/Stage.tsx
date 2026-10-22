@@ -13,7 +13,7 @@ import { Popover } from '@base-ui/react/popover'
 import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview, useToolsSheetTop } from '../hooks'
+import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { collectBoard, dividerBandStyle, dividerGripStyle, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
@@ -47,8 +47,6 @@ const NO_LABELS: PaneLabel[] = []
 
 const HIT_MIN = 15
 const MIN_CANVAS = 120
-/** The corner handle's half-size: `-right-3.5 -bottom-3.5` on a 28px box. */
-const HANDLE_HALF = 14
 
 /** `bindAction`'s `when` for the Location tool: the photo has an EXIF fix. */
 function photoHasGps(p: { photo: Photo | null }): boolean {
@@ -628,8 +626,6 @@ function StageCanvas({
 
           <CanvasResizeHandle
             sizing={sizing}
-            viewScale={viewScale}
-            stageRef={stageRef}
             label={t('Drag to change canvas aspect · double-click to reset')}
             onPointerDown={onBeginResize}
             onDoubleClick={onResetRatio}
@@ -894,87 +890,26 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
 }
 
 /**
- * How far the corner handle has to leave the corner to stay above the tools
- * sheet, in viewport px (0 when the sheet is not over it).
- *
- * The sheet is an overlay with no put-away state, and a canvas scaled past the
- * stage fit runs underneath it, so the corner the direct resize handle sits on
- * disappears behind the glass as the canvas grows. The rail is the control that
- * is always reachable; this keeps the direct one too, sliding it up the canvas's
- * right edge until it clears the sheet, never past the canvas's own top.
- */
-function useSheetLift(
-  canvasRef: React.RefObject<HTMLDivElement | null>,
-  sheetTop: number | null,
-  viewScale: number,
-): number {
-  const [lift, setLift] = useState(0)
-
-  useLayoutEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || sheetTop == null)
-      return
-    let frame = 0
-    const read = () => {
-      frame = 0
-      const r = canvas.getBoundingClientRect()
-      const half = HANDLE_HALF * viewScale
-      // Keep the whole handle on screen above the sheet, with a small gap, and
-      // never lift it past the canvas's own top edge.
-      const over = r.bottom + half - (sheetTop - 8)
-      const next = Math.min(Math.max(0, r.height - 28 * viewScale - 16), Math.max(0, over))
-      setLift(prev => (Math.abs(prev - next) < 0.5 ? prev : next))
-    }
-    const queue = () => {
-      if (!frame)
-        frame = requestAnimationFrame(read)
-    }
-    // The canvas moves for three reasons the stage does not re-render on: the
-    // view zoom's transform, the sheet's spring-driven display, and a resize.
-    const ro = new ResizeObserver(queue)
-    ro.observe(canvas)
-    const mo = new MutationObserver(queue)
-    mo.observe(canvas, { attributes: true, attributeFilter: ['style'] })
-    window.addEventListener('resize', queue)
-    queue()
-    return () => {
-      ro.disconnect()
-      mo.disconnect()
-      window.removeEventListener('resize', queue)
-      if (frame)
-        cancelAnimationFrame(frame)
-    }
-  }, [canvasRef, sheetTop, viewScale])
-
-  // No sheet over the corner (or no measurement yet) is no lift: derived here
-  // instead of reset by an effect, so a route back to a clear corner does not
-  // re-render twice.
-  return sheetTop == null ? 0 : lift
-}
-
-/**
  * The canvas aspect handle: a chip straddling the bottom-right corner, dragging
- * it reshapes the canvas and double-clicking follows the first photo again. It
- * lifts itself over the tools sheet (`useSheetLift`) rather than hiding, so the
- * direct control is there whenever the canvas is.
+ * it reshapes the canvas and double-clicking follows the first photo again.
+ *
+ * It is pinned to that corner, always: it is board chrome, so it rides the
+ * canvas and the view zoom and nothing else. The tools sheet may cover it (the
+ * sheet is an overlay with no put-away state, and a tall canvas runs under it),
+ * which is exactly the job the right-edge rail exists for: this one reshapes the
+ * canvas, that one scales it. Scaled past the fit the canvas's corner itself
+ * leaves the stage, and the handle goes with the corner it marks.
  */
-function CanvasResizeHandle({ sizing, viewScale, stageRef, label, onPointerDown, onDoubleClick }: {
+function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
   sizing: boolean
-  viewScale: number
-  stageRef: React.RefObject<HTMLDivElement | null>
   label: string
   onPointerDown: React.PointerEventHandler<HTMLDivElement>
   onDoubleClick: React.MouseEventHandler<HTMLDivElement>
 }) {
-  const sheetTop = useToolsSheetTop()
-  const lift = useSheetLift(stageRef, sheetTop, viewScale)
   return (
     <div
       data-canvas-resize-handle=""
-      className={`absolute -right-3.5 -bottom-3.5 z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale,translate] duration-(--dur-fast) active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
-      // Canvas px, so the view zoom's transform puts it at the same distance on
-      // screen as the drop it needs to clear.
-      style={lift ? { translate: `0 ${(-lift / viewScale).toFixed(2)}px` } : undefined}
+      className={`absolute -right-3.5 -bottom-3.5 z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
       title={label}
