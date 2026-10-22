@@ -202,7 +202,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
             <div className="flex flex-col gap-1.5 sm:flex-row">
               <input
-                className="box-border h-[30px] min-w-0 flex-1 border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-faint focus-visible:border-accent"
+                className="box-border h-[30px] min-w-0 flex-1 border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent"
                 value={link}
                 placeholder={t('Paste a Spotify or Apple Music link')}
                 aria-label={t('Paste a Spotify or Apple Music link')}
@@ -224,7 +224,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             </div>
 
             {/* Fixed line: the dialog must not resize as the error comes and goes. */}
-            <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-faint'}`} data-music-error="">
+            <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-dim'}`} data-music-error="">
               {error ?? t('A link turns into a square card you can place like a photo.')}
             </p>
 
@@ -235,16 +235,16 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             </div>
 
             {music && (
-              <span className="mx-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint" data-music-provider={music.provider}>
+              <span className="mx-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim" data-music-provider={music.provider}>
                 <span className="h-2 w-2 rounded-full" style={{ background: music.provider === 'spotify' ? '#1DB954' : '#FA243C' }} />
                 {PROVIDER_LABELS[music.provider]}
               </span>
             )}
 
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">{t('Title')}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Title')}</span>
               <input
-                className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-faint focus-visible:border-accent disabled:opacity-50"
+                className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
                 value={title}
                 disabled={!music}
                 aria-label={t('Title')}
@@ -254,9 +254,9 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">{t('Artist')}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Artist')}</span>
               <input
-                className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-faint focus-visible:border-accent disabled:opacity-50"
+                className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
                 value={artist}
                 disabled={!music}
                 aria-label={t('Artist')}
