@@ -67,7 +67,7 @@ export function LibraryHeader({
         <label className="flex h-[26px] w-full min-w-0 items-center gap-1.5 border border-line-strong bg-panel-2 px-1.5 max-sm:order-last sm:w-[190px]">
           <MorphIcon icon={Search} size={12} strokeWidth={1.75} className="flex-none text-faint" />
           <input
-            className="min-w-0 flex-1 border-0 bg-transparent text-[11.5px] text-txt outline-0 placeholder:text-faint"
+            className="min-w-0 flex-1 border-0 bg-transparent text-[11.5px] text-txt outline-0 placeholder:text-dim"
             value={query}
             placeholder={t('Search library')}
             aria-label={t('Search library')}
