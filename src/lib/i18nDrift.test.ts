@@ -2,6 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
+import { ja } from './locales/ja'
 import { zhHans } from './locales/zh-Hans'
 import { zhHant } from './locales/zh-Hant'
 
@@ -58,7 +59,7 @@ function tElementKeys(source: string): string[] {
 }
 
 const literalKeys = new Set([...tCallKeys(appSource), ...tElementKeys(appSource)])
-const dictionaries: Record<string, Record<string, string>> = { 'zh-Hans': zhHans, 'zh-Hant': zhHant }
+const dictionaries: Record<string, Record<string, string>> = { 'zh-Hans': zhHans, 'zh-Hant': zhHant, 'ja': ja }
 
 /** Does this key appear anywhere in the app source as a string literal? */
 function reachable(key: string): boolean {
@@ -72,7 +73,7 @@ describe('i18n dictionaries vs. call sites', () => {
     expect(Object.keys(zhHans).length).toBeGreaterThan(100)
   })
 
-  test('every literal handed to t() is translated in both dictionaries', () => {
+  test('every literal handed to t() is translated in all dictionaries', () => {
     const missing: string[] = []
     for (const key of literalKeys) {
       for (const [lang, dict] of Object.entries(dictionaries)) {
@@ -83,11 +84,10 @@ describe('i18n dictionaries vs. call sites', () => {
     expect(missing).toEqual([])
   })
 
-  test('both dictionaries define the same keys', () => {
-    const hans = Object.keys(zhHans).sort()
-    const hant = Object.keys(zhHant).sort()
-    expect(hans.filter(k => !(k in zhHant))).toEqual([])
-    expect(hant.filter(k => !(k in zhHans))).toEqual([])
+  test('all dictionaries define the same keys', () => {
+    const keys = Object.keys(zhHans).sort()
+    for (const [lang, dict] of Object.entries(dictionaries))
+      expect({ lang, keys: Object.keys(dict).sort() }).toEqual({ lang, keys })
   })
 
   test('no dictionary entry is dead weight', () => {
