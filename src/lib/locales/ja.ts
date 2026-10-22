@@ -743,4 +743,7 @@ export const ja: Record<TKey, string> = {
   'Photo minimap, drag to pan': '写真ミニマップ、ドラッグで移動',
   // Canvas view zoom: the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': 'キャンバス {n}% · クリックでフィット',
+  // Unified library
+  'No photos match this search or filter.': 'この検索や絞り込みに合う写真はありません。',
+  'No stickers match this search or filter.': 'この検索や絞り込みに合うステッカーはありません。',
 }
