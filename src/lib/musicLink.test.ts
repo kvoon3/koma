@@ -7,6 +7,7 @@ import {
   parseMusicLink,
   pickAppleResult,
   readAppleResults,
+  readMusicMeta,
   readSpotifyOembed,
   resolveMusic,
   spotifyArtworkUrl,
@@ -216,5 +217,48 @@ describe('resolveMusic', () => {
       throw new Error('fixtures did not parse')
     expect(musicLookupUrl(s.link)).toBe('https://open.spotify.com/oembed?url=https%3A%2F%2Fopen.spotify.com%2Ftrack%2F4uLU6hMCjMI75M1A2tKUQC')
     expect(musicLookupUrl(a.link)).toBe('https://itunes.apple.com/lookup?id=1559885421&entity=song&country=jp')
+  })
+})
+
+describe('music metadata from a workspace file', () => {
+  test('the two canonical provider URLs are kept', () => {
+    expect(readMusicMeta({
+      provider: 'spotify',
+      title: 'Never Gonna Give You Up',
+      artist: '',
+      url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC',
+    })).toEqual({
+      provider: 'spotify',
+      title: 'Never Gonna Give You Up',
+      artist: '',
+      url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC',
+    })
+    expect(readMusicMeta({
+      provider: 'apple',
+      title: 'Never Gonna Give You Up',
+      artist: 'Rick Astley',
+      url: 'https://music.apple.com/us/album/never-gonna-give-you-up/1559885420?i=1559885421',
+    })).toMatchObject({ provider: 'apple', artist: 'Rick Astley' })
+  })
+
+  test('an arbitrary href is dropped rather than becoming an anchor', () => {
+    for (const url of [
+      'javascript:alert(1)',
+      'https://evil.example/track/4uLU6hMCjMI75M1A2tKUQC',
+      'https://open.spotify.com/track/short',
+    ]) {
+      expect(readMusicMeta({ provider: 'spotify', title: 'x', artist: '', url })).toBeNull()
+    }
+  })
+
+  test('the URL has to match the provider it names', () => {
+    expect(readMusicMeta({
+      provider: 'spotify',
+      title: 'x',
+      artist: '',
+      url: 'https://music.apple.com/us/album/a/1559885420',
+    })).toBeNull()
+    expect(readMusicMeta(null)).toBeNull()
+    expect(readMusicMeta('spotify')).toBeNull()
   })
 })
