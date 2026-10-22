@@ -65,7 +65,10 @@ SOFTWARE.
 ## Local background-removal model
 
 See `public/models/BritishWerewolf/U-2-Netp/LICENSE` (Apache License 2.0).
-```
 
-Let's run typecheck/build to ensure comments didn't break.<|end|><|start|> Nodoor <|end|><|start|>startup<|message|>analysis <|constrain|>xml<|message|><rfl:parameter name="command">
-cd /Users/kvoon/.herdr/worktrees/koma/worktree-clear-cloud-860a && npx tsc --noEmit 2>&1 | head -30
+## Provider logos
+
+The Spotify and Apple Music marks in `src/lib/brandIcons.ts` come from
+[Simple Icons](https://simpleicons.org), released under CC0 1.0. The marks
+themselves are trademarks of their owners and appear only to name the service
+a card was made from.
