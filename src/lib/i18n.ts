@@ -4,6 +4,8 @@ import { ja } from './locales/ja'
 import { zhHans } from './locales/zh-Hans'
 import { zhHant } from './locales/zh-Hant'
 
+export type { TKey } from './locales/zh-Hans'
+
 /**
  * BCP-47 tags for the interface languages. `zh-Hant` covers Taiwan / Hong
  * Kong / Macau, `zh-Hans` is Simplified Chinese, and `ja` is Japanese. `en`
