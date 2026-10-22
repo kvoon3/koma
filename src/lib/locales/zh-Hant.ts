@@ -285,6 +285,8 @@ export const zhHant: Record<TKey, string> = {
   'Replace': '換照片',
   'Text': '文字',
   'Tools': '工具',
+  'Canvas size': '畫布大小',
+  'Drag to resize the canvas · double-click to fit': '拖曳調整畫布大小 · 雙擊回復適配',
   'Drag to change canvas aspect · double-click to reset': '拖曳改變畫布比例 · 雙擊重設',
   'Make': '製作貼圖',
   'Make a sticker from text or an image': '用文字或圖片製作貼圖',
@@ -371,7 +373,7 @@ export const zhHant: Record<TKey, string> = {
 
   // HelpOverlay
   'How to use': '使用說明',
-  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Up to nine workspaces live behind the G key: the grid shows them all, drag one to reorder it (long-press on touch) or onto the red strip under the top bar to delete it, + adds one, click one to edit it.': '一開始只有一個窗格。滑鼠移到任一窗格，它的正上方會淡入一顆「切割」按鈕（視窗寬度小於 lg 時同一組按鈕也會出現在頂列正中央），拖曳分隔線就能調整窗格大小，就像終端機裡的窗格一樣。這個窗格的工具（貼圖 / 換照片 / 文字）位於底部列上方的面板中，預設為展開狀態（面板上緣的把手可以收合）。每張照片都住在窗格裡：在窗格內拖曳、縮放，**超出窗格的部分會自動裁切掉**，因此只要安排窗格、縮放照片，就是全部的裁切與拼接流程。拖曳畫布右下角的手柄可以改變畫布比例，預設會跟著第一張照片。最多九個工作區藏在 G 鍵後面：按 G 開啟總覽，拖曳即可重新排序（觸控需長按），拖到頂列下方的紅色條即可刪除，+ 可以新增一個，點選任一格即可進入編輯。',
+  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the handle at the canvas\'s bottom-right corner to change the canvas aspect ratio (it starts out following the first photo), and the rail on the right edge to scale the whole canvas, width and height together; a double-click on either fits the canvas again. Up to nine workspaces live behind the G key: the grid shows them all, drag one to reorder it (long-press on touch) or onto the red strip under the top bar to delete it, + adds one, click one to edit it.': '一開始只有一個窗格。滑鼠移到任一窗格，它的正上方會淡入一顆「切割」按鈕（視窗寬度小於 lg 時同一組按鈕也會出現在頂列正中央），拖曳分隔線就能調整窗格大小，就像終端機裡的窗格一樣。這個窗格的工具（貼圖 / 換照片 / 文字）位於底部列上方的面板中，預設為展開狀態（面板上緣的把手可以收合）。每張照片都住在窗格裡：在窗格內拖曳、縮放，**超出窗格的部分會自動裁切掉**，因此只要安排窗格、縮放照片，就是全部的裁切與拼接流程。拖曳畫布右下角的手柄可以改變畫布比例（預設跟著第一張照片），拖曳右側邊緣的滑桿則整體縮放畫布（長寬同時變化）；雙擊其中任一個都能重新適配畫布。最多九個工作區藏在 G 鍵後面：按 G 開啟總覽，拖曳即可重新排序（觸控需長按），拖到頂列下方的紅色條即可刪除，+ 可以新增一個，點選任一格即可進入編輯。',
   'Keyboard': '鍵盤',
   'Mouse / Trackpad': '滑鼠 / 觸控板',
   'Focus the pane left / down / up / right': '將焦點切到左 / 下 / 上 / 右的窗格',
@@ -408,6 +410,8 @@ export const zhHant: Record<TKey, string> = {
   'Resize that split; only the two adjacent panes are affected': '調整這個分割的大小，僅影響相鄰的兩個窗格',
   'Drag the handle at the bottom-right of the canvas': '拖曳畫布右下角的手柄',
   'Change the canvas aspect ratio (double-click to follow the first photo again)': '改變畫布比例（雙擊可重新跟著第一張照片的長寬比）',
+  'Drag the rail on the right edge': '拖曳右側邊緣的滑桿',
+  'Resize the canvas, width and height together (double-click to fit it again)': '整體縮放畫布，長寬同時變化（雙擊可重新適配）',
   'Drag inside a pane': '在窗格內拖曳',
   'Pan the photo; whatever falls outside the pane is cropped': '平移照片；超出窗格的部分會被裁掉',
   'Press and hold a pane, then drag (touch)': '長按窗格並拖曳（觸控）',

@@ -262,42 +262,38 @@ export function useMediaQuery(query: string): boolean {
 }
 
 /**
- * The tools sheet's top edge in viewport px, or null while no sheet is mounted.
+ * An edge of a piece of chrome that floats over the stage, in viewport px, or
+ * null while it is not mounted.
  *
- * The sheet is a fixed overlay with no put-away state (`lib/toolsDockMode`), and
- * a tall canvas keeps running underneath it, so the bottom of the stage (a
- * pane's bottom-right corner with it) can sit behind the sheet's glass. Board
- * chrome that pins itself to a pane's bottom edge reads this to lift itself over
- * the sheet instead.
- *
- * Observed, not read once: the sheet is a sibling of the stage, so nothing
- * would re-render the board when it moves. Its display rides a spring, which
- * moves the sheet without ever resizing its box (the box is the tallest
- * display's, the position is a transform), so a resize observer alone misses a
- * display change: the style the spring writes is watched too, and the edge is
- * read once per frame at most.
+ * Observed, not read once: floating chrome is a sibling of the stage (or an
+ * overlay over it), so nothing would re-render the board when it moves. Its
+ * display rides a spring, which moves it without ever resizing its box (the box
+ * is the tallest display's, the position is a transform), so a resize observer
+ * alone misses a display change: the style the spring writes is watched too, and
+ * the edge is read once per frame at most.
  */
-export function useToolsSheetTop(): number | null {
-  const [top, setTop] = useState<number | null>(null)
+function useChromeEdge(selector: string, edge: 'top' | 'bottom'): number | null {
+  const [at, setAt] = useState<number | null>(null)
 
   useLayoutEffect(() => {
-    const sheet = document.querySelector('[data-dock-mode]')
-    if (!sheet)
+    const el = document.querySelector(selector)
+    if (!el)
       return
     let frame = 0
     const read = () => {
       frame = 0
-      const next = sheet.getBoundingClientRect().top
-      setTop(prev => (prev != null && Math.abs(prev - next) < 0.5 ? prev : next))
+      const rect = el.getBoundingClientRect()
+      const next = edge === 'top' ? rect.top : rect.bottom
+      setAt(prev => (prev != null && Math.abs(prev - next) < 0.5 ? prev : next))
     }
     const queue = () => {
       if (!frame)
         frame = requestAnimationFrame(read)
     }
     const mo = new MutationObserver(queue)
-    mo.observe(sheet, { attributes: true, attributeFilter: ['style', 'data-dock-mode'] })
+    mo.observe(el, { attributes: true, attributeFilter: ['style', 'data-dock-mode'] })
     const ro = new ResizeObserver(queue)
-    ro.observe(sheet)
+    ro.observe(el)
     window.addEventListener('resize', queue)
     queue()
     return () => {
@@ -307,7 +303,30 @@ export function useToolsSheetTop(): number | null {
       if (frame)
         cancelAnimationFrame(frame)
     }
-  }, [])
+  }, [selector, edge])
 
-  return top
+  return at
+}
+
+/**
+ * The tools sheet's top edge in viewport px, or null while no sheet is mounted.
+ *
+ * The sheet is a fixed overlay with no put-away state (`lib/toolsDockMode`), and
+ * a tall canvas keeps running underneath it, so the bottom of the stage (a
+ * pane's bottom-right corner with it) can sit behind the sheet's glass. Board
+ * chrome that pins itself to a pane's bottom edge reads this to lift itself over
+ * the sheet instead.
+ */
+export function useToolsSheetTop(): number | null {
+  return useChromeEdge('[data-dock-mode]', 'top')
+}
+
+/**
+ * The bottom edge of the stage's top-right action cluster (undo / redo /
+ * history / reset), in viewport px. The rail's top is the other end of the same
+ * problem the sheet poses at the bottom: a short stage has no room above it, so
+ * its scale has to start below the buttons instead of running behind them.
+ */
+export function useFloatingActionsBottom(): number | null {
+  return useChromeEdge('[data-float-actions]', 'bottom')
 }

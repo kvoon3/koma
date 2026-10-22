@@ -86,7 +86,7 @@ const START = 'start'
  * of commits from two quick clicks on a discrete action: only gestures
  * coalesce, so pressing split twice in half a second stays two undo steps.
  */
-const GESTURE_TAGS = new Set(['setCanvasSize'])
+const GESTURE_TAGS = new Set(['setCanvasSize', 'setCanvasFill'])
 
 /** Is this tag a gesture's stream of commits (one step per gesture)? */
 export function isGestureTag(tag: string): boolean {
@@ -397,6 +397,7 @@ const LABELS: Record<string, TKey> = {
   setLabel: 'Edit text',
   // the board
   setCanvasSize: 'Canvas ratio',
+  setCanvasFill: 'Canvas size',
   resetWorkspace: 'Reset workspace',
   resetAllWorkspaces: 'Reset every workspace',
   addWorkspace: 'Add workspace',

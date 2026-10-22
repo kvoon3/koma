@@ -287,6 +287,8 @@ export const zhHans = {
   'Replace': '换照片',
   'Text': '文字',
   'Tools': '工具',
+  'Canvas size': '画布大小',
+  'Drag to resize the canvas · double-click to fit': '拖动调整画布大小 · 双击恢复适配',
   'Drag to change canvas aspect · double-click to reset': '拖动改变画布比例 · 双击恢复',
   'Make': '制作贴图',
   'Make a sticker from text or an image': '用文字或图片制作贴图',
@@ -373,7 +375,7 @@ export const zhHans = {
 
   // HelpOverlay
   'How to use': '使用说明',
-  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the bottom-right handle to change the canvas aspect ratio; it starts out following the first photo. Up to nine workspaces live behind the G key: the grid shows them all, drag one to reorder it (long-press on touch) or onto the red strip under the top bar to delete it, + adds one, click one to edit it.': '一开始只有一个窗格。悬停任意窗格，它的顶部中央会淡入拆分按钮，用它**拆分**出更多窗格（窄于 lg 时顶栏中间也有同一组按钮），拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴图 / 替换照片 / 文字）在一个底部栏上方的面板里，默认展开（也可以用面板上边缘的把手收起）。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动右下角的手柄可以改变画布比例，它最初会跟随第一张照片。G 键后面藏着最多九个工作区：网格可以总览全部，拖动即可重新排序（触屏需长按），拖到顶栏下方的红色条即可删除，+ 可以新增一个，点击其中一个即可编辑。',
+  'You start with a single pane. **Split** it with the chip that fades in at the top center of a pane you hover (up to lg the same chip also sits in the top row), and drag dividers to resize the panes, like panes in a terminal. That pane\'s tools (sticker / replace photo / text label) live in a panel above the footer, open by default (the handle on its top edge puts it away). Each photo lives in a pane; drag / zoom inside it, and **whatever falls outside the pane is cropped away**, so arranging panes and zooming photos is all there is to cropping and stitching. Drag the handle at the canvas\'s bottom-right corner to change the canvas aspect ratio (it starts out following the first photo), and the rail on the right edge to scale the whole canvas, width and height together; a double-click on either fits the canvas again. Up to nine workspaces live behind the G key: the grid shows them all, drag one to reorder it (long-press on touch) or onto the red strip under the top bar to delete it, + adds one, click one to edit it.': '一开始只有一个窗格。悬停任意窗格，它的顶部中央会淡入拆分按钮，用它**拆分**出更多窗格（窄于 lg 时顶栏中间也有同一组按钮），拖动分隔条调整它们的大小，就像终端里的窗格一样。它的工具（贴图 / 替换照片 / 文字）在一个底部栏上方的面板里，默认展开（也可以用面板上边缘的把手收起）。每张照片都住在一个窗格里：在窗格内拖动 / 缩放，**超出窗格的部分就会被裁掉**，所以裁切和拼合其实就是摆好窗格、缩放照片。拖动画布右下角的手柄可以改变画布比例（最初跟随第一张照片），拖动右边缘的滑条则整体缩放画布（长宽同时变化）；双击其中任一个都能重新适配画布。G 键后面藏着最多九个工作区：网格可以总览全部，拖动即可重新排序（触屏需长按），拖到顶栏下方的红色条即可删除，+ 可以新增一个，点击其中一个即可编辑。',
   'Keyboard': '键盘',
   'Mouse / Trackpad': '鼠标 / 触控板',
   'Focus the pane left / down / up / right': '聚焦左 / 下 / 上 / 右的窗格',
@@ -410,6 +412,8 @@ export const zhHans = {
   'Resize that split; only the two adjacent panes are affected': '调整该分割的大小，只影响相邻的两个窗格',
   'Drag the handle at the bottom-right of the canvas': '拖动画布右下角的手柄',
   'Change the canvas aspect ratio (double-click to follow the first photo again)': '改变画布比例（双击可重新跟随第一张照片的宽高比）',
+  'Drag the rail on the right edge': '拖动右边缘的滑条',
+  'Resize the canvas, width and height together (double-click to fit it again)': '整体缩放画布，长宽同时变化（双击可重新适配）',
   'Drag inside a pane': '在窗格内拖动',
   'Pan the photo; whatever falls outside the pane is cropped': '平移照片；超出窗格的部分会被裁掉',
   'Press and hold a pane, then drag (touch)': '长按窗格并拖动（触屏）',
