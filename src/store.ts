@@ -4,6 +4,7 @@ import type { CutoutSets } from './lib/cutoutVariants'
 import type { FilterValue } from './lib/filters'
 import type { History } from './lib/history'
 import type { Photo } from './lib/imageStore'
+import type { MusicMeta } from './lib/musicLink'
 import type { FocusDir, Leaf, Node, PaneLabel, Sticker } from './lib/panes'
 import type { PhotoKind } from './lib/photoLibrary'
 import type { SessionMeta } from './lib/sessionStore'
@@ -25,6 +26,7 @@ import {
 import { emptyHistory, jump, record, stepDown, stepUp } from './lib/history'
 import { clearImageCaches } from './lib/imageStore'
 import { migrateWorkspaceInserts } from './lib/layout'
+import { CARD_SIZE as MUSIC_CARD_SIZE } from './lib/musicCard'
 import {
   cloneNode,
   deletePane,
@@ -58,7 +60,7 @@ import {
   folderOf,
   gcRetired,
   normalizePhotoKinds,
-  photoAssetsOf,
+  paneAssetsOf,
   pruneCutouts,
   referenceCounts,
   renameFolder,
@@ -180,6 +182,11 @@ interface State extends PersistedSettings {
    * Stage's own state because the pane menu opens the dialog too.
    */
   stickerMakerFor: string | null
+  /**
+   * The app-wide music card dialog. A store flag for the same reason: the
+   * stage dock and the library header open the one dialog mounted by the root.
+   */
+  musicCardOpen: boolean
   /** Cut-out photo id → the photo it was cut from (see lib/cutout); saved with the session. */
   cutouts: CutoutMap
   /** The one running pane cutout, for the pane's progress overlay. Session-only. */
@@ -393,6 +400,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelEditReq: null,
   paneClip: null,
   stickerMakerFor: null,
+  musicCardOpen: false,
   history: emptyHistory(),
 
   addPhotos: (files, autoFill = true, kind: PhotoKind = 'photo') => {
@@ -1095,9 +1103,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   autoFill: () => {
     const s = get()
-    // Stickers are decoration, never a pane's photo: the fill only draws from
-    // the photo library.
-    const pool = photoAssetsOf(s.photos)
+    // Stickers are decoration, never a pane's photo. Photos and music cards
+    // are both images, so the fill draws from the pane pool.
+    const pool = paneAssetsOf(s.photos)
     if (!pool.length)
       return
     let k = 0
@@ -1263,6 +1271,30 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       workspaces: mapActive(s, w => ({ ...w, labels: (w.labels ?? []).filter(l => l.id !== labelId) })),
       labelSel: s.labelSel === labelId ? null : s.labelSel,
     }))
+  },
+
+  // ---- music cards (a library surface, outside the board history) ----------
+
+  /** Open or close the one app-wide music card dialog. */
+  setMusicCardOpen: open => set({ musicCardOpen: open }),
+
+  /**
+   * Append a card the music tool already rendered. It is a complete 1024
+   * square PNG, so this action probes nothing, reads no EXIF, fills no pane
+   * and pushes no undo entry; library edits are outside the board history.
+   */
+  addMusicCard: (file, meta) => {
+    const photo: Photo = {
+      id: uid('m'),
+      name: file.name,
+      file,
+      kind: 'music',
+      music: meta,
+      trueW: MUSIC_CARD_SIZE,
+      trueH: MUSIC_CARD_SIZE,
+    }
+    set(s => ({ photos: [...s.photos, photo] }))
+    return photo
   },
 
   // ---- sticker management (a library surface, outside the board history) ---
@@ -1485,6 +1517,10 @@ interface Actions {
   closeOtherPanes: (paneId: string) => void
   closeEmptyPanes: () => void
   openStickerMaker: (paneId: string | null) => void
+  /** Open or close the one app-wide music card dialog. */
+  setMusicCardOpen: (open: boolean) => void
+  /** Append a rendered music card to the library; returns its record. */
+  addMusicCard: (file: File, meta: MusicMeta) => Photo
   clearLibrary: () => void
   resetWorkspace: (id: string) => void
   /** Returns the new workspace's id, or null when the board is full. */

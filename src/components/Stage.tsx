@@ -10,7 +10,7 @@ import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '.
 import type { StickerTarget } from '../lib/stickerAssets'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
+import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview } from '../hooks'
@@ -1086,6 +1086,9 @@ function buildPaneTools(input: PaneToolsInput) {
     { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: bind({ requires: 'photo', run: p => pickStickersForPane(p.paneId) }) },
     cutoutTool,
     { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind({ requires: 'photo', run: p => openStickerMaker(p.paneId) }) },
+    // A library action, not a pane one: it opens with or without a focused
+    // photo, and the card it adds is placed from the library like any image.
+    { key: 'music', icon: Music, label: t('Music'), hint: t('Make a music card from a Spotify or Apple Music link'), onClick: () => useStore.getState().setMusicCardOpen(true) },
     textTool,
     locationTool,
     {

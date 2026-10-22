@@ -14,7 +14,7 @@ import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
 import { isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
-import { photoAssetsOf } from '../lib/stickerLibrary'
+import { paneAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
 import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, migrateWorkspaceInserts, normalizeWorkspaces, useStore } from '../store'
@@ -463,8 +463,8 @@ export function TopBar({
     return () => window.removeEventListener('mousemove', onBarPointerMove)
   }, [openMenu, settingsOpen])
 
-  // The hint counts what the drawer shows: photos, never stickers.
-  const photos = useStore(s => photoAssetsOf(s.photos).length)
+  // The hint counts what the drawer shows: photos and music cards, never stickers.
+  const photos = useStore(s => paneAssetsOf(s.photos).length)
   const root = useStore(s => activeWs(s).root)
   const anyFilled = useStore(s =>
     s.workspaces.some(w => leafList(w.root).some(l => l.photoId)))

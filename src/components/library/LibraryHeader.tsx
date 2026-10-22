@@ -1,6 +1,6 @@
 import type { LibraryFilter, LibraryType } from '../../lib/library'
 import { useNavigate, useRouter } from '@tanstack/react-router'
-import { ArrowLeft, ImagePlus, Search, WandSparkles } from 'lucide'
+import { ArrowLeft, ImagePlus, Music, Search, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useRef } from 'react'
 import { useT } from '../../lib/i18n'
@@ -12,9 +12,9 @@ import { Tip } from '../ui/tip'
 import { chipCls, chipOffCls, chipOnCls, countCls, toolCls } from './chips'
 
 /**
- * The library's chrome: back, title, total, search and the two create doors on
- * one row, then the type chips. The search takes its own row on a phone, where
- * the buttons would otherwise squeeze it to nothing.
+ * The library's chrome: back, title, total, search and the three create doors
+ * on one row, then the type chips. The search takes its own row on a phone,
+ * where the buttons would otherwise squeeze it to nothing.
  */
 export function LibraryHeader({
   total,
@@ -25,6 +25,7 @@ export function LibraryHeader({
   onFilterChange,
   onAddPhotos,
   onMakeSticker,
+  onMakeMusicCard,
 }: {
   total: number
   filter: LibraryFilter
@@ -34,6 +35,7 @@ export function LibraryHeader({
   onFilterChange: (filter: LibraryFilter) => void
   onAddPhotos: (files: File[]) => void
   onMakeSticker: () => void
+  onMakeMusicCard: () => void
 }) {
   const t = useT()
   const navigate = useNavigate()
@@ -95,6 +97,17 @@ export function LibraryHeader({
           >
             <MorphIcon icon={WandSparkles} size={12} strokeWidth={1.75} />
             <span className="max-sm:hidden">{t('New sticker')}</span>
+          </Button>
+        </span>
+        <span className="flex flex-none">
+          <Button
+            variant="strong"
+            aria-label={t('Music card')}
+            data-library-music-card=""
+            onClick={onMakeMusicCard}
+          >
+            <MorphIcon icon={Music} size={12} strokeWidth={1.75} />
+            <span className="max-sm:hidden">{t('Music card')}</span>
           </Button>
         </span>
 

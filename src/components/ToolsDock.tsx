@@ -18,7 +18,7 @@ import { dampOffset, dragOwner, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
 import { liquidGlassRef } from '../lib/liquidGlass'
-import { photoAssetsOf } from '../lib/stickerLibrary'
+import { paneAssetsOf } from '../lib/stickerLibrary'
 import { clampDockMode, dockHandleIntent, dockModeAtHeight, dockModes, dockTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, useStore } from '../store'
@@ -209,7 +209,7 @@ function CanvasRatioDockTool() {
   const t = useT()
   const [open, setOpen] = useState(false)
   const ratio = useStore(s => activeWs(s).canvasRatio)
-  const hasPhoto = useStore(s => photoAssetsOf(s.photos).some(p => p.trueW > 0 && p.trueH > 0))
+  const hasPhoto = useStore(s => paneAssetsOf(s.photos).some(p => p.trueW > 0 && p.trueH > 0))
 
   const options = [
     { key: 'square', icon: Square, label: t('Square (1:1)'), disabled: isSquare(ratio), run: () => setCanvasRatio(SQUARE_RATIO) },

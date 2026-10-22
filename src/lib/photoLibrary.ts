@@ -16,7 +16,10 @@ import { looksHeic, probeHeic, warmHeicDecoder } from './heic'
 import { probeJpeg, probePng } from './imageStore'
 import { baseKey, splitLiveFiles } from './livephoto'
 
-/** The two kinds of library asset: an imported photo, or a made sticker. */
+/**
+ * The kinds a photo import creates: an imported photo, or a made sticker.
+ * Music cards are appended by the music tool (`addMusicCard`), never imported.
+ */
 export type PhotoKind = 'photo' | 'sticker'
 
 /** Photo id → the photo, for the render passes that resolve a pane's `photoId`. */
