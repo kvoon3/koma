@@ -1,14 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  CARD_SIZE,
-  cardSize,
   DEFAULT_MUSIC_CARD_STYLE,
   fitArtist,
-  fitLyrics,
   fitTitle,
+  LYRIC_SIZE_SCALE,
+  lyricWindow,
   MUSIC_CARD_STYLE_IDS,
   musicCardFileName,
-  POSTER_SIZE,
   TITLE_MAX_SIZE,
   TITLE_MAX_W,
   TITLE_MIN_SIZE,
@@ -98,53 +96,46 @@ describe('the artist line', () => {
   })
 })
 
-describe('the lyric block', () => {
-  test('short lines keep the largest size and each line stays its own line', () => {
-    const fit = fitLyrics(['When you were here before', 'Couldn\'t look you in the eye'], measure)
-    expect(fit.size).toBe(56)
-    expect(fit.lines).toEqual(['When you were here before', 'Couldn\'t look you in the eye'])
-    expect(fit.lineHeight).toBe(76)
+describe('the lyric window', () => {
+  test('short lines keep their own line at the base size', () => {
+    const win = lyricWindow(['When you were here', 'You float like a feather'], measure)
+    expect(win.size).toBe(64)
+    expect(win.lines).toEqual(['When you were here', 'You float like a feather'])
+    expect(win.lineHeight).toBe(83)
   })
 
-  test('a long line shrinks the block until every line fits', () => {
-    const fit = fitLyrics(['a'.repeat(40), 'short'], measure)
-    expect(fit.size).toBeLessThan(56)
-    for (const line of fit.lines)
-      expect(measure(line, fit.size)).toBeLessThanOrEqual(820)
+  test('a long phrase wraps instead of shrinking to an unreadable size', () => {
+    const win = lyricWindow(['a'.repeat(60)], measure)
+    expect(win.size).toBe(64)
+    expect(win.lines.length).toBe(3)
+    for (const line of win.lines)
+      expect(measure(line, win.size)).toBeLessThanOrEqual(848)
   })
 
-  test('a line too long at the minimum gets the ellipsis', () => {
-    const fit = fitLyrics(['a'.repeat(80)], measure, { minSize: 30, maxSize: 40 })
-    expect(fit.size).toBe(30)
-    expect(fit.lines[0]!.endsWith('…')).toBe(true)
-    expect(measure(fit.lines[0]!, 30)).toBeLessThanOrEqual(820)
+  test('the window counts display lines, so a wrapped phrase fills it', () => {
+    const win = lyricWindow(['a'.repeat(60), 'second', 'third'], measure, { maxLines: 3 })
+    expect(win.lines).toHaveLength(3)
+    expect(win.lines).not.toContain('second')
   })
 
-  test('only the leading lines and non-empty lines are kept', () => {
-    const fit = fitLyrics(['one', '  ', 'two', 'three', 'four', 'five', 'six'], measure, { maxLines: 3 })
-    expect(fit.lines).toEqual(['one', 'two', 'three'])
+  test('blank lines are dropped', () => {
+    const win = lyricWindow(['one', '  ', 'two'], measure)
+    expect(win.lines).toEqual(['one', 'two'])
+    expect(lyricWindow([], measure).lines).toEqual([])
   })
 
-  test('no lyrics draws no block', () => {
-    expect(fitLyrics([], measure).lines).toEqual([])
-    expect(fitLyrics(['   '], measure).lines).toEqual([])
+  test('the size steps scale up', () => {
+    expect(LYRIC_SIZE_SCALE.s).toBeLessThan(LYRIC_SIZE_SCALE.m)
+    expect(LYRIC_SIZE_SCALE.m).toBeLessThan(LYRIC_SIZE_SCALE.l)
+    expect(LYRIC_SIZE_SCALE.l).toBe(1)
   })
 })
 
 describe('the style list', () => {
-  test('it names the six compositions once, with poster as the default', () => {
-    expect([...MUSIC_CARD_STYLE_IDS]).toEqual(['poster', 'classic', 'noir', 'polaroid', 'vinyl', 'editorial'])
+  test('it names the two cards once, with cover as the default', () => {
+    expect([...MUSIC_CARD_STYLE_IDS]).toEqual(['cover', 'lyrics'])
     expect(new Set(MUSIC_CARD_STYLE_IDS).size).toBe(MUSIC_CARD_STYLE_IDS.length)
-    expect(DEFAULT_MUSIC_CARD_STYLE).toBe('poster')
-  })
-})
-
-describe('the card size', () => {
-  test('the poster is 4:5, every paper style stays square', () => {
-    expect(cardSize('poster')).toEqual({ width: 1024, height: 1280 })
-    expect(cardSize('classic')).toEqual({ width: CARD_SIZE, height: CARD_SIZE })
-    expect(cardSize(undefined)).toEqual({ width: CARD_SIZE, height: CARD_SIZE })
-    expect(POSTER_SIZE).toEqual({ width: 1024, height: 1280 })
+    expect(DEFAULT_MUSIC_CARD_STYLE).toBe('cover')
   })
 })
 
