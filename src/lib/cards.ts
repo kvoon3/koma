@@ -1,4 +1,5 @@
 import type { Workspace } from '../store'
+import type { TKey, Translate } from './i18n'
 import type { LabelAlign, PaneLabel } from './panes'
 import { t } from './i18n'
 import { newLeaf, uid } from './panes'
@@ -11,10 +12,8 @@ import { newLeaf, uid } from './panes'
  */
 export type CardKind = 'cover' | 'lyrics'
 
-type Translate = (key: string) => string
-
 interface LabelSpec {
-  text: string
+  text: TKey
   /** Canvas-normalized center, as every board label stores it. */
   x: number
   y: number
