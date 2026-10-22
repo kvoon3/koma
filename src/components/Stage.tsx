@@ -30,13 +30,13 @@ import { AppearanceDockTools, GridDockTool } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
-import { CanvasResizeRail } from './CanvasResizeRail'
 import { CollageBgLayer } from './CollageBgLayer'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
 import { Pane } from './Pane'
 import { PaneFilterTool } from './PaneFilterTools'
 import { PaneRotateTool } from './PaneRotateTools'
+import { ScaleRail } from './ScaleRail'
 import { StickerMakerDialog } from './StickerMakerDialog'
 import { toolsBtnCls, ToolsDock, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls, menuItemCls, menuSurfaceCls } from './ui/menu'
@@ -452,6 +452,22 @@ export function Stage() {
     <div
       ref={wrapRef}
       className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center overflow-hidden ${dragId ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
+      // A press on the stage's own surface (the margin, the canvas between
+      // panes) is the deselect gesture: panes, inserts, handles and dividers
+      // stop their own pointerdowns, so whatever reaches here is empty space.
+      // It also puts the size rail to sleep, as an unselected board should be.
+      onPointerDown={(e) => {
+        if (e.button !== 0 || e.defaultPrevented)
+          return
+        const el = e.target as HTMLElement
+        if (el.closest('[data-pane-id], [data-board-sticker], [data-label-id], button, [role="button"], [role="slider"], [role="menu"], [data-dock-mode]'))
+          return
+        const s = useStore.getState()
+        if (!s.labelSel && !s.stickerSel && !activeWs(s).focusId)
+          return
+        s.selectLabel(null)
+        s.focus('')
+      }}
       // A double-click on the stage margin (the empty air around the canvas)
       // fits the view again; on the canvas it stays the pane's own reset.
       onDoubleClick={viewZoom.onStageDoubleClick}
@@ -489,8 +505,8 @@ export function Stage() {
           button, which stands 30px tall on a mouse and 38px under a finger). */}
       <ViewZoomChip scale={viewZoom.scale} onFit={viewZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
 
-      {/* The canvas size control: a right-edge rail, clear of the dock sheet. */}
-      <CanvasResizeRail />
+      {/* The size control: a right-edge rail for what is selected. */}
+      <ScaleRail />
 
       {/* Canvas appearance tools always live in the dock; pane/label tools join
           when relevant. The dock itself is mounted by the root layout. */}

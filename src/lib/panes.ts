@@ -316,6 +316,9 @@ export function cloneNode(node: Node): Node {
   return { ...node, id: uid('s'), a: cloneNode(node.a), b: cloneNode(node.b) }
 }
 
+/** The label size bounds, in canvas units (`DEFAULT_LABEL_SIZE` sits inside). */
+export const MIN_LABEL_SIZE = 12
+export const MAX_LABEL_SIZE = 160
 export const DEFAULT_LABEL_SIZE = 42
 
 export function newLabel(x = 0.5, y = 0.5): PaneLabel {

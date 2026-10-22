@@ -33,8 +33,10 @@ import {
   findLeaf,
   layoutTree,
   leafList,
-  neighborLeaf,
+  MAX_LABEL_SIZE,
 
+  MIN_LABEL_SIZE,
+  neighborLeaf,
   newLabel,
   newLeaf,
   normalizeLabelGlow,
@@ -240,6 +242,13 @@ export const MAX_CANVAS_RATIO = 8
 export const MIN_CANVAS_FILL = 0.15
 export const MAX_CANVAS_FILL = 1.5
 const clampCanvasFill = (fill: number) => Math.min(MAX_CANVAS_FILL, Math.max(MIN_CANVAS_FILL, fill))
+/**
+ * Sticker size bounds, as a share of the canvas's short edge (a sticker's `s`).
+ * `DEFAULT_STICKER_SCALE` is where a fresh one lands.
+ */
+export const MIN_STICKER_SCALE = 0.02
+export const MAX_STICKER_SCALE = 1.5
+export const DEFAULT_STICKER_SCALE = 0.2
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
 
@@ -1220,7 +1229,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set(s => ({
       workspaces: mapActive(s, w => ({
         ...w,
-        stickers: [...(w.stickers ?? []), { id: uid('t'), photoId, x, y, s: 0.2, rot: 0 } satisfies Sticker],
+        stickers: [...(w.stickers ?? []), { id: uid('t'), photoId, x, y, s: DEFAULT_STICKER_SCALE, rot: 0 } satisfies Sticker],
       })),
     }))
   },
@@ -1243,7 +1252,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       workspaces: mapActive(s, w => ({
         ...w,
         stickers: (w.stickers ?? []).map(st => (st.id === stickerId
-          ? { ...st, s: Math.min(1.5, Math.max(0.02, sVal)) }
+          ? { ...st, s: Math.min(MAX_STICKER_SCALE, Math.max(MIN_STICKER_SCALE, sVal)) }
           : st)),
       })),
     }))
@@ -1300,7 +1309,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
             return l
           const label: PaneLabel = { ...l, ...patch, id: l.id }
           if (patch.size !== undefined)
-            label.size = Math.min(160, Math.max(12, patch.size))
+            label.size = Math.min(MAX_LABEL_SIZE, Math.max(MIN_LABEL_SIZE, patch.size))
           if (patch.rot !== undefined)
             label.rot = wrapAngle(patch.rot)
           return label
