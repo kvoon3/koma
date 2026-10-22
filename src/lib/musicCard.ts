@@ -1,20 +1,32 @@
 /**
- * The music card: a 1024 square, opaque PNG made from a track's artwork and
- * the lines a listener reads (title, artist) plus a small provider mark.
+ * The music card: an opaque PNG made from a track's artwork and the lines a
+ * listener reads (title, artist) plus a small provider mark.
  *
  * Text fitting is a pure function with the measurer injected, so the layout
  * rules (line count, shrink, ellipsis) are tested under Bun without a canvas.
  * The renderer is the browser half: it only paints what the fit decided.
  *
- * A style picks a palette and a composition. All but Lyric keep the artwork
- * uncropped and its own text off the image; they differ in where the square
- * sits, how much paper surrounds it, and how loudly the title speaks. Lyric
- * uses the cover as a dimmed backdrop and puts the song's words in front.
+ * The five paper styles are square and keep the artwork uncropped; they differ
+ * in where the square sits, how much paper surrounds it, and how loudly the
+ * title speaks. Poster is 4:5 and puts the artwork behind the words: a track
+ * card, the song's first lines, or a music-video still.
  */
 import type { MusicProvider } from './musicLink'
 import { firstLyricLines } from './lyrics'
 
 export const CARD_SIZE = 1024
+/** The poster is 4:5; the square styles keep `CARD_SIZE` on both edges. */
+export const POSTER_SIZE = { width: 1024, height: 1280 } as const
+
+export interface CardSize {
+  width: number
+  height: number
+}
+
+/** The canvas a style renders on; callers size the canvas before drawing. */
+export function cardSize(style: MusicCardStyle | undefined): CardSize {
+  return style === 'poster' ? POSTER_SIZE : { width: CARD_SIZE, height: CARD_SIZE }
+}
 
 export interface CardPalette {
   ground: string
@@ -59,7 +71,7 @@ const EDITORIAL_COLORS: CardPalette = {
   hairline: '#D8D2C6',
 }
 
-const LYRIC_COLORS: CardPalette = {
+const POSTER_COLORS: CardPalette = {
   ground: '#111111',
   ink: '#FFFFFF',
   muted: 'rgba(255, 255, 255, 0.74)',
@@ -94,9 +106,12 @@ export const ARTIST_SIZE = 30
 export const MARK_TOP = 952
 
 /** The six compositions, in the order the dialog's picker shows them. */
-export const MUSIC_CARD_STYLE_IDS = ['classic', 'noir', 'polaroid', 'vinyl', 'editorial', 'lyric'] as const
+export const MUSIC_CARD_STYLE_IDS = ['poster', 'classic', 'noir', 'polaroid', 'vinyl', 'editorial'] as const
 export type MusicCardStyle = typeof MUSIC_CARD_STYLE_IDS[number]
-export const DEFAULT_MUSIC_CARD_STYLE: MusicCardStyle = 'classic'
+export const DEFAULT_MUSIC_CARD_STYLE: MusicCardStyle = 'poster'
+
+/** What the poster puts in front of its cover. The square styles ignore it. */
+export type MusicCardMode = 'track' | 'lyrics' | 'video'
 
 export interface TitleFit {
   lines: string[]
@@ -237,9 +252,11 @@ export interface MusicCardInput {
   provider: MusicProvider
   title: string
   artist: string
-  /** The words the Lyric composition sets; ignored by the other styles. */
+  /** The words the poster's lyrics mode sets; ignored by the other styles. */
   lyrics?: string
-  /** Defaults to `classic`; the rendered PNG carries the style itself. */
+  /** Defaults to `track`; only the poster reads it. */
+  mode?: MusicCardMode
+  /** Defaults to `poster`; the rendered PNG carries the style itself. */
   style?: MusicCardStyle
 }
 
@@ -334,6 +351,35 @@ function paintArt(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, box
   ctx.strokeStyle = hairline
   ctx.lineWidth = 1
   ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.size - 1, box.size - 1)
+}
+
+function sourceSize(source: CanvasImageSource): { w: number, h: number } {
+  if (typeof HTMLImageElement !== 'undefined' && source instanceof HTMLImageElement && source.naturalWidth)
+    return { w: source.naturalWidth, h: source.naturalHeight }
+  if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement && source.videoWidth)
+    return { w: source.videoWidth, h: source.videoHeight }
+  if (typeof ImageBitmap !== 'undefined' && source instanceof ImageBitmap)
+    return { w: source.width, h: source.height }
+  if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement && source.width)
+    return { w: source.width, h: source.height }
+  if (typeof OffscreenCanvas !== 'undefined' && source instanceof OffscreenCanvas)
+    return { w: source.width, h: source.height }
+  return { w: POSTER_SIZE.width, h: POSTER_SIZE.height }
+}
+
+/** Fill the whole poster with the cover, cropping only what 4:5 cannot keep. */
+function paintCover(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, width: number, height: number): void {
+  const { w, h } = sourceSize(artwork)
+  if (!w || !h) {
+    ctx.drawImage(artwork, 0, 0, width, height)
+    return
+  }
+  const scale = Math.max(width / w, height / h)
+  const sw = width / scale
+  const sh = height / scale
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(artwork, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, width, height)
 }
 
 function paintText(
@@ -536,104 +582,140 @@ function drawEditorial(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource
   paintMark(ctx, input.provider, EDITORIAL_MARK, EDITORIAL_COLORS)
 }
 
-const LYRIC_BLOCK_W = 820
-const LYRIC_MARK: MarkLayout = { x: 72, top: 72, align: 'left' }
+const POSTER_TEXT_X = 72
+const POSTER_TEXT_W = 880
+const POSTER_TITLE_BOTTOM = 1126
+const POSTER_ARTIST_TOP = 1170
+const POSTER_MARK: MarkLayout = { x: POSTER_TEXT_X, top: 72, align: 'left' }
 
-function drawLyric(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput): void {
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  // Here the cover is a backdrop, not the subject, so it fills the square and
-  // is dimmed. The overlay plus the vignette keep white type legible over any
-  // artwork, including a white one.
-  ctx.drawImage(artwork, 0, 0, CARD_SIZE, CARD_SIZE)
-  ctx.fillStyle = 'rgba(9, 9, 11, 0.66)'
-  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
-
-  const vignette = ctx.createRadialGradient(512, 420, 80, 512, 420, 760)
-  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)')
-  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.5)')
-  ctx.fillStyle = vignette
-  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
-
-  const fade = ctx.createLinearGradient(0, 520, 0, CARD_SIZE)
-  fade.addColorStop(0, 'rgba(9, 9, 11, 0)')
-  fade.addColorStop(1, 'rgba(9, 9, 11, 0.9)')
-  ctx.fillStyle = fade
-  ctx.fillRect(0, 520, CARD_SIZE, CARD_SIZE - 520)
-
+function paintPosterTrack(ctx: CanvasRenderingContext2D, input: MusicCardInput, video: boolean): void {
   const measureAt = (weight: number) => measureFont(ctx, weight)
+  const title = fitTitle(input.title, measureAt(700), {
+    maxWidth: POSTER_TEXT_W,
+    maxSize: 78,
+    minSize: 40,
+    maxLines: 2,
+  })
+  const artist = fitArtist(input.artist, measureAt(500), POSTER_TEXT_W, 30)
+  const lineHeight = Math.round(title.size * 1.08)
+  const titleTop = POSTER_TITLE_BOTTOM - title.lines.length * lineHeight
 
-  const lyrics = firstLyricLines(input.lyrics ?? '', 5)
-  const hasLyrics = lyrics.length > 0
-  let heroLines: string[]
-  let heroSize: number
-  let heroLineHeight: number
-  let heroWeight: number
-  if (hasLyrics) {
-    const fit = fitLyrics(lyrics, measureAt(600), { maxWidth: LYRIC_BLOCK_W, maxSize: 56, minSize: 30, maxLines: 5 })
-    heroLines = fit.lines
-    heroSize = fit.size
-    heroLineHeight = fit.lineHeight
-    heroWeight = 600
-  }
-  else {
-    // No lyrics yet: the title becomes the poster rather than a placeholder.
-    const fit = fitTitle(input.title, measureAt(700), { maxWidth: 880, maxSize: 72, minSize: 44, maxLines: 3 })
-    heroLines = fit.lines
-    heroSize = fit.size
-    heroLineHeight = Math.round(fit.size * 1.1)
-    heroWeight = 700
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'top'
+  if (video) {
+    ctx.font = font(600, 18)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.62)'
+    ctx.fillText('MUSIC VIDEO', POSTER_TEXT_X, Math.max(120, titleTop - 38))
   }
 
-  const blockHeight = heroLines.length * heroLineHeight
-  const top = Math.max(150, 420 - blockHeight / 2)
+  ctx.fillStyle = POSTER_COLORS.ink
+  ctx.font = font(700, title.size)
+  title.lines.forEach((line, i) => ctx.fillText(line, POSTER_TEXT_X, titleTop + i * lineHeight))
+
+  if (artist) {
+    ctx.fillStyle = POSTER_COLORS.muted
+    ctx.font = font(500, 30)
+    ctx.fillText(artist, POSTER_TEXT_X, POSTER_ARTIST_TOP)
+  }
+}
+
+function paintPosterLyrics(ctx: CanvasRenderingContext2D, input: MusicCardInput, lyrics: string[]): void {
+  const measureAt = (weight: number) => measureFont(ctx, weight)
+  const fit = fitLyrics(lyrics, measureAt(600), {
+    maxWidth: 820,
+    maxSize: 58,
+    minSize: 32,
+    maxLines: 6,
+    ratio: 1.45,
+  })
+  const blockHeight = fit.lines.length * fit.lineHeight
+  const top = Math.max(230, 620 - blockHeight / 2)
+
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
-  ctx.fillStyle = LYRIC_COLORS.ink
-  ctx.font = font(heroWeight, heroSize)
-  heroLines.forEach((line, i) => ctx.fillText(line, CARD_SIZE / 2, top + i * heroLineHeight))
+  ctx.fillStyle = POSTER_COLORS.ink
+  ctx.font = font(600, fit.size)
+  fit.lines.forEach((line, i) => ctx.fillText(line, POSTER_SIZE.width / 2, top + i * fit.lineHeight))
 
-  if (hasLyrics) {
-    ctx.strokeStyle = LYRIC_COLORS.hairline
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(72, 806.5)
-    ctx.lineTo(952, 806.5)
-    ctx.stroke()
+  ctx.strokeStyle = POSTER_COLORS.hairline
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(POSTER_TEXT_X, 1042.5)
+  ctx.lineTo(POSTER_SIZE.width - POSTER_TEXT_X, 1042.5)
+  ctx.stroke()
 
-    const titleFit = fitTitle(input.title, measureAt(600), { maxWidth: 880, maxSize: 38, minSize: 28, maxLines: 1 })
-    const title = titleFit.lines[0]
-    if (title) {
-      ctx.font = font(600, titleFit.size)
-      ctx.fillStyle = LYRIC_COLORS.ink
-      ctx.fillText(title, CARD_SIZE / 2, 836)
-    }
-    const artist = fitArtist(input.artist, measureAt(500), 880, 22)
-    if (artist) {
-      ctx.font = font(500, 22)
-      ctx.fillStyle = LYRIC_COLORS.muted
-      ctx.fillText(artist, CARD_SIZE / 2, 892)
-    }
+  const title = fitTitle(input.title, measureAt(600), {
+    maxWidth: POSTER_TEXT_W,
+    maxSize: 42,
+    minSize: 28,
+    maxLines: 1,
+  })
+  ctx.textAlign = 'left'
+  if (title.lines[0]) {
+    ctx.font = font(600, title.size)
+    ctx.fillStyle = POSTER_COLORS.ink
+    ctx.fillText(title.lines[0], POSTER_TEXT_X, 1072)
+  }
+
+  const artist = fitArtist(input.artist, measureAt(500), POSTER_TEXT_W, 24)
+  if (artist) {
+    ctx.font = font(500, 24)
+    ctx.fillStyle = POSTER_COLORS.muted
+    ctx.fillText(artist, POSTER_TEXT_X, 1128)
+  }
+}
+
+function drawPoster(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput): void {
+  const { width, height } = POSTER_SIZE
+  const mode = input.mode ?? 'track'
+  const lyrics = firstLyricLines(input.lyrics ?? '', 6)
+
+  paintCover(ctx, artwork, width, height)
+  ctx.fillStyle = 'rgba(9, 9, 11, 0.30)'
+  ctx.fillRect(0, 0, width, height)
+
+  const top = ctx.createLinearGradient(0, 0, 0, 220)
+  top.addColorStop(0, 'rgba(0, 0, 0, 0.55)')
+  top.addColorStop(1, 'rgba(0, 0, 0, 0)')
+  ctx.fillStyle = top
+  ctx.fillRect(0, 0, width, 220)
+
+  const vignette = ctx.createRadialGradient(512, 520, 80, 512, 520, 800)
+  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)')
+  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.46)')
+  ctx.fillStyle = vignette
+  ctx.fillRect(0, 0, width, height)
+
+  const fade = ctx.createLinearGradient(0, 560, 0, height)
+  fade.addColorStop(0, 'rgba(9, 9, 11, 0)')
+  fade.addColorStop(1, 'rgba(9, 9, 11, 0.94)')
+  ctx.fillStyle = fade
+  ctx.fillRect(0, 560, width, height - 560)
+
+  if (mode === 'lyrics' && lyrics.length) {
+    // The words need a quieter backdrop than the title does.
+    ctx.fillStyle = 'rgba(9, 9, 11, 0.42)'
+    ctx.fillRect(0, 0, width, height)
+    paintPosterLyrics(ctx, input, lyrics)
   }
   else {
-    const artist = fitArtist(input.artist, measureAt(500), 880, 26)
-    if (artist) {
-      ctx.font = font(500, 26)
-      ctx.fillStyle = LYRIC_COLORS.muted
-      ctx.fillText(artist, CARD_SIZE / 2, 880)
-    }
+    paintPosterTrack(ctx, input, mode === 'video')
   }
 
-  paintMark(ctx, input.provider, LYRIC_MARK, LYRIC_COLORS)
+  paintMark(ctx, input.provider, POSTER_MARK, POSTER_COLORS)
 }
 
 const STYLE_DRAWERS: Record<MusicCardStyle, (ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput) => void> = {
+  poster: drawPoster,
   classic: (ctx, artwork, input) => drawClassic(ctx, artwork, input, CARD_COLORS),
   noir: (ctx, artwork, input) => drawClassic(ctx, artwork, input, NOIR_COLORS),
   polaroid: drawPolaroid,
   vinyl: drawVinyl,
   editorial: drawEditorial,
-  lyric: drawLyric,
+}
+
+function resolveStyle(style: MusicCardStyle | undefined): MusicCardStyle {
+  return style && MUSIC_CARD_STYLE_IDS.includes(style) ? style : DEFAULT_MUSIC_CARD_STYLE
 }
 
 /** Paint the card. Fonts must be ready; the caller awaits `document.fonts`. */
@@ -642,10 +724,7 @@ export function drawMusicCard(
   artwork: CanvasImageSource,
   input: MusicCardInput,
 ): void {
-  const style = input.style && MUSIC_CARD_STYLE_IDS.includes(input.style)
-    ? input.style
-    : DEFAULT_MUSIC_CARD_STYLE
-  STYLE_DRAWERS[style](ctx, artwork, input)
+  STYLE_DRAWERS[resolveStyle(input.style)](ctx, artwork, input)
 }
 
 export function loadMusicArtwork(url: string): Promise<HTMLImageElement> {
@@ -664,9 +743,10 @@ export async function renderMusicCardBlob(
   input: MusicCardInput,
 ): Promise<Blob> {
   await document.fonts?.ready
+  const { width, height } = cardSize(resolveStyle(input.style))
   const canvas = document.createElement('canvas')
-  canvas.width = CARD_SIZE
-  canvas.height = CARD_SIZE
+  canvas.width = width
+  canvas.height = height
   const ctx = canvas.getContext('2d')
   if (!ctx)
     throw new Error('A 2D canvas is not available')
