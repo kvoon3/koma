@@ -7,14 +7,19 @@ import { zhHans } from './locales/zh-Hans'
 import { zhHant } from './locales/zh-Hant'
 
 /**
- * Pins the i18n dictionaries to the call sites.
+ * Pins the i18n dictionaries to the call sites where types stop short.
  *
- * `bun scripts/i18n-coverage.mjs` runs this scan from the pre-commit hook,
- * while the edit is still one file; this test repeats it on every `bun test`,
- * which is what puts the check in CI. Both failure modes are silent at
- * runtime: a key no dictionary defines renders in English (a typo is
- * indistinguishable from an untranslated string), and a dictionary entry no
- * call site passes is dead weight that outlives its refactor.
+ * The compiler owns the main contract: `zh-Hans` is the key universe, `t`
+ * takes only a `TKey`, and the other dictionaries are `Record<TKey, string>`.
+ * That makes a table-driven call such as `t(item.label)` a compile error when
+ * its value is not a key, and a missing translation a compile error too.
+ *
+ * This scan owns the rest: a dictionary entry no call site uses any more is
+ * dead weight that outlives its refactor, and the cross-dictionary and literal
+ * call-site checks stay as a second opinion and as the pre-commit hook's
+ * standalone check. `bun scripts/i18n-coverage.mjs` runs it while the edit is
+ * still one file; this test repeats it on every `bun test`, which is what puts
+ * the check in CI.
  *
  * A key can reach the translate call as a literal (first argument, either
  * quote style, or the k attribute of the T element) or through a variable over

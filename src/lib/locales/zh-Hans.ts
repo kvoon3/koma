@@ -2,10 +2,13 @@
  * Simplified Chinese. Keys are the English source strings (see `lib/i18n`),
  * so anything missing here simply falls back to English.
  *
+ * This dictionary is the key universe: `TKey` is its literal key union, every
+ * other dictionary is typed against it, and `t` accepts nothing else.
+ *
  * File name uses the BCP-47 script tag (zh-Hans) so a future `zh-Hant` file
  * can sit beside this one without colliding.
  */
-export const zhHans: Record<string, string> = {
+export const zhHans = {
   // TopBar
   'Help': '帮助',
   'Photo': '照片',
@@ -83,6 +86,10 @@ export const zhHans: Record<string, string> = {
   'Reset rotation': '重置角度',
   'Invert colors': '对调颜色',
   'Label font': '文字字体',
+  // Font groups in the label font picker; the family names under them stay as names.
+  'Sans': '无衬线',
+  'Display': '展示',
+  'Handwriting': '手写',
   // Label themes (wave4/glow-font): the box pairs and the glowing pure white
   'Label theme': '文字主题',
   'Theme': '主题',
@@ -212,6 +219,7 @@ export const zhHans: Record<string, string> = {
   'Pine tree': '松树',
   'Camping': '露营',
   'Globe': '地球',
+  'Home': '首页',
   'Cat': '猫',
   'Dog': '狗',
   'Bird': '鸟',
@@ -733,4 +741,7 @@ export const zhHans: Record<string, string> = {
   'Photo minimap, drag to pan': '照片小地图，拖动平移',
   // Canvas view zoom (wave4/pane-controls): the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': '画布 {n}% · 点击适应窗口',
-}
+} satisfies Record<string, string>
+
+/** Every source string a call site may translate. */
+export type TKey = keyof typeof zhHans

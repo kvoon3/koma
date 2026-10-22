@@ -1,3 +1,4 @@
+import type { Translate } from './i18n'
 import type { Photo } from './imageStore'
 import type { StickerMaterialType, StickerSource } from './sticker'
 import type { PerforationDesign } from './stickerFX'
@@ -85,7 +86,7 @@ export async function addStickerAsset(
 export async function eraseStickerAsset(
   photo: Photo,
   dataUrl: string,
-  t: (key: string, vars?: Record<string, string | number>) => string,
+  t: Translate,
 ): Promise<Photo | null> {
   const { folder, baseName } = editedStickerMeta(photo, 'erased')
   const file = await dataUrlToFile(dataUrl, `${baseName}.png`)
@@ -108,7 +109,7 @@ export async function saveMadeSticker(
   source: StickerSource,
   style: StickerBakeStyle,
   target: StickerTarget,
-  t: (key: string, vars?: Record<string, string | number>) => string,
+  t: Translate,
   original?: StickerOriginalInput | null,
 ): Promise<Photo | null> {
   if (target.kind === 'pane' && !target.paneId)

@@ -142,7 +142,7 @@ export interface FilterParamDef {
  * pixel family takes one or two knobs each, and these are the only ranges in
  * the app, so the palette strip and `resolveFilter` cannot disagree.
  */
-export const FILTER_PARAMS: Record<FilterId, readonly FilterParamDef[]> = {
+export const FILTER_PARAMS = {
   grain: [],
   duotoneWarm: [],
   duotoneCool: [],
@@ -172,7 +172,7 @@ export const FILTER_PARAMS: Record<FilterId, readonly FilterParamDef[]> = {
     { knob: 'block', min: 1, max: 8, step: 1, def: 2 },
     { knob: 'matrix', min: 4, max: 8, step: 4, def: 4 },
   ],
-}
+} as const satisfies Record<FilterId, readonly FilterParamDef[]>
 
 /**
  * A stored filter value as a spec with every knob filled and in range: a bare

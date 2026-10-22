@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import type { History } from './history'
+import type { TKey } from './locales/zh-Hans'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
@@ -323,7 +324,7 @@ describe('labels', () => {
   }
 
   /** The English label (i18n key) each tag must resolve to. */
-  const EXPECTED: Record<string, string> = {
+  const EXPECTED: Record<string, TKey> = {
     addGrid: 'New workspace',
     addLabel: 'Add text',
     addSticker: 'Add sticker',
@@ -370,19 +371,19 @@ describe('labels', () => {
     expect(missing).toEqual([])
   })
 
-  test('each tag resolves to its English label, translated at the call site', () => {
+  test('each tag resolves to a key the call site translates', () => {
     for (const [base, label] of Object.entries(EXPECTED))
-      expect(historyLabel(`${base}:p1`)).toBe(label)
+      expect(historyLabel(`${base}:p1`)).toEqual({ kind: 'key', key: label })
     // A gesture's per-gesture ids all read as the same action.
-    expect(historyLabel('rotatePane:abc123')).toBe('Rotate photo')
-    expect(historyLabel('patch:bg,bgGradient')).toBe('Background')
-    expect(historyLabel('patch:gap,radius')).toBe('Photo gap')
-    expect(historyLabel('patch:whatever')).toBe('Board look')
+    expect(historyLabel('rotatePane:abc123')).toEqual({ kind: 'key', key: 'Rotate photo' })
+    expect(historyLabel('patch:bg,bgGradient')).toEqual({ kind: 'key', key: 'Background' })
+    expect(historyLabel('patch:gap,radius')).toEqual({ kind: 'key', key: 'Photo gap' })
+    expect(historyLabel('patch:whatever')).toEqual({ kind: 'key', key: 'Board look' })
     // Untagged commits (and the root) still read as something.
-    expect(historyLabel(null)).toBe('Edit')
-    expect(historyLabel('start')).toBe('Start')
-    // An action nobody taught us is de-camel-cased rather than dropped.
-    expect(historyLabel('frobnicatePanes')).toBe('Frobnicate panes')
+    expect(historyLabel(null)).toEqual({ kind: 'key', key: 'Edit' })
+    expect(historyLabel('start')).toEqual({ kind: 'key', key: 'Start' })
+    // An action nobody taught us is de-camel-cased and shown as plain text.
+    expect(historyLabel('frobnicatePanes')).toEqual({ kind: 'text', text: 'Frobnicate panes' })
   })
 
   test('relative time buckets', () => {

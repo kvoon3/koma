@@ -1,4 +1,5 @@
 import type { IconNode } from 'lucide'
+import type { TKey } from './locales/zh-Hans'
 import {
   Anchor,
   Angry,
@@ -134,7 +135,7 @@ import {
  * Curated icons a board text label can lead with. Ids are stored on the label,
  * so keep existing ids stable; unknown ids simply draw no icon.
  */
-export const LABEL_ICONS: { id: string, label: string, node: IconNode }[] = [
+export const LABEL_ICONS: { id: string, label: TKey, node: IconNode }[] = [
   // Originals (keep first; ids are persisted)
   { id: 'heart', label: 'Heart', node: Heart },
   { id: 'star', label: 'Star', node: Star },

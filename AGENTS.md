@@ -10,7 +10,8 @@ Where a note conflicts with a poteto default, the note wins.
 - Conventional Commits, enforced by commitlint.
 - Tailwind: keep a space before `${…}` in class template literals. A glued token is not scanned.
 - Locale keys go in every dictionary under `src/lib/locales` (`zh-Hans.ts`, `zh-Hant.ts`, `ja.ts`)
-  under a per-lane comment. `bun scripts/i18n-coverage.mjs` and `src/lib/i18nDrift.test.ts` enforce both directions.
+  under a per-lane comment. `zh-Hans` is the key universe, so a new string lands there first.
+  `bun scripts/i18n-coverage.mjs` and `src/lib/i18nDrift.test.ts` enforce both directions.
 
 ## Gates
 

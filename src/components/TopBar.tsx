@@ -9,7 +9,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { clearFilterCaches } from '../lib/filterCache'
-import { setLang, useLang, useT } from '../lib/i18n'
+import { isTKey, setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
 import { isGridPath, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from '../lib/routes'
@@ -621,7 +621,7 @@ export function TopBar({
           }
           catch (err) {
             const msg = (err as Error).message
-            say(t('Failed to open workspace: {msg}', { msg: t(msg) }))
+            say(t('Failed to open workspace: {msg}', { msg: isTKey(msg) ? t(msg) : msg }))
           }
         }}
       />

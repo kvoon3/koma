@@ -3,7 +3,9 @@
  * strings (see `lib/i18n`), so anything missing here simply falls back to
  * English. The Simplified counterpart lives in `zh-Hans.ts`.
  */
-export const zhHant: Record<string, string> = {
+import type { TKey } from './zh-Hans'
+
+export const zhHant: Record<TKey, string> = {
   // TopBar
   'Help': '說明',
   'Photo': '照片',
@@ -81,6 +83,10 @@ export const zhHant: Record<string, string> = {
   'Reset rotation': '重設角度',
   'Invert colors': '對調顏色',
   'Label font': '文字字體',
+  // Font groups in the label font picker; the family names under them stay as names.
+  'Sans': '無襯線',
+  'Display': '展示',
+  'Handwriting': '手寫',
   // Label themes (wave4/glow-font): the box pairs and the glowing pure white
   'Label theme': '文字主題',
   'Theme': '主題',
@@ -210,6 +216,7 @@ export const zhHant: Record<string, string> = {
   'Pine tree': '松樹',
   'Camping': '露營',
   'Globe': '地球',
+  'Home': '首頁',
   'Cat': '貓',
   'Dog': '狗',
   'Bird': '鳥',
