@@ -81,9 +81,9 @@ handle at the canvas's bottom-right corner to reshape it (double-click to follow
 the first photo again), or use the dock's ratio tool and the canvas menu. The
 right-edge rail scales the collage as a whole instead (below).
 
-### The canvas resize rail, and the corner handle
+### The size rail, and the canvas corner handle
 
-Two controls size the canvas, and they do different jobs:
+Two controls resize, and they do different jobs:
 
 - **The corner handle**, the direct one: a chip straddling the canvas's
   bottom-right corner that reshapes it to any aspect. It is board chrome, so it
@@ -99,30 +99,51 @@ Two controls size the canvas, and they do different jobs:
   right edge, centred on the strip the floating chrome leaves free: below the
   action cluster (`useFloatingActionsBottom`) and above the tools sheet
   (`useToolsSheetTop`, the minimap's rule). On a short stage that is what keeps
-  a 172px scale out of the undo buttons instead of behind them. It scales the
-  canvas as a whole instead of reshaping it, so it works at any size, and it
-  never moves with the canvas or the view zoom.
+  a 172px scale out of the undo buttons instead of behind them. It never moves
+  with the canvas or the view zoom, and it sizes **whatever is selected**
+  (`lib/scaleTarget`): a selected text label first, then a selected sticker,
+  then the canvas while a pane has focus. The two objects scale uniformly and
+  want no aspect control, which is exactly what one scale is; the canvas scales
+  the same way here, and its aspect has the corner handle above.
+
+**Nothing selected is nothing to size.** With no label, no sticker and no
+focused pane the rail draws a 60px stub at 40% opacity, takes no pointer events,
+leaves the tab order and reports `aria-disabled`; the value it still shows is
+the canvas's, which is what it sizes again most often. Selecting anything draws
+it back out (`seenValue` re-opens it), and the thumb of the thing being sized is
+what moves.
+
+Each target brings its own line (`RailScale`: bounds, ladder step, and the stop
+that reads as natural) and its own readout: the canvas and a sticker read as a
+percentage (`100%` is the stage fit for one, the sticker's share of the canvas's
+short edge for the other), a label reads as its own text size (42, 68). The
+ladder marks the natural stop as its longest mark on every line, the ends may
+give a little, and only the canvas's stop is magnetic: its fit is worth landing
+on exactly, an object's default size is only worth double-clicking back to
+(`applyScaleTarget` writes through the same three gesture actions, so a drag is
+still one undo step).
 
 The rail is a **graduated scale**, not a bare slider, and it is the same one the
 rotate dial draws: `ui/TickScale` (a hairline spine, marks standing across it,
 and a bar riding it) drawn through in both, so the two scales cannot drift into
 two designs. On the rail the spine runs vertically at the stage's edge, the
 marks cross it, and the bar is a 16×3 playhead, thicker than any mark and long
-enough to out-read the strongest one. A percentage chip sits beside it while the
-pointer or the keyboard is there, and a focus ring is drawn around the bar
-rather than on it (a 3px bar is not a ring's worth of shape). The band is 22px
-wide (`26px` under a finger) and is the hit target: the bar is what you read, the
-strip is what you press.
+enough to out-read the strongest one. A readout chip (a percentage, or a text
+size) sits beside it while the pointer or the keyboard is there, and a focus ring
+is drawn around the bar rather than on it (a 3px bar is not a ring's worth of
+shape). The band is 22px wide (`26px` under a finger) and is the hit target: the
+bar is what you read, the strip is what you press.
 
-`lib/canvasRail` decides the numbers, with tests:
+`lib/scaleRail` decides the numbers, with tests:
 
-- **The ladder** (`railTicks`): tenths of the fit while the marks are at least
-  9px apart, then fifths, quarters or halves as the track shortens, so a phone
-  never gets a comb and a desktop never gets three lonely ticks. Every half is a
-  longer mark, a bound that would crowd its neighbour is dropped (the track's
-  own end already reads as a boundary), and the fit (100%) is the longest one
-  and never dimmer than a lit mark. On a 340px track that is 15 marks, 25px
-  apart.
+- **The ladder** (`railTicks`): every step of the target's line while the marks
+  are at least 9px apart, then fifths, quarters or halves as the track shortens,
+  so a phone never gets a comb and a desktop never gets three lonely ticks.
+  Every five steps is a longer mark, and the landmarks go down first (both
+  bounds and the natural stop), so the grid fills in around them instead of
+  crowding one out: a label's default size is not on the tenths grid, and that
+  is exactly the mark the eye looks for. On a 340px canvas track that is 15
+  marks, 25px apart.
 - **The feel of passing them**: marks within 52px of the bar light up
   (opacity 0.5 → 0.92, the strong marks 0.9 → 1) and grow to 1.45× their
   length, from a hairline to a full mark, so the scale answers the hand rather
@@ -143,20 +164,22 @@ strip is what you press.
   streak is not drawn; a CSS transition would park a duplicate under it
   instead). The streak is written per frame on the element rather than through
   React state, so the wake never re-renders the board, and it is hidden entirely
-  under reduced motion. The canvas itself follows the pointer exactly: the trail
+  under reduced motion. The target itself follows the pointer exactly: the trail
   is the chrome's, with no smoothing to feel through.
-- **The fit's magnetism**: `canvasFill` 1 is the one stop worth landing on
-  exactly. Inside ±4 points the mapping leans toward it (0.7 of the distance
-  removed at the stop, nothing at the band's edge, so the map stays monotonic
-  and a continuing drag always walks out), and a release inside ±2 points takes
-  it exactly. Measured: a drag released at 102% or 98% lands on 100%; at 104.5%
-  it keeps 104.5%.
+- **The fit's magnetism**: `CANVAS_SCALE` is the one line with a magnet on its
+  stop, because the stage fit is worth landing on exactly. Inside ±4 points the
+  mapping leans toward it (0.7 of the distance removed at the stop, nothing at
+  the band's edge, so the map stays monotonic and a continuing drag always walks
+  out), and a release inside ±2 points takes it exactly. Measured: a drag
+  released at 102% or 98% lands on 100%; at 104.5% it keeps 104.5%. A sticker or
+  a label passes straight through its own default: that is a double-click away,
+  not a detent worth feeling on every drag.
 - **The ends give**: past either bound the bar keeps moving up to 14px
   (`rubberBand`, tanh, so it is smooth at 0 and asymptotic at the end), then
-  springs back on release. The canvas is already clamped; the give is the bar's,
+  springs back on release. The target is already clamped; the give is the bar's,
   which is the difference between "stuck" and "this is the end".
 
-The rail's scale is `canvasFill`, which multiplies both edges, so width and
+The canvas line is `canvasFill`, which multiplies both edges, so width and
 height change together and the aspect ratio is untouched (the handle is what
 changes the ratio). Up is bigger, and the fit mark sits at 0.63 of the bar's
 travel, which is what gives a drag upward somewhere to go: `MAX_CANVAS_FILL`
@@ -173,11 +196,12 @@ centre: the pointer arrives in viewport px, and mixing the two spaces shifted
 every press by the stage's offset (measured: a press read the track 31px higher
 and jumped the canvas to 83%).
 
-The rail is a real `role="slider"`: arrows walk the ladder one mark (10 points at
+The rail is a real `role="slider"`: arrows walk the ladder one mark (one step at
 the desktop density, where those are the marks drawn; on a short track the drawn
 ladder is coarser and a keypress can land between two of them), Shift/PageUp a
-page (50 points), Home/End the bounds, and the visible percentage is
-`aria-valuetext`. A double-click fits the canvas again (fill 1) and leaves the
+page (five marks), Home/End the bounds, and the value as the readout reads it is
+`aria-valuetext`, under the target's own name (`Canvas size`, `Sticker size`,
+`Text size`). A double-click goes back to the natural stop and leaves the
 ratio alone. Left alone, the rail draws itself in to a stub around the bar (3.2s
 idle; 8s on the first visit) with one clip-path on the whole scale, so the marks
 it keeps still show the size at a glance and nothing is re-laid-out as it grows.
