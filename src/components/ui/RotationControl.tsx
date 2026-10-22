@@ -16,6 +16,7 @@ import {
   wrapDeg,
 } from '../../lib/detent'
 import { useT } from '../../lib/i18n'
+import { SCALE_MARK_HARD, SCALE_MARK_SOFT, TickScale } from './TickScale'
 
 /**
  * The app's one rotation control: a stepless dial, with detents felt as
@@ -53,10 +54,8 @@ export interface RotationControlProps {
   className?: string
 }
 
-/** Track thickness plus tick heights, in px: the dial's own small metrics. */
+/** The dial's own height, in px: the hit strip the scale is drawn in. */
 const TRACK_H = 34
-const TICK_SOFT = 7
-const TICK_HARD = 12
 
 const dialBaseCls = 'relative w-full touch-none select-none'
 const btnCls = 'box-border flex h-[22px] cursor-pointer items-center justify-center gap-1 rounded-none border border-line-strong bg-panel-2 px-1.5 text-[11px] text-dim hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent aria-pressed:border-accent aria-pressed:text-accent disabled:cursor-default disabled:opacity-35'
@@ -217,22 +216,17 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
         onDoubleClick={() => !disabled && onChange(0)}
         onKeyDown={onKeyDown}
       >
-        {/* The hairline the ticks stand on. */}
-        <span aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-line" />
-        {ticks.map(tick => (
-          <span
-            key={tick.deg}
-            aria-hidden
-            data-tick={tick.hard ? 'hard' : 'soft'}
-            className={`absolute top-1/2 w-px -translate-x-1/2 -translate-y-1/2 ${tick.hard ? ' bg-accent' : ' bg-dim'}`}
-            style={{ left: `${dialPercent(tick.deg)}%`, height: tick.hard ? TICK_HARD : TICK_SOFT }}
-          />
-        ))}
-        {/* The knob: one square grip on the accent, riding the angle exactly. */}
-        <span
-          aria-hidden
-          className="absolute top-1/2 z-1 block h-3.5 w-[3px] -translate-x-1/2 -translate-y-1/2 bg-accent"
-          style={{ left: `${pct}%` }}
+        {/* The scale: the app's one tick component, a full turn across the
+            strip, with the bar riding the angle exactly. */}
+        <TickScale
+          ticks={ticks.map(tick => ({
+            at: dialPercent(tick.deg) / 100,
+            length: tick.hard ? SCALE_MARK_HARD : SCALE_MARK_SOFT,
+            strong: tick.hard,
+          }))}
+          value={pct / 100}
+          orientation="horizontal"
+          tone="panel"
         />
       </div>
     </div>

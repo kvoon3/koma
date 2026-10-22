@@ -189,10 +189,11 @@ export function PaneSplitTools({
 }
 
 /**
- * The chip's inset inside the photo. 20px, not the 8px the corner alone needs:
- * the canvas resize handle sits 15px inside the canvas corner (`Stage.tsx`), so
- * an 8px chip would share the corner with it and lose the hit test to it. 20px
- * clears the handle by 5px at every width and pane size.
+ * The chip's inset inside the photo: 20px, not the 8px the corner alone needs.
+ * The canvas aspect handle straddles the canvas corner (a 28px box, half of it
+ * inside), so an 8px chip would share the corner with it and lose the hit test;
+ * 20px clears the handle's inner edge at every width and pane size. The resize
+ * rail (`CanvasResizeRail`) stays outside the canvas and never comes into it.
  */
 const MINIMAP_INSET = 'p-5'
 

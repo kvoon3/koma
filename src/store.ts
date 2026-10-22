@@ -233,6 +233,13 @@ export const MIN_PANE_PX = 56
 /** Canvas ratio bounds: the narrowest and widest a split can be shaped to. */
 export const MIN_CANVAS_RATIO = 0.12
 export const MAX_CANVAS_RATIO = 8
+/**
+ * Canvas size bounds: 1 fits the stage, and the rail can scale past it (the
+ * stage crops the overflow). Width and height always scale by the same value.
+ */
+export const MIN_CANVAS_FILL = 0.15
+export const MAX_CANVAS_FILL = 1.5
+const clampCanvasFill = (fill: number) => Math.min(MAX_CANVAS_FILL, Math.max(MIN_CANVAS_FILL, fill))
 export const MIN_ZOOM = 0.3
 export const MAX_ZOOM = 8
 
@@ -1174,8 +1181,21 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       workspaces: mapActive(s, w => ({
         ...w,
         canvasRatio: Math.min(MAX_CANVAS_RATIO, Math.max(MIN_CANVAS_RATIO, ratio)),
-        canvasFill: Math.min(1, Math.max(0.15, fill)),
+        canvasFill: clampCanvasFill(fill),
       })),
+    }))
+  },
+
+  /**
+   * The size rail's own change: it scales the canvas and has no opinion about
+   * its shape. `canvasRatio` is left exactly as it is, so a board still
+   * following its first photo keeps following it (a ratio written here would
+   * freeze that follow at whatever the canvas happened to be).
+   */
+  setCanvasFill: (fill) => {
+    commit('setCanvasFill')
+    set(s => ({
+      workspaces: mapActive(s, w => ({ ...w, canvasFill: clampCanvasFill(fill) })),
     }))
   },
 
@@ -1613,6 +1633,7 @@ interface Actions {
   resetHistory: () => void
   resetSettings: () => void
   setCanvasSize: (ratio: number, fill: number) => void
+  setCanvasFill: (fill: number) => void
   clearSelection: () => void
   moveWorkspace: (id: string, to: number) => void
   addSticker: (photoId: string, x?: number, y?: number) => void
