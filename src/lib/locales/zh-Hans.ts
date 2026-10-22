@@ -749,6 +749,7 @@ export const zhHans = {
   'Canvas at {n}% · click to fit': '画布 {n}% · 点击适应窗口',
   // Unified library
   'Search library': '搜索素材库',
+  'Library drawer': '素材库抽屉',
   'No photos match this search or filter.': '没有照片符合此搜索或筛选。',
   'No stickers match this search or filter.': '没有贴图符合此搜索或筛选。',
 } satisfies Record<string, string>
