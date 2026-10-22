@@ -64,6 +64,16 @@ export const CANVAS_SCALE: RailScale = {
 }
 
 /**
+ * The canvas line as the stage's wheel drives it: fit and below, never past the
+ * fit. The wheel's job there is showing the collage at the size the stage holds;
+ * bleeding it under the stage's edges is a deliberate choice, made with the rail
+ * or the corner handle, and it is also what would eat the wheel's own surface (a
+ * canvas past the fit covers the air the gesture lives on). The rail keeps the
+ * full `CANVAS_SCALE` range, so nothing is lost.
+ */
+export const CANVAS_WHEEL_SCALE: RailScale = { ...CANVAS_SCALE, max: CANVAS_SCALE.ref }
+
+/**
  * The step multipliers the ladder may thin to, in order: every step, then
  * fifths/quarters/halves of the range, so a short track never draws a comb.
  */
@@ -257,6 +267,29 @@ export function rubberBand(px: number, limit = RAIL_GIVE): number {
   if (!Number.isFinite(px) || limit <= 0)
     return 0
   return limit * Math.tanh(px / limit)
+}
+
+/** One wheel notch: a tenth of the value, out of the fit. */
+export const SCALE_WHEEL_RATE = 1.1
+/** A step that crosses the natural stop and lands this close to it takes it. */
+export const SCALE_WHEEL_SNAP = 0.06
+
+/**
+ * A wheel step on a line: `notches` at `SCALE_WHEEL_RATE` each, clamped to the
+ * bounds. A line with a magnet takes its natural stop when a step *crosses* it
+ * and lands near it (`SCALE_WHEEL_SNAP`), so wheeling through the fit lands on
+ * it exactly while a step away from it is never a trap: a wheel can only be
+ * caught passing the stop, not stuck leaving it, which matters because a
+ * trackpad's fine wheel moves a few percent per event.
+ */
+export function stepValue(value: number, notches: number, scale: RailScale): number {
+  if (!Number.isFinite(notches) || notches === 0)
+    return clampValue(value, scale)
+  const next = clampValue(value * SCALE_WHEEL_RATE ** notches, scale)
+  if (!scale.magnet)
+    return next
+  const crossed = (value - scale.ref) * (next - scale.ref) < 0
+  return crossed && near(next, scale.ref, SCALE_WHEEL_SNAP) ? scale.ref : next
 }
 
 /**

@@ -413,6 +413,8 @@ export const zhHant: Record<TKey, string> = {
   'Resize that split; only the two adjacent panes are affected': '調整這個分割的大小，僅影響相鄰的兩個窗格',
   'Drag the handle at the bottom-right of the canvas': '拖曳畫布右下角的手柄',
   'Change the canvas aspect ratio (double-click to follow the first photo again)': '改變畫布比例（雙擊可重新跟著第一張照片的長寬比）',
+  'Scroll on the stage around the canvas': '在畫布外的舞台上滾動',
+  'Resize the whole canvas; ⌘/Ctrl + scroll (or a pinch) zooms the working view': '整體縮放畫布；⌘/Ctrl + 捲動（或雙指捏合）縮放工作視圖',
   'Drag the rail on the right edge': '拖曳右側邊緣的滑桿',
   'Resize the canvas, width and height together (double-click to fit it again)': '整體縮放畫布，長寬同時變化（雙擊可重新適配）',
   'Drag inside a pane': '在窗格內拖曳',

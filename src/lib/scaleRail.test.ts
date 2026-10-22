@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test'
 import { MAX_CANVAS_FILL, MIN_CANVAS_FILL } from '../store'
 import { DEFAULT_LABEL_SIZE, MAX_LABEL_SIZE, MIN_LABEL_SIZE } from './panes'
-import { assistValue, CANVAS_SCALE, clamp01, clampValue, nextTickValue, RAIL_GIVE, RAIL_PAGE_STEPS, RAIL_TICK_GAP, railLadder, railTicks, railValueLabel, rubberBand, settleValue, tallnessOfValue, tickY, valueAtTallness } from './scaleRail'
+import { assistValue, CANVAS_SCALE, CANVAS_WHEEL_SCALE, clamp01, clampValue, nextTickValue, RAIL_GIVE, RAIL_PAGE_STEPS, RAIL_TICK_GAP, railLadder, railTicks, railValueLabel, rubberBand, settleValue, stepValue, tallnessOfValue, tickY, valueAtTallness } from './scaleRail'
 import { LABEL_SCALE, STICKER_SCALE } from './scaleTarget'
 
 /** Half the bar's thickness: the bar's centre keeps this from either end. */
@@ -248,6 +248,46 @@ describe('the natural stop is magnetic where a target asks for it', () => {
         expect(assistValue(v, scale)).toBe(v)
       expect(settleValue(scale.ref * 1.001, scale)).toBe(scale.ref * 1.001)
     }
+  })
+})
+
+describe('the wheel steps a line', () => {
+  test('a notch is a tenth of the value, either way', () => {
+    expect(stepValue(1, 1, CANVAS_SCALE)).toBeCloseTo(1.1, 9)
+    expect(stepValue(1, -1, CANVAS_SCALE)).toBeCloseTo(0.9091, 4)
+    expect(stepValue(50, 2, LABEL_SCALE)).toBeCloseTo(60.5, 9)
+    // Half a notch (a fine trackpad event) still moves.
+    expect(stepValue(1, 0.5, CANVAS_SCALE)).toBeCloseTo(1.0488, 4)
+  })
+
+  test('a step is clamped to the bounds', () => {
+    expect(stepValue(1.4, 5, CANVAS_SCALE)).toBeCloseTo(MAX_CANVAS_FILL, 9)
+    expect(stepValue(0.2, -5, CANVAS_SCALE)).toBeCloseTo(MIN_CANVAS_FILL, 9)
+    expect(stepValue(0.2, -5, CANVAS_WHEEL_SCALE)).toBeCloseTo(MIN_CANVAS_FILL, 9)
+    // The stage's wheel fits the canvas and never bleeds it past the fit.
+    expect(stepValue(0.9, 3, CANVAS_WHEEL_SCALE)).toBeCloseTo(1, 9)
+    expect(CANVAS_WHEEL_SCALE.max).toBe(CANVAS_SCALE.ref)
+  })
+
+  test('a step through the natural stop takes it exactly', () => {
+    expect(stepValue(0.96, 0.5, CANVAS_SCALE)).toBe(1)
+    expect(stepValue(1.04, -0.5, CANVAS_SCALE)).toBe(1)
+    // And a step away from the stop is never caught by it: a fine wheel from
+    // the fit always leaves (a wheel that cannot move would be a trap).
+    expect(stepValue(1, 0.1, CANVAS_SCALE)).toBeGreaterThan(1)
+    expect(stepValue(1, -0.1, CANVAS_SCALE)).toBeLessThan(1)
+  })
+
+  test('a line with no magnet just steps', () => {
+    // The sticker and label lines have no detent (their default is a
+    // double-click, not a wheel stop).
+    expect(stepValue(0.2, 0.5, STICKER_SCALE)).toBeCloseTo(0.2098, 4)
+    expect(stepValue(42, 0.5, LABEL_SCALE)).toBeCloseTo(44.05, 2)
+  })
+
+  test('a zero or unusable step leaves the value alone', () => {
+    expect(stepValue(1.2, 0, CANVAS_SCALE)).toBe(1.2)
+    expect(stepValue(1.2, Number.NaN, CANVAS_SCALE)).toBe(1.2)
   })
 })
 

@@ -10,7 +10,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Image, Square, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useCanvasViewZoom, useElementSize } from '../hooks'
+import { useElementSize, useStageZoom } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
 import { viewTransform } from '../lib/canvasView'
 import { GRID_CELL_MAX } from '../lib/exporter'
@@ -152,7 +152,7 @@ export function WorkspaceGrid() {
   // The switcher owns the stage while it is open: no view zoom then, so the
   // recede, the pager and the strip all keep the geometry they were written
   // against, and the chip cannot sit over the strip.
-  const viewZoom = useCanvasViewZoom(wrapRef, columnRef, !switcher)
+  const viewZoom = useStageZoom(wrapRef, columnRef, { enabled: !switcher })
   const viewScale = switcher ? 1 : viewZoom.scale
 
   /** The cells of the group at `index` in the row (the live board included). */

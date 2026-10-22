@@ -1,7 +1,7 @@
 import type { FilterValue } from './lib/filters'
 import type { Photo, Preview } from './lib/imageStore'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { clampViewScale, viewWheelFactor } from './lib/canvasView'
+import { clampViewScale, viewWheelFactor, wheelNotches } from './lib/canvasView'
 import { getFilteredPreview, peekFilteredPreview } from './lib/filterCache'
 import { filterKey, resolveFilter } from './lib/filters'
 import { getPreview, getThumb, peekPreview, peekThumb } from './lib/imageStore'
@@ -170,21 +170,36 @@ export function useElementSize<T extends HTMLElement>() {
 }
 
 /**
- * The canvas view zoom (see `lib/canvasView`): the live scale, the wheel
- * gesture on the stage AROUND the canvas, and the fit reset.
+ * The stage's wheel on the air around the canvas, and the working view zoom
+ * (see `lib/canvasView`): the live scale, the double-click fit, and the two
+ * wheel paths.
  *
- * The wheel only acts when the event lands outside the canvas element, so the
- * board keeps every gesture it had: a wheel over a photo is that pane's photo
- * zoom (it marks the event handled, and the guard honours that too), and the
- * canvas's own drags never see this listener. A trackpad pinch arrives as a
- * ctrl+wheel (the stage tracks no pointers of its own), so the same listener
- * covers it. `enabled` lets a surface hand the stage back (the overview's
- * switcher owns it while it is open).
+ * A **plain wheel** on the air sizes the canvas itself, through
+ * `onWheelResize` (one notch is 1.1×, as a signed count). That is what the air
+ * belongs to: it is outside the canvas, so the wheel there acts on the canvas
+ * object, and the canvas size is the one value this lane already has a control
+ * for (the rail's canvas line drives the same field). A **ctrl/meta + wheel**
+ * (a trackpad pinch, which arrives as one) still scales the view about the
+ * canvas's centre, so inspecting the board at 2× is still a gesture away.
+ *
+ * Both only act outside the canvas element, so the board keeps every gesture it
+ * had: a wheel over a photo is that pane's photo zoom, and a plain wheel over the
+ * rail steps whatever the rail is sizing (`onWheelResize` leaves the rail's own
+ * wheel alone: the rail marks it, and the guard here honours that).
+ * `enabled` lets a surface hand the stage back (the overview's switcher owns it
+ * while it is open), and a stage with no canvas to size (the overview's column)
+ * passes no `onWheelResize` and keeps the wheel on the view.
  */
-export function useCanvasViewZoom(
+export function useStageZoom(
   stageRef: React.RefObject<HTMLElement | null>,
   canvasRef: React.RefObject<HTMLElement | null>,
-  enabled = true,
+  { enabled = true, onWheelResize, fitCanvas }: {
+    enabled?: boolean
+    /** A plain wheel on the air, in notches (up is positive). */
+    onWheelResize?: (notches: number) => void
+    /** A double-click on the air puts the canvas back to the fit as well. */
+    fitCanvas?: () => void
+  } = {},
 ) {
   const [scale, setScale] = useState(1)
   // The listener binds once; the gesture reads the live value from here.
@@ -202,20 +217,29 @@ export function useCanvasViewZoom(
     const onWheel = (e: WheelEvent) => {
       if (e.defaultPrevented || canvasRef.current?.contains(e.target as Node))
         return
-      // The margin is a view: never let the browser zoom the page instead.
+      const pinch = e.ctrlKey || e.metaKey
+      // The rail owns a plain wheel over itself: it steps what it is sizing.
+      if (!pinch && (e.target as Element | null)?.closest?.('[role="slider"]'))
+        return
+      // The air is ours: never let the browser zoom or scroll the page instead.
       e.preventDefault()
-      apply(clampViewScale(scaleRef.current * viewWheelFactor(e.deltaY, e.ctrlKey || e.metaKey)))
+      if (onWheelResize && !pinch) {
+        onWheelResize(wheelNotches(e.deltaY))
+        return
+      }
+      apply(clampViewScale(scaleRef.current * viewWheelFactor(e.deltaY, pinch)))
     }
     stage.addEventListener('wheel', onWheel, { passive: false })
     return () => stage.removeEventListener('wheel', onWheel)
-  }, [stageRef, canvasRef, enabled, apply])
+  }, [stageRef, canvasRef, enabled, apply, onWheelResize])
 
-  /** A double-click on the margin (never on the canvas itself) fits it again. */
+  /** A double-click on the air (never on the canvas itself) puts the stage back. */
   const onStageDoubleClick = useCallback((e: React.MouseEvent) => {
     if (canvasRef.current?.contains(e.target as Node))
       return
     fit()
-  }, [canvasRef, fit])
+    fitCanvas?.()
+  }, [canvasRef, fit, fitCanvas])
 
   return { scale, fit, onStageDoubleClick }
 }

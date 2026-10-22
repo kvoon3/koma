@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { clampViewScale, isOffFit, VIEW_MAX, VIEW_MIN, viewPercent, viewScaleAt, viewTransform, viewWheelFactor } from './canvasView'
+import { clampViewScale, isOffFit, VIEW_MAX, VIEW_MIN, viewPercent, viewScaleAt, viewTransform, viewWheelFactor, wheelNotches } from './canvasView'
 
 describe('clampViewScale', () => {
   it('keeps the range at a quarter to two and a half', () => {
@@ -10,6 +10,21 @@ describe('clampViewScale', () => {
 
   it('falls back to fit on a non-number', () => {
     expect(clampViewScale(Number.NaN)).toBe(1)
+  })
+})
+
+describe('wheelNotches', () => {
+  it('reads a mouse notch and a pinch notch as one and the same', () => {
+    expect(wheelNotches(-100)).toBeCloseTo(1, 10)
+    expect(wheelNotches(100)).toBeCloseTo(-1, 10)
+    expect(wheelNotches(-20, true)).toBeCloseTo(1, 10)
+    // Up is positive, as every caller reads it.
+    expect(wheelNotches(-50)).toBeCloseTo(0.5, 10)
+  })
+
+  it('never lets one event jump more than 1.5 notches', () => {
+    expect(wheelNotches(-4000)).toBeCloseTo(1.5, 10)
+    expect(wheelNotches(4000, true)).toBeCloseTo(-1.5, 10)
   })
 })
 
