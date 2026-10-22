@@ -6,11 +6,13 @@
  * rules (line count, shrink, ellipsis) are tested under Bun without a canvas.
  * The renderer is the browser half: it only paints what the fit decided.
  *
- * A style picks a palette and a composition. All of them keep the artwork
- * uncropped and its own text off the image; the five differ in where the
- * square sits, how much paper surrounds it, and how loudly the title speaks.
+ * A style picks a palette and a composition. All but Lyric keep the artwork
+ * uncropped and its own text off the image; they differ in where the square
+ * sits, how much paper surrounds it, and how loudly the title speaks. Lyric
+ * uses the cover as a dimmed backdrop and puts the song's words in front.
  */
 import type { MusicProvider } from './musicLink'
+import { firstLyricLines } from './lyrics'
 
 export const CARD_SIZE = 1024
 
@@ -57,6 +59,13 @@ const EDITORIAL_COLORS: CardPalette = {
   hairline: '#D8D2C6',
 }
 
+const LYRIC_COLORS: CardPalette = {
+  ground: '#111111',
+  ink: '#FFFFFF',
+  muted: 'rgba(255, 255, 255, 0.74)',
+  hairline: 'rgba(255, 255, 255, 0.24)',
+}
+
 export const PROVIDER_COLORS: Record<MusicProvider, string> = {
   spotify: '#1DB954',
   apple: '#FA243C',
@@ -84,8 +93,8 @@ export const TITLE_MAX_LINES = 2
 export const ARTIST_SIZE = 30
 export const MARK_TOP = 952
 
-/** The five compositions, in the order the dialog's picker shows them. */
-export const MUSIC_CARD_STYLE_IDS = ['classic', 'noir', 'polaroid', 'vinyl', 'editorial'] as const
+/** The six compositions, in the order the dialog's picker shows them. */
+export const MUSIC_CARD_STYLE_IDS = ['classic', 'noir', 'polaroid', 'vinyl', 'editorial', 'lyric'] as const
 export type MusicCardStyle = typeof MUSIC_CARD_STYLE_IDS[number]
 export const DEFAULT_MUSIC_CARD_STYLE: MusicCardStyle = 'classic'
 
@@ -228,12 +237,62 @@ export interface MusicCardInput {
   provider: MusicProvider
   title: string
   artist: string
+  /** The words the Lyric composition sets; ignored by the other styles. */
+  lyrics?: string
   /** Defaults to `classic`; the rendered PNG carries the style itself. */
   style?: MusicCardStyle
 }
 
+export interface LyricFit {
+  lines: string[]
+  size: number
+  lineHeight: number
+}
+
+export interface LyricFitOptions {
+  maxWidth?: number
+  maxSize?: number
+  minSize?: number
+  maxLines?: number
+  /** Line height as a multiple of the type size; defaults to 1.35. */
+  ratio?: number
+}
+
+/**
+ * Fit the leading lyric lines as one centered block. Each line is its own line,
+ * so the song's phrasing survives; if the longest one cannot fit even at the
+ * minimum, every line that overflows gets the ellipsis.
+ */
+export function fitLyrics(lines: string[], measure: Measure, options: LyricFitOptions = {}): LyricFit {
+  const maxWidth = options.maxWidth ?? 820
+  const maxSize = options.maxSize ?? 56
+  const minSize = options.minSize ?? 30
+  const maxLines = Math.max(1, options.maxLines ?? 5)
+  const ratio = options.ratio ?? 1.35
+  const kept = lines.map(normalizeLine).filter(Boolean).slice(0, maxLines)
+  if (!kept.length)
+    return { lines: [], size: maxSize, lineHeight: Math.round(maxSize * ratio) }
+  for (let size = maxSize; size >= minSize; size--) {
+    if (kept.every(line => measure(line, size) <= maxWidth))
+      return { lines: kept, size, lineHeight: Math.round(size * ratio) }
+  }
+  return {
+    lines: kept.map(line => ellipsizeToWidth(line, minSize, maxWidth, measure)),
+    size: minSize,
+    lineHeight: Math.round(minSize * ratio),
+  }
+}
+
 function font(weight: number, size: number): string {
   return `${weight} ${size}px ${CARD_FONT}`
+}
+
+/** A measurer bound to one weight; callers only vary the size. */
+function measureFont(ctx: CanvasRenderingContext2D, weight: number): Measure {
+  return (text, size) => {
+    ctx.font = font(weight, size)
+    return ctx.measureText(text).width
+  }
 }
 
 interface ArtBox {
@@ -283,10 +342,7 @@ function paintText(
   layout: TextLayout,
   palette: CardPalette,
 ): void {
-  const measureAt = (weight: number): Measure => (text, size) => {
-    ctx.font = font(weight, size)
-    return ctx.measureText(text).width
-  }
+  const measureAt = (weight: number) => measureFont(ctx, weight)
   const title = fitTitle(input.title, measureAt(layout.titleWeight), {
     maxWidth: layout.width,
     maxSize: layout.maxSize,
@@ -480,12 +536,104 @@ function drawEditorial(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource
   paintMark(ctx, input.provider, EDITORIAL_MARK, EDITORIAL_COLORS)
 }
 
+const LYRIC_BLOCK_W = 820
+const LYRIC_MARK: MarkLayout = { x: 72, top: 72, align: 'left' }
+
+function drawLyric(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput): void {
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  // Here the cover is a backdrop, not the subject, so it fills the square and
+  // is dimmed. The overlay plus the vignette keep white type legible over any
+  // artwork, including a white one.
+  ctx.drawImage(artwork, 0, 0, CARD_SIZE, CARD_SIZE)
+  ctx.fillStyle = 'rgba(9, 9, 11, 0.66)'
+  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
+
+  const vignette = ctx.createRadialGradient(512, 420, 80, 512, 420, 760)
+  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)')
+  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.5)')
+  ctx.fillStyle = vignette
+  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
+
+  const fade = ctx.createLinearGradient(0, 520, 0, CARD_SIZE)
+  fade.addColorStop(0, 'rgba(9, 9, 11, 0)')
+  fade.addColorStop(1, 'rgba(9, 9, 11, 0.9)')
+  ctx.fillStyle = fade
+  ctx.fillRect(0, 520, CARD_SIZE, CARD_SIZE - 520)
+
+  const measureAt = (weight: number) => measureFont(ctx, weight)
+
+  const lyrics = firstLyricLines(input.lyrics ?? '', 5)
+  const hasLyrics = lyrics.length > 0
+  let heroLines: string[]
+  let heroSize: number
+  let heroLineHeight: number
+  let heroWeight: number
+  if (hasLyrics) {
+    const fit = fitLyrics(lyrics, measureAt(600), { maxWidth: LYRIC_BLOCK_W, maxSize: 56, minSize: 30, maxLines: 5 })
+    heroLines = fit.lines
+    heroSize = fit.size
+    heroLineHeight = fit.lineHeight
+    heroWeight = 600
+  }
+  else {
+    // No lyrics yet: the title becomes the poster rather than a placeholder.
+    const fit = fitTitle(input.title, measureAt(700), { maxWidth: 880, maxSize: 72, minSize: 44, maxLines: 3 })
+    heroLines = fit.lines
+    heroSize = fit.size
+    heroLineHeight = Math.round(fit.size * 1.1)
+    heroWeight = 700
+  }
+
+  const blockHeight = heroLines.length * heroLineHeight
+  const top = Math.max(150, 420 - blockHeight / 2)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'top'
+  ctx.fillStyle = LYRIC_COLORS.ink
+  ctx.font = font(heroWeight, heroSize)
+  heroLines.forEach((line, i) => ctx.fillText(line, CARD_SIZE / 2, top + i * heroLineHeight))
+
+  if (hasLyrics) {
+    ctx.strokeStyle = LYRIC_COLORS.hairline
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(72, 806.5)
+    ctx.lineTo(952, 806.5)
+    ctx.stroke()
+
+    const titleFit = fitTitle(input.title, measureAt(600), { maxWidth: 880, maxSize: 38, minSize: 28, maxLines: 1 })
+    const title = titleFit.lines[0]
+    if (title) {
+      ctx.font = font(600, titleFit.size)
+      ctx.fillStyle = LYRIC_COLORS.ink
+      ctx.fillText(title, CARD_SIZE / 2, 836)
+    }
+    const artist = fitArtist(input.artist, measureAt(500), 880, 22)
+    if (artist) {
+      ctx.font = font(500, 22)
+      ctx.fillStyle = LYRIC_COLORS.muted
+      ctx.fillText(artist, CARD_SIZE / 2, 892)
+    }
+  }
+  else {
+    const artist = fitArtist(input.artist, measureAt(500), 880, 26)
+    if (artist) {
+      ctx.font = font(500, 26)
+      ctx.fillStyle = LYRIC_COLORS.muted
+      ctx.fillText(artist, CARD_SIZE / 2, 880)
+    }
+  }
+
+  paintMark(ctx, input.provider, LYRIC_MARK, LYRIC_COLORS)
+}
+
 const STYLE_DRAWERS: Record<MusicCardStyle, (ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput) => void> = {
   classic: (ctx, artwork, input) => drawClassic(ctx, artwork, input, CARD_COLORS),
   noir: (ctx, artwork, input) => drawClassic(ctx, artwork, input, NOIR_COLORS),
   polaroid: drawPolaroid,
   vinyl: drawVinyl,
   editorial: drawEditorial,
+  lyric: drawLyric,
 }
 
 /** Paint the card. Fonts must be ready; the caller awaits `document.fonts`. */
