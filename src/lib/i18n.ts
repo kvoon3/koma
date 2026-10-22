@@ -1,16 +1,18 @@
 import { useSyncExternalStore } from 'react'
+import { ja } from './locales/ja'
 import { zhHans } from './locales/zh-Hans'
 import { zhHant } from './locales/zh-Hant'
 
 /**
- * BCP-47 tags for the scripts. `zh-Hant` covers Taiwan / Hong Kong / Macau;
- * `zh-Hans` is Simplified. `en` needs no dictionary because the source
- * strings are English, so missing keys simply fall through to the key.
+ * BCP-47 tags for the interface languages. `zh-Hant` covers Taiwan / Hong
+ * Kong / Macau, `zh-Hans` is Simplified Chinese, and `ja` is Japanese. `en`
+ * needs no dictionary because the source strings are English, so missing keys
+ * simply fall through to the key.
  */
-export type Lang = 'en' | 'zh-Hans' | 'zh-Hant'
+export type Lang = 'en' | 'zh-Hans' | 'zh-Hant' | 'ja'
 
 /** All tags we read or write. Stored value migrates toward these on first read. */
-const ALL_LANGS: readonly Lang[] = ['en', 'zh-Hans', 'zh-Hant']
+const ALL_LANGS: readonly Lang[] = ['en', 'zh-Hans', 'zh-Hant', 'ja']
 const LEGACY_ZH = 'zh' as const
 
 /** Legacy stored value is the bare `zh`; rewrite it to the canonical BCP-47 tag. */
@@ -24,26 +26,45 @@ function migrateLegacy(stored: string | null): Lang | null {
   return null
 }
 
+/** Traditional-script Chinese tags: `zh-Hant`, plus Taiwan / Hong Kong / Macau. */
+function isTraditional(tag: string): boolean {
+  return tag.includes('-hant') || tag.includes('-tw') || tag.includes('-hk') || tag.includes('-mo')
+}
+
 /**
  * Does any of the user's preferred languages look like Traditional Chinese?
- * Matches `zh-Hant`, `zh-TW`, `zh-HK`, `zh-MO`. Falls through to false when
- * nothing matches.
+ * Falls through to false when nothing matches.
  */
 function prefersTraditional(): boolean {
   return navigator.languages.some((l) => {
     const tag = l.toLowerCase()
-    if (tag === 'zh' || tag.startsWith('zh-'))
-      return tag.includes('-hant') || tag.includes('-tw') || tag.includes('-hk') || tag.includes('-mo')
-    return false
+    return (tag === 'zh' || tag.startsWith('zh-')) && isTraditional(tag)
   })
 }
 
+/** The tag a browser language maps to, or null when we do not ship it. */
+function fromBrowserTag(value: string): Lang | null {
+  const tag = value.toLowerCase()
+  if (tag === 'en' || tag.startsWith('en-'))
+    return 'en'
+  if (tag === 'ja' || tag.startsWith('ja-'))
+    return 'ja'
+  if (tag === 'zh' || tag.startsWith('zh-'))
+    return isTraditional(tag) ? 'zh-Hant' : 'zh-Hans'
+  return null
+}
+
 /**
- * Does any preferred language look like any Chinese at all? Used for the
- * first-run default when no preference is stored.
+ * The first preferred language we ship. Order matters: `['ja-JP', 'zh-TW']`
+ * means the user wants Japanese, while the reverse means Traditional Chinese.
  */
-function prefersAnyChinese(): boolean {
-  return navigator.languages.some(l => l.toLowerCase().startsWith('zh'))
+function preferredLang(): Lang | null {
+  for (const value of navigator.languages) {
+    const tag = fromBrowserTag(value)
+    if (tag)
+      return tag
+  }
+  return null
 }
 
 const KEY = 'lang'
@@ -54,6 +75,7 @@ const htmlLang: Record<Lang, string> = {
   'en': 'en',
   'zh-Hans': 'zh-Hans',
   'zh-Hant': 'zh-Hant',
+  'ja': 'ja',
 }
 
 function detect(): Lang {
@@ -64,7 +86,7 @@ function detect(): Lang {
       localStorage.setItem(KEY, migrated)
     return migrated
   }
-  return prefersTraditional() ? 'zh-Hant' : prefersAnyChinese() ? 'zh-Hans' : 'en'
+  return preferredLang() ?? 'en'
 }
 
 /** The active language. Reads storage / the browser on first call. */
@@ -97,6 +119,7 @@ const dicts: Record<Lang, Record<string, string>> = {
   'en': {},
   'zh-Hans': zhHans,
   'zh-Hant': zhHant,
+  'ja': ja,
 }
 
 /**
