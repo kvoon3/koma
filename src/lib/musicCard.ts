@@ -9,6 +9,7 @@
  * The renderer is the browser half: it only paints what the fit decided.
  */
 import type { MusicProvider } from './musicLink'
+import { BRAND_ICON_PATHS, BRAND_ICON_VIEWBOX } from './brandIcons'
 import { firstLyricLines } from './lyrics'
 
 export const CARD_SIZE = 1024
@@ -312,6 +313,20 @@ function paintCover(
   ctx.drawImage(artwork, (w - sw) / 2, (h - sh) / 2, sw, sh, x, y, size, size)
 }
 
+/** The Simple Icons glyphs, parsed once per provider. */
+const brandPaths = new Map<MusicProvider, Path2D>()
+function brandPath(provider: MusicProvider): Path2D {
+  let path = brandPaths.get(provider)
+  if (!path) {
+    path = new Path2D(BRAND_ICON_PATHS[provider])
+    brandPaths.set(provider, path)
+  }
+  return path
+}
+
+const MARK_SIZE = 22
+const MARK_GAP = 10
+
 function paintMark(
   ctx: CanvasRenderingContext2D,
   provider: MusicProvider,
@@ -320,18 +335,20 @@ function paintMark(
   palette: Palette,
 ): void {
   const label = PROVIDER_LABELS[provider]
-  ctx.font = font(600, 22)
-  const dotY = top + 8
+  const midY = top + 8
 
+  ctx.save()
+  ctx.translate(x, midY - MARK_SIZE / 2)
+  ctx.scale(MARK_SIZE / BRAND_ICON_VIEWBOX, MARK_SIZE / BRAND_ICON_VIEWBOX)
   ctx.fillStyle = PROVIDER_COLORS[provider]
-  ctx.beginPath()
-  ctx.arc(x + 6, dotY, 6, 0, Math.PI * 2)
-  ctx.fill()
+  ctx.fill(brandPath(provider))
+  ctx.restore()
 
+  ctx.font = font(600, 22)
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = palette.muted
-  ctx.fillText(label, x + 24, dotY)
+  ctx.fillText(label, x + MARK_SIZE + MARK_GAP, midY)
 }
 
 /* Cover: the artwork full-bleed, with the words in the lower left. */
