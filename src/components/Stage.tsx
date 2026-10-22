@@ -1086,9 +1086,15 @@ function buildPaneTools(input: PaneToolsInput) {
     { key: 'sticker', icon: StickerIcon, label: t('Sticker'), hint: t('Pick images and pin them onto this photo'), onClick: bind({ requires: 'photo', run: p => pickStickersForPane(p.paneId) }) },
     cutoutTool,
     { key: 'make', icon: WandSparkles, label: t('Make'), hint: t('Make a sticker from text or an image'), onClick: bind({ requires: 'photo', run: p => openStickerMaker(p.paneId) }) },
-    // A library action, not a pane one: it opens with or without a focused
-    // photo, and the card it adds is placed from the library like any image.
-    { key: 'music', icon: Music, label: t('Music'), hint: t('Make a music card from a Spotify or Apple Music link'), onClick: () => useStore.getState().setMusicCardOpen(true) },
+    // The focused pane takes the finished card. The library header opens the
+    // same dialog with no target, where the card is only added to the library.
+    {
+      key: 'music',
+      icon: Music,
+      label: t('Music'),
+      hint: focusId ? t('Make a music card and place it in this pane') : t('Make a music card from a Spotify or Apple Music link'),
+      onClick: () => useStore.getState().openMusicCard(focusId || null),
+    },
     textTool,
     locationTool,
     {

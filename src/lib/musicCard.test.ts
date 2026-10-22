@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { fitArtist, fitTitle, musicCardFileName, TITLE_MAX_SIZE, TITLE_MAX_W, TITLE_MIN_SIZE } from './musicCard'
+import {
+  DEFAULT_MUSIC_CARD_STYLE,
+  fitArtist,
+  fitTitle,
+  MUSIC_CARD_STYLE_IDS,
+  musicCardFileName,
+  TITLE_MAX_SIZE,
+  TITLE_MAX_W,
+  TITLE_MIN_SIZE,
+} from './musicCard'
 
 /** A deterministic stand-in for canvas text: 0.5 em per character. */
 const measure = (text: string, size: number) => text.length * size * 0.5
@@ -36,6 +45,33 @@ describe('the title fit', () => {
     expect(fitTitle('', measure)).toEqual({ lines: [], size: TITLE_MAX_SIZE })
     expect(fitTitle('   \n  ', measure)).toEqual({ lines: [], size: TITLE_MAX_SIZE })
   })
+
+  test('a wide column with three lines keeps a longer title at full size', () => {
+    const fit = fitTitle('A Very Long Song Title That Needs Two Whole Lines', measure, {
+      maxWidth: 880,
+      maxSize: 84,
+      minSize: 44,
+      maxLines: 3,
+    })
+    expect(fit.size).toBe(84)
+    expect(fit.lines.length).toBeLessThanOrEqual(3)
+    for (const line of fit.lines)
+      expect(measure(line, fit.size)).toBeLessThanOrEqual(880)
+  })
+
+  test('the ellipsis follows the style minimum and width, not the classic ones', () => {
+    const fit = fitTitle('word '.repeat(40), measure, {
+      maxWidth: 400,
+      maxSize: 46,
+      minSize: 36,
+      maxLines: 2,
+    })
+    expect(fit.size).toBe(36)
+    expect(fit.lines).toHaveLength(2)
+    expect(fit.lines[1]!.endsWith('…')).toBe(true)
+    for (const line of fit.lines)
+      expect(measure(line, fit.size)).toBeLessThanOrEqual(400)
+  })
 })
 
 describe('the artist line', () => {
@@ -46,8 +82,23 @@ describe('the artist line', () => {
     expect(measure(out, 30)).toBeLessThanOrEqual(TITLE_MAX_W)
   })
 
+  test('a narrow card uses its own width and size', () => {
+    const long = 'The Extremely Long Artist Name That Will Not Fit The Narrow Card At All'
+    const out = fitArtist(long, measure, 400, 24)
+    expect(out.endsWith('…')).toBe(true)
+    expect(measure(out, 24)).toBeLessThanOrEqual(400)
+  })
+
   test('a blank artist is omitted', () => {
     expect(fitArtist('  ', measure)).toBe('')
+  })
+})
+
+describe('the style list', () => {
+  test('it names the five compositions once, with classic as the default', () => {
+    expect([...MUSIC_CARD_STYLE_IDS]).toEqual(['classic', 'noir', 'polaroid', 'vinyl', 'editorial'])
+    expect(new Set(MUSIC_CARD_STYLE_IDS).size).toBe(MUSIC_CARD_STYLE_IDS.length)
+    expect(DEFAULT_MUSIC_CARD_STYLE).toBe('classic')
   })
 })
 
