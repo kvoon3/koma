@@ -50,9 +50,10 @@ export function useGridKeyboard({ workspaces, activeId, switcherOpen, enter }: {
     if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       return
     const k = e.key
-    // A dialog (settings drawer, library, help) owns Tab, the arrows and
-    // Enter while it is open, so its own controls stay reachable.
-    if (t.closest('[role="dialog"]'))
+    // A focused control owns its own keys, and an open menu owns the arrows:
+    // otherwise Enter on the + cell would enter a workspace instead of opening
+    // its menu, and arrows would move the grid highlight behind the popup.
+    if (t.closest('button, a[href], [role="menu"], [role="dialog"]'))
       return
     const dirKey = dirForKey(k)
     if (dirKey) {

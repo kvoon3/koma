@@ -1,3 +1,4 @@
+import type { CardKind } from './lib/cards'
 import type { CutoutMap } from './lib/cutout'
 import type { CutoutSets } from './lib/cutoutVariants'
 import type { FilterValue } from './lib/filters'
@@ -11,6 +12,7 @@ import type { StickerRecipe } from './lib/stickerRecipe'
 import type { GridGroup, ParkedBoard } from './lib/workspaces'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { cardWorkspace } from './lib/cards'
 import { dropCutoutSetRefs, normalizeCutoutSets, pruneCutoutSets } from './lib/cutoutVariants'
 import { readExif } from './lib/exif'
 import { clearFilterCaches } from './lib/filterCache'
@@ -224,7 +226,9 @@ export const MAX_ZOOM = 8
 
 export type { DockBg, PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 
-function newWorkspace(): Workspace {
+function newWorkspace(kind?: CardKind): Workspace {
+  if (kind)
+    return cardWorkspace(kind)
   const root = newLeaf()
   return { id: uid('w'), root, focusId: root.id, canvasRatio: null, canvasFill: 1, stickers: [], labels: [] }
 }
@@ -482,10 +486,13 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     }))
   },
 
-  /** Append a blank workspace (the grid's + cell); no-op at nine. */
-  addWorkspace: () => {
+  /**
+   * Append a blank workspace or a card preset (the grid's + cell); no-op at
+   * nine. A preset is seeded before the commit, so one undo removes it whole.
+   */
+  addWorkspace: (kind) => {
     const before = get().workspaces
-    const next = addSlot(before, newWorkspace)
+    const next = addSlot(before, () => newWorkspace(kind))
     if (next === before)
       return null
     commit('addWorkspace')
@@ -1481,7 +1488,7 @@ interface Actions {
   clearLibrary: () => void
   resetWorkspace: (id: string) => void
   /** Returns the new workspace's id, or null when the board is full. */
-  addWorkspace: () => string | null
+  addWorkspace: (kind?: CardKind) => string | null
   removeWorkspace: (id: string) => void
   /** Returns the new group's id, or null at the group cap. */
   addGrid: (name?: string) => string | null
