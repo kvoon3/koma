@@ -25,7 +25,7 @@ import {
 } from './lib/gridTools'
 import { emptyHistory, jump, record, stepDown, stepUp } from './lib/history'
 import { clearImageCaches } from './lib/imageStore'
-import { migrateWorkspaceInserts } from './lib/layout'
+import { computeLayout, migrateWorkspaceInserts } from './lib/layout'
 import { CARD_SIZE as MUSIC_CARD_SIZE } from './lib/musicCard'
 import {
   cloneNode,
@@ -187,6 +187,11 @@ interface State extends PersistedSettings {
    * stage dock and the library header open the one dialog mounted by the root.
    */
   musicCardOpen: boolean
+  /**
+   * The pane the finished music card goes into. Null when the dialog was
+   * opened from the library, where a card is only added to the library.
+   */
+  musicCardFor: string | null
   /** Cut-out photo id → the photo it was cut from (see lib/cutout); saved with the session. */
   cutouts: CutoutMap
   /** The one running pane cutout, for the pane's progress overlay. Session-only. */
@@ -401,6 +406,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   paneClip: null,
   stickerMakerFor: null,
   musicCardOpen: false,
+  musicCardFor: null,
   history: emptyHistory(),
 
   addPhotos: (files, autoFill = true, kind: PhotoKind = 'photo') => {
@@ -955,16 +961,35 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set(st => ({ workspaces: mapActive(st, w => ({ ...w, root })) }))
   },
 
-  assign: (paneId, photoId) => {
-    if (!findLeaf(activeWs(get()).root, paneId))
-      return
+  assign: (paneId, photoId, fit = false) => {
+    const s = get()
+    const ws = activeWs(s)
+    if (!findLeaf(ws.root, paneId))
+      return false
+
+    // A composed card placed whole: the same contain/cover ratio the Fit
+    // command uses, resolved in the same commit so undo steps back once.
+    let zoom = 1
+    if (fit) {
+      const photo = s.photos.find(p => p.id === photoId)
+      if (photo?.trueW && photo.trueH) {
+        const view = computeLayout(ws.root, ws.canvasRatio, ws.canvasFill, 1000, 1000, 0, 0, 0)
+        const rect = view.leaves.find(l => l.node.id === paneId)?.rect
+        if (rect) {
+          const cover = Math.max(rect.w / photo.trueW, rect.h / photo.trueH)
+          const contain = Math.min(rect.w / photo.trueW, rect.h / photo.trueH)
+          zoom = Math.max(MIN_ZOOM, contain / cover)
+        }
+      }
+    }
+
     commit('assign')
-    set(s => ({
-      workspaces: mapActive(s, w => ({
+    set(st => ({
+      workspaces: mapActive(st, w => ({
         ...w,
         root: updateLeafIn(w.root, paneId, {
           photoId,
-          zoom: 1,
+          zoom,
           cx: 0.5,
           cy: 0.5,
           rot: 0,
@@ -976,6 +1001,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         focusId: paneId,
       })),
     }))
+    return true
   },
 
   /**
@@ -1275,8 +1301,17 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   // ---- music cards (a library surface, outside the board history) ----------
 
-  /** Open or close the one app-wide music card dialog. */
-  setMusicCardOpen: open => set({ musicCardOpen: open }),
+  /** Close the one app-wide music card dialog, or open it from the library. */
+  setMusicCardOpen: open => set(st => ({ musicCardOpen: open, musicCardFor: open ? st.musicCardFor : null })),
+
+  /**
+   * Open the dialog with a pane to place the finished card into. A stale id
+   * falls back to the library-only path.
+   */
+  openMusicCard: paneId => set({
+    musicCardOpen: true,
+    musicCardFor: paneId && findLeaf(activeWs(get()).root, paneId) ? paneId : null,
+  }),
 
   /**
    * Append a card the music tool already rendered. It is a complete 1024
@@ -1517,8 +1552,10 @@ interface Actions {
   closeOtherPanes: (paneId: string) => void
   closeEmptyPanes: () => void
   openStickerMaker: (paneId: string | null) => void
-  /** Open or close the one app-wide music card dialog. */
+  /** Close the one app-wide music card dialog, or open it from the library. */
   setMusicCardOpen: (open: boolean) => void
+  /** Open the dialog, placing the finished card into `paneId` when it exists. */
+  openMusicCard: (paneId: string | null) => void
   /** Append a rendered music card to the library; returns its record. */
   addMusicCard: (file: File, meta: MusicMeta) => Photo
   clearLibrary: () => void
@@ -1540,7 +1577,8 @@ interface Actions {
   closePane: (paneId: string) => void
   deletePane: (paneId: string) => void
   resizeSplit: (splitId: string, ratio: number) => void
-  assign: (paneId: string, photoId: string) => void
+  /** Place a photo in a pane; `fit` contains the whole image instead of cover. */
+  assign: (paneId: string, photoId: string, fit?: boolean) => boolean
   assignMany: (photoIds: string[]) => void
   removePhoto: (paneId: string) => void
   /** Swap two panes' contents: photo, view, stickers and label. */

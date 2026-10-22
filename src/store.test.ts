@@ -1037,6 +1037,43 @@ describe('music cards (a library asset)', () => {
     expect(depth()).toBe(before)
   })
 
+  test('the dialog can open with a target pane, and a stale id falls back to the library', () => {
+    const paneId = ws().focusId
+    state().openMusicCard(paneId)
+    expect(state().musicCardOpen).toBe(true)
+    expect(state().musicCardFor).toBe(paneId)
+
+    state().openMusicCard('missing-pane')
+    expect(state().musicCardOpen).toBe(true)
+    expect(state().musicCardFor).toBeNull()
+
+    state().setMusicCardOpen(false)
+    expect(state().musicCardOpen).toBe(false)
+    expect(state().musicCardFor).toBeNull()
+  })
+
+  test('placing a card with fit contains the whole card in one undo step', () => {
+    const created = state().addMusicCard(card(), meta)
+    const paneId = ws().focusId
+    expect(state().assign(paneId, created.id, true)).toBe(true)
+
+    const leaf = leaves()[0]!
+    expect(leaf.photoId).toBe(created.id)
+    expect(leaf.zoom).toBeGreaterThan(0)
+    expect(leaf.zoom).toBeLessThan(1)
+    expect(depth()).toBe(1)
+
+    state().undo()
+    expect(leaves()[0]!.photoId).toBeNull()
+    expect(state().photos.some(p => p.id === created.id)).toBe(true)
+  })
+
+  test('a missing target pane places nothing and records no step', () => {
+    const created = state().addMusicCard(card(), meta)
+    expect(state().assign('missing-pane', created.id, true)).toBe(false)
+    expect(depth()).toBe(0)
+  })
+
   test('a reload restores the kind and the source', () => {
     const created = state().addMusicCard(card(), meta)
     const cell = state().workspaces[0]!

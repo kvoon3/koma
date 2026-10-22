@@ -1,23 +1,61 @@
 /**
  * The music card: a 1024 square, opaque PNG made from a track's artwork and
- * the two lines a listener reads (title, artist) plus a small provider mark.
+ * the lines a listener reads (title, artist) plus a small provider mark.
  *
  * Text fitting is a pure function with the measurer injected, so the layout
- * rules (two lines, shrink to 40 before ellipsis) are tested under Bun without
- * a canvas. The renderer is the browser half: it only paints what the fit
- * decided.
+ * rules (line count, shrink, ellipsis) are tested under Bun without a canvas.
+ * The renderer is the browser half: it only paints what the fit decided.
+ *
+ * A style picks a palette and a composition. All of them keep the artwork
+ * uncropped and its own text off the image; the five differ in where the
+ * square sits, how much paper surrounds it, and how loudly the title speaks.
  */
 import type { MusicProvider } from './musicLink'
 
 export const CARD_SIZE = 1024
 
-/** The card's palette: warm paper, near-black ink, a quiet grey, a hairline. */
-export const CARD_COLORS = {
+export interface CardPalette {
+  ground: string
+  ink: string
+  muted: string
+  hairline: string
+}
+
+/** The default card's palette: warm paper, near-black ink, a quiet grey. */
+export const CARD_COLORS: CardPalette = {
   ground: '#F3EFE7',
   ink: '#171717',
   muted: '#6B6B6B',
   hairline: '#D8D2C6',
-} as const
+}
+
+const NOIR_COLORS: CardPalette = {
+  ground: '#111111',
+  ink: '#F3EFE7',
+  muted: '#A8A29A',
+  hairline: '#3A3733',
+}
+
+const POLAROID_COLORS: CardPalette = {
+  ground: '#FFFFFF',
+  ink: '#171717',
+  muted: '#6B6B6B',
+  hairline: '#E3DED4',
+}
+
+const VINYL_COLORS: CardPalette = {
+  ground: '#E7DFD2',
+  ink: '#171717',
+  muted: '#6B6B6B',
+  hairline: '#C9C0B0',
+}
+
+const EDITORIAL_COLORS: CardPalette = {
+  ground: '#F7F5F0',
+  ink: '#171717',
+  muted: '#6B6B6B',
+  hairline: '#D8D2C6',
+}
 
 export const PROVIDER_COLORS: Record<MusicProvider, string> = {
   spotify: '#1DB954',
@@ -46,10 +84,26 @@ export const TITLE_MAX_LINES = 2
 export const ARTIST_SIZE = 30
 export const MARK_TOP = 952
 
+/** The five compositions, in the order the dialog's picker shows them. */
+export const MUSIC_CARD_STYLE_IDS = ['classic', 'noir', 'polaroid', 'vinyl', 'editorial'] as const
+export type MusicCardStyle = typeof MUSIC_CARD_STYLE_IDS[number]
+export const DEFAULT_MUSIC_CARD_STYLE: MusicCardStyle = 'classic'
+
 export interface TitleFit {
   lines: string[]
-  /** The size the lines are drawn at, `TITLE_MAX_SIZE` when they fit at once. */
+  /** The size the lines are drawn at, the maximum when they fit at once. */
   size: number
+}
+
+export interface TitleFitOptions {
+  /** The width of the text column; defaults to the classic card's 640. */
+  maxWidth?: number
+  /** The largest size tried; defaults to 54. */
+  maxSize?: number
+  /** The size after which an ellipsis is used; defaults to 40. */
+  minSize?: number
+  /** How many lines the composition has room for; defaults to 2. */
+  maxLines?: number
 }
 
 export type Measure = (text: string, size: number) => number
@@ -113,33 +167,43 @@ function wrapText(text: string, size: number, maxWidth: number, measure: Measure
 }
 
 /**
- * Fit a title into at most two lines, 640 wide, shrinking from 54 down to 40
- * before anything is ellipsized. The largest size that keeps it within two
- * lines wins; at 40 the second line gets the ellipsis.
+ * Fit a title into the composition's lines and width, shrinking from the
+ * style's maximum to its minimum before anything is ellipsized. The largest
+ * size that keeps it within the line budget wins; at the minimum the last
+ * visible line gets the ellipsis.
  */
-export function fitTitle(text: string, measure: Measure): TitleFit {
+export function fitTitle(text: string, measure: Measure, options: TitleFitOptions = {}): TitleFit {
+  const maxWidth = options.maxWidth ?? TITLE_MAX_W
+  const maxSize = options.maxSize ?? TITLE_MAX_SIZE
+  const minSize = options.minSize ?? TITLE_MIN_SIZE
+  const maxLines = Math.max(1, options.maxLines ?? TITLE_MAX_LINES)
   const source = normalizeLine(text)
   if (!source)
-    return { lines: [], size: TITLE_MAX_SIZE }
+    return { lines: [], size: maxSize }
 
-  for (let size = TITLE_MAX_SIZE; size >= TITLE_MIN_SIZE; size--) {
-    const lines = wrapText(source, size, TITLE_MAX_W, measure)
-    if (lines.length <= TITLE_MAX_LINES)
+  for (let size = maxSize; size >= minSize; size--) {
+    const lines = wrapText(source, size, maxWidth, measure)
+    if (lines.length <= maxLines)
       return { lines, size }
   }
 
-  const lines = wrapText(source, TITLE_MIN_SIZE, TITLE_MAX_W, measure)
-  const kept = lines.slice(0, TITLE_MAX_LINES)
-  // More lines than the card allows: the second one always ends in an ellipsis,
-  // even when the visible text itself would have fit the box.
-  kept[kept.length - 1] = forcedEllipsis(kept[kept.length - 1]!, TITLE_MIN_SIZE, TITLE_MAX_W, measure)
-  return { lines: kept, size: TITLE_MIN_SIZE }
+  const lines = wrapText(source, minSize, maxWidth, measure)
+  const kept = lines.slice(0, maxLines)
+  // More lines than the composition allows: the last visible one always ends
+  // in an ellipsis, even when the text itself would have fit the box.
+  kept[kept.length - 1] = forcedEllipsis(kept[kept.length - 1]!, minSize, maxWidth, measure)
+  return { lines: kept, size: minSize }
 }
 
-/** The artist rides one line at 30px; too long is an ellipsis, never a wrap. */
-export function fitArtist(text: string, measure: Measure): string {
+/** The artist rides one line; too long is an ellipsis, never a wrap. */
+export function fitArtist(
+  text: string,
+  measure: Measure,
+  maxWidth = TITLE_MAX_W,
+  size = ARTIST_SIZE,
+): string {
   const source = normalizeLine(text)
-  return source ? ellipsizeToWidth(source, ARTIST_SIZE, TITLE_MAX_W, measure) : ''
+  return source ? ellipsizeToWidth(source, size, maxWidth, measure) : ''
 }
 
 /**
@@ -164,10 +228,264 @@ export interface MusicCardInput {
   provider: MusicProvider
   title: string
   artist: string
+  /** Defaults to `classic`; the rendered PNG carries the style itself. */
+  style?: MusicCardStyle
 }
 
 function font(weight: number, size: number): string {
   return `${weight} ${size}px ${CARD_FONT}`
+}
+
+interface ArtBox {
+  x: number
+  y: number
+  size: number
+}
+
+interface TextLayout {
+  x: number
+  width: number
+  top: number
+  align: 'left' | 'center'
+  maxSize: number
+  minSize: number
+  maxLines: number
+  lineHeight: number | ((size: number) => number)
+  titleWeight: number
+  artistSize: number
+  artistGap: number
+  /** How far a two-line title lifts its block; only the fixed-bottom cards need it. */
+  liftTwoLine: number
+}
+
+interface MarkLayout {
+  x: number
+  top: number
+  align: 'left' | 'center'
+}
+
+function paintArt(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, box: ArtBox, hairline?: string): void {
+  // No crop: the square sits in its own box, with a hairline that keeps a pale
+  // cover from melting into the paper.
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(artwork, box.x, box.y, box.size, box.size)
+  if (!hairline)
+    return
+  ctx.strokeStyle = hairline
+  ctx.lineWidth = 1
+  ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.size - 1, box.size - 1)
+}
+
+function paintText(
+  ctx: CanvasRenderingContext2D,
+  input: MusicCardInput,
+  layout: TextLayout,
+  palette: CardPalette,
+): void {
+  const measureAt = (weight: number): Measure => (text, size) => {
+    ctx.font = font(weight, size)
+    return ctx.measureText(text).width
+  }
+  const title = fitTitle(input.title, measureAt(layout.titleWeight), {
+    maxWidth: layout.width,
+    maxSize: layout.maxSize,
+    minSize: layout.minSize,
+    maxLines: layout.maxLines,
+  })
+  const artist = fitArtist(input.artist, measureAt(500), layout.width, layout.artistSize)
+  const lineHeight = typeof layout.lineHeight === 'function' ? layout.lineHeight(title.size) : layout.lineHeight
+  const x = layout.align === 'center' ? layout.x + layout.width / 2 : layout.x
+  const titleTop = layout.top - (title.lines.length > 1 ? layout.liftTwoLine : 0)
+
+  ctx.textBaseline = 'top'
+  ctx.textAlign = layout.align
+  ctx.fillStyle = palette.ink
+  ctx.font = font(layout.titleWeight, title.size)
+  title.lines.forEach((line, i) => ctx.fillText(line, x, titleTop + i * lineHeight))
+
+  if (!artist)
+    return
+  // A two-line title spends the space the artist's descenders need in the
+  // fixed-bottom cards; the lift above keeps the provider mark clear of them.
+  const afterTitle = titleTop + title.lines.length * lineHeight
+  ctx.fillStyle = palette.muted
+  ctx.font = font(500, layout.artistSize)
+  ctx.fillText(artist, x, afterTitle + (title.lines.length ? layout.artistGap : 0))
+}
+
+function paintMark(
+  ctx: CanvasRenderingContext2D,
+  provider: MusicProvider,
+  layout: MarkLayout,
+  palette: CardPalette,
+): void {
+  const label = PROVIDER_LABELS[provider].toUpperCase()
+  ctx.font = font(600, 20)
+  const labelWidth = ctx.measureText(label).width
+  // The dot is 10 wide, then an 8px gap; the whole mark is centered when the
+  // composition centers it, so the stamp shares the caption's axis.
+  const total = 10 + 8 + labelWidth
+  const start = layout.align === 'center' ? layout.x - total / 2 : layout.x
+  const dotY = layout.top + 5
+
+  ctx.fillStyle = PROVIDER_COLORS[provider]
+  ctx.beginPath()
+  ctx.arc(start + 5, dotY, 5, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = palette.muted
+  ctx.font = font(600, 20)
+  ctx.fillText(label, start + 18, dotY)
+}
+
+const CLASSIC_TEXT: TextLayout = {
+  x: TEXT_X,
+  width: TITLE_MAX_W,
+  top: TITLE_TOP,
+  align: 'left',
+  maxSize: TITLE_MAX_SIZE,
+  minSize: TITLE_MIN_SIZE,
+  maxLines: TITLE_MAX_LINES,
+  lineHeight: TITLE_LINE_H,
+  titleWeight: 600,
+  artistSize: ARTIST_SIZE,
+  artistGap: 6,
+  liftTwoLine: TWO_LINE_TITLE_LIFT,
+}
+
+const CLASSIC_MARK: MarkLayout = { x: TEXT_X, top: MARK_TOP, align: 'left' }
+
+function drawClassic(
+  ctx: CanvasRenderingContext2D,
+  artwork: CanvasImageSource,
+  input: MusicCardInput,
+  palette: CardPalette,
+): void {
+  ctx.fillStyle = palette.ground
+  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
+  paintArt(ctx, artwork, ART_RECT, palette.hairline)
+  paintText(ctx, input, CLASSIC_TEXT, palette)
+  paintMark(ctx, input.provider, CLASSIC_MARK, palette)
+}
+
+const POLAROID_ART: ArtBox = { x: 152, y: 88, size: 720 }
+const POLAROID_TEXT: TextLayout = {
+  x: 152,
+  width: 720,
+  top: 844,
+  align: 'center',
+  maxSize: 46,
+  minSize: 36,
+  maxLines: 2,
+  lineHeight: 52,
+  titleWeight: 600,
+  artistSize: 26,
+  artistGap: 6,
+  liftTwoLine: 0,
+}
+const POLAROID_MARK: MarkLayout = { x: CARD_SIZE / 2, top: 40, align: 'center' }
+
+function drawPolaroid(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput): void {
+  ctx.fillStyle = POLAROID_COLORS.ground
+  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
+  paintArt(ctx, artwork, POLAROID_ART, POLAROID_COLORS.hairline)
+  paintText(ctx, input, POLAROID_TEXT, POLAROID_COLORS)
+  paintMark(ctx, input.provider, POLAROID_MARK, POLAROID_COLORS)
+}
+
+const VINYL_ART: ArtBox = { x: 172, y: 96, size: 560 }
+const VINYL_TEXT: TextLayout = {
+  x: 172,
+  width: 680,
+  top: 760,
+  align: 'left',
+  maxSize: 54,
+  minSize: 40,
+  maxLines: 2,
+  lineHeight: 60,
+  titleWeight: 600,
+  artistSize: 30,
+  artistGap: 6,
+  liftTwoLine: 20,
+}
+const VINYL_MARK: MarkLayout = { x: 172, top: MARK_TOP, align: 'left' }
+
+function drawVinyl(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput): void {
+  ctx.fillStyle = VINYL_COLORS.ground
+  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
+
+  // A record peeks out from behind the sleeve. Its label and hole stay right of
+  // the sleeve's edge, so the visible crescent reads as a disc, not a dark arc.
+  const cx = 770
+  const cy = 376
+  const radius = 250
+  ctx.fillStyle = '#151311'
+  ctx.beginPath()
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)'
+  ctx.lineWidth = 1.5
+  for (let r = 100; r <= 240; r += 20) {
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  ctx.fillStyle = '#D9CFBB'
+  ctx.beginPath()
+  ctx.arc(cx, cy, 72, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.fillStyle = '#151311'
+  ctx.beginPath()
+  ctx.arc(cx, cy, 6, 0, Math.PI * 2)
+  ctx.fill()
+
+  paintArt(ctx, artwork, VINYL_ART, VINYL_COLORS.hairline)
+  paintText(ctx, input, VINYL_TEXT, VINYL_COLORS)
+  paintMark(ctx, input.provider, VINYL_MARK, VINYL_COLORS)
+}
+
+const EDITORIAL_ART: ArtBox = { x: 72, y: 72, size: 440 }
+const EDITORIAL_RULE = { x: 72, y: 552, width: 880 } as const
+const EDITORIAL_TEXT: TextLayout = {
+  x: 72,
+  width: 880,
+  top: 584,
+  align: 'left',
+  maxSize: 84,
+  minSize: 44,
+  maxLines: 3,
+  lineHeight: size => Math.round(size * 1.05),
+  titleWeight: 700,
+  artistSize: 30,
+  artistGap: 10,
+  liftTwoLine: 0,
+}
+const EDITORIAL_MARK: MarkLayout = { x: 72, top: MARK_TOP, align: 'left' }
+
+function drawEditorial(ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput): void {
+  ctx.fillStyle = EDITORIAL_COLORS.ground
+  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
+  paintArt(ctx, artwork, EDITORIAL_ART, EDITORIAL_COLORS.hairline)
+
+  ctx.fillStyle = EDITORIAL_COLORS.hairline
+  ctx.fillRect(EDITORIAL_RULE.x, EDITORIAL_RULE.y, EDITORIAL_RULE.width, 1)
+
+  paintText(ctx, input, EDITORIAL_TEXT, EDITORIAL_COLORS)
+  paintMark(ctx, input.provider, EDITORIAL_MARK, EDITORIAL_COLORS)
+}
+
+const STYLE_DRAWERS: Record<MusicCardStyle, (ctx: CanvasRenderingContext2D, artwork: CanvasImageSource, input: MusicCardInput) => void> = {
+  classic: (ctx, artwork, input) => drawClassic(ctx, artwork, input, CARD_COLORS),
+  noir: (ctx, artwork, input) => drawClassic(ctx, artwork, input, NOIR_COLORS),
+  polaroid: drawPolaroid,
+  vinyl: drawVinyl,
+  editorial: drawEditorial,
 }
 
 /** Paint the card. Fonts must be ready; the caller awaits `document.fonts`. */
@@ -176,54 +494,10 @@ export function drawMusicCard(
   artwork: CanvasImageSource,
   input: MusicCardInput,
 ): void {
-  const measureAt = (weight: number): Measure => (text, size) => {
-    ctx.font = font(weight, size)
-    return ctx.measureText(text).width
-  }
-  const title = fitTitle(input.title, measureAt(600))
-  const artist = fitArtist(input.artist, measureAt(500))
-
-  ctx.fillStyle = CARD_COLORS.ground
-  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
-
-  // No crop and no text over the art: the square sits in its own box, with a
-  // hairline that keeps a pale cover from melting into the paper.
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(artwork, ART_RECT.x, ART_RECT.y, ART_RECT.size, ART_RECT.size)
-  ctx.strokeStyle = CARD_COLORS.hairline
-  ctx.lineWidth = 1
-  ctx.strokeRect(ART_RECT.x + 0.5, ART_RECT.y + 0.5, ART_RECT.size - 1, ART_RECT.size - 1)
-
-  // A two-line title spends the space the artist's descenders need, so the
-  // whole text block lifts to keep the provider mark clear of the artist.
-  const titleTop = TITLE_TOP - (title.lines.length > 1 ? TWO_LINE_TITLE_LIFT : 0)
-
-  ctx.textBaseline = 'top'
-  ctx.textAlign = 'left'
-  ctx.fillStyle = CARD_COLORS.ink
-  ctx.font = font(600, title.size)
-  title.lines.forEach((line, i) => ctx.fillText(line, TEXT_X, titleTop + i * TITLE_LINE_H))
-
-  const afterTitle = titleTop + title.lines.length * TITLE_LINE_H
-  if (artist) {
-    ctx.fillStyle = CARD_COLORS.muted
-    ctx.font = font(500, ARTIST_SIZE)
-    ctx.fillText(artist, TEXT_X, afterTitle + (title.lines.length ? 6 : 0))
-  }
-
-  // Provider mark: a colored dot, then a quiet uppercase label.
-  const dotX = TEXT_X + 5
-  const dotY = MARK_TOP + 5
-  ctx.fillStyle = PROVIDER_COLORS[input.provider]
-  ctx.beginPath()
-  ctx.arc(dotX, dotY, 5, 0, Math.PI * 2)
-  ctx.fill()
-
-  ctx.fillStyle = CARD_COLORS.muted
-  ctx.font = font(600, 20)
-  ctx.textBaseline = 'middle'
-  ctx.fillText(PROVIDER_LABELS[input.provider].toUpperCase(), TEXT_X + 18, dotY)
+  const style = input.style && MUSIC_CARD_STYLE_IDS.includes(input.style)
+    ? input.style
+    : DEFAULT_MUSIC_CARD_STYLE
+  STYLE_DRAWERS[style](ctx, artwork, input)
 }
 
 export function loadMusicArtwork(url: string): Promise<HTMLImageElement> {
