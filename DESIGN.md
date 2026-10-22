@@ -83,21 +83,18 @@ right-edge rail scales the collage as a whole instead (below).
 
 ### The canvas resize rail, and the corner handle
 
-The tools sheet is an overlay with no put-away state, and a tall canvas runs
-underneath it, so the corner the aspect handle sits on disappears behind the
-glass exactly when the canvas is big enough to want resizing. Two controls cover
-that, and they do different jobs:
+Two controls size the canvas, and they do different jobs:
 
 - **The corner handle**, the direct one: a chip straddling the canvas's
   bottom-right corner that reshapes it to any aspect. It is board chrome, so it
-  rides the canvas and the view zoom; when the sheet reaches it, it slides up
-  the canvas's right edge until it clears the sheet by 8px (never past the
-  canvas's own top edge) and slides back down as the canvas shrinks. It never
-  hides behind the sheet. Scaled past the fit, though, the canvas's corner
-  itself runs off the stage, and the handle goes with the corner it marks
-  (a corner that is not on screen is not a corner you can drag); that is the
-  state the rail exists for, and the dock's ratio tools and the canvas menu
-  still reshape the board from anywhere.
+  rides the canvas and the view zoom, and it is pinned there: it never dodges
+  anything. The tools sheet is an overlay with no put-away state and a tall
+  canvas runs under it, so the sheet does cover the handle once the canvas is
+  big enough to want resizing, and a canvas scaled past the fit takes its corner
+  (and the handle) off the stage entirely. Both are accepted: the handle is the
+  direct gesture when the corner is in reach, and the rail below is the control
+  that always is. The dock's ratio tools and the canvas menu reshape the board
+  from anywhere too.
 - **The rail**, the always-reachable one: a vertical control on the stage's
   right edge, centred on the strip the floating chrome leaves free: below the
   action cluster (`useFloatingActionsBottom`) and above the tools sheet
