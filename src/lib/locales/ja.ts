@@ -1,7 +1,7 @@
 /**
- * Japanese. Keys are the English source strings (see `lib/i18n`), so anything
- * missing here simply falls back to English. The Chinese counterparts live in
- * `zh-Hans.ts` and `zh-Hant.ts`.
+ * Japanese. Keys are the English source strings (see `lib/i18n`), and
+ * `Record<TKey, string>` refuses a missing one, so the set matches `zh-Hans`
+ * exactly. The Chinese counterparts live in `zh-Hans.ts` and `zh-Hant.ts`.
  */
 import type { TKey } from './zh-Hans'
 

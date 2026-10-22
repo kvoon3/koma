@@ -1,7 +1,8 @@
 /**
  * Traditional Chinese (Taiwan conventions). Keys are the English source
- * strings (see `lib/i18n`), so anything missing here simply falls back to
- * English. The Simplified counterpart lives in `zh-Hans.ts`.
+ * strings (see `lib/i18n`), and `Record<TKey, string>` refuses a missing one,
+ * so the set matches `zh-Hans` exactly. The Simplified counterpart lives in
+ * `zh-Hans.ts`.
  */
 import type { TKey } from './zh-Hans'
 
