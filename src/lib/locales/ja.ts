@@ -479,6 +479,14 @@ export const ja: Record<string, string> = {
   'Start a new collage here': 'ここで新しいコラージュを始める',
   'New collage': '新規作成',
 
+  // Cards (wave6/cover-cards): the + menu and the labels it seeds
+  'Blank workspace': '空白のワークスペース',
+  'Cover card': 'カバーカード',
+  'Lyrics card': '歌詞カード',
+  'Your title': 'タイトルを入力',
+  'Your artist': 'アーティスト名を入力',
+  'Your lyrics': '歌詞を入力',
+
   // Workspace file (save / open the whole board)
   'Workspace': 'ワークスペース',
   'Save workspace file…': 'ワークスペースファイルを保存…',

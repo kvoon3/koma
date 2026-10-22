@@ -1,10 +1,14 @@
 import type { CollisionDetection } from '@dnd-kit/core'
+import type { CardKind } from '../lib/cards'
 import type { Photo } from '../lib/imageStore'
 import type { Node } from '../lib/panes'
+import { Menu } from '@base-ui/react/menu'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, pointerWithin, useDroppable } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
+import { Image, Square, Type } from 'lucide'
+import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useCanvasViewZoom, useElementSize } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
@@ -29,6 +33,7 @@ import { useSwitcherMorph } from './grid/useSwitcherMorph'
 import { PagerSurface, WorkspaceSwitcher } from './grid/WorkspaceSwitcher'
 import { DockToolset } from './Stage'
 import { ToolsDock } from './ToolsDock'
+import { menuItemCls, menuPopupCls } from './ui/menu'
 import { ViewZoomChip } from './ViewZoomChip'
 
 /** Side air the stage keeps around a board (both sides together). */
@@ -386,20 +391,43 @@ function GridDeleteZone({ active, label }: { active: boolean, label: string }) {
   return <DeleteZone setRef={setNodeRef} active={active} over={isOver} label={label} />
 }
 
-/** The + cell after the last workspace: adds a blank one. Not sortable. */
+/**
+ * The + cell after the last workspace: a menu for a blank workspace or one of
+ * the share-card presets. Not sortable.
+ */
 function AddCell({ cell, cellH }: { cell: number, cellH: number }) {
   const t = useT()
+  const add = (kind?: CardKind) => useStore.getState().addWorkspace(kind)
   return (
-    <button
-      data-add-cell=""
-      className="relative grid cursor-pointer select-none place-items-center border-0 bg-transparent p-0 text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-txt"
-      style={{ width: cell, height: cellH }}
-      aria-label={t('Add a workspace')}
-      title={t('Add a workspace')}
-      onClick={() => useStore.getState().addWorkspace()}
-    >
-      <AddSlotFrame cell={cell} cellH={cellH} />
-    </button>
+    <Menu.Root>
+      <Menu.Trigger
+        data-add-cell=""
+        className="relative grid cursor-pointer select-none place-items-center border-0 bg-transparent p-0 text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-txt"
+        style={{ width: cell, height: cellH }}
+        aria-label={t('Add a workspace')}
+        title={t('Add a workspace')}
+      >
+        <AddSlotFrame cell={cell} cellH={cellH} />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner sideOffset={4} align="start" className="z-[260] select-none outline-0">
+          <Menu.Popup className={menuPopupCls}>
+            <Menu.Item className={menuItemCls} data-add-kind="blank" onClick={() => add()}>
+              <MorphIcon icon={Square} size={13} strokeWidth={1.75} className="text-dim" />
+              {t('Blank workspace')}
+            </Menu.Item>
+            <Menu.Item className={menuItemCls} data-add-kind="cover" onClick={() => add('cover')}>
+              <MorphIcon icon={Image} size={13} strokeWidth={1.75} className="text-dim" />
+              {t('Cover card')}
+            </Menu.Item>
+            <Menu.Item className={menuItemCls} data-add-kind="lyrics" onClick={() => add('lyrics')}>
+              <MorphIcon icon={Type} size={13} strokeWidth={1.75} className="text-dim" />
+              {t('Lyrics card')}
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   )
 }
 

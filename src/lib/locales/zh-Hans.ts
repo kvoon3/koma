@@ -481,6 +481,14 @@ export const zhHans: Record<string, string> = {
   'Start a new collage here': '在这里开始新的拼图',
   'New collage': '新建拼图',
 
+  // Cards (wave6/cover-cards): the + menu and the labels it seeds
+  'Blank workspace': '空白工作区',
+  'Cover card': '封面卡片',
+  'Lyrics card': '歌词卡片',
+  'Your title': '输入标题',
+  'Your artist': '输入艺人',
+  'Your lyrics': '输入歌词',
+
   // Workspace file (save / open the whole board)
   'Workspace': '工作区',
   'Save workspace file…': '保存工作空间文件…',
