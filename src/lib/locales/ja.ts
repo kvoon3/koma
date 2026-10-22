@@ -477,7 +477,7 @@ export const ja: Record<string, string> = {
   // WorkspaceGrid
   'Edit this workspace': 'このワークスペースを編集',
   'Start a new collage here': 'ここで新しいコラージュを始める',
-  'New collage': '新しいコラージュ',
+  'New collage': '新規作成',
 
   // Workspace file (save / open the whole board)
   'Workspace': 'ワークスペース',
