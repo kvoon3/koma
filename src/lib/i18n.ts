@@ -31,10 +31,6 @@ function isTraditional(tag: string): boolean {
   return tag.includes('-hant') || tag.includes('-tw') || tag.includes('-hk') || tag.includes('-mo')
 }
 
-/**
- * Does any of the user's preferred languages look like Traditional Chinese?
- * Falls through to false when nothing matches.
- */
 function prefersTraditional(): boolean {
   return navigator.languages.some((l) => {
     const tag = l.toLowerCase()
@@ -42,7 +38,6 @@ function prefersTraditional(): boolean {
   })
 }
 
-/** The tag a browser language maps to, or null when we do not ship it. */
 function fromBrowserTag(value: string): Lang | null {
   const tag = value.toLowerCase()
   if (tag === 'en' || tag.startsWith('en-'))

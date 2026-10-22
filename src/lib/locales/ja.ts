@@ -81,7 +81,7 @@ export const ja: Record<string, string> = {
   'Reset rotation': '回転をリセット',
   'Invert colors': '色を反転',
   'Label font': 'ラベルのフォント',
-  // Label themes (wave4/glow-font): the box pairs and the glowing pure white
+  // Label themes
   'Label theme': 'ラベルのテーマ',
   'Theme': 'テーマ',
   'Glow': 'グロー',
@@ -317,7 +317,7 @@ export const ja: Record<string, string> = {
   'Cutout added to the library': '切り抜きをライブラリに追加しました',
   'Background removal failed': '背景の削除に失敗しました',
 
-  // Cutout states menu (wave4/blur-bg)
+  // Cutout states menu
   'Cut out, or switch the background': '切り抜く、または背景を切り替え',
   'Blurred background': 'ぼかした背景',
   'The original photo is gone': '元の写真はありません',
@@ -327,7 +327,7 @@ export const ja: Record<string, string> = {
   'Could not blur the background': '背景をぼかせませんでした',
   'Could not add the blurred cutout to the library': 'ぼかした背景の切り抜きをライブラリに追加できませんでした',
 
-  // Sticker maker: stamp edge and manual mask (wave3/stickers)
+  // Sticker maker: stamp edge and manual mask
   'Edge': 'エッジ',
   'Smooth': 'スムーズ',
   'Stamp': '切手',
@@ -518,7 +518,7 @@ export const ja: Record<string, string> = {
   'Shuffle': 'シャッフル',
   'This removes every photo from the grid cells. Layouts and the library stay. This cannot be undone.': 'グリッドのセルからすべての写真を削除します。レイアウトとライブラリは残ります。この操作は取り消せません。',
 
-  // Rotation (detent dial: pane photos now, board stickers / labels later)
+  // Rotation (the detent dial)
   'Rotate': '回転',
   'Rotation': '角度',
   'Rotate or flip this photo': 'この写真を回転または反転',
@@ -527,16 +527,13 @@ export const ja: Record<string, string> = {
   'Rotate right 90°': '右に90°回転',
   'Flip horizontally': '左右に反転',
   'Flip vertically': '上下に反転',
-  // Dock rework
+  // Dock
   'Collapse tools': 'ツールを折りたたむ',
   'Canvas ratio': 'キャンバス比率',
   'Opacity': '不透明度',
   'Icon': 'アイコン',
   'Invert': '反転',
   'Square (1:1)': '正方形（1:1）',
-  // Dual grid (two 9-grid groups, compared side by side)
-  // Dual grid (two 9-grid groups, compared side by side or stacked)
-  // First / second, not left / right: on a phone the two boards stack.
   // Workspaces (the board groups, switched from the Mission Control-style switcher)
   'Add a group': 'グループを追加',
   'Open group {name}': 'グループ {name} を開く',
@@ -556,7 +553,7 @@ export const ja: Record<string, string> = {
   'Cyanotype': 'サイアノタイプ',
   'Paper Tone': 'ペーパートーン',
   'Bit Grain': 'ビットグレイン',
-  // Filters: the pixel family (wave35/pixel-filters)
+  // Filters: the pixel family
   'Mosaic': 'モザイク',
   'Tessera': 'テッセラ',
   'Diamond Screen': 'ダイヤモンドスクリーン',
@@ -574,7 +571,7 @@ export const ja: Record<string, string> = {
   'Matrix': 'マトリックス',
   'Mono ink': 'モノインク',
   'Duotone ink': 'デュオトーンインク',
-  // Multi-line labels + EXIF location (wave3/text)
+  // Multi-line labels + EXIF location
   'Label alignment': 'ラベルの配置',
   'Align left': '左揃え',
   'Align center': '中央揃え',
@@ -620,7 +617,7 @@ export const ja: Record<string, string> = {
   'Used in {n} places on the board': 'ボード上で {n} か所に使用',
   'Not placed on the board': 'ボードに未配置',
   'No stickers here yet. Make one with the New sticker button above.': 'ここにはまだステッカーがありません。上の「新しいステッカー」ボタンで作成してください。',
-  // Sticker erase & re-edit (wave35/sticker-erase)
+  // Sticker erase & re-edit
   'Erase sticker': 'ステッカーを消去',
   'Re-edit sticker': 'ステッカーを再編集',
   'Erased sticker saved to {folder}': '消去したステッカーを「{folder}」に保存しました',
@@ -631,7 +628,7 @@ export const ja: Record<string, string> = {
   'Edit': '編集',
   '{n} of {max} undo steps': '{max} ステップ中 {n} ステップ使用',
   'Reset effects': '効果をリセット',
-  // Photo management (tags, EXIF detail, safe delete) + the hub root (wave35/photo-hub)
+  // Photo management (tags, EXIF detail, safe delete) + the hub root
   'A tag with that name already exists': '同じ名前のタグがすでにあります',
   'Add a tag': 'タグを追加',
   'Add photos': '写真を追加',
@@ -680,7 +677,7 @@ export const ja: Record<string, string> = {
   '{n} in the sticker library': 'ステッカーライブラリに {n} 個',
   'Retained draft': '保留中の下書き',
 
-  // History (wave35/history-tree): the step tree panel and its step labels
+  // History: the step tree panel and its step labels
   'History': '履歴',
   'History · all steps': '履歴 · すべてのステップ',
   '{n} steps': '{n} ステップ',
@@ -727,8 +724,8 @@ export const ja: Record<string, string> = {
   'Blend': 'ブレンド',
   'Workspace list': 'ワークスペース一覧',
   'Board': 'ボード',
-  // Pane minimap (the chip the old zoom pair shared)
+  // Pane minimap
   'Photo minimap, drag to pan': '写真ミニマップ、ドラッグで移動',
-  // Canvas view zoom (wave4/pane-controls): the percentage chip on the stage margin.
+  // Canvas view zoom: the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': 'キャンバス {n}% · クリックでフィット',
 }
