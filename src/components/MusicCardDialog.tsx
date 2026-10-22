@@ -1,13 +1,13 @@
 import type { TKey } from '../lib/i18n'
-import type { LyricSize, MusicCardStyle } from '../lib/musicCard'
+import type { LyricFont, LyricLeading, LyricSize, MusicCardStyle } from '../lib/musicCard'
 import type { MusicResolveError, ResolvedMusic } from '../lib/musicLink'
 import { Dialog } from '@base-ui/react/dialog'
-import { AlignLeft, Image as ImageIcon, X } from 'lucide'
+import { AlignLeft, Check, Image as ImageIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../lib/i18n'
-import { fetchLyrics } from '../lib/lyrics'
-import { DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, LYRIC_SIZE_SCALE, MUSIC_CARD_STYLE_IDS, musicCardFileName, PROVIDER_COLORS, PROVIDER_LABELS, renderMusicCardBlob } from '../lib/musicCard'
+import { fetchLyrics, lyricLinesFrom } from '../lib/lyrics'
+import { DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, LYRIC_FONT_IDS, LYRIC_FONT_STACKS, LYRIC_LEADINGS, LYRIC_SIZE_SCALE, MUSIC_CARD_STYLE_IDS, musicCardFileName, renderMusicCardBlob } from '../lib/musicCard'
 import { resolveMusic } from '../lib/musicLink'
 import { findLeaf } from '../lib/panes'
 import { say } from '../lib/toast'
@@ -42,11 +42,21 @@ const LYRIC_SIZE_NAMES: Record<LyricSize, TKey> = {
   l: 'Large',
 }
 
+/** The card sets three display lines, so a pick is capped at three source lines. */
+const LYRIC_PICK_LIMIT = 3
+
+const LYRIC_FONT_LABELS: Record<LyricFont, TKey> = {
+  sans: 'Sans',
+  serif: 'Serif',
+}
+
 /** The preview and its switch share one column width at every size. */
 const STAGE_W = 'w-[min(100%,300px,38dvh)] md:w-[min(100%,360px,48dvh)]'
 
 const SEGMENT = 'flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border-0 text-[12px] transition-colors duration-(--dur-fast) disabled:cursor-default disabled:opacity-50'
 const TEXT_ACTION = 'cursor-pointer border-0 bg-transparent p-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim underline decoration-line-strong underline-offset-2 transition-colors duration-(--dur-fast) hover:text-txt disabled:cursor-default disabled:opacity-50'
+const TYPE_BTN = 'flex h-7 cursor-pointer items-center justify-center border px-2 text-[11px] tabular-nums transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] disabled:cursor-default disabled:opacity-50'
+const TYPE_LABEL = 'text-[10px] font-semibold uppercase tracking-[0.08em] text-dim'
 
 function errorCopy(t: ReturnType<typeof useT>, error: MusicResolveError): string {
   switch (error) {
@@ -98,6 +108,13 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const [style, setStyle] = useState<MusicCardStyle>(DEFAULT_MUSIC_CARD_STYLE)
   /** How far the lyric type steps; lines wrap at every step. */
   const [lyricSize, setLyricSize] = useState<LyricSize>('l')
+  /** The lyric typeface and leading; the card and the picker share both. */
+  const [lyricFont, setLyricFont] = useState<LyricFont>('sans')
+  const [lyricLeading, setLyricLeading] = useState<LyricLeading>(1.3)
+  /** Which source lines the card sets, in song order. */
+  const [lyricPicks, setLyricPicks] = useState<number[]>([])
+  /** The paste box is a fallback; the list is the normal way to pick lines. */
+  const [pasteOpen, setPasteOpen] = useState(false)
 
   /** The resolved artwork, kept decoded so an edit re-renders without a fetch. */
   const artworkRef = useRef<HTMLImageElement | null>(null)
@@ -146,6 +163,29 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
       window.setTimeout(() => URL.revokeObjectURL(old), 0)
   }, [])
 
+  /** A new set of words starts with its opening lines picked. */
+  const applyLyrics = useCallback((text: string) => {
+    setLyrics(text)
+    setLyricPicks(lyricLinesFrom(text).slice(0, LYRIC_PICK_LIMIT).map((_, i) => i))
+  }, [])
+
+  const lyricLines = lyricLinesFrom(lyrics)
+  const selectedLyrics = lyricPicks
+    .map(i => lyricLines[i])
+    .filter((line): line is string => !!line)
+    .join('\n')
+  const picksFull = lyricPicks.length >= LYRIC_PICK_LIMIT
+
+  const togglePick = (index: number) => {
+    setLyricPicks((prev) => {
+      if (prev.includes(index))
+        return prev.filter(i => i !== index)
+      if (prev.length >= LYRIC_PICK_LIMIT)
+        return prev
+      return [...prev, index].sort((a, b) => a - b)
+    })
+  }
+
   const reset = useCallback(() => {
     jobRef.current++
     lyricsJobRef.current++
@@ -164,6 +204,8 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     setTitle('')
     setArtist('')
     setLyrics('')
+    setLyricPicks([])
+    setPasteOpen(false)
     setLyricsBusy(false)
     setLyricsNote(null)
     scrollRef.current?.scrollTo({ top: 0 })
@@ -202,7 +244,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     }
   }, [open, syncPopup])
 
-  // Title, artist, lyrics and the size step repaint the card after they
+  // Title, artist, the picked lines and their type repaint the card after they
   // settle. The artwork is already decoded, so this is a canvas pass.
   useEffect(() => {
     if (!music || !artworkRef.current)
@@ -212,13 +254,15 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         provider: music.provider,
         title,
         artist,
-        lyrics,
+        lyrics: selectedLyrics,
         lyricScale: LYRIC_SIZE_SCALE[lyricSize],
+        lyricFont,
+        lyricLeading,
         style,
       }).then(swapPreview).catch(() => setError(t('No artwork found for that link.')))
     }, PREVIEW_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [music, title, artist, lyrics, lyricSize, style, t, swapPreview])
+  }, [music, title, artist, selectedLyrics, lyricSize, lyricFont, lyricLeading, style, t, swapPreview])
 
   /**
    * Ask LRCLIB for the track's words. A resolve fills them silently; the
@@ -240,21 +284,21 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
       if (text) {
         if (!announce && lyricsTouchedRef.current)
           return
-        setLyrics(text)
+        applyLyrics(text)
         return
       }
       if (announce)
-        setLyricsNote(t('No lyrics found. Paste them below.'))
+        setLyricsNote(t('No lyrics found. Try another search or paste them.'))
     }
     catch {
       if (lyricsJobRef.current === job && announce)
-        setLyricsNote(t('Could not reach LRCLIB. Paste lyrics below.'))
+        setLyricsNote(t('Could not reach LRCLIB. Try again or paste them.'))
     }
     finally {
       if (lyricsJobRef.current === job)
         setLyricsBusy(false)
     }
-  }, [t])
+  }, [applyLyrics, t])
 
   const chooseStyle = (next: MusicCardStyle) => {
     setStyle(next)
@@ -270,6 +314,8 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     lyricsJobRef.current++
     lyricsTouchedRef.current = false
     setLyrics('')
+    setLyricPicks([])
+    setPasteOpen(false)
     setLyricsBusy(false)
     setLyricsNote(null)
     setResolving(true)
@@ -318,8 +364,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         provider: music.provider,
         title,
         artist,
-        lyrics,
+        lyrics: selectedLyrics,
         lyricScale: LYRIC_SIZE_SCALE[lyricSize],
+        lyricFont,
+        lyricLeading,
         style,
       })
       const file = new File([blob], musicCardFileName(title, artist), { type: 'image/png' })
@@ -405,32 +453,11 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                     })}
                   </div>
 
-                  {style === 'lyrics' && (
-                    <div className="flex items-center justify-between gap-2 px-1" data-music-lyric-size-row="">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Text size')}</span>
-                      <div className="grid grid-cols-3 gap-[4px]" data-music-lyric-sizes="">
-                        {LYRIC_SIZE_IDS.map(id => (
-                          <button
-                            key={id}
-                            type="button"
-                            className={`flex h-7 w-8 cursor-pointer items-center justify-center border text-[11px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] disabled:cursor-default disabled:opacity-50 ${lyricSize === id ? chipOnCls : chipOffCls}`}
-                            aria-pressed={lyricSize === id}
-                            aria-label={t(LYRIC_SIZE_NAMES[id])}
-                            data-music-lyric-size={id}
-                            disabled={adding}
-                            onClick={() => setLyricSize(id)}
-                          >
-                            {LYRIC_SIZE_LABELS[id]}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
               <div className="flex flex-col gap-2.5">
-                <div className="flex flex-col gap-1.5 sm:flex-row">
+                <div className="flex items-center gap-1.5">
                   <input
                     className="box-border h-[32px] min-w-0 flex-1 border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent"
                     value={link}
@@ -455,18 +482,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                   </span>
                 </div>
 
-                {/* Fixed line: the dialog must not resize as the error comes and goes. */}
-                <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-dim'}`} data-music-error="">
-                  {error ?? (musicCardFor
-                    ? t('Goes into this cell; a copy stays in the library.')
-                    : t('A link turns into a card you can place like a photo.'))}
-                </p>
-
-                {music && (
-                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim" data-music-provider={music.provider}>
-                    <span className="h-2 w-2 rounded-full" style={{ background: PROVIDER_COLORS[music.provider] }} />
-                    {PROVIDER_LABELS[music.provider]}
-                  </span>
+                {error && (
+                  <p className="m-0 text-[11px] leading-[1.4] text-danger" data-music-error="">
+                    {error}
+                  </p>
                 )}
 
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -496,35 +515,159 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                 </div>
 
                 {style === 'lyrics' && (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1.5" data-music-lyrics-section="">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Lyrics')}</span>
-                      <button
-                        type="button"
-                        className={TEXT_ACTION}
-                        data-music-find-lyrics=""
-                        disabled={!music || lyricsBusy || !title.trim()}
-                        onClick={() => void findLyrics(title, artist, true)}
-                      >
-                        {lyricsBusy ? t('Finding lyrics') : t('Find lyrics')}
-                      </button>
+                      <span className={TYPE_LABEL}>
+                        {t('Lyrics')}
+                        {lyricLines.length > 0 && (
+                          <span className="ml-1.5 tabular-nums opacity-60" data-music-pick-count="">{`${lyricPicks.length}/3`}</span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          className={TEXT_ACTION}
+                          data-music-paste-lyrics=""
+                          aria-pressed={pasteOpen}
+                          disabled={!music || adding}
+                          onClick={() => setPasteOpen(open => !open)}
+                        >
+                          {pasteOpen ? t('Done') : t('Paste lyrics')}
+                        </button>
+                        <button
+                          type="button"
+                          className={TEXT_ACTION}
+                          data-music-find-lyrics=""
+                          disabled={!music || lyricsBusy || !title.trim()}
+                          onClick={() => void findLyrics(title, artist, true)}
+                        >
+                          {lyricsBusy ? t('Finding lyrics') : t('Find lyrics')}
+                        </button>
+                      </span>
                     </div>
-                    <textarea
-                      className="box-border min-h-[88px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                      rows={4}
-                      value={lyrics}
-                      disabled={!music}
-                      aria-label={t('Lyrics')}
-                      placeholder={t('Paste lyrics, or find them above')}
-                      data-music-lyrics=""
-                      onChange={(e) => {
-                        lyricsTouchedRef.current = true
-                        setLyrics(e.target.value)
-                      }}
-                    />
-                    <span className="min-h-[1.4em] text-[10px] leading-[1.4] text-dim" data-music-lyrics-note="">
-                      {lyricsNote ?? t('The lyric card uses the first three lines.')}
+
+                    {pasteOpen
+                      ? (
+                          <textarea
+                            className="box-border min-h-[88px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                            rows={4}
+                            value={lyrics}
+                            disabled={!music}
+                            aria-label={t('Paste lyrics')}
+                            placeholder={t('Paste lyrics, or find them above')}
+                            data-music-lyrics=""
+                            onChange={(e) => {
+                              lyricsTouchedRef.current = true
+                              applyLyrics(e.target.value)
+                            }}
+                          />
+                        )
+                      : (
+                          <div
+                            className="max-h-[168px] overflow-y-auto border border-line-strong bg-panel-2"
+                            role="group"
+                            aria-label={t('Lyrics lines')}
+                            data-music-lyric-lines=""
+                          >
+                            {lyricLines.length === 0
+                              ? (
+                                  <p className="m-0 px-2.5 py-3 text-[11px] leading-[1.5] text-dim">
+                                    {t('No lyrics yet. Find them above.')}
+                                  </p>
+                                )
+                              : lyricLines.map((line, i) => {
+                                  const on = lyricPicks.includes(i)
+                                  return (
+                                    <button
+                                      key={`${i}-${line}`}
+                                      type="button"
+                                      className={`flex w-full cursor-pointer items-start gap-2 border-0 border-b border-line px-2.5 py-1.5 text-left transition-colors duration-(--dur-fast) last:border-b-0 disabled:cursor-default disabled:opacity-40 ${on ? 'bg-accent/10 text-txt' : 'bg-transparent text-dim hover:not-disabled:text-txt'}`}
+                                      aria-pressed={on}
+                                      data-music-lyric-line={i}
+                                      disabled={adding || (!on && picksFull)}
+                                      onClick={() => togglePick(i)}
+                                    >
+                                      <span className={`mt-[3px] flex h-3.5 w-3.5 flex-none items-center justify-center border ${on ? 'border-accent bg-accent text-on-accent' : 'border-line-strong'}`}>
+                                        {on && <MorphIcon icon={Check} size={10} strokeWidth={2.4} />}
+                                      </span>
+                                      <span
+                                        className="min-w-0 break-words text-[15px]"
+                                        style={{ fontFamily: LYRIC_FONT_STACKS[lyricFont], lineHeight: lyricLeading }}
+                                      >
+                                        {line}
+                                      </span>
+                                    </button>
+                                  )
+                                })}
+                          </div>
+                        )}
+
+                    <span className="text-[10px] leading-[1.4] text-dim" data-music-lyrics-note="">
+                      {lyricsNote ?? t('Pick up to three lines.')}
                     </span>
+
+                    <div className="flex flex-col gap-1" data-music-lyric-type="">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TYPE_LABEL}>{t('Text size')}</span>
+                        <div className="grid grid-cols-3 gap-[4px]">
+                          {LYRIC_SIZE_IDS.map(id => (
+                            <button
+                              key={id}
+                              type="button"
+                              className={`${TYPE_BTN} w-8 ${lyricSize === id ? chipOnCls : chipOffCls}`}
+                              aria-pressed={lyricSize === id}
+                              aria-label={t(LYRIC_SIZE_NAMES[id])}
+                              data-music-lyric-size={id}
+                              disabled={adding}
+                              onClick={() => setLyricSize(id)}
+                            >
+                              {LYRIC_SIZE_LABELS[id]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TYPE_LABEL}>{t('Font')}</span>
+                        <div className="grid grid-cols-2 gap-[4px]">
+                          {LYRIC_FONT_IDS.map(id => (
+                            <button
+                              key={id}
+                              type="button"
+                              className={`${TYPE_BTN} w-12 ${lyricFont === id ? chipOnCls : chipOffCls}`}
+                              style={{ fontFamily: LYRIC_FONT_STACKS[id] }}
+                              aria-pressed={lyricFont === id}
+                              aria-label={`${t('Font')} ${t(LYRIC_FONT_LABELS[id])}`}
+                              data-music-lyric-font={id}
+                              disabled={adding}
+                              onClick={() => setLyricFont(id)}
+                            >
+                              {t(LYRIC_FONT_LABELS[id])}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={TYPE_LABEL}>{t('Line height')}</span>
+                        <div className="grid grid-cols-3 gap-[4px]">
+                          {LYRIC_LEADINGS.map(value => (
+                            <button
+                              key={value}
+                              type="button"
+                              className={`${TYPE_BTN} w-11 ${lyricLeading === value ? chipOnCls : chipOffCls}`}
+                              aria-pressed={lyricLeading === value}
+                              aria-label={`${t('Line height')} ${value}`}
+                              data-music-lyric-leading={value}
+                              disabled={adding}
+                              onClick={() => setLyricLeading(value)}
+                            >
+                              {value}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

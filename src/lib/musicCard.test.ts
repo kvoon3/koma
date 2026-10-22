@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  CARD_FONT,
   DEFAULT_MUSIC_CARD_STYLE,
   fitArtist,
   fitTitle,
+  LYRIC_FONT_STACKS,
+  LYRIC_LEADINGS,
   LYRIC_SIZE_SCALE,
   lyricWindow,
   MUSIC_CARD_STYLE_IDS,
@@ -128,6 +131,18 @@ describe('the lyric window', () => {
     expect(LYRIC_SIZE_SCALE.s).toBeLessThan(LYRIC_SIZE_SCALE.m)
     expect(LYRIC_SIZE_SCALE.m).toBeLessThan(LYRIC_SIZE_SCALE.l)
     expect(LYRIC_SIZE_SCALE.l).toBe(1)
+  })
+
+  test('the leading sets the line height', () => {
+    expect(lyricWindow(['one'], measure, { ratio: 1.45 }).lineHeight).toBe(93)
+    expect(lyricWindow(['one'], measure, { ratio: LYRIC_LEADINGS[0] }).lineHeight).toBe(74)
+  })
+
+  test('the two typefaces are distinct, and sans is the card font', () => {
+    expect(LYRIC_FONT_STACKS.sans).toBe(CARD_FONT)
+    expect(LYRIC_FONT_STACKS.serif).not.toBe(LYRIC_FONT_STACKS.sans)
+    expect(LYRIC_LEADINGS[0]).toBeLessThan(LYRIC_LEADINGS[1])
+    expect(LYRIC_LEADINGS[1]).toBeLessThan(LYRIC_LEADINGS[2])
   })
 })
 
