@@ -1,5 +1,7 @@
 import type { IconNode } from 'lucide'
 import type { FontMeta } from '../lib/fonts'
+import type { Translate } from '../lib/i18n'
+import type { TKey } from '../lib/locales/zh-Hans'
 import type { LabelAlign, LabelTheme, PaneLabel } from '../lib/panes'
 import { Popover } from '@base-ui/react/popover'
 import { Select } from '@base-ui/react/select'
@@ -41,20 +43,28 @@ export function LabelIconGlyph({ node, size = `${LABEL_ICON_EM}em` }: { node: Ic
   )
 }
 
+/** A menu label: a dictionary key, or literal text such as a font family name. */
+type LabelText = { kind: 'key', key: TKey } | { kind: 'text', text: string }
+
+/** Resolve the one place that genuinely mixes keys with proper nouns (font families). */
+function labelText(label: LabelText, t: Translate): string {
+  return label.kind === 'key' ? t(label.key) : label.text
+}
+
 const ICON_NONE = '__none'
-const LABEL_ICON_ITEMS = [
+const LABEL_ICON_ITEMS: { value: string, label: TKey }[] = [
   { value: ICON_NONE, label: 'No icon' },
   ...LABEL_ICONS.map(i => ({ value: i.id, label: i.label })),
 ]
 
 const colorInputCls = 'h-[22px] w-[22px] cursor-pointer rounded-none border border-float-line bg-float-bg-2 p-[2px] [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-none [&::-webkit-color-swatch]:border-0'
 
-const LABEL_FONT_ITEMS = [
-  { value: '', label: 'System', cat: 'system' as FontMeta['cat'] },
-  ...FONT_CATALOG.map(f => ({ value: f.id, label: f.label, cat: f.cat })),
+const LABEL_FONT_ITEMS: { value: string, label: LabelText, cat: FontMeta['cat'] }[] = [
+  { value: '', label: { kind: 'key', key: 'System' }, cat: 'system' },
+  ...FONT_CATALOG.map(f => ({ value: f.id, label: { kind: 'text' as const, text: f.label }, cat: f.cat })),
 ]
 
-const FONT_CATS: { id: FontMeta['cat'], label: string }[] = [
+const FONT_CATS: { id: FontMeta['cat'], label: TKey }[] = [
   { id: 'system', label: 'System' },
   { id: 'cjk', label: 'CJK' },
   { id: 'sans', label: 'Sans' },
@@ -69,7 +79,7 @@ const THEME_ICON: Record<LabelTheme, typeof AlignLeft> = {
   dark: Moon,
   light: Sun,
 }
-const THEME_LABEL: Record<LabelTheme, string> = {
+const THEME_LABEL: Record<LabelTheme, TKey> = {
   dark: 'White on black',
   light: 'Black on white',
 }
@@ -540,7 +550,7 @@ function LabelFontSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
   const t = useT()
   return (
     <Select.Root
-      items={LABEL_FONT_ITEMS}
+      items={LABEL_FONT_ITEMS.map(i => ({ value: i.value, label: labelText(i.label, t) }))}
       value={lab.font}
       onValueChange={value => setLabel(labelId, { font: String(value) })}
       onOpenChange={(open) => {
@@ -582,7 +592,7 @@ function LabelFontSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
                         <Select.ItemIndicator className="flex w-3.5 text-current">
                           <MorphIcon icon={Check} size={12} strokeWidth={2} />
                         </Select.ItemIndicator>
-                        <Select.ItemText className="flex-1">{t(item.label)}</Select.ItemText>
+                        <Select.ItemText className="flex-1">{labelText(item.label, t)}</Select.ItemText>
                       </Select.Item>
                     ))}
                   </Select.Group>
@@ -697,7 +707,7 @@ const ALIGN_ICON: Record<LabelAlign, typeof AlignLeft> = {
   right: AlignRight,
 }
 
-const ALIGN_ITEMS: { id: LabelAlign, icon: typeof AlignLeft, label: string }[] = [
+const ALIGN_ITEMS: { id: LabelAlign, icon: typeof AlignLeft, label: TKey }[] = [
   { id: 'left', icon: ALIGN_ICON.left, label: 'Align left' },
   { id: 'center', icon: ALIGN_ICON.center, label: 'Align center' },
   { id: 'right', icon: ALIGN_ICON.right, label: 'Align right' },
@@ -943,7 +953,7 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
                     aria-pressed={lab.font === item.value}
                     onClick={() => setLabel(labelId, { font: item.value })}
                   >
-                    {t(item.label)}
+                    {labelText(item.label, t)}
                   </button>
                 ))}
               </div>

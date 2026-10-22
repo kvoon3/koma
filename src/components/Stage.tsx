@@ -3,6 +3,7 @@ import type { Action, DockRoute } from '../lib/actionGuard'
 import type { PaintedBoard, PaneDraw } from '../lib/boardPaint'
 import type { CutoutMap } from '../lib/cutout'
 import type { CutoutSets, CutoutState } from '../lib/cutoutVariants'
+import type { Translate } from '../lib/i18n'
 import type { Photo } from '../lib/imageStore'
 import type { GeometryCache, SeamsCache } from '../lib/layout'
 import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
@@ -65,7 +66,7 @@ function focusPhotoHasGps(view: Derived, focusId: string, photoById: Map<string,
  * The Location tool: its own function keeps the long tool-definition list in
  * `usePaneTools` below the cognitive-complexity budget.
  */
-function locationToolFor(t: (key: string) => string, bind: (a: Action<Photo>) => (() => void) | null): ToolDef {
+function locationToolFor(t: Translate, bind: (a: Action<Photo>) => (() => void) | null): ToolDef {
   return {
     key: 'location',
     icon: MapPin,
@@ -969,7 +970,7 @@ export function DockToolset({ route }: { route: DockRoute }) {
  * Blurred also bakes the composite. Picking the state the pane is already in
  * is a no-op, not an error, so those rows stay usable.
  */
-function cutoutMenuTool(t: (key: string) => string, ctx: {
+function cutoutMenuTool(t: Translate, ctx: {
   photo: Photo | null
   cutouts: CutoutMap
   sets: CutoutSets

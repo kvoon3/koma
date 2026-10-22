@@ -1,3 +1,4 @@
+import type { TKey } from '@/lib/locales/zh-Hans'
 import { createElement, Fragment } from 'react'
 import { t, useT } from '@/lib/i18n'
 
@@ -6,7 +7,7 @@ import { t, useT } from '@/lib/i18n'
  * so each translation keeps its own word order. The spans alternate, and the
  * split is positional: the children are static, so they need no keys.
  */
-export function T({ k, vars }: { k: string, vars?: Record<string, string | number> }) {
+export function T({ k, vars }: { k: TKey, vars?: Record<string, string | number> }) {
   useT()
   return createElement(
     Fragment,

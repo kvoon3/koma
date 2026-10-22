@@ -2,6 +2,7 @@ import type { MotionValue } from 'motion/react'
 import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
 import type { FlipBox } from '../lib/dockFlip'
 import type { DockSwapPlan } from '../lib/dockSwap'
+import type { TKey } from '../lib/locales/zh-Hans'
 import type { DockCapacity } from '../lib/toolsDockMode'
 import type { ToolsDockMode } from '../store'
 import { Popover } from '@base-ui/react/popover'
@@ -59,7 +60,7 @@ const scrollLockCls = 'group-data-swiping/dock:overflow-hidden group-data-swipin
 const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
-const INTENT_LABEL = { expand: 'Expand tools', collapse: 'Collapse tools' } as const
+const INTENT_LABEL = { expand: 'Expand tools', collapse: 'Collapse tools' } as const satisfies Record<'expand' | 'collapse', TKey>
 const INTENT_ICON = { expand: ChevronUp, collapse: ChevronDown } as const
 
 /** Settle spring (Vaul-like feel: quick, barely any overshoot). */

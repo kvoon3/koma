@@ -3,7 +3,9 @@
  * missing here simply falls back to English. The Chinese counterparts live in
  * `zh-Hans.ts` and `zh-Hant.ts`.
  */
-export const ja: Record<string, string> = {
+import type { TKey } from './zh-Hans'
+
+export const ja: Record<TKey, string> = {
   // TopBar
   'Help': 'ヘルプ',
   'Photo': '写真',
@@ -81,6 +83,10 @@ export const ja: Record<string, string> = {
   'Reset rotation': '回転をリセット',
   'Invert colors': '色を反転',
   'Label font': 'ラベルのフォント',
+  // Font groups in the label font picker; the family names under them stay as names.
+  'Sans': 'サンセリフ',
+  'Display': 'ディスプレイ',
+  'Handwriting': '手書き',
   // Label themes
   'Label theme': 'ラベルのテーマ',
   'Theme': 'テーマ',
@@ -210,6 +216,7 @@ export const ja: Record<string, string> = {
   'Pine tree': '松の木',
   'Camping': 'キャンプ',
   'Globe': '地球',
+  'Home': 'ホーム',
   'Cat': '猫',
   'Dog': '犬',
   'Bird': '鳥',

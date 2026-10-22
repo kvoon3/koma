@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
-import type { History } from '../lib/history'
+import type { History, HistoryLabel } from '../lib/history'
+import type { Translate } from '../lib/i18n'
 import { Popover } from '@base-ui/react/popover'
 import { GitBranch } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -77,14 +78,18 @@ function Marker({ current }: { current: boolean }) {
  * as its own row, so the expanded list holds only the OFF-path variants: no
  * duplicate labels, and the cursor's row never leaves the list.
  */
-function variantSummary(history: History<unknown>, t: ReturnType<typeof useT>, id: string): string {
+function stepLabel(label: HistoryLabel, t: Translate): string {
+  return label.kind === 'key' ? t(label.key) : label.text
+}
+
+function variantSummary(history: History<unknown>, t: Translate, id: string): string {
   const labels: string[] = []
   let node = history.nodes[id]
   while (node && labels.length < 2) {
     const kid = node.children.map(c => history.nodes[c]).find(Boolean)
     if (!kid)
       break
-    labels.push(t(historyLabel(kid.label)))
+    labels.push(stepLabel(historyLabel(kid.label), t))
     node = kid
   }
   return labels.join(' → ')
@@ -117,7 +122,7 @@ export function HistoryPanel({ open, onOpenChange, anchor }: {
       return null
     const current = id === history.cursor
     const children = node.children.filter(child => history.nodes[child])
-    const label = t(historyLabel(node.label))
+    const label = stepLabel(historyLabel(node.label), t)
     const isExpanded = expanded === id
     const sub = variant ? variantSummary(history, t, id) : ''
     return (

@@ -1,3 +1,4 @@
+import type { TKey } from './locales/zh-Hans'
 import { useSyncExternalStore } from 'react'
 import { ja } from './locales/ja'
 import { zhHans } from './locales/zh-Hans'
@@ -110,7 +111,7 @@ export function subscribeLang(cb: () => void) {
   return () => listeners.delete(cb)
 }
 
-const dicts: Record<Lang, Record<string, string>> = {
+const dicts: Record<Lang, Partial<Record<TKey, string>>> = {
   'en': {},
   'zh-Hans': zhHans,
   'zh-Hant': zhHant,
@@ -119,10 +120,10 @@ const dicts: Record<Lang, Record<string, string>> = {
 
 /**
  * Translate a key, which is the English source string, substituting `{name}` vars.
- * An absent translation falls back to the key itself, so partial dictionaries
- * are fine and English needs no dictionary at all.
+ * An absent translation falls back to the key itself, so a dictionary can lag
+ * behind `zh-Hans` at runtime even though the types refuse it at build time.
  */
-export function t(key: string, vars?: Record<string, string | number>): string {
+export function t(key: TKey, vars?: Record<string, string | number>): string {
   let s = dicts[lang()][key] ?? key
   if (vars) {
     for (const k in vars)
@@ -131,8 +132,22 @@ export function t(key: string, vars?: Record<string, string | number>): string {
   return s
 }
 
+/** The shape of `t`, for code that takes the translator as an argument. */
+export type Translate = (key: TKey, vars?: Record<string, string | number>) => string
+
+const keyUniverse = new Set<string>(Object.keys(zhHans))
+
+/**
+ * True when a runtime string is a dictionary key. Error messages cross a
+ * boundary as plain strings; this lets a caller translate a known one and show
+ * an unknown one as it came, without widening `t` back to `string`.
+ */
+export function isTKey(value: string): value is TKey {
+  return keyUniverse.has(value)
+}
+
 /** `t`, subscribed: the calling component re-renders when the language changes. */
-export function useT() {
+export function useT(): Translate {
   useLang()
   return t
 }

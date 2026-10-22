@@ -1,10 +1,12 @@
+import type { TKey } from '@/lib/locales/zh-Hans'
 import { Dialog } from '@base-ui/react/dialog'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { T } from '@/components/ui/t'
 import { useT } from '../lib/i18n'
 
-const KEYS: [string, string][] = [
+/** The first column is literal keyboard notation; the second is a translation key. */
+const KEYS: [string, TKey][] = [
   ['H J K L', 'Focus the pane left / down / up / right'],
   ['V', 'Split the focused pane left/right (vsplit)'],
   ['S', 'Split the focused pane top/bottom (split)'],
@@ -23,7 +25,8 @@ const KEYS: [string, string][] = [
   ['Esc', 'Close panel or drawer / deselect label / back to the grid'],
 ]
 
-const MOUSE: [string, string][] = [
+/** Both columns are translation keys. */
+const MOUSE: [TKey, TKey][] = [
   ['Back button floating at the top left', 'Back to the 3×3 workspace grid (edit view only)'],
   ['Undo / redo buttons floating at the top right', 'Step back and forward through the board\'s changes, from the grid overview or inside a workspace alike: the history covers every workspace. Both grey out when there is nothing to step to'],
   ['Reset button floating at the top right', 'Reset to a single blank pane: the active workspace in the editor, every workspace from the grid overview (asks first); photos fall back to the library'],

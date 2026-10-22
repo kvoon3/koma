@@ -1,4 +1,6 @@
+import type { Translate } from '../lib/i18n'
 import type { Photo } from '../lib/imageStore'
+import type { TKey } from '../lib/locales/zh-Hans'
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
@@ -26,7 +28,7 @@ import { LibraryPickPanel } from './sticker/LibraryPickPanel'
  * Text font choices: a small set of system stacks (no webfont download, so the
  * preview matches the export instantly). The rounded one is the "sticker" pick.
  */
-const FONTS = [
+const FONTS: { id: string, label: TKey, stack: string, weight: number }[] = [
   {
     id: 'system',
     label: 'System',
@@ -53,7 +55,7 @@ const FONTS = [
   },
 ]
 
-const MATERIALS: { value: StickerMaterialType, label: string }[] = [
+const MATERIALS: { value: StickerMaterialType, label: TKey }[] = [
   { value: 'original', label: 'Original' },
   { value: 'holographic', label: 'Holographic' },
   { value: 'glitter', label: 'Glitter' },
@@ -605,7 +607,7 @@ function seedOf(edit: { recipe: StickerRecipe } | null): MakerSeed {
 }
 
 /** The dialog's own labels: a re-edit says so in the title, and in the DOM for the tests. */
-function dialogLabels(edit: { photo: Photo } | null, t: (key: string) => string): { title: string, mode: string } {
+function dialogLabels(edit: { photo: Photo } | null, t: Translate): { title: string, mode: string } {
   return edit ? { title: t('Re-edit sticker'), mode: 'reedit' } : { title: t('Sticker maker'), mode: 'new' }
 }
 

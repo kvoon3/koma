@@ -1,5 +1,6 @@
 import type { FilterId, FilterKnob, FilterSpec, FilterValue } from '../lib/filters'
 import type { Photo } from '../lib/imageStore'
+import type { TKey } from '../lib/locales/zh-Hans'
 import { Popover } from '@base-ui/react/popover'
 import { Blend, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -36,7 +37,7 @@ import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
  */
 
 /** English source names, the keys both dictionaries translate. */
-const FILTER_LABEL: Record<FilterId, string> = {
+const FILTER_LABEL: Record<FilterId, TKey> = {
   grain: 'Film Grain',
   duotoneWarm: 'Warm Duotone',
   duotoneCool: 'Cool Duotone',
@@ -53,18 +54,37 @@ const FILTER_LABEL: Record<FilterId, string> = {
   bayerColor: 'Dither Color',
 }
 
+type KnobOf<Id extends FilterId> = (typeof FILTER_PARAMS)[Id][number]['knob']
+
 /**
  * What each knob is called on each filter: the same dial is a block, a tile, a
  * dot pitch or a dither cell, and the label is what says so. Frozen textures
- * take none.
+ * take none. The `satisfies` clause makes a filter's missing knob label a
+ * compile error, so no lookup has to fall back to the raw id.
  */
-const KNOB_LABEL: Partial<Record<FilterId, Partial<Record<FilterKnob, string>>>> = {
+const KNOB_LABEL = {
+  grain: {},
+  duotoneWarm: {},
+  duotoneCool: {},
+  duotoneSepia: {},
+  print: {},
+  cyanotype: {},
+  paper: {},
+  bitgrain: {},
   mosaic: { block: 'Block', levels: 'Levels', grain: 'Speckle' },
   tessera: { block: 'Tile' },
   diamond: { block: 'Tile' },
   halftone: { block: 'Pitch', angle: 'Angle', ink: 'Ink' },
   bayerMono: { block: 'Cell', matrix: 'Matrix' },
   bayerColor: { block: 'Cell', matrix: 'Matrix' },
+} as const satisfies { [Id in FilterId]: Record<KnobOf<Id>, TKey> }
+
+function knobLabel(id: FilterId, knob: FilterKnob): TKey {
+  const labels: Partial<Record<FilterKnob, TKey>> = KNOB_LABEL[id]
+  const label = labels[knob]
+  if (!label)
+    throw new Error(`No label for filter knob ${id}.${knob}`)
+  return label
 }
 
 /** Unit written after a knob's number (the two enums carry none). */
@@ -153,7 +173,7 @@ function ParamStrip({ spec, onChange }: { spec: FilterSpec, onChange: (knob: Fil
   const defs = FILTER_PARAMS[spec.id]
   if (!defs.length)
     return null
-  const label = (knob: FilterKnob) => t(KNOB_LABEL[spec.id]?.[knob] ?? knob)
+  const label = (knob: FilterKnob) => t(knobLabel(spec.id, knob))
   return (
     <div className="mb-2 flex flex-col gap-1.5 border-b border-line pb-2" data-filter-strip={spec.id}>
       {defs.map((d) => {
