@@ -1,3 +1,5 @@
+import type { TKey } from './locales/zh-Hans'
+
 /**
  * Undo / redo as a tree of whole-state snapshots. Pure, so the store keeps the
  * tree in its own state and every transition here is unit-tested without one.
@@ -358,11 +360,10 @@ export function stepCount<T>(history: History<T>): number {
 }
 
 /**
- * The English label of a step, keyed by the tag its action committed. The panel
- * translates it (`t(historyLabel(tag))`), so these strings are also the i18n
- * keys; a tag nobody taught us falls back to its own words, never to nothing.
+ * The English label of a step, keyed by the tag its action committed. These
+ * strings are i18n keys, so they are typed against the key universe.
  */
-const LABELS: Record<string, string> = {
+const LABELS: Record<string, TKey> = {
   start: 'Start',
   // pane tree
   split: 'Split pane',
@@ -412,7 +413,7 @@ const LABELS: Record<string, string> = {
 }
 
 /** What one `patch:*` key is about, so the board-look label is not always the same. */
-const PATCH_LABELS: Record<string, string> = {
+const PATCH_LABELS: Record<string, TKey> = {
   bg: 'Background',
   bgGradient: 'Background',
   bgImage: 'Background',
@@ -436,19 +437,26 @@ function humanize(tag: string): string {
   return words === '' ? 'Edit' : words[0]!.toUpperCase() + words.slice(1)
 }
 
-/** The English label (i18n key) of the step a tag opened. */
-export function historyLabel(tag: string | null): string {
+/**
+ * A step's label: a key the panel translates, or literal text for a tag that
+ * has no label (a legacy or hand-written tag still has to render readably).
+ */
+export type HistoryLabel = { kind: 'key', key: TKey } | { kind: 'text', text: string }
+
+/** The label of the step a tag opened. */
+export function historyLabel(tag: string | null): HistoryLabel {
   if (tag == null)
-    return LABELS.edit!
+    return { kind: 'key', key: LABELS.edit }
   const [base, rest] = tag.split(/:(.*)/s) as [string, string?]
   if (base === 'patch' && rest) {
     for (const key of rest.split(',')) {
-      const label = PATCH_LABELS[key]
+      const label: TKey | undefined = PATCH_LABELS[key]
       if (label)
-        return label
+        return { kind: 'key', key: label }
     }
   }
-  return LABELS[base] ?? humanize(base)
+  const label: TKey | undefined = LABELS[base]
+  return label ? { kind: 'key', key: label } : { kind: 'text', text: humanize(base) }
 }
 
 /** How long ago a step was recorded, for the panel's clock. */

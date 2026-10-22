@@ -1,13 +1,18 @@
 /**
- * Keeps the dictionaries in `src/lib/locales` honest.
+ * Keeps the dictionaries in `src/lib/locales` honest where the compiler cannot.
  *
- * Keys are their English source string (`t('Export')` looks up `'Export'`), so
- * both failure modes are silent at runtime and have to be caught statically:
+ * `zh-Hans.ts` is the key universe: `TKey` is its literal key union, `t` takes
+ * only a `TKey`, and `zh-Hant` / `ja` are typed `Record<TKey, string>`. The
+ * compiler therefore owns call-site validity and cross-dictionary parity, for
+ * table-driven calls such as `t(item.label)` as much as for literals.
  *
- * - A key no dictionary defines renders in English, so a typo looks exactly
- *   like an untranslated string.
- * - A dictionary entry no call site passes is dead weight that survives every
- *   refactor that removes its call site.
+ * This scan owns what types cannot see:
+ *
+ * - A key no call site uses any more: dead weight that survives the refactor
+ *   that removed its call site.
+ * - Cross-dictionary parity, as a second opinion on the type constraint.
+ * - The literal call-site forms, as a cheap backstop the pre-commit hook can
+ *   run alone; the compiler is the authority, not this regex.
  *
  * This is a project-wide scan, not an ESLint rule: ESLint `--cache` is
  * per-file and would keep a dictionary's "no dead keys" result after a `t()`
