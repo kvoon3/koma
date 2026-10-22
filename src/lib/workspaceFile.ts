@@ -6,6 +6,7 @@ import type { Photo } from './imageStore'
 import type { MusicMeta } from './musicLink'
 import { mapSeq } from './async'
 import { downloadBlob } from './exporter'
+import { readMusicMeta } from './musicLink'
 
 export interface WorkspaceDocV1 {
   version: 1
@@ -177,7 +178,9 @@ export async function parseWorkspaceFile(file: File): Promise<{ doc: WorkspaceDo
       trueH: p.trueH,
       kind: p.kind,
       folder: p.folder,
-      music: p.music,
+      // The doc is external input; the link it carries must be one of the two
+      // canonical provider URLs, never an arbitrary href.
+      music: readMusicMeta(p.music) ?? undefined,
     }
     if (p.video) {
       // Live Photos pair still+video by basename (livephoto.ts baseKey), so

@@ -51,6 +51,29 @@ const SPOTIFY_ID = /^[a-z0-9]{22}$/i
 const SPOTIFY_URI = /^spotify:(track|album):([a-z0-9]+)$/i
 const DIGITS = /^\d+$/
 
+/** The canonical forms this app writes; see `readMusicMeta`. */
+const SPOTIFY_CANONICAL = /^https:\/\/open\.spotify\.com\/(?:track|album)\/[a-z0-9]{22}$/i
+const APPLE_CANONICAL = /^https:\/\/music\.apple\.com\/[a-z]{2}\/album\/[^/?#]+\/\d+(?:\?i=\d+)?$/i
+
+/**
+ * Validate the source a workspace file carries. This app writes the canonical
+ * provider URL, but a hand-edited file can put anything in `url`, and that
+ * string becomes a link's href. Drop the metadata when it is not a canonical
+ * Spotify or Apple URL for the provider it names; the card itself remains.
+ */
+export function readMusicMeta(value: unknown): MusicMeta | null {
+  const rec = record(value)
+  if (!rec)
+    return null
+  const provider = rec.provider
+  if (provider !== 'spotify' && provider !== 'apple')
+    return null
+  const url = text(rec.url)
+  if (provider === 'spotify' ? !SPOTIFY_CANONICAL.test(url) : !APPLE_CANONICAL.test(url))
+    return null
+  return { provider, title: text(rec.title), artist: text(rec.artist), url }
+}
+
 const spotifyUrl = (kind: MusicLinkKind, id: string) => `https://open.spotify.com/${kind}/${id}`
 
 function invalid(): ParseMusicLink {
