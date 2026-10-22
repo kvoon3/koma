@@ -36,6 +36,8 @@ export const CARD_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helveti
 export const ART_RECT = { x: 192, y: 88, size: 640 } as const
 export const TEXT_X = 192
 export const TITLE_TOP = 792
+/** How far a two-line title lifts its text block. */
+export const TWO_LINE_TITLE_LIFT = 20
 export const TITLE_MAX_W = 640
 export const TITLE_MAX_SIZE = 54
 export const TITLE_MIN_SIZE = 40
@@ -193,13 +195,17 @@ export function drawMusicCard(
   ctx.lineWidth = 1
   ctx.strokeRect(ART_RECT.x + 0.5, ART_RECT.y + 0.5, ART_RECT.size - 1, ART_RECT.size - 1)
 
+  // A two-line title spends the space the artist's descenders need, so the
+  // whole text block lifts to keep the provider mark clear of the artist.
+  const titleTop = TITLE_TOP - (title.lines.length > 1 ? TWO_LINE_TITLE_LIFT : 0)
+
   ctx.textBaseline = 'top'
   ctx.textAlign = 'left'
   ctx.fillStyle = CARD_COLORS.ink
   ctx.font = font(600, title.size)
-  title.lines.forEach((line, i) => ctx.fillText(line, TEXT_X, TITLE_TOP + i * TITLE_LINE_H))
+  title.lines.forEach((line, i) => ctx.fillText(line, TEXT_X, titleTop + i * TITLE_LINE_H))
 
-  const afterTitle = TITLE_TOP + title.lines.length * TITLE_LINE_H
+  const afterTitle = titleTop + title.lines.length * TITLE_LINE_H
   if (artist) {
     ctx.fillStyle = CARD_COLORS.muted
     ctx.font = font(500, ARTIST_SIZE)
