@@ -2,6 +2,7 @@ import type { Workspace } from '../store'
 import type { BgImage } from './collageBg'
 import type { CutoutMap } from './cutout'
 import type { CutoutSets } from './cutoutVariants'
+import type { MusicMeta } from './musicLink'
 import type { StickerRecipe } from './stickerRecipe'
 
 export interface SessionPhotoRecord {
@@ -12,9 +13,11 @@ export interface SessionPhotoRecord {
   file: File
   videoFile?: File
   /** Absent in sessions saved before stickers were an asset of their own. */
-  kind?: 'photo' | 'sticker'
+  kind?: 'photo' | 'sticker' | 'music'
   /** Sticker folder; absent = Unsorted. */
   folder?: string
+  /** The track or album a music card was made from. */
+  music?: MusicMeta
   /** Manual tags (see lib/photoTags); absent in sessions saved before tagging. */
   tags?: string[]
   /** Deleted asset a placed copy still draws (see lib/stickerLibrary). */
@@ -131,24 +134,31 @@ const META_KEY = 'session'
 let dbPromise: Promise<IDBDatabase> | null = null
 /**
  * The ids written in this page session, with the signature of the record's
- * mutable fields (name, dims, kind, folder, orphaned, and whether it carries a
- * maker's recipe): a File is immutable so an unchanged record is never re-put,
- * while a sticker moving between folders is (the record itself is all that is
+ * mutable fields (name, dims, kind, folder, orphaned, tags, gps, takenAt, the
+ * music source, and whether it carries a maker's recipe): a File is immutable
+ * so an unchanged record is never re-put, while a sticker moving between
+ * folders or a photo gaining a tag is (the record itself is all that is
  * written again, the File riding along as a reference rather than as fresh
  * bytes). The recipe's own bytes stay out of the signature: it is written once
  * with the asset and never edited, so its presence is all that can change.
- * mutable fields (name, dims, kind, folder, orphaned, tags, gps, takenAt): a
- * File is immutable so an unchanged record is never re-put, while a sticker
- * moving between folders or a photo gaining a tag is (the record itself is all
- * that is written again, the File riding along as a reference rather than as
- * fresh bytes).
  */
 const writtenIds = new Map<string, string>()
 
 /** Everything about a record except its pixels (and the recipe's payload). */
 function recordSignature(p: SessionPhotoRecord): string {
-  return JSON.stringify([p.name, p.trueW, p.trueH, p.kind ?? '', p.folder ?? '', p.orphaned ?? false, p.recipe ? 1 : 0])
-  return JSON.stringify([p.name, p.trueW, p.trueH, p.kind ?? '', p.folder ?? '', p.orphaned ?? false, p.tags ?? [], p.gps ?? null, p.takenAt ?? ''])
+  return JSON.stringify([
+    p.name,
+    p.trueW,
+    p.trueH,
+    p.kind ?? '',
+    p.folder ?? '',
+    p.orphaned ?? false,
+    p.tags ?? [],
+    p.gps ?? null,
+    p.takenAt ?? '',
+    p.music ?? null,
+    p.recipe ? 1 : 0,
+  ])
 }
 
 function reqToPromise<T>(req: IDBRequest<T>): Promise<T> {

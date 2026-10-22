@@ -7,16 +7,16 @@ import { Button } from '@/components/ui/button'
 import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { useT } from '../lib/i18n'
 import { leafList } from '../lib/panes'
-import { photoAssetsOf } from '../lib/stickerLibrary'
+import { paneAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
 import { Library } from './Library'
 
 export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean, onClose: () => void, onRequestClear: () => void }) {
   const allPhotos = useStore(s => s.photos)
-  // The drawer over a board stays photo-only; stickers live on the same page as
-  // photos now (#/library), not in here.
-  const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
+  // The drawer over a board lists what can fill a pane: photos and music cards.
+  // Stickers stay on the same page as photos now (#/library), not in here.
+  const photos = useMemo(() => paneAssetsOf(allPhotos), [allPhotos])
   const assign = useStore(s => s.assign)
   const assignMany = useStore(s => s.assignMany)
   const focusId = useStore(s => activeWs(s).focusId)

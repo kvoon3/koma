@@ -3,7 +3,7 @@ import { Images } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useMemo } from 'react'
 import { useT } from '../../lib/i18n'
-import { photoAssetsOf } from '../../lib/stickerLibrary'
+import { paneAssetsOf } from '../../lib/stickerLibrary'
 import { useStore } from '../../store'
 import { Library } from '../Library'
 import { Button } from '../ui/button'
@@ -26,7 +26,7 @@ export function LibraryPickPanel({ onPick, onCancel }: {
 }) {
   const t = useT()
   const all = useStore(s => s.photos)
-  const photos = useMemo(() => photoAssetsOf(all), [all])
+  const photos = useMemo(() => paneAssetsOf(all), [all])
 
   return (
     <div className="stage-clear relative flex h-[220px] shrink-0 flex-col overflow-hidden border border-line-strong" data-pick-library="">

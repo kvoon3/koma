@@ -1,5 +1,5 @@
 import type { Photo } from './imageStore'
-import { photoAssetsOf, stickerAssetsOf } from './stickerLibrary'
+import { musicAssetsOf, photoAssetsOf, stickerAssetsOf } from './stickerLibrary'
 
 export interface LibraryKind {
   readonly type: string
@@ -12,6 +12,7 @@ export interface LibraryKind {
 export const LIBRARY_KINDS = [
   { type: 'photo', label: 'Photos', assets: photoAssetsOf },
   { type: 'sticker', label: 'Stickers', assets: stickerAssetsOf },
+  { type: 'music', label: 'Music', assets: musicAssetsOf },
 ] as const satisfies readonly LibraryKind[]
 
 export type LibraryType = (typeof LIBRARY_KINDS)[number]['type']

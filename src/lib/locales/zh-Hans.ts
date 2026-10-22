@@ -752,6 +752,28 @@ export const zhHans = {
   'Library drawer': '素材库抽屉',
   'No photos match this search or filter.': '没有照片符合此搜索或筛选。',
   'No stickers match this search or filter.': '没有贴图符合此搜索或筛选。',
+  // Music card
+  'Music card': '音乐卡片',
+  'Make a music card from a Spotify or Apple Music link': '从 Spotify 或 Apple Music 链接制作音乐卡片',
+  'Paste a Spotify or Apple Music link': '粘贴 Spotify 或 Apple Music 链接',
+  'Generate': '生成',
+  'A link turns into a square card you can place like a photo.': '链接会变成一张方形卡片，可以像照片一样放入版面。',
+  'Title': '标题',
+  'Artist': '艺人',
+  'Add to library': '添加到素材库',
+  'Added to library': '已添加到素材库',
+  'That is not a Spotify or Apple Music link.': '这不是 Spotify 或 Apple Music 的链接。',
+  'That link is not a track or album.': '该链接不是歌曲或专辑。',
+  'Could not reach Spotify or Apple Music. Try again.': '无法连接 Spotify 或 Apple Music，请重试。',
+  'No artwork found for that link.': '该链接没有找到封面。',
+  'Open on {provider}': '在 {provider} 中打开',
+  'No artist': '没有艺人',
+  'Delete music card': '删除音乐卡片',
+  'Music card deleted': '音乐卡片已删除',
+  'Music card deleted · the {n} placed copies stay on the board': '音乐卡片已删除 · 已放置的 {n} 份仍保留在版面上',
+  'Delete music card?': '删除音乐卡片？',
+  'No music cards yet. Make one with the Music tool.': '还没有音乐卡片。用「音乐」工具制作一张。',
+  'No music cards match this search.': '没有音乐卡片符合此搜索。',
 } satisfies Record<string, string>
 
 /** Every source string a call site may translate. */

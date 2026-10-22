@@ -9,6 +9,7 @@ import { say } from '../../lib/toast'
 import { useStore } from '../../store'
 import { StickerMakerDialog } from '../StickerMakerDialog'
 import { LibraryHeader } from './LibraryHeader'
+import { MusicLibrarySection } from './MusicLibrarySection'
 import { PhotoLibrarySection } from './PhotoLibrarySection'
 import { StickerLibrarySection } from './StickerLibrarySection'
 
@@ -19,6 +20,7 @@ import { StickerLibrarySection } from './StickerLibrarySection'
 const SECTIONS: Record<LibraryType, ComponentType<LibrarySectionProps>> = {
   photo: PhotoLibrarySection,
   sticker: StickerLibrarySection,
+  music: MusicLibrarySection,
 }
 
 /**
@@ -66,6 +68,9 @@ export function LibraryPage() {
       pick: livePick(filter, 'sticker', validGroup(folderPick, folders)),
       onPick: setFolderPick,
     },
+    // Music cards have no grouping; the empty wiring keeps the forcing record
+    // complete without drawing a chip bar the section ignores.
+    music: { groups: [], pick: null, onPick: () => {} },
   }
 
   const shownKinds = filter === 'all' ? LIBRARY_KINDS : LIBRARY_KINDS.filter(kind => kind.type === filter)
@@ -87,6 +92,7 @@ export function LibraryPage() {
         onFilterChange={setFilter}
         onAddPhotos={onAddPhotos}
         onMakeSticker={() => setMaking(m => ({ seq: (m?.seq ?? 0) + 1 }))}
+        onMakeMusicCard={() => useStore.getState().setMusicCardOpen(true)}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb" data-library-scroll="">
