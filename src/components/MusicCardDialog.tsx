@@ -55,7 +55,7 @@ const STAGE_W = 'w-[min(100%,300px,38dvh)] md:w-[min(100%,360px,48dvh)]'
 
 const SEGMENT = 'flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border-0 text-[12px] transition-colors duration-(--dur-fast) disabled:cursor-default disabled:opacity-50'
 const TEXT_ACTION = 'cursor-pointer border-0 bg-transparent p-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim underline decoration-line-strong underline-offset-2 transition-colors duration-(--dur-fast) hover:text-txt disabled:cursor-default disabled:opacity-50'
-const TYPE_BTN = 'flex h-7 cursor-pointer items-center justify-center border px-2 text-[11px] tabular-nums transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] disabled:cursor-default disabled:opacity-50'
+const TYPE_BTN = 'flex h-7 cursor-pointer items-center justify-center whitespace-nowrap border px-2 text-[11px] tabular-nums transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] disabled:cursor-default disabled:opacity-50'
 const TYPE_LABEL = 'text-[10px] font-semibold uppercase tracking-[0.08em] text-dim'
 
 function errorCopy(t: ReturnType<typeof useT>, error: MusicResolveError): string {
@@ -413,7 +413,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             </Dialog.Close>
           </header>
 
-          <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 sm:p-4" data-music-scroll="">
+          <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-3 sm:p-4" data-music-scroll="">
             <div className="flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,360px)_minmax(0,1fr)] md:items-start md:gap-5">
               <div className="flex flex-col items-center gap-2 md:sticky md:top-0" data-music-stage="">
                 <div className={`${STAGE_W} flex flex-col gap-2`}>
@@ -549,8 +549,8 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                     {pasteOpen
                       ? (
                           <textarea
-                            className="box-border min-h-[88px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                            rows={4}
+                            className="box-border min-h-[132px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                            rows={6}
                             value={lyrics}
                             disabled={!music}
                             aria-label={t('Paste lyrics')}
@@ -564,7 +564,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                         )
                       : (
                           <div
-                            className="max-h-[168px] overflow-y-auto border border-line-strong bg-panel-2"
+                            className="max-h-[240px] overflow-y-auto border border-line-strong bg-panel-2"
                             role="group"
                             aria-label={t('Lyrics lines')}
                             data-music-lyric-lines=""
@@ -634,7 +634,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                             <button
                               key={id}
                               type="button"
-                              className={`${TYPE_BTN} w-12 ${lyricFont === id ? chipOnCls : chipOffCls}`}
+                              className={`${TYPE_BTN} min-w-12 ${lyricFont === id ? chipOnCls : chipOffCls}`}
                               style={{ fontFamily: LYRIC_FONT_STACKS[id] }}
                               aria-pressed={lyricFont === id}
                               aria-label={`${t('Font')} ${t(LYRIC_FONT_LABELS[id])}`}
@@ -677,7 +677,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                 the end. */}
             <div
               aria-hidden
-              className="pointer-events-none sticky bottom-0 -mx-4 -mt-2.5 -mb-4 h-3 shrink-0"
+              className="pointer-events-none sticky bottom-0 -mx-3 -mb-3 -mt-2.5 h-3 shrink-0 sm:-mx-4 sm:-mb-4"
               style={{ background: 'linear-gradient(to top, var(--panel), transparent)' }}
             />
           </div>
