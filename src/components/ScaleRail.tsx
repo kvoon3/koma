@@ -119,7 +119,10 @@ const WAKE_MAX = 0.9
  * session. Hover, focus or a press draws it back out; nothing selected draws a
  * shorter stub than that, faint and inert.
  */
-export function ScaleRail() {
+export function ScaleRail({ nudge = 0 }: {
+  /** Raised by the stage's wheel: the rail shows its readout as the size turns. */
+  nudge?: number
+} = {}) {
   const t = useT()
   const coarse = useMediaQuery('(pointer: coarse)')
   const bandW = coarse ? BAND_W_COARSE : BAND_W
@@ -160,6 +163,8 @@ export function ScaleRail() {
   // release there. A mouse keeps it on hover anyway.
   const [readout, setReadout] = useState(false)
   const readoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** The value the readout last showed, so a change can raise it (see below). */
+  const shownRef = useRef<number | null>(null)
   // Another control changed the size (undo, a workspace switch): show the bar
   // where it landed. Derived during render rather than in an effect, which
   // would re-render a second time; our own drag leaves it open already.
@@ -195,6 +200,49 @@ export function ScaleRail() {
   const wakeRef = useRef({ y: 0, last: 0, frame: 0 })
   const wakeElRef = useRef<HTMLSpanElement | null>(null)
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+
+  /** Raise the readout for a moment: the value (or someone's wheel) moved. */
+  const showReadout = useCallback(() => {
+    setReadout(true)
+    if (readoutTimerRef.current != null)
+      clearTimeout(readoutTimerRef.current)
+    readoutTimerRef.current = setTimeout(() => {
+      readoutTimerRef.current = null
+      setReadout(false)
+    }, READOUT_HOLD_MS)
+  }, [])
+
+  /**
+   * A wheel on the stage's air says so through `nudge`, whether or not the size
+   * could follow it: at a bound the chip showing the value pinned is the answer
+   * to "why did nothing happen".
+   */
+  const nudgedRef = useRef(nudge)
+  useEffect(() => {
+    if (nudgedRef.current === nudge)
+      return
+    nudgedRef.current = nudge
+    const id = setTimeout(showReadout, 0)
+    return () => clearTimeout(id)
+  }, [nudge, showReadout])
+
+  /**
+   * A size that changed elsewhere (the stage's wheel, the corner handle, undo,
+   * a workspace switch) says so: the bar moving on its own is easy to miss, and
+   * a wheel's stops are exactly where a number is worth reading. Scheduled, so
+   * the change lights the chip on its own tick, and the first render is not a
+   * change (a fresh board does not flash at nobody).
+   */
+  useEffect(() => {
+    if (shownRef.current === value)
+      return
+    const first = shownRef.current == null
+    shownRef.current = value
+    if (first)
+      return
+    const id = setTimeout(showReadout, 0)
+    return () => clearTimeout(id)
+  }, [showReadout, value])
 
   /**
    * Run the wake: one tail eases toward the bar with an exponential lag, and the
@@ -326,14 +374,9 @@ export function ScaleRail() {
     if (held)
       targetRef.current = travel * (1 - tallnessOfValue(settled, held.target.scale))
     pumpWake()
-    if (readoutTimerRef.current != null)
-      clearTimeout(readoutTimerRef.current)
-    readoutTimerRef.current = setTimeout(() => {
-      readoutTimerRef.current = null
-      setReadout(false)
-    }, READOUT_HOLD_MS)
+    showReadout()
     arm()
-  }, [arm, onMove, pumpWake, travel])
+  }, [arm, onMove, pumpWake, showReadout, travel])
 
   // Unmounting mid-gesture (a route change) still has to let go of the pointer
   // and the global cursor.
@@ -369,10 +412,7 @@ export function ScaleRail() {
     timerRef.current = null
     setDrag(true)
     setOpen(true)
-    if (readoutTimerRef.current != null)
-      clearTimeout(readoutTimerRef.current)
-    readoutTimerRef.current = null
-    setReadout(true)
+    showReadout()
     // The gesture leaves the rail's own narrow band as it travels, so the
     // cursor follows the bar across the whole stage, like a divider drag's.
     document.body.style.cursor = 'row-resize'
@@ -380,7 +420,7 @@ export function ScaleRail() {
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', end)
     window.addEventListener('pointercancel', end)
-  }, [end, inert, onMove, tall, target, travel, value])
+  }, [end, inert, onMove, showReadout, tall, target, travel, value])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? 1 : e.key === 'ArrowDown' || e.key === 'PageDown' ? -1 : 0
@@ -412,12 +452,13 @@ export function ScaleRail() {
     const notches = wheelNotches(e.deltaY)
     if (!notches)
       return
+    showReadout()
     const next = stepValue(value, notches, scale)
     lastValueRef.current = next
     applyScaleTarget(target, next)
     setOpen(true)
     arm()
-  }, [arm, inert, scale, target, value])
+  }, [arm, inert, scale, showReadout, target, value])
 
   // A press grabs the rail before a double-click can land, so going back to the
   // natural size is explicit: the stage fit for the canvas, the size an object
@@ -444,10 +485,10 @@ export function ScaleRail() {
   // The value rides the bar's own settle curve, but not during the drag it is
   // reporting on.
   const settle = drag ? 'duration-0' : 'duration-(--dur-surface)'
-  const chip = inert
-    ? 'scale-[0.96] opacity-0'
-    : readout || drag
-      ? 'scale-100 opacity-100'
+  const chip = readout || drag
+    ? 'scale-100 opacity-100'
+    : inert
+      ? 'scale-[0.96] opacity-0'
       : 'scale-[0.96] opacity-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:opacity-100'
   const clip = railClip(!inert && open, barCentre, track, inert)
 

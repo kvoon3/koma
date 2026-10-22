@@ -65,11 +65,12 @@ export const CANVAS_SCALE: RailScale = {
 
 /**
  * The canvas line as the stage's wheel drives it: fit and below, never past the
- * fit. The wheel's job there is showing the collage at the size the stage holds;
- * bleeding it under the stage's edges is a deliberate choice, made with the rail
- * or the corner handle, and it is also what would eat the wheel's own surface (a
- * canvas past the fit covers the air the gesture lives on). The rail keeps the
- * full `CANVAS_SCALE` range, so nothing is lost.
+ * fit. The wheel's job on the air is showing the collage at the size the stage
+ * holds; growing past the fit is the deliberate bleed the rail and the corner
+ * handle offer, and it would also eat the wheel's own surface (a canvas past the
+ * fit covers the air the gesture lives on, and the wheel would silently become a
+ * photo zoom under the pointer). The rail keeps the full `CANVAS_SCALE` range,
+ * and its own wheel reaches it, so nothing is lost.
  */
 export const CANVAS_WHEEL_SCALE: RailScale = { ...CANVAS_SCALE, max: CANVAS_SCALE.ref }
 
