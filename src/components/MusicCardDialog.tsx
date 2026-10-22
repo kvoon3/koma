@@ -1,4 +1,4 @@
-import type { MusicCardStyle } from '../lib/musicCard'
+import type { MusicCardMode, MusicCardStyle } from '../lib/musicCard'
 import type { MusicResolveError, ResolvedMusic } from '../lib/musicLink'
 import { Dialog } from '@base-ui/react/dialog'
 import { X } from 'lucide'
@@ -6,8 +6,9 @@ import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../lib/i18n'
 import { fetchLyrics } from '../lib/lyrics'
-import { DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, MUSIC_CARD_STYLE_IDS, musicCardFileName, PROVIDER_COLORS, PROVIDER_LABELS, renderMusicCardBlob } from '../lib/musicCard'
+import { cardSize, DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, MUSIC_CARD_STYLE_IDS, musicCardFileName, PROVIDER_COLORS, PROVIDER_LABELS, renderMusicCardBlob } from '../lib/musicCard'
 import { resolveMusic } from '../lib/musicLink'
+import { findMusicVideoStill } from '../lib/musicVideo'
 import { findLeaf } from '../lib/panes'
 import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
@@ -20,12 +21,19 @@ const PREVIEW_DEBOUNCE_MS = 200
 
 /** The picker's names; the rendered card carries the style itself. */
 const STYLE_LABELS: Record<MusicCardStyle, string> = {
+  poster: 'Poster',
   classic: 'Classic',
   noir: 'Noir',
   polaroid: 'Polaroid',
   vinyl: 'Vinyl',
   editorial: 'Editorial',
-  lyric: 'Lyric',
+}
+
+const MODE_IDS: MusicCardMode[] = ['track', 'lyrics', 'video']
+const MODE_LABELS: Record<MusicCardMode, string> = {
+  track: 'Track',
+  lyrics: 'Lyrics',
+  video: 'MV',
 }
 
 const STYLE_CHIP = 'flex w-full cursor-pointer items-center justify-center whitespace-nowrap border px-2 py-1.5 text-[11.5px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50'
@@ -47,7 +55,7 @@ function errorCopy(t: ReturnType<typeof useT>, error: MusicResolveError): string
 /**
  * The one music card dialog: paste a link, resolve it against the provider's
  * public response, pick one of the six compositions, tune the text and the
- * lyrics, then render the square. Mounted once by the root layout and opened by
+ * lyrics, then render the card. Mounted once by the root layout and opened by
  * a store flag, so the stage dock and the library header share one copy and its
  * preview state.
  *
@@ -79,6 +87,12 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   /** The composition; kept across opens, like a tool setting. */
   const [style, setStyle] = useState<MusicCardStyle>(DEFAULT_MUSIC_CARD_STYLE)
+  /** What the poster foregrounds. The paper styles ignore it. */
+  const [mode, setMode] = useState<MusicCardMode>('track')
+  /** The matched video still, loaded only after the MV mode is chosen. */
+  const [videoStill, setVideoStill] = useState<HTMLImageElement | null>(null)
+  const [videoBusy, setVideoBusy] = useState(false)
+  const [videoNote, setVideoNote] = useState<string | null>(null)
 
   /** The resolved artwork, kept decoded so an edit re-renders without a fetch. */
   const artworkRef = useRef<HTMLImageElement | null>(null)
@@ -88,6 +102,8 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const jobRef = useRef(0)
   /** Bumped per lyrics request so a late answer cannot land on a new track. */
   const lyricsJobRef = useRef(0)
+  /** Bumped per video lookup so a late still cannot land on a new track. */
+  const videoJobRef = useRef(0)
   /** A manual edit wins over a silent lookup that was already in flight. */
   const lyricsTouchedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -130,6 +146,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const reset = useCallback(() => {
     jobRef.current++
     lyricsJobRef.current++
+    videoJobRef.current++
     lyricsTouchedRef.current = false
     artworkRef.current = null
     if (previewRef.current) {
@@ -147,6 +164,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     setLyrics('')
     setLyricsBusy(false)
     setLyricsNote(null)
+    setMode('track')
+    setVideoStill(null)
+    setVideoBusy(false)
+    setVideoNote(null)
     scrollRef.current?.scrollTo({ top: 0 })
   }, [])
 
@@ -186,19 +207,24 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   // Title, artist and lyrics edits repaint the card after they settle. The
   // artwork is already decoded, so this is a canvas pass, not a network trip.
   useEffect(() => {
-    if (!music || !artworkRef.current)
+    const source = mode === 'video' && videoStill ? videoStill : artworkRef.current
+    if (!music || !source)
       return
+    const effectiveMode: MusicCardMode = mode === 'video' && videoStill
+      ? 'video'
+      : mode === 'lyrics' && lyrics.trim() ? 'lyrics' : 'track'
     const timer = window.setTimeout(() => {
-      void renderMusicCardBlob(artworkRef.current!, {
+      void renderMusicCardBlob(source, {
         provider: music.provider,
         title,
         artist,
         lyrics,
+        mode: effectiveMode,
         style,
       }).then(swapPreview).catch(() => setError(t('No artwork found for that link.')))
     }, PREVIEW_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [music, title, artist, lyrics, style, t, swapPreview])
+  }, [music, title, artist, lyrics, mode, videoStill, style, t, swapPreview])
 
   /**
    * Ask LRCLIB for the track's words. A resolve fills them silently; the
@@ -208,6 +234,8 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const findLyrics = useCallback(async (titleText: string, artistText: string, announce: boolean) => {
     if (!titleText.trim())
       return
+    if (announce)
+      setMode('lyrics')
     const job = ++lyricsJobRef.current
     setLyricsBusy(true)
     setLyricsNote(null)
@@ -234,15 +262,80 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     }
   }, [t])
 
+  /**
+   * The MV mode borrows a still from iTunes. Spotify's oEmbed exposes no video
+   * frame, so a title and artist are both required; a miss goes back to the
+   * track card rather than showing an unrelated video.
+   */
+  const findVideo = useCallback(async () => {
+    setMode('video')
+    setVideoNote(null)
+    if (videoStill)
+      return
+    if (!music || !title.trim() || !artist.trim()) {
+      setMode('track')
+      setVideoNote(t('Add an artist to find the video still.'))
+      return
+    }
+    const job = ++videoJobRef.current
+    setVideoBusy(true)
+    try {
+      const url = await findMusicVideoStill(title.trim(), artist.trim())
+      if (videoJobRef.current !== job)
+        return
+      if (!url) {
+        setMode('track')
+        setVideoNote(t('No music video still found.'))
+        return
+      }
+      const still = await loadMusicArtwork(url)
+      if (videoJobRef.current !== job)
+        return
+      setVideoStill(still)
+    }
+    catch {
+      if (videoJobRef.current === job) {
+        setMode('track')
+        setVideoNote(t('Could not reach iTunes for the video still.'))
+      }
+    }
+    finally {
+      if (videoJobRef.current === job)
+        setVideoBusy(false)
+    }
+  }, [music, title, artist, videoStill, t])
+
+  const chooseMode = (next: MusicCardMode) => {
+    setVideoNote(null)
+    if (next === 'video')
+      void findVideo()
+    else
+      setMode(next)
+  }
+
+  /** A new title or artist no longer belongs to the matched still. */
+  const dropVideo = () => {
+    setVideoStill(null)
+    setVideoNote(null)
+    if (mode === 'video')
+      setMode('track')
+  }
+
   const generate = async () => {
     if (resolving || !link.trim())
       return
     const job = ++jobRef.current
     lyricsJobRef.current++
+    videoJobRef.current++
     lyricsTouchedRef.current = false
     setLyrics('')
     setLyricsBusy(false)
     setLyricsNote(null)
+    setVideoStill(null)
+    setVideoBusy(false)
+    setVideoNote(null)
+    if (mode === 'video')
+      setMode('track')
     setResolving(true)
     setError(null)
     try {
@@ -280,16 +373,21 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   }
 
   const add = async () => {
-    if (!music || !artworkRef.current || adding)
+    const source = mode === 'video' && videoStill ? videoStill : artworkRef.current
+    if (!music || !source || adding)
       return
     setAdding(true)
     setError(null)
     try {
-      const blob = await renderMusicCardBlob(artworkRef.current, {
+      const effectiveMode: MusicCardMode = mode === 'video' && videoStill
+        ? 'video'
+        : mode === 'lyrics' && lyrics.trim() ? 'lyrics' : 'track'
+      const blob = await renderMusicCardBlob(source, {
         provider: music.provider,
         title,
         artist,
         lyrics,
+        mode: effectiveMode,
         style,
       })
       const file = new File([blob], musicCardFileName(title, artist), { type: 'image/png' })
@@ -298,7 +396,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         title: title.trim(),
         artist: artist.trim(),
         url: music.url,
-      })
+      }, cardSize(style))
       // The card is always an asset; a board target is a second, one-step
       // placement. A stale target falls back to the library-only outcome.
       const placed = musicCardFor ? assign(musicCardFor, photo.id, true) : false
@@ -365,10 +463,18 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-dim'}`} data-music-error="">
               {error ?? (musicCardFor
                 ? t('Goes into this cell; a copy stays in the library.')
-                : t('A link turns into a square card you can place like a photo.'))}
+                : t('A link turns into a card you can place like a photo.'))}
             </p>
 
-            <div className="mx-auto flex aspect-square w-[min(100%,260px,22dvh)] flex-none items-center justify-center overflow-hidden border border-line bg-panel-2" data-music-preview-box="">
+            <div
+              className={`mx-auto flex flex-none items-center justify-center overflow-hidden border border-line bg-panel-2 ${
+                style === 'poster'
+                  ? 'aspect-[4/5] w-[min(100%,208px,17.6dvh)]'
+                  : 'aspect-square w-[min(100%,260px,22dvh)]'
+              }`}
+              data-music-preview-box=""
+              data-music-preview-shape={style === 'poster' ? 'poster' : 'square'}
+            >
               {previewUrl
                 ? <img src={previewUrl} alt="" className="block h-full w-full object-contain" draggable={false} data-music-preview="" />
                 : <span className="block h-full w-full" />}
@@ -400,6 +506,31 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
               </div>
             </div>
 
+            {style === 'poster' && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Content')}</span>
+                  {videoBusy && <span className="text-[10px] leading-[1.4] text-dim">{t('Finding video still...')}</span>}
+                </div>
+                <div className="grid grid-cols-3 gap-[6px]" data-music-modes="">
+                  {MODE_IDS.map(id => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`${STYLE_CHIP} ${mode === id ? chipOnCls : chipOffCls}`}
+                      aria-pressed={mode === id}
+                      data-music-mode={id}
+                      disabled={adding || (id === 'video' && videoBusy)}
+                      onClick={() => chooseMode(id)}
+                    >
+                      {t(MODE_LABELS[id])}
+                    </button>
+                  ))}
+                </div>
+                {videoNote && <span className="text-[10px] leading-[1.4] text-dim" data-music-video-note="">{videoNote}</span>}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Title')}</span>
@@ -409,7 +540,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                   disabled={!music}
                   aria-label={t('Title')}
                   data-music-title=""
-                  onChange={e => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    setTitle(e.target.value)
+                    dropVideo()
+                  }}
                 />
               </label>
 
@@ -421,41 +555,46 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                   disabled={!music}
                   aria-label={t('Artist')}
                   data-music-artist=""
-                  onChange={e => setArtist(e.target.value)}
+                  onChange={(e) => {
+                    setArtist(e.target.value)
+                    dropVideo()
+                  }}
                 />
               </label>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Lyrics')}</span>
-                <button
-                  type="button"
-                  className={TEXT_ACTION}
-                  data-music-find-lyrics=""
-                  disabled={!music || lyricsBusy || !title.trim()}
-                  onClick={() => void findLyrics(title, artist, true)}
-                >
-                  {lyricsBusy ? t('Finding lyrics') : t('Find lyrics')}
-                </button>
+            {style === 'poster' && (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Lyrics')}</span>
+                  <button
+                    type="button"
+                    className={TEXT_ACTION}
+                    data-music-find-lyrics=""
+                    disabled={!music || lyricsBusy || !title.trim()}
+                    onClick={() => void findLyrics(title, artist, true)}
+                  >
+                    {lyricsBusy ? t('Finding lyrics') : t('Find lyrics')}
+                  </button>
+                </div>
+                <textarea
+                  className="box-border min-h-[64px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                  rows={3}
+                  value={lyrics}
+                  disabled={!music}
+                  aria-label={t('Lyrics')}
+                  placeholder={t('Paste lyrics, or find them above')}
+                  data-music-lyrics=""
+                  onChange={(e) => {
+                    lyricsTouchedRef.current = true
+                    setLyrics(e.target.value)
+                  }}
+                />
+                <span className="min-h-[1.4em] text-[10px] leading-[1.4] text-dim" data-music-lyrics-note="">
+                  {lyricsNote ?? t('Lyrics mode uses the first six lines.')}
+                </span>
               </div>
-              <textarea
-                className="box-border min-h-[64px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                rows={3}
-                value={lyrics}
-                disabled={!music}
-                aria-label={t('Lyrics')}
-                placeholder={t('Paste lyrics, or find them above')}
-                data-music-lyrics=""
-                onChange={(e) => {
-                  lyricsTouchedRef.current = true
-                  setLyrics(e.target.value)
-                }}
-              />
-              <span className="min-h-[1.4em] text-[10px] leading-[1.4] text-dim" data-music-lyrics-note="">
-                {lyricsNote ?? t('The Lyric style uses the first five lines.')}
-              </span>
-            </div>
+            )}
             {/* The form scrolls under the footer. The fade rides the body's
                 bottom edge as the scroll cue and settles into the padding at
                 the end. */}

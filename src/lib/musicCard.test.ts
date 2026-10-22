@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  CARD_SIZE,
+  cardSize,
   DEFAULT_MUSIC_CARD_STYLE,
   fitArtist,
   fitLyrics,
   fitTitle,
   MUSIC_CARD_STYLE_IDS,
   musicCardFileName,
+  POSTER_SIZE,
   TITLE_MAX_SIZE,
   TITLE_MAX_W,
   TITLE_MIN_SIZE,
@@ -129,10 +132,19 @@ describe('the lyric block', () => {
 })
 
 describe('the style list', () => {
-  test('it names the six compositions once, with classic as the default', () => {
-    expect([...MUSIC_CARD_STYLE_IDS]).toEqual(['classic', 'noir', 'polaroid', 'vinyl', 'editorial', 'lyric'])
+  test('it names the six compositions once, with poster as the default', () => {
+    expect([...MUSIC_CARD_STYLE_IDS]).toEqual(['poster', 'classic', 'noir', 'polaroid', 'vinyl', 'editorial'])
     expect(new Set(MUSIC_CARD_STYLE_IDS).size).toBe(MUSIC_CARD_STYLE_IDS.length)
-    expect(DEFAULT_MUSIC_CARD_STYLE).toBe('classic')
+    expect(DEFAULT_MUSIC_CARD_STYLE).toBe('poster')
+  })
+})
+
+describe('the card size', () => {
+  test('the poster is 4:5, every paper style stays square', () => {
+    expect(cardSize('poster')).toEqual({ width: 1024, height: 1280 })
+    expect(cardSize('classic')).toEqual({ width: CARD_SIZE, height: CARD_SIZE })
+    expect(cardSize(undefined)).toEqual({ width: CARD_SIZE, height: CARD_SIZE })
+    expect(POSTER_SIZE).toEqual({ width: 1024, height: 1280 })
   })
 })
 
