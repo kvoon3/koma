@@ -141,7 +141,7 @@ function MusicAssetCard({
           trigger={(
             <button
               type="button"
-              className="grid h-[22px] w-[22px] flex-none cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-faint transition-colors duration-(--dur-fast) hover:not-disabled:bg-chip-hover hover:not-disabled:text-danger"
+              className="grid h-[22px] w-[22px] flex-none cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-dim transition-colors duration-(--dur-fast) hover:not-disabled:bg-chip-hover hover:not-disabled:text-danger"
               aria-label={t('Delete music card')}
               data-music-delete-button=""
               onClick={onDelete}
@@ -202,7 +202,7 @@ function MusicDetail({ photo, uses, onRequestDelete, onClose }: {
             <div className="flex flex-col gap-1">
               <span className="text-[13px] font-semibold text-txt" data-music-detail-name="">{title}</span>
               <span className="text-[11.5px] text-dim" data-music-detail-artist="">{music?.artist || t('No artist')}</span>
-              <span className="text-[11px] text-faint" data-music-detail-usage="">
+              <span className="text-[11px] text-dim" data-music-detail-usage="">
                 {uses > 0 ? t('Used in {n} places on the board', { n: uses }) : t('Not placed on the board')}
               </span>
             </div>
