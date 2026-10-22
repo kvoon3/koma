@@ -1,3 +1,4 @@
+import type { TKey } from '../lib/i18n'
 import type { LyricSize, MusicCardStyle } from '../lib/musicCard'
 import type { MusicResolveError, ResolvedMusic } from '../lib/musicLink'
 import { Dialog } from '@base-ui/react/dialog'
@@ -19,7 +20,7 @@ import { buttonBase, buttonVariants } from './ui/buttonStyles'
 const PREVIEW_DEBOUNCE_MS = 200
 
 /** The switch's names; the rendered card carries the variant itself. */
-const STYLE_LABELS: Record<MusicCardStyle, string> = {
+const STYLE_LABELS: Record<MusicCardStyle, TKey> = {
   cover: 'Cover',
   lyrics: 'Lyrics',
 }
@@ -35,7 +36,7 @@ const LYRIC_SIZE_LABELS: Record<LyricSize, string> = {
   m: 'M',
   l: 'L',
 }
-const LYRIC_SIZE_NAMES: Record<LyricSize, string> = {
+const LYRIC_SIZE_NAMES: Record<LyricSize, TKey> = {
   s: 'Small',
   m: 'Medium',
   l: 'Large',
