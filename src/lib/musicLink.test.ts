@@ -6,10 +6,12 @@ import {
   musicLookupUrl,
   parseMusicLink,
   pickAppleResult,
+  pickITunesArtist,
   readAppleResults,
   readMusicMeta,
   readSpotifyOembed,
   resolveMusic,
+  spotifyArtistSearchUrl,
   spotifyArtworkUrl,
 } from './musicLink'
 
@@ -152,6 +154,45 @@ describe('provider responses', () => {
     expect(appleArtworkUrl('https://x/100x100bb.jpg')).toBe('https://x/1000x1000bb.jpg')
   })
 
+  test('the artist lookup prefers the exact title over a live take', () => {
+    const results = {
+      results: [
+        { trackName: 'Never Gonna Give You Up (Live)', artistName: 'Cover Band' },
+        { trackName: 'Never Gonna Give You Up', artistName: 'Rick Astley' },
+      ],
+    }
+    expect(pickITunesArtist(results, 'Never Gonna Give You Up', 'track')).toBe('Rick Astley')
+  })
+
+  test('a suffix still names the artist when no exact title is present', () => {
+    const results = {
+      results: [
+        { trackName: 'A Song', artistName: 'Someone Else' },
+        { trackName: 'Never Gonna Give You Up (Remastered 2003)', artistName: 'Rick Astley' },
+      ],
+    }
+    expect(pickITunesArtist(results, 'Never Gonna Give You Up', 'track')).toBe('Rick Astley')
+  })
+
+  test('an album lookup reads the collection name', () => {
+    expect(pickITunesArtist(
+      { results: [appleAlbum, appleTrack] },
+      'Whenever You Need Somebody',
+      'album',
+    )).toBe('Rick Astley')
+  })
+
+  test('a body with no results or no exact title names no artist', () => {
+    expect(pickITunesArtist({}, 'Never Gonna Give You Up', 'track')).toBe('')
+    expect(pickITunesArtist({ results: [{ trackName: 'Another Song', artistName: 'X' }] }, 'Never Gonna Give You Up', 'track')).toBe('')
+    expect(pickITunesArtist({ results: [{ trackName: 'Never Gonna Give You Up' }] }, 'Never Gonna Give You Up', 'track')).toBe('')
+  })
+
+  test('the search asks iTunes for the matching entity', () => {
+    expect(spotifyArtistSearchUrl('Never Gonna Give You Up', 'track')).toBe('https://itunes.apple.com/search?term=Never%20Gonna%20Give%20You%20Up&entity=song&limit=5&country=us')
+    expect(spotifyArtistSearchUrl('Whenever You Need Somebody', 'album')).toContain('entity=album')
+  })
+
   test('an album link picks the collection row, not a member track', () => {
     const results = readAppleResults({ results: [appleAlbum, appleTrack] })!
     const link = parseMusicLink('https://music.apple.com/us/album/whenever-you-need-somebody/1559885420')
@@ -180,15 +221,31 @@ describe('resolveMusic', () => {
     expect(called).toBe(false)
   })
 
-  test('spotify resolves a title with no artist and the 640 art', async () => {
-    const out = await resolveMusic('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC', ok(spotifyTrack))
+  test('spotify resolves the title, the searched artist and the 640 art', async () => {
+    const routed: MusicFetch = async url => new Response(JSON.stringify(
+      url.startsWith('https://itunes.apple.com/search')
+        ? { results: [{ trackName: 'Never Gonna Give You Up', artistName: 'Rick Astley' }] }
+        : spotifyTrack,
+    ), { status: 200 })
+    const out = await resolveMusic('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC', routed)
     expect(out.ok && out.music).toEqual({
       provider: 'spotify',
       title: 'Never Gonna Give You Up',
-      artist: '',
+      artist: 'Rick Astley',
       url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC',
       artworkUrl: 'https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b273255e131abc1410833be95673',
     })
+  })
+
+  test('a failed artist search leaves the artist empty but the card resolved', async () => {
+    const routed: MusicFetch = async (url) => {
+      if (url.startsWith('https://itunes.apple.com/search'))
+        return new Response('{}', { status: 500 })
+      return new Response(JSON.stringify(spotifyTrack), { status: 200 })
+    }
+    const out = await resolveMusic('spotify:track:4uLU6hMCjMI75M1A2tKUQC', routed)
+    expect(out.ok && out.music.artist).toBe('')
+    expect(out.ok && out.music.title).toBe('Never Gonna Give You Up')
   })
 
   test('apple resolves the prefilled artist', async () => {
