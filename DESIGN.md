@@ -251,7 +251,8 @@ would otherwise slice the pill in half. That layer is a sibling of the bands
 rather than a child, so the hover that lights a grip is tracked in React, not
 through `group-hover` (mouse only; a finger reads the drag state instead).
 Overlaying keeps the canvas at full size, and one placement serves desktop
-and touch. The Photo menu holds add photos / add folder / library; Help
+and touch. The Photo menu holds add photos / add folder / the library drawer /
+the Library page / clear library; Help
 holds shortcuts + crop report. Settings, Export, the language menu and the
 theme toggle sit at the top right of the top bar, and the wordmark opens it at
 the left: `koma` in Zen Old Mincho, set larger than the chrome type so it reads
@@ -477,22 +478,59 @@ library.
   still on screen; they are released once the close transition has finished
   painting (`onOpenChangeComplete`), below the close animation's paint.
 
-## Sticker library (`#/stickers`)
+## Library (`#/library`)
+
+Photos and stickers share one page. The header owns the back chip, the title,
+the total, one search field, Add photos and New sticker; the row below it
+switches between All, Photos and Stickers, each type chip carrying its count.
+The selected type lives in the URL (`?type=photo` / `?type=sticker`, absent =
+All), so a reload or a back step keeps the tab; `/photos` and `/stickers` stay
+as redirects into their tab rather than 404s. Counts come from the same pure
+functions the sections list (`photoAssetsOf`, `stickerAssetsOf`), so the chips,
+the section headings and the total cannot disagree.
+
+The page has one scroll container. Each half is an embeddable section
+(`components/library/PhotoLibrarySection.tsx` / `StickerLibrarySection.tsx`)
+with a heading, its count and a grid; neither carries a page header, a back
+chip or a scroller of its own. A section draws its tag or folder chips only
+when its type is selected: All shows both grids bare. A tag or folder picked
+before the switch therefore cannot narrow a grid whose bar is off screen
+(`livePick`); a tag click on a card in All switches the page to Photos and
+selects that tag, because the click is a request to see that tag.
+
+Search filters both sections by asset name. `components/library/LibraryPage.tsx`
+owns the query, both group picks and the maker, and `LibraryHeader.tsx` is the
+chrome. The board drawer stays photo-only and keeps its own thumbnail strip.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ [←] Library 8          [ Search… ]  [Add photos] [New]    │
+│ All 8 · Photos 5 · Stickers 3                            │
+├──────────────────────────────────────────────────────────┤
+│ Photos 5                                                 │
+│ ▣ ✓Used 1  ▣ Unused  ▣ Unused  ▣ Unused  ▣ Unused        │
+│ Stickers 3                                               │
+│ ▦ ✓Used 1  ▦ Unused  ▦ Unused                            │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Stickers
 
 A sticker is a library asset of its own, not a PNG that happens to sit in the
-photo library. `Photo` carries the marker: `kind: 'sticker'` (absent = photo,
+photo section. `Photo` carries the marker: `kind: 'sticker'` (absent = photo,
 which is what every session saved before this reads as), a one-level `folder`
 (absent = Unsorted), and `orphaned` for an asset that was deleted while a placed
-copy still draws it. The photo library (drawer and menu count) lists
-`kind !== 'sticker'` only, and the sticker page lists `kind === 'sticker'` only;
-both hide orphaned records. The folder list is session state beside the photos
+copy still draws it. The photo section, the drawer and the menu count list
+`photoAssetsOf` (a positive `kind === 'photo'` match, absent = photo), and the
+sticker section lists `stickerAssetsOf` (`kind === 'sticker'`); both hide
+orphaned records. The folder list is session state beside the photos
 (`stickerFolders`), so an empty folder survives a reload; a folder is a name, a
 sticker's `folder` its membership, and a rename repoints the stickers in the
 same commit.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ [←] Stickers  8                       [ Search……… ]       │
+│ Stickers 8                                               │
 ├──────────────────────────────────────────────────────────┤
 │ All 8 · Unsorted 3 · Faces 1 · Animals 2 · Places 2      │
 │                                     [✎] [🗑] [+ New folder]│
@@ -537,8 +575,8 @@ effects and the mask editor are the same code on both roads. The save button
 names the target ("Save to Faces"), and every opening starts from an empty
 stage so a new sticker never inherits the last one's pick.
 
-Entry is the top bar's Photo menu (both views); the route is one of the two
-library pages, like photo management.
+Entry is the top bar's Photo menu (both views) and the library header's New
+sticker button; the sticker tab is one of the page's type chips.
 
 **Erase and Re-edit: two depths of editing an existing sticker.** A saved
 sticker is the *composited* PNG (cutout, border and perforation baked in), so
@@ -656,14 +694,14 @@ and Erase again on its own alpha composes.
 A `.koma.json` save rebuilds photos from their data URLs without the recipe, so
 a sticker imported from a file offers Erase only.
 
-Entry is the top bar's Photo menu (both views); the route is the shape the
-future hub hangs off (grid making / photo management / sticker management).
+Entry is the top bar's Photo menu (both views), as the one Library item; the
+route is `/library`, the page the future hub hangs off.
 
 
-## Photo management (`#/photos`)
+### Photos
 
-The photo library has a page of its own, beside the sticker page. Photos are the
-`kind !== 'sticker'` assets (stickers live on their own page) and every photo
+Photos are the other half of the library page. They are the `kind === 'photo'`
+assets (absent = photo; a novel kind joins neither list), and every photo
 can carry hand-typed **tags**: `Photo.tags` is the membership, many to a photo,
 and the tag list itself is session state beside the photos (`photoTags`), so an
 empty tag survives a reload and can be renamed or deleted. That list/membership
@@ -676,10 +714,9 @@ undo entry (library actions, like the folder edits).
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ [←] Photos 6                             [ Search……… ]    │
+│ Photos 6                                                 │
 ├──────────────────────────────────────────────────────────┤
 │ All 6 · Untagged 1 · trip 2 · home 2            [New tag] │
-│                                              [Add photos] │
 ├──────────────────────────────────────────────────────────┤
 │ ▣ ✓Used 1  ▣ Unused  ▣ Unused  ▣ Unused  ▣ Unused         │
 │ 2024-05-01 12:34   #trip #home                            │
@@ -687,7 +724,7 @@ undo entry (library actions, like the folder edits).
 ```
 
 Each card is the photo (cover-cropped to a contact sheet), a usage badge from
-the same derivation the sticker page uses (`referenceCounts` through
+the same derivation the sticker section uses (`referenceCounts` through
 `useAssetUses`: every board of every group plus the collage background), the
 capture time read from its EXIF, and the tags it wears (each chip filters the
 page). The capture time and the GPS fix are read once at import (`probeExif`
@@ -719,13 +756,13 @@ a library surface does not rearrange whatever board happens to be open.
 
 ## The retained launcher (`#/legacy-index`)
 
-A launcher that puts the three surfaces side by side (the board overview, photo
-management, sticker management) was drafted while the app's root was under
-review. The root went back to the 3×3 overview, and the page is kept at
+A launcher that puts the three surfaces side by side (the board overview, the
+library's photos tab, its stickers tab) was drafted while the app's root was
+under review. The root went back to the 3×3 overview, and the page is kept at
 `#/legacy-index`: routable and fully working, linked from nowhere. It is not in
 any menu, no card points at it and no shortcut reaches it, so it stays out of
-the main flow; `isHubPath` keeps the board chrome inert there, as on the two
-library pages.
+the main flow; `isHubPath` keeps the board chrome inert there, as on the
+library page.
 
 Each card carries the surface's icon, one line about it, how much is in there
 (workspaces filled, photos, stickers) and when it was last opened (a
@@ -737,9 +774,10 @@ outline ring on hover/focus) rather than inventing a launcher style, and a
 
 `lib/routes` holds the paths and the two predicates the chrome keys off:
 `isGridPath` is the overview at `/` (pure navigation, export in batch mode) and
-`isHubPath` is "no board is drawn here" (the two libraries plus this page). The
-overview therefore keeps the board key map (`G` toggles, `Esc` backs out of the
-editor to `/`) and the floating actions, exactly as before the draft.
+`isHubPath` is "no board is drawn here" (the library, its two redirects, plus
+this page). The overview therefore keeps the board key map (`G` toggles, `Esc`
+backs out of the editor to `/`) and the floating actions, exactly as before the
+draft.
 
 ## Settings panel (`,` or the top-right Settings button)
 
@@ -933,7 +971,7 @@ pan 12.4ms → 0.7ms, pinch 19.4ms → 0.7ms, divider drag 9.1ms → 0.4ms.
 
 ```
 src/
-  router.tsx        code-based routes: / = 3×3 overview, /w/$wsId = editor, /photos and /stickers = the two libraries, /legacy-index = the retained launcher; hash history (single-file build must work via file://)
+  router.tsx        code-based routes: / = 3×3 overview, /w/$wsId = editor, /library = the unified photo + sticker library (/photos and /stickers redirect to its tabs), /legacy-index = the retained launcher; hash history (single-file build must work via file://)
   lib/routes.ts      the route paths + the isGridPath / isHubPath predicates the chrome keys off
   lib/hubSeen.ts     per-destination "last opened" timestamps for the retained launcher's cards (localStorage)
   main.tsx          boot: load session → render → debounced autosave + pagehide flush
@@ -942,7 +980,8 @@ src/
   lib/heic.ts        HEIC: meta box probing + WASM decoding (heic-to)
   lib/exporter.ts    high-res rendering (collage + 3×3 board snapshot), file download / clipboard copy, crop report export
   lib/sessionStore.ts   IndexedDB session autosave (workspaces + photos with real File objects)
-  lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts (shared with the photo page), folder CRUD, the retire rule (pure)
+  lib/stickerLibrary.ts sticker assets: kind / folder / retired markers, usage counts (shared with the photo section), folder CRUD, the retire rule (pure)
+  lib/library.ts     the unified library: its kind table, counts, URL type parsing, group picks and name search (pure)
   lib/photoTags.ts   photo tags: membership, tag CRUD, rename / delete fan-out, hydrate normalization (pure)
   lib/assetNames.ts  the name cleaning, cap and case-insensitive compare folders and tags share
   lib/workspaceFile.ts  whole-board save/open: .koma.json with photos as data URLs
@@ -955,8 +994,11 @@ src/
     FloatActions.tsx floating back / split / reset buttons under the top bar
     LibraryDrawer.tsx / Library.tsx
     LegacyIndex.tsx  #/legacy-index: the retained launcher draft (linked from nowhere)
-    PhotoManager.tsx #/photos: the photo library (tag chips, usage, search, detail, delete)
-    StickerManager.tsx  #/stickers: the sticker library (folder chips, usage, move / delete)
+    library/LibraryPage.tsx        #/library: the type filter, query, group picks and the maker
+    library/LibraryHeader.tsx      back, title, total, search, add photos, new sticker, type chips
+    library/PhotoLibrarySection.tsx   the photos half: heading, tag chips, grid, detail
+    library/StickerLibrarySection.tsx the stickers half: heading, folder chips, grid, move / delete
+    library/chips.ts               the chip / tool styles both halves share
     SettingsPanel.tsx
     HelpOverlay.tsx
     ExportDialog.tsx    the preview every export lands in: download / copy / long-press
@@ -974,11 +1016,13 @@ defaults to on and persists as `collage:fontMirror`.
 ## Routing & persistence
 
 TanStack Router (code-based) with **hash history**: `/` is the 3×3 overview,
-`/w/$wsId` the editor, `/photos` photo management and `/stickers` sticker
-management; an unknown workspace id redirects to `/`. The two libraries are
-pages of their own rather than drawers over the board: each draws its own chrome
-(no floating board actions, and the board's key map is inert there), and its
-back chip returns wherever it was opened from. `#/legacy-index` holds the
+`/w/$wsId` the editor, and `/library` the one photo + sticker library, with its
+type in the query (`?type=photo` / `?type=sticker`, absent = both); `/photos`
+and `/stickers` redirect to their tab, and an unknown workspace id redirects to
+`/`. The library is a page of its own rather than a drawer over the board: it
+draws its own chrome (no floating board actions, and the board's key map is
+inert there), and its back chip returns wherever it was opened from. The
+board's drawer stays photo-only. `#/legacy-index` holds the
 retained launcher draft (see above), reachable by URL only. The view no longer
 lives in the store: the route is the view; the route param drives `activeId`.
 Grid↔edit navigations pass `viewTransition` so the cell→canvas morph keeps
