@@ -103,11 +103,11 @@ export const StickerCard = memo(({
             leaves the whole width for the four labelled action buttons. */}
         <div className="flex items-baseline gap-1 pointer-coarse:justify-between">
           <span className="truncate text-[11.5px] text-txt" title={photo.name} data-sticker-name="">{photo.name}</span>
-          <span className="hidden shrink-0 text-[10px] text-faint pointer-coarse:block">{folder}</span>
+          <span className="hidden shrink-0 text-[10px] text-dim pointer-coarse:block">{folder}</span>
         </div>
 
         <div className="flex items-center gap-1">
-          <span className="min-w-0 flex-1 truncate text-[10px] text-faint pointer-coarse:hidden" title={folder}>{folder}</span>
+          <span className="min-w-0 flex-1 truncate text-[10px] text-dim pointer-coarse:hidden" title={folder}>{folder}</span>
 
           {/* Erase repaints the final PNG's own alpha, so every sticker has it;
               Re-edit needs the maker's recipe and a legacy asset has none. */}
