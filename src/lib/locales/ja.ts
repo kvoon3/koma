@@ -743,6 +743,7 @@ export const ja: Record<TKey, string> = {
   'Canvas at {n}% · click to fit': 'キャンバス {n}% · クリックでフィット',
   // Unified library
   'Search library': 'ライブラリを検索',
+  'Library drawer': 'ライブラリドロワー',
   'No photos match this search or filter.': 'この検索や絞り込みに合う写真はありません。',
   'No stickers match this search or filter.': 'この検索や絞り込みに合うステッカーはありません。',
 }
