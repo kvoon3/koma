@@ -31,16 +31,26 @@ export function clampViewScale(scale: number): number {
   return Math.min(VIEW_MAX, Math.max(VIEW_MIN, scale))
 }
 
+/** A mouse wheel notch, in px. */
+const NOTCH_PX = 100
+/** A trackpad pinch notch: it arrives as a ctrl+wheel of about 20px. */
+const PINCH_NOTCH_PX = 20
+
 /**
- * The step one wheel event takes: a mouse notch (deltaY 100) is exactly 1.1×,
- * and a pinch notch (a trackpad reports ~20px with ctrl held, which is also
- * how a trackpad pinch arrives) lands on the same 1.1×. One event never moves
- * more than 1.1^1.5, so a stray delta (or a line-mode wheel) cannot jump the
- * view across the range.
+ * A wheel event's size in notches (up is positive), clamped so one event never
+ * moves more than 1.5 notches however stray the delta is (or line-mode).
+ */
+export function wheelNotches(deltaY: number, pinch = false): number {
+  return Math.max(-1.5, Math.min(1.5, -deltaY / (pinch ? PINCH_NOTCH_PX : NOTCH_PX)))
+}
+
+/**
+ * The step one wheel event takes the view: a mouse notch (deltaY 100) is
+ * exactly 1.1×, and a pinch notch (a trackpad reports ~20px with ctrl held,
+ * which is also how a trackpad pinch arrives) lands on the same 1.1×.
  */
 export function viewWheelFactor(deltaY: number, pinch: boolean): number {
-  const notches = Math.max(-1.5, Math.min(1.5, -deltaY / (pinch ? 20 : 100)))
-  return 1.1 ** notches
+  return 1.1 ** wheelNotches(deltaY, pinch)
 }
 
 /**

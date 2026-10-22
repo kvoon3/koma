@@ -13,7 +13,7 @@ import { Popover } from '@base-ui/react/popover'
 import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview } from '../hooks'
+import { useElementSize, useMediaQuery, usePreview, useStageZoom } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { collectBoard, dividerBandStyle, dividerGripStyle, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
@@ -24,6 +24,7 @@ import { setLabelPreviewUnit } from '../lib/labelMetrics'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { applyCutoutState } from '../lib/paneCutout'
 import { leafList, placement, ratioFromPointer, seamSides, setSplitRatioIn } from '../lib/panes'
+import { CANVAS_WHEEL_SCALE, stepValue } from '../lib/scaleRail'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { activeWs, cachedGeometry, cachedSeams, computeGeometry, emptyGeometryCache, emptySeamsCache, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore, withLiveLeaves } from '../store'
 import { AppearanceDockTools, GridDockTool } from './AppearanceTools'
@@ -428,10 +429,18 @@ export function Stage() {
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
 
-  // The view zoom: the stage margin around the canvas scales the whole canvas
-  // (a session working view, never part of the board). The canvas itself keeps
-  // every gesture it had, so the wheel there is still the pane's photo zoom.
-  const viewZoom = useCanvasViewZoom(wrapRef, stageRef)
+  // The stage's air: a plain wheel sizes the canvas (the same value the size
+  // rail's canvas line drives), ctrl/meta + wheel scales the working view. The
+  // canvas itself keeps every gesture it had, so the wheel there is still the
+  // pane's photo zoom.
+  const resizeByWheel = useCallback((notches: number) => {
+    const s = useStore.getState()
+    s.setCanvasFill(stepValue(activeWs(s).canvasFill, notches, CANVAS_WHEEL_SCALE))
+  }, [])
+  const fitCanvas = useCallback(() => {
+    useStore.getState().setCanvasFill(1)
+  }, [])
+  const stageZoom = useStageZoom(wrapRef, stageRef, { onWheelResize: resizeByWheel, fitCanvas })
 
   // A ratio drag paints the board itself (see `useDividerDrag`): this hands it
   // the same layout the render would produce at the dragged ratio.
@@ -470,12 +479,12 @@ export function Stage() {
       }}
       // A double-click on the stage margin (the empty air around the canvas)
       // fits the view again; on the canvas it stays the pane's own reset.
-      onDoubleClick={viewZoom.onStageDoubleClick}
+      onDoubleClick={stageZoom.onStageDoubleClick}
     >
       <DeleteZone label={t('Drop here to delete')} />
       <StageCanvas
         view={view}
-        viewScale={viewZoom.scale}
+        viewScale={stageZoom.scale}
         seams={seams}
         stickers={boardStickers}
         labels={boardLabels}
@@ -503,7 +512,7 @@ export function Stage() {
 
       {/* Off fit, a small chip says how far and puts it back (below the back
           button, which stands 30px tall on a mouse and 38px under a finger). */}
-      <ViewZoomChip scale={viewZoom.scale} onFit={viewZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
+      <ViewZoomChip scale={stageZoom.scale} onFit={stageZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
 
       {/* The size control: a right-edge rail for what is selected. */}
       <ScaleRail />

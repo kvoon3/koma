@@ -415,6 +415,8 @@ export const zhHans = {
   'Resize that split; only the two adjacent panes are affected': '调整该分割的大小，只影响相邻的两个窗格',
   'Drag the handle at the bottom-right of the canvas': '拖动画布右下角的手柄',
   'Change the canvas aspect ratio (double-click to follow the first photo again)': '改变画布比例（双击可重新跟随第一张照片的宽高比）',
+  'Scroll on the stage around the canvas': '在画布外的舞台上滚动',
+  'Resize the whole canvas; ⌘/Ctrl + scroll (or a pinch) zooms the working view': '整体缩放画布；⌘/Ctrl + 滚动（或双指捏合）缩放工作视图',
   'Drag the rail on the right edge': '拖动右边缘的滑条',
   'Resize the canvas, width and height together (double-click to fit it again)': '整体缩放画布，长宽同时变化（双击可重新适配）',
   'Drag inside a pane': '在窗格内拖动',

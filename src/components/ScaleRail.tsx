@@ -4,6 +4,7 @@ import type { RailTick } from '../lib/scaleRail'
 import type { ScaleTarget } from '../lib/scaleTarget'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useFloatingActionsBottom, useMediaQuery, useToolsSheetTop } from '../hooks'
+import { wheelNotches } from '../lib/canvasView'
 import { useT } from '../lib/i18n'
 import {
   assistValue,
@@ -15,6 +16,7 @@ import {
   railValueLabel,
   rubberBand,
   settleValue,
+  stepValue,
   tallnessOfValue,
   tickY,
   valueAtTallness,
@@ -398,6 +400,25 @@ export function ScaleRail() {
     applyScaleTarget(target, next)
   }, [scale, target, value])
 
+  /**
+   * A wheel over the rail steps whatever it is sizing, one notch at a time: with
+   * the pointer on the scale, the wheel is the same gesture the stage's air
+   * offers for the canvas, applied to the target the scale is showing. It leaves
+   * ctrl/meta alone (a pinch is the view zoom's, everywhere).
+   */
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    if (inert || e.ctrlKey || e.metaKey)
+      return
+    const notches = wheelNotches(e.deltaY)
+    if (!notches)
+      return
+    const next = stepValue(value, notches, scale)
+    lastValueRef.current = next
+    applyScaleTarget(target, next)
+    setOpen(true)
+    arm()
+  }, [arm, inert, scale, target, value])
+
   // A press grabs the rail before a double-click can land, so going back to the
   // natural size is explicit: the stage fit for the canvas, the size an object
   // was made at for a sticker or a label.
@@ -478,6 +499,7 @@ export function ScaleRail() {
           e.stopPropagation()
           fit()
         }}
+        onWheel={onWheel}
         onKeyDown={onKeyDown}
       >
         {/* The scale. Drawing it out and tucking it is one clip on the whole
