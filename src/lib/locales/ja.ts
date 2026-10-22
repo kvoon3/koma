@@ -448,7 +448,7 @@ export const ja: Record<string, string> = {
   'Copied': 'コピーしました',
 
   // ExportDialog (the export preview every export lands in)
-  'Space {n}': 'スペース {n}',
+  'Space {n}': 'ワークスペース {n}',
   'Download image': '画像をダウンロード',
   'Download video': '動画をダウンロード',
   'Download all ({n})': 'すべてダウンロード（{n}）',
