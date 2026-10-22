@@ -94,6 +94,12 @@ describe('the two library lists', () => {
     expect(stickerAssetsOf(list).map(p => p.id)).toEqual(['gone'])
     expect(photoAssetsOf(list).some(p => p.id === 's1')).toBe(false)
   })
+
+  test('a kind neither library knows is in neither list', () => {
+    const music = { ...photo('m1'), kind: 'music' as string } as Photo
+    expect(photoAssetsOf([photo('p1'), music]).map(p => p.id)).toEqual(['p1'])
+    expect(stickerAssetsOf([sticker('s1'), music]).map(p => p.id)).toEqual(['s1'])
+  })
 })
 
 describe('folders', () => {
