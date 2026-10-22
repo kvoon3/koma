@@ -1,24 +1,26 @@
 import type { RefObject } from 'react'
-import type { RailTick } from '../lib/canvasRail'
+import type { PaneLabel, Sticker } from '../lib/panes'
+import type { RailTick } from '../lib/scaleRail'
+import type { ScaleTarget } from '../lib/scaleTarget'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useFloatingActionsBottom, useMediaQuery, useToolsSheetTop } from '../hooks'
+import { useT } from '../lib/i18n'
 import {
-  assistFill,
+  assistValue,
   clamp01,
-  fillAtTallness,
-  fillLabel,
-  nextTickFill,
+  nextTickValue,
   RAIL_KEY_STEPS,
   RAIL_PAGE_STEPS,
-
   railTicks,
+  railValueLabel,
   rubberBand,
-  settleFill,
-  tallnessOfFill,
+  settleValue,
+  tallnessOfValue,
   tickY,
-} from '../lib/canvasRail'
-import { useT } from '../lib/i18n'
-import { activeWs, MAX_CANVAS_FILL, MIN_CANVAS_FILL, useStore } from '../store'
+  valueAtTallness,
+} from '../lib/scaleRail'
+import { applyScaleTarget, canvasScaleTarget, pickScaleTarget, scaleTargetHint } from '../lib/scaleTarget'
+import { activeWs, useStore } from '../store'
 import { SCALE_BAR_LONG, SCALE_BAR_THICK, SCALE_MARK_HARD, SCALE_MARK_SOFT, TickScale } from './ui/TickScale'
 
 /**
@@ -46,8 +48,13 @@ const TRACK_MIN = 150
 const TRACK_IDLE = 96
 /** Clearance from the sheet's top edge, the minimap's rule (see Pane.tsx). */
 const EDGE_INSET = 8
-/** The fit's mark: longer than a half mark, shorter than the bar. */
+/** The natural-size mark: longer than a half mark, shorter than the bar. */
 const TICK_FIT = 13
+/** How short the rail draws while it has nothing to size. */
+const TRACK_IDLE_NONE = 60
+/** Stable empties: a board with no labels/stickers must not re-render every time. */
+const NO_LABELS: PaneLabel[] = []
+const NO_STICKERS: Sticker[] = []
 /** The live value chip beside the bar: its height and the gap it keeps. */
 const CHIP_H = 22
 const CHIP_GAP = 8
@@ -73,27 +80,32 @@ const WAKE_RAMP = 36
 const WAKE_MAX = 0.9
 
 /**
- * The canvas resize rail: the size control on the right edge of the stage.
+ * The size rail: the scale control on the right edge of the stage, for whatever
+ * is selected (`lib/scaleTarget`).
  *
- * The corner handle is the direct control, and the tools sheet covers the
- * corner it sits on (the sheet is an overlay with no put-away state), so a tall
- * canvas or an expanded dock hides it. This is the control that is always
- * reachable: the app's tick scale (`ui/TickScale`, the one the rotate dial
- * draws through) stood on its end along the stage's right edge, centred on the
- * part of the stage the sheet leaves visible, with the scale as a percentage
- * beside the bar while the pointer is there.
+ * A selected text label or sticker is what it sizes first, then the canvas while
+ * a pane has focus; with nothing selected it has no target, so it draws itself
+ * small and faint and takes no presses. All three scale uniformly, which is the
+ * one thing a single scale can do, and the only one they need: the canvas's
+ * aspect has its own corner handle, and an object's box keeps its proportions.
  *
- * It scales the canvas as a whole: `canvasFill` multiplies both edges, so width
- * and height grow together, and up the rail is bigger. That is a size change to
- * the preview only; the export takes its ratio and long edge from the board and
- * the settings. Double-click fits the canvas to the stage again.
+ * It is the app's tick scale (`ui/TickScale`, the one the rotate dial draws
+ * through) stood on its end along the stage's right edge, centred on the strip
+ * the floating chrome leaves visible, with the value beside the bar while the
+ * pointer is there.
  *
- * Feel (`lib/canvasRail` decides the numbers): a drag leans onto 100% and a
- * release next to it lands there exactly; past either end the bar gives a
- * little and springs back instead of stopping dead; the marks near the bar
- * light up as it passes; and the bar drags a short trail behind it, so a fast
- * slide leaves afterimages the way a physical dial does. The trail is the
- * chrome's, not the board's: the canvas follows the pointer exactly.
+ * The canvas target is `canvasFill`, which multiplies both edges, so width and
+ * height grow together, and up the rail is bigger. That is a size change to the
+ * preview only; the export takes its ratio and long edge from the board and the
+ * settings. Double-click fits the canvas to the stage again, and an object back
+ * to the size it was made at.
+ *
+ * Feel (`lib/scaleRail` decides the numbers): only the canvas's fit is magnetic,
+ * so a drag leans onto 100% and a release next to it lands there exactly; past
+ * either end the bar gives a little and springs back instead of stopping dead;
+ * the marks near the bar light up as it passes; and the bar drags a wake behind
+ * it, so a fast slide leaves a streak the way a physical dial does. The wake is
+ * the chrome's: the target itself follows the pointer exactly.
  *
  * A press anywhere on the band grabs the value where it is and drags it
  * relatively, the way a finger on a camera's zoom scale does. The bar is a 3px
@@ -101,10 +113,11 @@ const WAKE_MAX = 0.9
  *
  * Left alone the rail draws itself in to a stub at the edge (3.2s idle; 8s on
  * the first visit), with the bar and the marks around it still parked at the
- * current size, so a full ladder does not lie over the photo for the whole
- * session. Hover, focus or a press draws it back out.
+ * current value, so a full ladder does not lie over the photo for the whole
+ * session. Hover, focus or a press draws it back out; nothing selected draws a
+ * shorter stub than that, faint and inert.
  */
-export function CanvasResizeRail() {
+export function ScaleRail() {
   const t = useT()
   const coarse = useMediaQuery('(pointer: coarse)')
   const bandW = coarse ? BAND_W_COARSE : BAND_W
@@ -114,8 +127,25 @@ export function CanvasResizeRail() {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const railRef = useRef<HTMLDivElement | null>(null)
 
-  const fill = useStore(s => activeWs(s).canvasFill)
-  const tall = tallnessOfFill(fill)
+  // What the rail sizes: the selected label or sticker, else the canvas while a
+  // pane has focus, else nothing (see `lib/scaleTarget`).
+  const labelSel = useStore(s => s.labelSel)
+  const stickerSel = useStore(s => s.stickerSel?.stickerId ?? null)
+  const focusId = useStore(s => activeWs(s).focusId)
+  const canvasFill = useStore(s => activeWs(s).canvasFill)
+  const labels = useStore(s => activeWs(s).labels ?? NO_LABELS)
+  const stickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
+  const picked = useMemo(
+    () => pickScaleTarget({ focusId, canvasFill, labels, stickers, labelSel, stickerSel }),
+    [focusId, canvasFill, labels, stickers, labelSel, stickerSel],
+  )
+  /** Nothing selected is nothing to size: the rail goes small, faint and inert. */
+  const inert = picked == null
+  /** The line it draws: the selection's, or the canvas's while it is inert. */
+  const target = picked ?? canvasScaleTarget(canvasFill)
+  const value = target.value
+  const scale = target.scale
+  const tall = tallnessOfValue(value, scale)
 
   // Drawn out full length: on hover, focus, a press, or right after a size
   // change. At rest the ladder keeps its stub (`TRACK_IDLE`).
@@ -131,9 +161,9 @@ export function CanvasResizeRail() {
   // Another control changed the size (undo, a workspace switch): show the bar
   // where it landed. Derived during render rather than in an effect, which
   // would re-render a second time; our own drag leaves it open already.
-  const [seenFill, setSeenFill] = useState(fill)
-  if (seenFill !== fill) {
-    setSeenFill(fill)
+  const [seenValue, setSeenValue] = useState(value)
+  if (seenValue !== value) {
+    setSeenValue(value)
     if (!open)
       setOpen(true)
   }
@@ -148,7 +178,9 @@ export function CanvasResizeRail() {
    * pointerdown: a press grabs the value where it is and the drag carries it
    * from there, so nothing snaps under the pointer.
    */
-  const heldRef = useRef<{ from: number, tall: number } | null>(null)
+  const heldRef = useRef<{ from: number, tall: number, target: ScaleTarget } | null>(null)
+  /** The last value this gesture wrote: a release settles from it, not from the store. */
+  const lastValueRef = useRef(0)
   const firstArmRef = useRef(true)
 
   const track = box.track
@@ -244,7 +276,7 @@ export function CanvasResizeRail() {
   // touches (and one an undo just opened) still tucks away again.
   useEffect(() => {
     arm()
-  }, [arm, fill])
+  }, [arm, value])
 
   const applyPointer = useCallback((clientY: number) => {
     const held = heldRef.current
@@ -253,13 +285,15 @@ export function CanvasResizeRail() {
     const travel = Math.max(1, box.track - 2 * INSET)
     const raw = held.tall + (held.from - clientY) / travel
     // Past an end the bar keeps moving a little (and springs back on release);
-    // the canvas stops at the bound either way.
+    // the target stops at the bound either way.
     const past = raw > 1 ? raw - 1 : raw < 0 ? raw : 0
     const give = rubberBand(-past * travel)
     setGive(give)
     targetRef.current = travel * (1 - clamp01(raw)) + give
     pumpWake()
-    useStore.getState().setCanvasFill(assistFill(fillAtTallness(raw)))
+    const next = assistValue(valueAtTallness(raw, held.target.scale), held.target.scale)
+    lastValueRef.current = next
+    applyScaleTarget(held.target, next)
   }, [box.track, pumpWake])
 
   const onMove = useCallback((e: PointerEvent) => applyPointer(e.clientY), [applyPointer])
@@ -267,6 +301,7 @@ export function CanvasResizeRail() {
   const end = useCallback(() => {
     if (!draggingRef.current)
       return
+    const held = heldRef.current
     draggingRef.current = false
     heldRef.current = null
     document.body.style.cursor = ''
@@ -277,15 +312,17 @@ export function CanvasResizeRail() {
     // The give is a spring back, not a snap: it lands in the same frame the
     // bar's transition comes back on.
     setGive(0)
-    // A release next to the fit lands on it exactly, so the usual stop is a
-    // round number instead of 99%.
-    const s = useStore.getState()
-    const now = activeWs(s).canvasFill
-    const settled = settleFill(now)
-    if (settled !== now)
-      s.setCanvasFill(settled)
+    // A release next to the natural stop lands on it exactly, so the usual end
+    // of a drag is a round number instead of 99%.
+    const now = lastValueRef.current
+    const settled = held ? settleValue(now, held.target.scale) : now
+    if (held && settled !== now) {
+      lastValueRef.current = settled
+      applyScaleTarget(held.target, settled)
+    }
     // The bar is at rest now; let the wake catch up and dissolve.
-    targetRef.current = travel * (1 - tallnessOfFill(settled))
+    if (held)
+      targetRef.current = travel * (1 - tallnessOfValue(settled, held.target.scale))
     pumpWake()
     if (readoutTimerRef.current != null)
       clearTimeout(readoutTimerRef.current)
@@ -317,7 +354,10 @@ export function CanvasResizeRail() {
       return
     e.preventDefault()
     e.stopPropagation()
-    heldRef.current = { from: e.clientY, tall }
+    if (inert)
+      return
+    heldRef.current = { from: e.clientY, tall, target }
+    lastValueRef.current = value
     // The wake starts where the bar already is, so nothing flies in from zero.
     targetRef.current = travel * (1 - tall)
     wakeRef.current.y = targetRef.current
@@ -338,56 +378,57 @@ export function CanvasResizeRail() {
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', end)
     window.addEventListener('pointercancel', end)
-  }, [end, onMove, tall, travel])
+  }, [end, inert, onMove, tall, target, travel, value])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? 1 : e.key === 'ArrowDown' || e.key === 'PageDown' ? -1 : 0
     const page = e.shiftKey || e.key === 'PageUp' || e.key === 'PageDown'
     let next: number | null = null
     if (dir)
-      next = nextTickFill(activeWs(useStore.getState()).canvasFill, dir, page ? RAIL_PAGE_STEPS : RAIL_KEY_STEPS)
+      next = nextTickValue(value, dir, scale, page ? RAIL_PAGE_STEPS : RAIL_KEY_STEPS)
     else if (e.key === 'Home')
-      next = MIN_CANVAS_FILL
+      next = scale.min
     else if (e.key === 'End')
-      next = MAX_CANVAS_FILL
+      next = scale.max
     if (next == null)
       return
     e.preventDefault()
     setOpen(true)
-    useStore.getState().setCanvasFill(next)
-  }, [])
+    lastValueRef.current = next
+    applyScaleTarget(target, next)
+  }, [scale, target, value])
 
-  // A press grabs the rail before a double-click can land, so fitting again is
-  // explicit: 100% (the stage fit), with the canvas ratio left alone.
+  // A press grabs the rail before a double-click can land, so going back to the
+  // natural size is explicit: the stage fit for the canvas, the size an object
+  // was made at for a sticker or a label.
   const fit = useCallback(() => {
-    useStore.getState().setCanvasFill(1)
-  }, [])
+    lastValueRef.current = scale.ref
+    applyScaleTarget(target, scale.ref)
+  }, [scale, target])
 
+  /** The `aria-valuenow` unit: a percentage for a scale, plain units for a size. */
+  const ariaValue = (v: number) => target.format === 'percent' ? Math.round(v * 100) : Math.round(v)
   /** The bar's centre down the rail, in px from its top. */
   const barCentre = INSET + lift
-  const ticks = useMemo(() => railTicks(track, INSET), [track])
+  const ticks = useMemo(() => railTicks(track, INSET, scale), [track, scale])
   const marks = useMemo(() => ticks.map((tick: RailTick) => {
     const y = tickY(tick.tall, track, INSET)
     return {
       at: 1 - tick.tall,
-      length: tick.fit ? TICK_FIT : tick.major ? SCALE_MARK_HARD : SCALE_MARK_SOFT,
-      strong: tick.fit || tick.major,
+      length: tick.ref ? TICK_FIT : tick.major ? SCALE_MARK_HARD : SCALE_MARK_SOFT,
+      strong: tick.ref || tick.major,
       near: clamp01(1 - Math.abs(y - barCentre) / TICK_NEAR),
     }
   }), [ticks, track, barCentre])
   // The value rides the bar's own settle curve, but not during the drag it is
   // reporting on.
   const settle = drag ? 'duration-0' : 'duration-(--dur-surface)'
-  const chip = readout || drag
-    ? 'scale-100 opacity-100'
-    : 'scale-[0.96] opacity-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:opacity-100'
-  // The ladder's resting window: a stub centred on the bar, pulled inside the
-  // track's own ends so it never stands in mid-air.
-  const stub = Math.min(TRACK_IDLE, track)
-  const stubCentre = Math.min(Math.max(barCentre, stub / 2), track - stub / 2)
-  const clip = open
-    ? 'inset(0px)'
-    : `inset(${stubCentre - stub / 2}px 0 ${track - stubCentre - stub / 2}px 0)`
+  const chip = inert
+    ? 'scale-[0.96] opacity-0'
+    : readout || drag
+      ? 'scale-100 opacity-100'
+      : 'scale-[0.96] opacity-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:opacity-100'
+  const clip = railClip(!inert && open, barCentre, track, inert)
 
   return (
     <>
@@ -397,14 +438,16 @@ export function CanvasResizeRail() {
         ref={railRef}
         role="slider"
         aria-orientation="vertical"
-        aria-label={t('Canvas size')}
-        aria-valuemin={Math.round(MIN_CANVAS_FILL * 100)}
-        aria-valuemax={Math.round(MAX_CANVAS_FILL * 100)}
-        aria-valuenow={Math.round(fill * 100)}
-        aria-valuetext={fillLabel(fill)}
-        tabIndex={0}
-        title={t('Drag to resize the canvas · double-click to fit')}
-        className="group/rail absolute right-0 z-[9] cursor-row-resize touch-none select-none outline-0"
+        aria-label={t(target.label)}
+        aria-disabled={inert || undefined}
+        aria-valuemin={ariaValue(scale.min)}
+        aria-valuemax={ariaValue(scale.max)}
+        aria-valuenow={ariaValue(value)}
+        aria-valuetext={railValueLabel(value, target.format)}
+        tabIndex={inert ? -1 : 0}
+        title={t(scaleTargetHint(target))}
+        className={`group/rail absolute right-0 z-[9] touch-none select-none outline-0 transition-opacity duration-(--dur-surface) ${
+          inert ? 'pointer-events-none cursor-default opacity-40' : 'cursor-row-resize'}`}
         style={{ top: box.center - track / 2, height: track, width: bandW }}
         onPointerDown={begin}
         onPointerUp={end}
@@ -502,11 +545,25 @@ export function CanvasResizeRail() {
             translate: `0 ${lift}px`,
           }}
         >
-          {fillLabel(fill)}
+          {railValueLabel(value, target.format)}
         </span>
       </div>
     </>
   )
+}
+
+/**
+ * The ladder's resting window. Drawn, it is the whole scale; at rest it is a stub
+ * around the bar (shorter while the rail has nothing to size), pulled inside the
+ * track's own ends so it never stands in mid-air. One clip on the whole scale is
+ * what draws it out and tucks it back, so nothing is re-laid-out as it moves.
+ */
+function railClip(drawn: boolean, barCentre: number, track: number, inert: boolean): string {
+  if (drawn)
+    return 'inset(0px)'
+  const stub = Math.min(inert ? TRACK_IDLE_NONE : TRACK_IDLE, track)
+  const centre = Math.min(Math.max(barCentre, stub / 2), track - stub / 2)
+  return `inset(${centre - stub / 2}px 0 ${track - centre - stub / 2}px 0)`
 }
 
 /**
