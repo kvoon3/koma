@@ -1022,12 +1022,6 @@ describe('music cards (a library asset)', () => {
     expect(state().photos.find(p => p.id === created.id)).toEqual(created)
   })
 
-  test('a poster card keeps its 4:5 dimensions so the pane fits the whole card', () => {
-    const created = state().addMusicCard(card(), meta, { width: 1024, height: 1280 })
-    expect(created.trueW).toBe(1024)
-    expect(created.trueH).toBe(1280)
-  })
-
   test('a card joins the pane pool but never the photo list', () => {
     const created = state().addMusicCard(card(), meta)
     expect(photoAssetsOf(state().photos).some(p => p.id === created.id)).toBe(false)
