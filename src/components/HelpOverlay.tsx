@@ -91,7 +91,7 @@ export function HelpOverlay({ open, onClose }: { open: boolean, onClose: () => v
                 {MOUSE.map(([k, v]) => (
                   <div key={k} className="mb-[9px] flex items-baseline gap-2.5">
                     <dt className="m-0 flex-none basis-[104px] text-right">
-                      <kbd className="rounded-none font-mono">{k}</kbd>
+                      <kbd className="rounded-none font-mono">{t(k)}</kbd>
                     </dt>
                     <dd className="m-0 text-[12.5px] leading-[1.5] text-dim">{t(v)}</dd>
                   </div>
