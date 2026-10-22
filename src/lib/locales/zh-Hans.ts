@@ -749,6 +749,9 @@ export const zhHans = {
   'Photo minimap, drag to pan': '照片小地图，拖动平移',
   // Canvas view zoom (wave4/pane-controls): the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': '画布 {n}% · 点击适应窗口',
+  // Unified library
+  'No photos match this search or filter.': '没有照片符合此搜索或筛选。',
+  'No stickers match this search or filter.': '没有贴图符合此搜索或筛选。',
 } satisfies Record<string, string>
 
 /** Every source string a call site may translate. */
