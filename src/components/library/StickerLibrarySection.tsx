@@ -181,7 +181,7 @@ function StickerFolderBar({ pick, folders, unsorted, countIn, onPick, onOpenProm
   const chipFadeRef = useScrollFade<HTMLDivElement>('x')
 
   return (
-    <div className="flex flex-none items-center gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:px-4">
+    <div className="flex flex-none flex-col gap-1.5 border-b border-line bg-panel px-3 py-1.5 sm:flex-row sm:items-center sm:px-4">
       {/* Chips scroll on their own; the folder actions stay put at the end of
           the row, so a phone never scrolls to reach them. One row child only:
           the fade hook watches the scroller and its first child, so a new
@@ -200,51 +200,53 @@ function StickerFolderBar({ pick, folders, unsorted, countIn, onPick, onOpenProm
           ))}
         </div>
       </div>
-      {/* Rename / delete act on the picked folder; All has neither and the
-          default folder only groups what was never filed. */}
-      {pick != null && pick !== '' && (
-        <>
-          <Tip
-            label={t('Rename folder')}
-            trigger={(
-              <button
-                type="button"
-                className={toolCls}
-                aria-label={t('Rename folder')}
-                data-folder-rename=""
-                onClick={() => onOpenPrompt('rename')}
-              >
-                <MorphIcon icon={Pencil} size={13} strokeWidth={1.75} />
-              </button>
-            )}
-          />
-          <Tip
-            label={t('Delete folder')}
-            trigger={(
-              <button
-                type="button"
-                className={toolCls}
-                aria-label={t('Delete folder')}
-                data-folder-delete=""
-                onClick={() => onAskDelete(pick)}
-              >
-                <MorphIcon icon={Trash2} size={13} strokeWidth={1.75} />
-              </button>
-            )}
-          />
-        </>
-      )}
-      <span className="flex flex-none">
-        <Button
-          variant="strong"
-          aria-label={t('New folder')}
-          data-folder-new=""
-          onClick={() => onOpenPrompt('create')}
-        >
-          <MorphIcon icon={FolderPlus} size={12} strokeWidth={1.75} />
-          <span className="max-sm:hidden">{t('New folder')}</span>
-        </Button>
-      </span>
+      <div className="flex flex-none items-center justify-end gap-1.5 sm:justify-start">
+        {/* Rename / delete act on the picked folder; All has neither and the
+            default folder only groups what was never filed. */}
+        {pick != null && pick !== '' && (
+          <>
+            <Tip
+              label={t('Rename folder')}
+              trigger={(
+                <button
+                  type="button"
+                  className={toolCls}
+                  aria-label={t('Rename folder')}
+                  data-folder-rename=""
+                  onClick={() => onOpenPrompt('rename')}
+                >
+                  <MorphIcon icon={Pencil} size={13} strokeWidth={1.75} />
+                </button>
+              )}
+            />
+            <Tip
+              label={t('Delete folder')}
+              trigger={(
+                <button
+                  type="button"
+                  className={toolCls}
+                  aria-label={t('Delete folder')}
+                  data-folder-delete=""
+                  onClick={() => onAskDelete(pick)}
+                >
+                  <MorphIcon icon={Trash2} size={13} strokeWidth={1.75} />
+                </button>
+              )}
+            />
+          </>
+        )}
+        <span className="flex flex-none">
+          <Button
+            variant="strong"
+            aria-label={t('New folder')}
+            data-folder-new=""
+            onClick={() => onOpenPrompt('create')}
+          >
+            <MorphIcon icon={FolderPlus} size={12} strokeWidth={1.75} />
+            <span className="max-sm:hidden">{t('New folder')}</span>
+          </Button>
+        </span>
+      </div>
     </div>
   )
 }
