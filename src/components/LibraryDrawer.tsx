@@ -14,7 +14,8 @@ import { Library } from './Library'
 
 export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean, onClose: () => void, onRequestClear: () => void }) {
   const allPhotos = useStore(s => s.photos)
-  // Stickers live on their own page (#/stickers): the library lists photos.
+  // The drawer over a board stays photo-only; stickers live on the same page as
+  // photos now (#/library), not in here.
   const photos = useMemo(() => photoAssetsOf(allPhotos), [allPhotos])
   const assign = useStore(s => s.assign)
   const assignMany = useStore(s => s.assignMany)
