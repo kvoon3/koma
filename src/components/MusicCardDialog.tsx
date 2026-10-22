@@ -1,14 +1,13 @@
-import type { MusicCardMode, MusicCardStyle } from '../lib/musicCard'
+import type { LyricSize, MusicCardStyle } from '../lib/musicCard'
 import type { MusicResolveError, ResolvedMusic } from '../lib/musicLink'
 import { Dialog } from '@base-ui/react/dialog'
-import { X } from 'lucide'
+import { AlignLeft, Image as ImageIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../lib/i18n'
 import { fetchLyrics } from '../lib/lyrics'
-import { cardSize, DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, MUSIC_CARD_STYLE_IDS, musicCardFileName, PROVIDER_COLORS, PROVIDER_LABELS, renderMusicCardBlob } from '../lib/musicCard'
+import { DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, LYRIC_SIZE_SCALE, MUSIC_CARD_STYLE_IDS, musicCardFileName, PROVIDER_COLORS, PROVIDER_LABELS, renderMusicCardBlob } from '../lib/musicCard'
 import { resolveMusic } from '../lib/musicLink'
-import { findMusicVideoStill } from '../lib/musicVideo'
 import { findLeaf } from '../lib/panes'
 import { say } from '../lib/toast'
 import { activeWs, useStore } from '../store'
@@ -19,24 +18,33 @@ import { buttonBase, buttonVariants } from './ui/buttonStyles'
 /** How long the title, artist and lyrics settle before the preview re-renders. */
 const PREVIEW_DEBOUNCE_MS = 200
 
-/** The picker's names; the rendered card carries the style itself. */
+/** The switch's names; the rendered card carries the variant itself. */
 const STYLE_LABELS: Record<MusicCardStyle, string> = {
-  poster: 'Poster',
-  classic: 'Classic',
-  noir: 'Noir',
-  polaroid: 'Polaroid',
-  vinyl: 'Vinyl',
-  editorial: 'Editorial',
-}
-
-const MODE_IDS: MusicCardMode[] = ['track', 'lyrics', 'video']
-const MODE_LABELS: Record<MusicCardMode, string> = {
-  track: 'Track',
+  cover: 'Cover',
   lyrics: 'Lyrics',
-  video: 'MV',
 }
 
-const STYLE_CHIP = 'flex w-full cursor-pointer items-center justify-center whitespace-nowrap border px-2 py-1.5 text-[11.5px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50'
+const STYLE_ICONS: Record<MusicCardStyle, typeof ImageIcon> = {
+  cover: ImageIcon,
+  lyrics: AlignLeft,
+}
+
+const LYRIC_SIZE_IDS: LyricSize[] = ['s', 'm', 'l']
+const LYRIC_SIZE_LABELS: Record<LyricSize, string> = {
+  s: 'S',
+  m: 'M',
+  l: 'L',
+}
+const LYRIC_SIZE_NAMES: Record<LyricSize, string> = {
+  s: 'Small',
+  m: 'Medium',
+  l: 'Large',
+}
+
+/** The preview and its switch share one column width at every size. */
+const STAGE_W = 'w-[min(100%,300px,38dvh)] md:w-[min(100%,360px,48dvh)]'
+
+const SEGMENT = 'flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border-0 text-[12px] transition-colors duration-(--dur-fast) disabled:cursor-default disabled:opacity-50'
 const TEXT_ACTION = 'cursor-pointer border-0 bg-transparent p-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim underline decoration-line-strong underline-offset-2 transition-colors duration-(--dur-fast) hover:text-txt disabled:cursor-default disabled:opacity-50'
 
 function errorCopy(t: ReturnType<typeof useT>, error: MusicResolveError): string {
@@ -54,9 +62,9 @@ function errorCopy(t: ReturnType<typeof useT>, error: MusicResolveError): string
 
 /**
  * The one music card dialog: paste a link, resolve it against the provider's
- * public response, pick one of the six compositions, tune the text and the
- * lyrics, then render the card. Mounted once by the root layout and opened by
- * a store flag, so the stage dock and the library header share one copy and its
+ * public response, switch between the cover and lyric cards, tune the text,
+ * then render the card. Mounted once by the root layout and opened by a store
+ * flag, so the stage dock and the library header share one copy and its
  * preview state.
  *
  * From a board the finished card goes straight into the focused cell and the
@@ -87,12 +95,8 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   /** The composition; kept across opens, like a tool setting. */
   const [style, setStyle] = useState<MusicCardStyle>(DEFAULT_MUSIC_CARD_STYLE)
-  /** What the poster foregrounds. The paper styles ignore it. */
-  const [mode, setMode] = useState<MusicCardMode>('track')
-  /** The matched video still, loaded only after the MV mode is chosen. */
-  const [videoStill, setVideoStill] = useState<HTMLImageElement | null>(null)
-  const [videoBusy, setVideoBusy] = useState(false)
-  const [videoNote, setVideoNote] = useState<string | null>(null)
+  /** How far the lyric type steps; lines wrap at every step. */
+  const [lyricSize, setLyricSize] = useState<LyricSize>('l')
 
   /** The resolved artwork, kept decoded so an edit re-renders without a fetch. */
   const artworkRef = useRef<HTMLImageElement | null>(null)
@@ -102,8 +106,6 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const jobRef = useRef(0)
   /** Bumped per lyrics request so a late answer cannot land on a new track. */
   const lyricsJobRef = useRef(0)
-  /** Bumped per video lookup so a late still cannot land on a new track. */
-  const videoJobRef = useRef(0)
   /** A manual edit wins over a silent lookup that was already in flight. */
   const lyricsTouchedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -116,7 +118,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     if (!popup || !v?.height)
       return
     popup.style.top = `${v.offsetTop + v.height / 2}px`
-    popup.style.maxHeight = `${Math.min(760, v.height * 0.9)}px`
+    popup.style.maxHeight = `${Math.min(780, v.height * 0.92)}px`
   }, [])
 
   // The popup portal mounts after the open effect, so the ref callback is what
@@ -146,7 +148,6 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const reset = useCallback(() => {
     jobRef.current++
     lyricsJobRef.current++
-    videoJobRef.current++
     lyricsTouchedRef.current = false
     artworkRef.current = null
     if (previewRef.current) {
@@ -164,10 +165,6 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     setLyrics('')
     setLyricsBusy(false)
     setLyricsNote(null)
-    setMode('track')
-    setVideoStill(null)
-    setVideoBusy(false)
-    setVideoNote(null)
     scrollRef.current?.scrollTo({ top: 0 })
   }, [])
 
@@ -204,27 +201,23 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     }
   }, [open, syncPopup])
 
-  // Title, artist and lyrics edits repaint the card after they settle. The
-  // artwork is already decoded, so this is a canvas pass, not a network trip.
+  // Title, artist, lyrics and the size step repaint the card after they
+  // settle. The artwork is already decoded, so this is a canvas pass.
   useEffect(() => {
-    const source = mode === 'video' && videoStill ? videoStill : artworkRef.current
-    if (!music || !source)
+    if (!music || !artworkRef.current)
       return
-    const effectiveMode: MusicCardMode = mode === 'video' && videoStill
-      ? 'video'
-      : mode === 'lyrics' && lyrics.trim() ? 'lyrics' : 'track'
     const timer = window.setTimeout(() => {
-      void renderMusicCardBlob(source, {
+      void renderMusicCardBlob(artworkRef.current!, {
         provider: music.provider,
         title,
         artist,
         lyrics,
-        mode: effectiveMode,
+        lyricScale: LYRIC_SIZE_SCALE[lyricSize],
         style,
       }).then(swapPreview).catch(() => setError(t('No artwork found for that link.')))
     }, PREVIEW_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [music, title, artist, lyrics, mode, videoStill, style, t, swapPreview])
+  }, [music, title, artist, lyrics, lyricSize, style, t, swapPreview])
 
   /**
    * Ask LRCLIB for the track's words. A resolve fills them silently; the
@@ -235,7 +228,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     if (!titleText.trim())
       return
     if (announce)
-      setMode('lyrics')
+      setStyle('lyrics')
     const job = ++lyricsJobRef.current
     setLyricsBusy(true)
     setLyricsNote(null)
@@ -262,63 +255,11 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     }
   }, [t])
 
-  /**
-   * The MV mode borrows a still from iTunes. Spotify's oEmbed exposes no video
-   * frame, so a title and artist are both required; a miss goes back to the
-   * track card rather than showing an unrelated video.
-   */
-  const findVideo = useCallback(async () => {
-    setMode('video')
-    setVideoNote(null)
-    if (videoStill)
-      return
-    if (!music || !title.trim() || !artist.trim()) {
-      setMode('track')
-      setVideoNote(t('Add an artist to find the video still.'))
-      return
-    }
-    const job = ++videoJobRef.current
-    setVideoBusy(true)
-    try {
-      const url = await findMusicVideoStill(title.trim(), artist.trim())
-      if (videoJobRef.current !== job)
-        return
-      if (!url) {
-        setMode('track')
-        setVideoNote(t('No music video still found.'))
-        return
-      }
-      const still = await loadMusicArtwork(url)
-      if (videoJobRef.current !== job)
-        return
-      setVideoStill(still)
-    }
-    catch {
-      if (videoJobRef.current === job) {
-        setMode('track')
-        setVideoNote(t('Could not reach iTunes for the video still.'))
-      }
-    }
-    finally {
-      if (videoJobRef.current === job)
-        setVideoBusy(false)
-    }
-  }, [music, title, artist, videoStill, t])
-
-  const chooseMode = (next: MusicCardMode) => {
-    setVideoNote(null)
-    if (next === 'video')
-      void findVideo()
-    else
-      setMode(next)
-  }
-
-  /** A new title or artist no longer belongs to the matched still. */
-  const dropVideo = () => {
-    setVideoStill(null)
-    setVideoNote(null)
-    if (mode === 'video')
-      setMode('track')
+  const chooseStyle = (next: MusicCardStyle) => {
+    setStyle(next)
+    // The lyric card needs words; tapping it on a fresh track asks for them.
+    if (next === 'lyrics' && !lyrics.trim() && title.trim())
+      void findLyrics(title, artist, true)
   }
 
   const generate = async () => {
@@ -326,16 +267,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
       return
     const job = ++jobRef.current
     lyricsJobRef.current++
-    videoJobRef.current++
     lyricsTouchedRef.current = false
     setLyrics('')
     setLyricsBusy(false)
     setLyricsNote(null)
-    setVideoStill(null)
-    setVideoBusy(false)
-    setVideoNote(null)
-    if (mode === 'video')
-      setMode('track')
     setResolving(true)
     setError(null)
     try {
@@ -373,21 +308,17 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   }
 
   const add = async () => {
-    const source = mode === 'video' && videoStill ? videoStill : artworkRef.current
-    if (!music || !source || adding)
+    if (!music || !artworkRef.current || adding)
       return
     setAdding(true)
     setError(null)
     try {
-      const effectiveMode: MusicCardMode = mode === 'video' && videoStill
-        ? 'video'
-        : mode === 'lyrics' && lyrics.trim() ? 'lyrics' : 'track'
-      const blob = await renderMusicCardBlob(source, {
+      const blob = await renderMusicCardBlob(artworkRef.current, {
         provider: music.provider,
         title,
         artist,
         lyrics,
-        mode: effectiveMode,
+        lyricScale: LYRIC_SIZE_SCALE[lyricSize],
         style,
       })
       const file = new File([blob], musicCardFileName(title, artist), { type: 'image/png' })
@@ -396,7 +327,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         title: title.trim(),
         artist: artist.trim(),
         url: music.url,
-      }, cardSize(style))
+      })
       // The card is always an asset; a board target is a second, one-step
       // placement. A stale target falls back to the library-only outcome.
       const placed = musicCardFor ? assign(musicCardFor, photo.id, true) : false
@@ -424,7 +355,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         <Dialog.Popup
           ref={setPopup}
           data-music-dialog=""
-          className="fixed z-(--z-modal) left-1/2 top-1/2 flex max-h-[min(90dvh,760px)] w-[min(520px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]"
+          className="fixed z-(--z-modal) left-1/2 top-1/2 flex max-h-[min(92dvh,780px)] w-[min(880px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border border-line bg-panel text-txt shadow-pop outline-0 transition-[transform,opacity] duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.98] data-ending-style:opacity-0 data-ending-style:scale-[0.98]"
         >
           <header className="flex flex-none items-center justify-between gap-2.5 border-b border-line py-2 pl-4 pr-2">
             <Dialog.Title className="m-0 text-[13.5px] font-semibold">{t('Music card')}</Dialog.Title>
@@ -433,168 +364,170 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             </Dialog.Close>
           </header>
 
-          <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-4" data-music-scroll="">
-            <div className="flex flex-col gap-1.5 sm:flex-row">
-              <input
-                className="box-border h-[30px] min-w-0 flex-1 border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent"
-                value={link}
-                placeholder={t('Paste a Spotify or Apple Music link')}
-                aria-label={t('Paste a Spotify or Apple Music link')}
-                data-music-link=""
-                onChange={(e) => {
-                  setLink(e.target.value)
-                  setError(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter')
-                    return
-                  e.preventDefault()
-                  void generate()
-                }}
-              />
-              <span className="flex flex-none">
-                <Button variant="strong" data-music-generate="" disabled={!link.trim() || resolving} onClick={() => void generate()}>
-                  {t('Generate')}
-                </Button>
-              </span>
-            </div>
-
-            {/* Fixed line: the dialog must not resize as the error comes and goes. */}
-            <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-dim'}`} data-music-error="">
-              {error ?? (musicCardFor
-                ? t('Goes into this cell; a copy stays in the library.')
-                : t('A link turns into a card you can place like a photo.'))}
-            </p>
-
-            <div
-              className={`mx-auto flex flex-none items-center justify-center overflow-hidden border border-line bg-panel-2 ${
-                style === 'poster'
-                  ? 'aspect-[4/5] w-[min(100%,208px,17.6dvh)]'
-                  : 'aspect-square w-[min(100%,260px,22dvh)]'
-              }`}
-              data-music-preview-box=""
-              data-music-preview-shape={style === 'poster' ? 'poster' : 'square'}
-            >
-              {previewUrl
-                ? <img src={previewUrl} alt="" className="block h-full w-full object-contain" draggable={false} data-music-preview="" />
-                : <span className="block h-full w-full" />}
-            </div>
-
-            {music && (
-              <span className="mx-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim" data-music-provider={music.provider}>
-                <span className="h-2 w-2 rounded-full" style={{ background: PROVIDER_COLORS[music.provider] }} />
-                {PROVIDER_LABELS[music.provider]}
-              </span>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Style')}</span>
-              <div className="grid grid-cols-2 gap-[6px] sm:grid-cols-3" data-music-styles="">
-                {MUSIC_CARD_STYLE_IDS.map(id => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`${STYLE_CHIP} ${style === id ? chipOnCls : chipOffCls}`}
-                    aria-pressed={style === id}
-                    data-music-style={id}
-                    disabled={adding}
-                    onClick={() => setStyle(id)}
+          <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 sm:p-4" data-music-scroll="">
+            <div className="flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,360px)_minmax(0,1fr)] md:items-start md:gap-5">
+              <div className="flex flex-col items-center gap-2 md:sticky md:top-0" data-music-stage="">
+                <div className={`${STAGE_W} flex flex-col gap-2`}>
+                  <div
+                    className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[10px] border border-line bg-panel-2"
+                    data-music-preview-box=""
                   >
-                    {t(STYLE_LABELS[id])}
-                  </button>
-                ))}
+                    {previewUrl
+                      ? <img src={previewUrl} alt="" className="block h-full w-full object-contain" draggable={false} data-music-preview="" />
+                      : (
+                          <span className="flex flex-col items-center gap-1.5 px-4 text-center text-[11px] leading-[1.4] text-dim" data-music-preview-empty="">
+                            <MorphIcon icon={ImageIcon} size={20} strokeWidth={1.5} />
+                            {t('Your card appears here')}
+                          </span>
+                        )}
+                  </div>
+
+                  {/* One control, two cards: the Spotify swap without a row of chips. */}
+                  <div className="grid grid-cols-2 gap-1 rounded-full border border-line bg-panel-2 p-1" role="group" aria-label={t('Card style')} data-music-styles="">
+                    {MUSIC_CARD_STYLE_IDS.map((id) => {
+                      const Icon = STYLE_ICONS[id]
+                      const on = style === id
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className={`${SEGMENT} ${on ? 'bg-txt text-panel' : 'bg-transparent text-dim hover:text-txt'}`}
+                          aria-pressed={on}
+                          data-music-style={id}
+                          disabled={adding}
+                          onClick={() => chooseStyle(id)}
+                        >
+                          <MorphIcon icon={Icon} size={14} strokeWidth={1.8} />
+                          {t(STYLE_LABELS[id])}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {style === 'lyrics' && (
+                    <div className="flex items-center justify-between gap-2 px-1" data-music-lyric-size-row="">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Text size')}</span>
+                      <div className="grid grid-cols-3 gap-[4px]" data-music-lyric-sizes="">
+                        {LYRIC_SIZE_IDS.map(id => (
+                          <button
+                            key={id}
+                            type="button"
+                            className={`flex h-7 w-8 cursor-pointer items-center justify-center border text-[11px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] disabled:cursor-default disabled:opacity-50 ${lyricSize === id ? chipOnCls : chipOffCls}`}
+                            aria-pressed={lyricSize === id}
+                            aria-label={t(LYRIC_SIZE_NAMES[id])}
+                            data-music-lyric-size={id}
+                            disabled={adding}
+                            onClick={() => setLyricSize(id)}
+                          >
+                            {LYRIC_SIZE_LABELS[id]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-1.5 sm:flex-row">
+                  <input
+                    className="box-border h-[32px] min-w-0 flex-1 border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent"
+                    value={link}
+                    placeholder={t('Paste a Spotify or Apple Music link')}
+                    aria-label={t('Paste a Spotify or Apple Music link')}
+                    data-music-link=""
+                    onChange={(e) => {
+                      setLink(e.target.value)
+                      setError(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter')
+                        return
+                      e.preventDefault()
+                      void generate()
+                    }}
+                  />
+                  <span className="flex flex-none">
+                    <Button variant="strong" data-music-generate="" disabled={!link.trim() || resolving} onClick={() => void generate()}>
+                      {t('Generate')}
+                    </Button>
+                  </span>
+                </div>
+
+                {/* Fixed line: the dialog must not resize as the error comes and goes. */}
+                <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-dim'}`} data-music-error="">
+                  {error ?? (musicCardFor
+                    ? t('Goes into this cell; a copy stays in the library.')
+                    : t('A link turns into a card you can place like a photo.'))}
+                </p>
+
+                {music && (
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim" data-music-provider={music.provider}>
+                    <span className="h-2 w-2 rounded-full" style={{ background: PROVIDER_COLORS[music.provider] }} />
+                    {PROVIDER_LABELS[music.provider]}
+                  </span>
+                )}
+
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Title')}</span>
+                    <input
+                      className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                      value={title}
+                      disabled={!music}
+                      aria-label={t('Title')}
+                      data-music-title=""
+                      onChange={e => setTitle(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Artist')}</span>
+                    <input
+                      className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                      value={artist}
+                      disabled={!music}
+                      aria-label={t('Artist')}
+                      data-music-artist=""
+                      onChange={e => setArtist(e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                {style === 'lyrics' && (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Lyrics')}</span>
+                      <button
+                        type="button"
+                        className={TEXT_ACTION}
+                        data-music-find-lyrics=""
+                        disabled={!music || lyricsBusy || !title.trim()}
+                        onClick={() => void findLyrics(title, artist, true)}
+                      >
+                        {lyricsBusy ? t('Finding lyrics') : t('Find lyrics')}
+                      </button>
+                    </div>
+                    <textarea
+                      className="box-border min-h-[88px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                      rows={4}
+                      value={lyrics}
+                      disabled={!music}
+                      aria-label={t('Lyrics')}
+                      placeholder={t('Paste lyrics, or find them above')}
+                      data-music-lyrics=""
+                      onChange={(e) => {
+                        lyricsTouchedRef.current = true
+                        setLyrics(e.target.value)
+                      }}
+                    />
+                    <span className="min-h-[1.4em] text-[10px] leading-[1.4] text-dim" data-music-lyrics-note="">
+                      {lyricsNote ?? t('The lyric card uses the first three lines.')}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-
-            {style === 'poster' && (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Content')}</span>
-                  {videoBusy && <span className="text-[10px] leading-[1.4] text-dim">{t('Finding video still...')}</span>}
-                </div>
-                <div className="grid grid-cols-3 gap-[6px]" data-music-modes="">
-                  {MODE_IDS.map(id => (
-                    <button
-                      key={id}
-                      type="button"
-                      className={`${STYLE_CHIP} ${mode === id ? chipOnCls : chipOffCls}`}
-                      aria-pressed={mode === id}
-                      data-music-mode={id}
-                      disabled={adding || (id === 'video' && videoBusy)}
-                      onClick={() => chooseMode(id)}
-                    >
-                      {t(MODE_LABELS[id])}
-                    </button>
-                  ))}
-                </div>
-                {videoNote && <span className="text-[10px] leading-[1.4] text-dim" data-music-video-note="">{videoNote}</span>}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Title')}</span>
-                <input
-                  className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                  value={title}
-                  disabled={!music}
-                  aria-label={t('Title')}
-                  data-music-title=""
-                  onChange={(e) => {
-                    setTitle(e.target.value)
-                    dropVideo()
-                  }}
-                />
-              </label>
-
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Artist')}</span>
-                <input
-                  className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                  value={artist}
-                  disabled={!music}
-                  aria-label={t('Artist')}
-                  data-music-artist=""
-                  onChange={(e) => {
-                    setArtist(e.target.value)
-                    dropVideo()
-                  }}
-                />
-              </label>
-            </div>
-
-            {style === 'poster' && (
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Lyrics')}</span>
-                  <button
-                    type="button"
-                    className={TEXT_ACTION}
-                    data-music-find-lyrics=""
-                    disabled={!music || lyricsBusy || !title.trim()}
-                    onClick={() => void findLyrics(title, artist, true)}
-                  >
-                    {lyricsBusy ? t('Finding lyrics') : t('Find lyrics')}
-                  </button>
-                </div>
-                <textarea
-                  className="box-border min-h-[64px] w-full resize-y border border-line-strong bg-panel-2 px-2.5 py-1.5 text-[12.5px] leading-[1.4] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                  rows={3}
-                  value={lyrics}
-                  disabled={!music}
-                  aria-label={t('Lyrics')}
-                  placeholder={t('Paste lyrics, or find them above')}
-                  data-music-lyrics=""
-                  onChange={(e) => {
-                    lyricsTouchedRef.current = true
-                    setLyrics(e.target.value)
-                  }}
-                />
-                <span className="min-h-[1.4em] text-[10px] leading-[1.4] text-dim" data-music-lyrics-note="">
-                  {lyricsNote ?? t('Lyrics mode uses the first six lines.')}
-                </span>
-              </div>
-            )}
             {/* The form scrolls under the footer. The fade rides the body's
                 bottom edge as the scroll cue and settles into the padding at
                 the end. */}
