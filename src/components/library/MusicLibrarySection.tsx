@@ -5,6 +5,7 @@ import { Check, Music, Trash2, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { useAssetUses, useInView, usePreview, useThumb } from '../../hooks'
+import { BRAND_ICON_PATHS, BRAND_ICON_VIEWBOX } from '../../lib/brandIcons'
 import { useT } from '../../lib/i18n'
 import { matchesQuery, normalizeQuery } from '../../lib/library'
 import { PROVIDER_COLORS, PROVIDER_LABELS } from '../../lib/musicCard'
@@ -118,7 +119,14 @@ function MusicAssetCard({
           className="absolute left-1.5 top-1.5 flex items-center gap-1 border border-line-strong bg-badge-bg px-1.5 py-px text-[9.5px] font-semibold text-txt backdrop-blur-[3px]"
           data-music-provider-badge=""
         >
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: PROVIDER_COLORS[provider] }} />
+          <svg
+            viewBox={`0 0 ${BRAND_ICON_VIEWBOX} ${BRAND_ICON_VIEWBOX}`}
+            className="h-2.5 w-2.5 flex-none"
+            aria-hidden="true"
+            data-music-provider-icon=""
+          >
+            <path d={BRAND_ICON_PATHS[provider]} fill={PROVIDER_COLORS[provider]} />
+          </svg>
           {PROVIDER_LABELS[provider]}
         </span>
 
