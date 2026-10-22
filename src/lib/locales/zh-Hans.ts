@@ -608,10 +608,9 @@ export const zhHans = {
   'Sticker saved to {folder}': '贴图已保存到「{folder}」',
   'Rename': '重命名',
   'Create': '新建',
-  'Stickers': '贴图管理',
+  'Stickers': '贴图',
   'Unsorted': '未分类',
   'Back': '返回',
-  'Search stickers': '搜索贴图',
   'All': '全部',
   'Folder name': '文件夹名称',
   'New folder': '新建文件夹',
@@ -672,10 +671,9 @@ export const zhHans = {
   'Open {name}': '查看「{name}」',
   'Photo deleted': '照片已删除',
   'Photo management': '照片管理',
-  'Photos': '照片管理',
+  'Photos': '照片',
   'Remove tag {tag}': '移除标签「{tag}」',
   'Rename tag': '重命名标签',
-  'Search photos': '搜索照片',
   'Show only {tag}': '只看「{tag}」',
   'Size': '尺寸',
   'Sticker management': '贴纸管理',
@@ -750,6 +748,7 @@ export const zhHans = {
   // Canvas view zoom (wave4/pane-controls): the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': '画布 {n}% · 点击适应窗口',
   // Unified library
+  'Search library': '搜索素材库',
   'No photos match this search or filter.': '没有照片符合此搜索或筛选。',
   'No stickers match this search or filter.': '没有贴图符合此搜索或筛选。',
 } satisfies Record<string, string>
