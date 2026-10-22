@@ -152,6 +152,7 @@ describe('coalescing a gesture', () => {
   test('only gestures coalesce: two quick clicks on a discrete action stay two steps', () => {
     expect(isGestureTag('rotatePane:p1')).toBe(true)
     expect(isGestureTag('setCanvasSize')).toBe(true)
+    expect(isGestureTag('setCanvasFill')).toBe(true)
     expect(isGestureTag('split')).toBe(false)
     const m = machine().act(1, 'split', 1000).act(2, 'split', 1001)
     expect(stepCount(m.tree)).toBe(3)
@@ -357,6 +358,7 @@ describe('labels', () => {
     rotatePane: 'Rotate photo',
     rotateSticker: 'Rotate sticker',
     scaleSticker: 'Scale sticker',
+    setCanvasFill: 'Canvas size',
     setCanvasSize: 'Canvas ratio',
     setLabel: 'Edit text',
     setPaneFilter: 'Filter photo',

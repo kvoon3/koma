@@ -13,7 +13,7 @@ import { Popover } from '@base-ui/react/popover'
 import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview } from '../hooks'
+import { useCanvasViewZoom, useElementSize, useMediaQuery, usePreview, useToolsSheetTop } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { collectBoard, dividerBandStyle, dividerGripStyle, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
@@ -30,6 +30,7 @@ import { AppearanceDockTools, GridDockTool } from './AppearanceTools'
 import { BoardInserts } from './BoardInserts'
 import { LabelDockTools } from './BoardLabel'
 import { CanvasMenu } from './CanvasMenu'
+import { CanvasResizeRail } from './CanvasResizeRail'
 import { CollageBgLayer } from './CollageBgLayer'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
@@ -46,6 +47,8 @@ const NO_LABELS: PaneLabel[] = []
 
 const HIT_MIN = 15
 const MIN_CANVAS = 120
+/** The corner handle's half-size: `-right-3.5 -bottom-3.5` on a 28px box. */
+const HANDLE_HALF = 14
 
 /** `bindAction`'s `when` for the Location tool: the photo has an EXIF fix. */
 function photoHasGps(p: { photo: Photo | null }): boolean {
@@ -270,8 +273,11 @@ function useDividerDrag({
 }
 
 /**
- * The canvas resize handle's gesture: drag a corner to change the canvas
- * aspect, double-click to fit it to the first photo again.
+ * The canvas aspect handle's gesture: drag the bottom-right corner to change the
+ * canvas aspect, double-click to follow the first photo again. It is the direct
+ * control the right-edge rail is not: the rail scales the canvas as a whole,
+ * this one reshapes it. It rides the canvas, so a canvas scaled past the fit
+ * takes its corner (and this handle) off the stage: the rail is what stays.
  */
 function useCanvasResize(
   wrapRef: React.RefObject<HTMLDivElement | null>,
@@ -285,25 +291,34 @@ function useCanvasResize(
     cy: number
     availW: number
     availH: number
+    /** Canvas corner minus pointer, so the grab carries instead of snapping. */
+    offX: number
+    offY: number
   } | null>(null)
 
   const beginResize = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      const r = wrapRef.current?.getBoundingClientRect()
-      if (!r)
+      const canvas = canvasRef.current?.getBoundingClientRect()
+      const wrap = wrapRef.current?.getBoundingClientRect()
+      if (!canvas || !wrap)
         return
       sizeRef.current = {
-        cx: r.left + r.width / 2,
-        cy: r.top + r.height / 2,
-        availW: Math.max(160, r.width - 48),
-        availH: Math.max(160, r.height - 48),
+        cx: canvas.left + canvas.width / 2,
+        cy: canvas.top + canvas.height / 2,
+        availW: Math.max(160, wrap.width - 48),
+        availH: Math.max(160, wrap.height - 48),
+        // Measured from the canvas corner, not from the handle's own centre:
+        // the handle can be lifted clear of the tools sheet, and a grab that
+        // used the lifted point would read as a shorter canvas and shrink it.
+        offX: canvas.right - e.clientX,
+        offY: canvas.bottom - e.clientY,
       }
       setSizing(true)
       focus('')
     },
-    [wrapRef, focus],
+    [wrapRef, canvasRef, focus],
   )
 
   useEffect(() => {
@@ -317,8 +332,8 @@ function useCanvasResize(
       // centre: the pointer's distance from that centre is in screen pixels,
       // and the canvas it has to become is in canvas pixels.
       const s = viewScaleAt(canvasRef.current)
-      const hx = Math.max(MIN_CANVAS / 2, (e.clientX - d.cx) / s)
-      const hy = Math.max(MIN_CANVAS / 2, (e.clientY - d.cy) / s)
+      const hx = Math.max(MIN_CANVAS / 2, (e.clientX + d.offX - d.cx) / s)
+      const hy = Math.max(MIN_CANVAS / 2, (e.clientY + d.offY - d.cy) / s)
       const ratio = hx / hy
       const fit = fitCanvas(ratio, d.availW, d.availH)
       setCanvasSize(ratio, (2 * hx) / fit.W)
@@ -476,6 +491,9 @@ export function Stage() {
           button, which stands 30px tall on a mouse and 38px under a finger). */}
       <ViewZoomChip scale={viewZoom.scale} onFit={viewZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
 
+      {/* The canvas size control: a right-edge rail, clear of the dock sheet. */}
+      <CanvasResizeRail />
+
       {/* Canvas appearance tools always live in the dock; pane/label tools join
           when relevant. The dock itself is mounted by the root layout. */}
       <StageToolsDock
@@ -494,7 +512,7 @@ export function Stage() {
   )
 }
 
-/** The board itself: backdrop, panes, inserts, divider chrome and resize handle. */
+/** The board itself: backdrop, panes, inserts and divider chrome. */
 function StageCanvas({
   view,
   viewScale,
@@ -549,10 +567,10 @@ function StageCanvas({
   onSplit: React.ComponentProps<typeof Pane>['onSplit']
   onClose: React.ComponentProps<typeof Pane>['onClose']
 }) {
-  const t = useT()
   // Backdrop blend: pane edges feather into the shared blurred field behind
   // everything (width 0 turns the whole treatment off).
   const paneFade = view.fade
+  const t = useT()
 
   return (
     <CanvasMenu>
@@ -568,7 +586,7 @@ function StageCanvas({
         <div
           ref={stageRef}
           data-canvas-view={viewScale}
-          className={`relative shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
+          className={`relative flex-none shadow-[0_16px_50px_rgba(0,0,0,0.6)] ${transparent ? ' stage-clear' : ''}`}
           style={{ width: view.W, height: view.H, background: transparent ? undefined : bg, transform: viewTransform(viewScale), viewTransitionName: `ws-${wsId}` }}
         >
           <CollageBgLayer W={view.W} H={view.H} photoById={photoById} />
@@ -610,6 +628,8 @@ function StageCanvas({
 
           <CanvasResizeHandle
             sizing={sizing}
+            viewScale={viewScale}
+            stageRef={stageRef}
             label={t('Drag to change canvas aspect · double-click to reset')}
             onPointerDown={onBeginResize}
             onDoubleClick={onResetRatio}
@@ -873,16 +893,88 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
   )
 }
 
-/** The bottom-right canvas resize handle. */
-function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
+/**
+ * How far the corner handle has to leave the corner to stay above the tools
+ * sheet, in viewport px (0 when the sheet is not over it).
+ *
+ * The sheet is an overlay with no put-away state, and a canvas scaled past the
+ * stage fit runs underneath it, so the corner the direct resize handle sits on
+ * disappears behind the glass as the canvas grows. The rail is the control that
+ * is always reachable; this keeps the direct one too, sliding it up the canvas's
+ * right edge until it clears the sheet, never past the canvas's own top.
+ */
+function useSheetLift(
+  canvasRef: React.RefObject<HTMLDivElement | null>,
+  sheetTop: number | null,
+  viewScale: number,
+): number {
+  const [lift, setLift] = useState(0)
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || sheetTop == null)
+      return
+    let frame = 0
+    const read = () => {
+      frame = 0
+      const r = canvas.getBoundingClientRect()
+      const half = HANDLE_HALF * viewScale
+      // Keep the whole handle on screen above the sheet, with a small gap, and
+      // never lift it past the canvas's own top edge.
+      const over = r.bottom + half - (sheetTop - 8)
+      const next = Math.min(Math.max(0, r.height - 28 * viewScale - 16), Math.max(0, over))
+      setLift(prev => (Math.abs(prev - next) < 0.5 ? prev : next))
+    }
+    const queue = () => {
+      if (!frame)
+        frame = requestAnimationFrame(read)
+    }
+    // The canvas moves for three reasons the stage does not re-render on: the
+    // view zoom's transform, the sheet's spring-driven display, and a resize.
+    const ro = new ResizeObserver(queue)
+    ro.observe(canvas)
+    const mo = new MutationObserver(queue)
+    mo.observe(canvas, { attributes: true, attributeFilter: ['style'] })
+    window.addEventListener('resize', queue)
+    queue()
+    return () => {
+      ro.disconnect()
+      mo.disconnect()
+      window.removeEventListener('resize', queue)
+      if (frame)
+        cancelAnimationFrame(frame)
+    }
+  }, [canvasRef, sheetTop, viewScale])
+
+  // No sheet over the corner (or no measurement yet) is no lift: derived here
+  // instead of reset by an effect, so a route back to a clear corner does not
+  // re-render twice.
+  return sheetTop == null ? 0 : lift
+}
+
+/**
+ * The canvas aspect handle: a chip straddling the bottom-right corner, dragging
+ * it reshapes the canvas and double-clicking follows the first photo again. It
+ * lifts itself over the tools sheet (`useSheetLift`) rather than hiding, so the
+ * direct control is there whenever the canvas is.
+ */
+function CanvasResizeHandle({ sizing, viewScale, stageRef, label, onPointerDown, onDoubleClick }: {
   sizing: boolean
+  viewScale: number
+  stageRef: React.RefObject<HTMLDivElement | null>
   label: string
   onPointerDown: React.PointerEventHandler<HTMLDivElement>
   onDoubleClick: React.MouseEventHandler<HTMLDivElement>
 }) {
+  const sheetTop = useToolsSheetTop()
+  const lift = useSheetLift(stageRef, sheetTop, viewScale)
   return (
     <div
-      className={`absolute -right-[13px] -bottom-[13px] z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
+      data-canvas-resize-handle=""
+      className={`absolute -right-3.5 -bottom-3.5 z-[8] grid h-7 w-7 cursor-nwse-resize touch-none place-items-center rounded-none border bg-float-bg-2 text-handle-txt backdrop-blur-[6px] transition-[background-color,border-color,color,scale,translate] duration-(--dur-fast) active:scale-[0.97] hover:border-accent hover:bg-accent hover:text-on-accent ${sizing ? ' border-accent bg-accent text-on-accent' : ''}`}
+      // Canvas px, so the view zoom's transform puts it at the same distance on
+      // screen as the drop it needs to clear.
+      style={lift ? { translate: `0 ${(-lift / viewScale).toFixed(2)}px` } : undefined}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
       title={label}

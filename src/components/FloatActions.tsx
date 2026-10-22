@@ -88,8 +88,9 @@ export function FloatActions() {
         />
       )}
 
-      {/* Right cluster: undo / redo of the board, then reset last at the corner. */}
-      <div className="pointer-events-none absolute right-2.5 top-2.5 flex gap-1.5">
+      {/* Right cluster: undo / redo of the board, then reset last at the corner.
+          `data-float-actions` is what the size rail measures to start below it. */}
+      <div data-float-actions="" className="pointer-events-none absolute right-2.5 top-2.5 flex gap-1.5">
         <Tip
           label={t('Undo · ⌘Z')}
           trigger={(

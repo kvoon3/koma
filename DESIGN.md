@@ -38,6 +38,7 @@ rows.
 | Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint the hover copy is dropped instead, a touch screen having no hover to fade it in, so the page-row chip is what a phone keeps |
 | Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools, and it is always on screen: there is no put-away state, the smallest display is the icon-only row. Three displays, in tap order: one row of icons, one row of icon + label (the default), and the wrapped multi-row, which only exists while the tools do not fit one row. The whole sheet is a grab surface, handle or tool button alike, and it snaps to the nearest display with a flick (lists inside it keep their own scroll, and hold still while the sheet itself is being dragged); a tap on the handle walks the same three. Replace / Sticker / Make / Text act on the focused pane, so they only enable while a pane is focused and holds a photo; with nothing focused the sheet carries the canvas ratio instead (square, follow the first photo, flip), the same commands the workspace menu runs. While a text label is selected (below lg) the sheet swaps the row's tools for the label's own (font, text and background color, opacity, icon, invert, delete), drawn as the same tool buttons so the two sets read as one row. Buttons keep their 80px width (54px in the icon row) and the row scrolls sideways when the screen is too narrow to hold them, the end that still hides tools fading out as it goes: nothing fades while the row fits its panel or sits flush against an end |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
+| **Rail on the right edge** | **Resize the whole canvas, width and height together** (double-click to fit it again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
 | Drag inside a pane | Pan the photo |
 | Wheel / pinch | Zoom the photo, anchored at the cursor |
@@ -75,10 +76,121 @@ rows.
 | `?` | Help |
 | `Esc` | Close overlay / deselect label / clear focus |
 
-**Canvas aspect ratio** initially follows the first photo added. Drag the
-bottom-right handle to change it (double-click to follow again).
+**Canvas aspect ratio** initially follows the first photo added: drag the
+handle at the canvas's bottom-right corner to reshape it (double-click to follow
+the first photo again), or use the dock's ratio tool and the canvas menu. The
+right-edge rail scales the collage as a whole instead (below).
 
-### Why the resize handle wraps around the pointer
+### The canvas resize rail, and the corner handle
+
+The tools sheet is an overlay with no put-away state, and a tall canvas runs
+underneath it, so the corner the aspect handle sits on disappears behind the
+glass exactly when the canvas is big enough to want resizing. Two controls cover
+that, and they do different jobs:
+
+- **The corner handle**, the direct one: a chip straddling the canvas's
+  bottom-right corner that reshapes it to any aspect. It is board chrome, so it
+  rides the canvas and the view zoom; when the sheet reaches it, it slides up
+  the canvas's right edge until it clears the sheet by 8px (never past the
+  canvas's own top edge) and slides back down as the canvas shrinks. It never
+  hides behind the sheet. Scaled past the fit, though, the canvas's corner
+  itself runs off the stage, and the handle goes with the corner it marks
+  (a corner that is not on screen is not a corner you can drag); that is the
+  state the rail exists for, and the dock's ratio tools and the canvas menu
+  still reshape the board from anywhere.
+- **The rail**, the always-reachable one: a vertical control on the stage's
+  right edge, centred on the strip the floating chrome leaves free: below the
+  action cluster (`useFloatingActionsBottom`) and above the tools sheet
+  (`useToolsSheetTop`, the minimap's rule). On a short stage that is what keeps
+  a 172px scale out of the undo buttons instead of behind them. It scales the
+  canvas as a whole instead of reshaping it, so it works at any size, and it
+  never moves with the canvas or the view zoom.
+
+The rail is a **graduated scale**, not a bare slider, and it is the same one the
+rotate dial draws: `ui/TickScale` (a hairline spine, marks standing across it,
+and a bar riding it) drawn through in both, so the two scales cannot drift into
+two designs. On the rail the spine runs vertically at the stage's edge, the
+marks cross it, and the bar is a 16×3 playhead, thicker than any mark and long
+enough to out-read the strongest one. A percentage chip sits beside it while the
+pointer or the keyboard is there, and a focus ring is drawn around the bar
+rather than on it (a 3px bar is not a ring's worth of shape). The band is 22px
+wide (`26px` under a finger) and is the hit target: the bar is what you read, the
+strip is what you press.
+
+`lib/canvasRail` decides the numbers, with tests:
+
+- **The ladder** (`railTicks`): tenths of the fit while the marks are at least
+  9px apart, then fifths, quarters or halves as the track shortens, so a phone
+  never gets a comb and a desktop never gets three lonely ticks. Every half is a
+  longer mark, a bound that would crowd its neighbour is dropped (the track's
+  own end already reads as a boundary), and the fit (100%) is the longest one
+  and never dimmer than a lit mark. On a 340px track that is 15 marks, 25px
+  apart.
+- **The feel of passing them**: marks within 52px of the bar light up
+  (opacity 0.5 → 0.92, the strong marks 0.9 → 1) and grow to 1.45× their
+  length, from a hairline to a full mark, so the scale answers the hand rather
+  than sitting there. Strong marks hold their length: they are the landmarks.
+  The scale is drawn in the `float` tone there, so every mark wears the icon
+  grey rather than the accent (an accent hairline is near-black in the light
+  theme, the wrong colour over a dark photo) and is drawn twice: a glass
+  underlay a pixel wider, then the mark itself. The underlay is what survives a
+  near-black photo (a mark alone is only ~1.5:1 there), and a hard underlay stays
+  a hairline where a blurred drop shadow went muddy.
+- **The trail**: a moving bar drags a wake (`data-rail-trail`): one tail eases
+  toward the bar with an exponential lag (`WAKE_TAU`, 120ms), and the gap between
+  them is drawn as a single streak, opaque at the bar and gone at the tail: an
+  accent gradient core with a 1px glass rim down each side (a fill would read as
+  a lit card, and the rim is what survives a dark photo). Its *length is the
+  speed*: a steady 700px/s drag trails about 85px behind, a flick several times
+  that, and a bar that stops leaves nothing at all (below `WAKE_MIN` px the
+  streak is not drawn; a CSS transition would park a duplicate under it
+  instead). The streak is written per frame on the element rather than through
+  React state, so the wake never re-renders the board, and it is hidden entirely
+  under reduced motion. The canvas itself follows the pointer exactly: the trail
+  is the chrome's, with no smoothing to feel through.
+- **The fit's magnetism**: `canvasFill` 1 is the one stop worth landing on
+  exactly. Inside ±4 points the mapping leans toward it (0.7 of the distance
+  removed at the stop, nothing at the band's edge, so the map stays monotonic
+  and a continuing drag always walks out), and a release inside ±2 points takes
+  it exactly. Measured: a drag released at 102% or 98% lands on 100%; at 104.5%
+  it keeps 104.5%.
+- **The ends give**: past either bound the bar keeps moving up to 14px
+  (`rubberBand`, tanh, so it is smooth at 0 and asymptotic at the end), then
+  springs back on release. The canvas is already clamped; the give is the bar's,
+  which is the difference between "stuck" and "this is the end".
+
+The rail's scale is `canvasFill`, which multiplies both edges, so width and
+height change together and the aspect ratio is untouched (the handle is what
+changes the ratio). Up is bigger, and the fit mark sits at 0.63 of the bar's
+travel, which is what gives a drag upward somewhere to go: `MAX_CANVAS_FILL`
+(1.5) enlarges past the fit and lets the stage crop it, `MIN_CANVAS_FILL` (0.15)
+shrinks it. The rail writes the size through `setCanvasFill`, never the ratio,
+so a board still following its first photo keeps following it; the corner
+handle and the ratio tools are the ones that write `canvasRatio`.
+
+A press anywhere on the band grabs the value where it is and drags it
+relatively, the way a finger on a camera's zoom scale does: the bar is a 3px
+playhead, not a handle to hit, and nothing jumps under the press. The mapping
+uses the rail's own `getBoundingClientRect` rather than the stage's measured
+centre: the pointer arrives in viewport px, and mixing the two spaces shifted
+every press by the stage's offset (measured: a press read the track 31px higher
+and jumped the canvas to 83%).
+
+The rail is a real `role="slider"`: arrows walk the ladder one mark (10 points at
+the desktop density, where those are the marks drawn; on a short track the drawn
+ladder is coarser and a keypress can land between two of them), Shift/PageUp a
+page (50 points), Home/End the bounds, and the visible percentage is
+`aria-valuetext`. A double-click fits the canvas again (fill 1) and leaves the
+ratio alone. Left alone, the rail draws itself in to a stub around the bar (3.2s
+idle; 8s on the first visit) with one clip-path on the whole scale, so the marks
+it keeps still show the size at a glance and nothing is re-laid-out as it grows.
+The pointer coming back over the band draws it out again, and a press is how a
+finger does it: the first tap on a stub opens the rail and grabs the value in one
+move, with nothing resized until the finger travels. It tucks on touch as well as
+on a mouse: a scale that stays out draws a ruler over the photo's edge for the
+whole session, which is a heavier lie than a stub resting there always was.
+
+### Why the corner handle wraps around the pointer
 
 The canvas is **centered** in the workspace, so every size change of Δ gives Δ/2
 back to each side; mapping raw drag deltas to size makes the handle lag behind
@@ -94,8 +206,12 @@ fill  = 2*hx / fitCanvas(ratio, avail).W
 ```
 
 Away from the bounds, `fill` makes the displayed size exactly `2*(hx,hy)`, so the
-handle sits precisely under the pointer (measured offset: 0,0). At the bounds,
-`fill` clamps to ≤1, the canvas stops shrinking, and the handle feels "stuck".
+canvas corner sits precisely under the pointer. The grab records
+`canvas corner − pointer` rather than leaning on the pointer alone: measured
+from the corner, a press changes nothing (no snap), and the same offset still
+carries when the sheet has lifted the handle off the corner. At the bounds
+(`MIN_CANVAS_FILL` / `MAX_CANVAS_FILL`) the canvas stops, and the handle feels
+"stuck".
 
 `canvasFill` only affects how large the canvas appears in the preview; **it does
 not affect export** (export resolution comes from the long-edge setting in
@@ -124,8 +240,8 @@ Composition with the board's own gestures:
 - **Pointer math does.** Every gesture that turns client pixels into canvas
   pixels divides by `viewScaleAt(node)` (the live scale riding the canvas's
   `data-canvas-view` attribute, read from the nearest wrapper: no context, no
-  re-render on a wheel notch): the divider drag, the canvas resize handle, a
-  pane's pointer-local maths and drop points, board sticker drags. Ratios are
+  re-render on a wheel notch): the divider drag, a pane's pointer-local maths
+  and drop points, board sticker drags. Ratios are
   scale-free and stay as they are: label drags, rotations, the minimap's own
   mapping.
 - **dnd-kit does.** Its translate is measured in screen pixels while the cells
@@ -221,10 +337,12 @@ chip is the map and nothing else. It is parked at the corner of the photo's
 *visible* rect, 20px in from it, never at the pane's corner, so a zoomed-out
 photo pulls the chip in with it and a zoomed-in one pins it to the pane's inner
 edge, clear of dividers and neighbours. The 20px (not the 8px the corner alone
-wants) is what clears the canvas resize handle, which sits 15px inside the
-canvas corner. It rests at 0.7 so the photo stays the subject and comes to full
-weight under the pointer; a finger has no hover to confirm it exists, so touch
-rests at 0.9 and the frame steps up to 44×58. The chip behind the thumbnail is
+wants) is what clears the canvas aspect handle, which reaches 14px inside the
+canvas corner; the resize rail's hit band (17px) stays outside the canvas at
+fit, beyond the 24px margin the stage leaves it, and a canvas scaled past the
+fit runs under the band deliberately. It rests at 0.7 so the photo stays the
+subject and comes to full weight under the pointer; a finger has no hover to
+confirm it exists, so touch rests at 0.9 and the frame steps up to 44×58. The chip behind the thumbnail is
 the floating-chip scrim, so busy content never swallows it. The tools sheet
 overlays the stage with no put-away state and a tall canvas runs underneath it,
 so the chip stops at the sheet's top edge (8px above it) rather than sitting
