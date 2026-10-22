@@ -92,7 +92,7 @@ export function LibraryPage() {
         onFilterChange={setFilter}
         onAddPhotos={onAddPhotos}
         onMakeSticker={() => setMaking(m => ({ seq: (m?.seq ?? 0) + 1 }))}
-        onMakeMusicCard={() => useStore.getState().setMusicCardOpen(true)}
+        onMakeMusicCard={() => useStore.getState().openMusicCard(null)}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-strip-thumb" data-library-scroll="">

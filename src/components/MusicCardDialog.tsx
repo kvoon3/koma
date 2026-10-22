@@ -1,18 +1,32 @@
+import type { MusicCardStyle } from '../lib/musicCard'
 import type { MusicResolveError, ResolvedMusic } from '../lib/musicLink'
 import { Dialog } from '@base-ui/react/dialog'
 import { X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../lib/i18n'
-import { loadMusicArtwork, musicCardFileName, PROVIDER_LABELS, renderMusicCardBlob } from '../lib/musicCard'
+import { DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, MUSIC_CARD_STYLE_IDS, musicCardFileName, PROVIDER_COLORS, PROVIDER_LABELS, renderMusicCardBlob } from '../lib/musicCard'
 import { resolveMusic } from '../lib/musicLink'
+import { findLeaf } from '../lib/panes'
 import { say } from '../lib/toast'
-import { useStore } from '../store'
+import { activeWs, useStore } from '../store'
+import { chipOffCls, chipOnCls } from './library/chips'
 import { Button } from './ui/button'
 import { buttonBase, buttonVariants } from './ui/buttonStyles'
 
 /** How long the title/artist inputs settle before the preview re-renders. */
 const PREVIEW_DEBOUNCE_MS = 200
+
+/** The picker's names; the rendered card carries the style itself. */
+const STYLE_LABELS: Record<MusicCardStyle, string> = {
+  classic: 'Classic',
+  noir: 'Noir',
+  polaroid: 'Polaroid',
+  vinyl: 'Vinyl',
+  editorial: 'Editorial',
+}
+
+const STYLE_CHIP = 'flex w-full cursor-pointer items-center justify-center whitespace-nowrap border px-2 py-1.5 text-[11.5px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50'
 
 function errorCopy(t: ReturnType<typeof useT>, error: MusicResolveError): string {
   switch (error) {
@@ -29,16 +43,25 @@ function errorCopy(t: ReturnType<typeof useT>, error: MusicResolveError): string
 
 /**
  * The one music card dialog: paste a link, resolve it against the provider's
- * public response, tune the two text lines, then add the rendered square to
- * the library. Mounted once by the root layout and opened by a store flag, so
- * the stage dock and the library header share one copy and its preview state.
+ * public response, pick one of the five compositions, tune the two text lines,
+ * then render the square. Mounted once by the root layout and opened by a store
+ * flag, so the stage dock and the library header share one copy and its preview
+ * state.
  *
- * Adding does not navigate: from a board the dialog closes back onto the board,
- * and the card is waiting in the library's Music filter.
+ * From a board the finished card goes straight into the focused cell and the
+ * library; from the library header it is only added there. Adding never
+ * navigates: the dialog closes back onto whatever surface opened it.
  */
 export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () => void }) {
   const t = useT()
   const addMusicCard = useStore(s => s.addMusicCard)
+  const assign = useStore(s => s.assign)
+  const musicCardFor = useStore(s => s.musicCardFor)
+  const targetOccupied = useStore((s) => {
+    if (!s.musicCardFor)
+      return false
+    return !!findLeaf(activeWs(s).root, s.musicCardFor)?.photoId
+  })
 
   const [link, setLink] = useState('')
   const [resolving, setResolving] = useState(false)
@@ -48,6 +71,8 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  /** The composition; kept across opens, like a tool setting. */
+  const [style, setStyle] = useState<MusicCardStyle>(DEFAULT_MUSIC_CARD_STYLE)
 
   /** The resolved artwork, kept decoded so an edit re-renders without a fetch. */
   const artworkRef = useRef<HTMLImageElement | null>(null)
@@ -55,6 +80,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
   const previewRef = useRef<string | null>(null)
   /** Bumped per resolve and on close: a late answer from an older run is dropped. */
   const jobRef = useRef(0)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const swapPreview = useCallback((blob: Blob) => {
     const url = URL.createObjectURL(blob)
@@ -82,6 +108,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     setMusic(null)
     setTitle('')
     setArtist('')
+    scrollRef.current?.scrollTo({ top: 0 })
   }, [])
 
   /** Every close path (button, Escape, backdrop) drops the last card's state. */
@@ -105,10 +132,11 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         provider: music.provider,
         title,
         artist,
+        style,
       }).then(swapPreview).catch(() => setError(t('No artwork found for that link.')))
     }, PREVIEW_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [music, title, artist, t, swapPreview])
+  }, [music, title, artist, style, t, swapPreview])
 
   const generate = async () => {
     if (resolving || !link.trim())
@@ -159,15 +187,19 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         provider: music.provider,
         title,
         artist,
+        style,
       })
       const file = new File([blob], musicCardFileName(title, artist), { type: 'image/png' })
-      addMusicCard(file, {
+      const photo = addMusicCard(file, {
         provider: music.provider,
         title: title.trim(),
         artist: artist.trim(),
         url: music.url,
       })
-      say(t('Added to library'))
+      // The card is always an asset; a board target is a second, one-step
+      // placement. A stale target falls back to the library-only outcome.
+      const placed = musicCardFor ? assign(musicCardFor, photo.id, true) : false
+      say(placed ? t('Card placed in the collage') : t('Added to library'))
       close()
     }
     catch {
@@ -199,73 +231,103 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             </Dialog.Close>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-            <div className="flex flex-col gap-1.5 sm:flex-row">
-              <input
-                className="box-border h-[30px] min-w-0 flex-1 border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent"
-                value={link}
-                placeholder={t('Paste a Spotify or Apple Music link')}
-                aria-label={t('Paste a Spotify or Apple Music link')}
-                data-music-link=""
-                onChange={(e) => {
-                  setLink(e.target.value)
-                  setError(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter')
-                    return
-                  e.preventDefault()
-                  void generate()
-                }}
-              />
-              <span className="flex flex-none">
-                <Button variant="strong" data-music-generate="" disabled={!link.trim() || resolving} onClick={() => void generate()}>
-                  {t('Generate')}
-                </Button>
-              </span>
+          <div className="relative min-h-0 flex-1">
+            <div ref={scrollRef} className="flex h-full flex-col gap-2.5 overflow-y-auto p-4" data-music-scroll="">
+              <div className="flex flex-col gap-1.5 sm:flex-row">
+                <input
+                  className="box-border h-[30px] min-w-0 flex-1 border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent"
+                  value={link}
+                  placeholder={t('Paste a Spotify or Apple Music link')}
+                  aria-label={t('Paste a Spotify or Apple Music link')}
+                  data-music-link=""
+                  onChange={(e) => {
+                    setLink(e.target.value)
+                    setError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter')
+                      return
+                    e.preventDefault()
+                    void generate()
+                  }}
+                />
+                <span className="flex flex-none">
+                  <Button variant="strong" data-music-generate="" disabled={!link.trim() || resolving} onClick={() => void generate()}>
+                    {t('Generate')}
+                  </Button>
+                </span>
+              </div>
+
+              {/* Fixed line: the dialog must not resize as the error comes and goes. */}
+              <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-dim'}`} data-music-error="">
+                {error ?? (musicCardFor
+                  ? t('Goes into this cell; a copy stays in the library.')
+                  : t('A link turns into a square card you can place like a photo.'))}
+              </p>
+
+              <div className="mx-auto flex aspect-square w-[min(100%,260px,22dvh)] flex-none items-center justify-center overflow-hidden border border-line bg-panel-2" data-music-preview-box="">
+                {previewUrl
+                  ? <img src={previewUrl} alt="" className="block h-full w-full object-contain" draggable={false} data-music-preview="" />
+                  : <span className="block h-full w-full" />}
+              </div>
+
+              {music && (
+                <span className="mx-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim" data-music-provider={music.provider}>
+                  <span className="h-2 w-2 rounded-full" style={{ background: PROVIDER_COLORS[music.provider] }} />
+                  {PROVIDER_LABELS[music.provider]}
+                </span>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Style')}</span>
+                <div className="grid grid-cols-2 gap-[6px] sm:grid-cols-5" data-music-styles="">
+                  {MUSIC_CARD_STYLE_IDS.map(id => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`${STYLE_CHIP} ${style === id ? chipOnCls : chipOffCls}`}
+                      aria-pressed={style === id}
+                      data-music-style={id}
+                      disabled={adding}
+                      onClick={() => setStyle(id)}
+                    >
+                      {t(STYLE_LABELS[id])}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Title')}</span>
+                <input
+                  className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                  value={title}
+                  disabled={!music}
+                  aria-label={t('Title')}
+                  data-music-title=""
+                  onChange={e => setTitle(e.target.value)}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Artist')}</span>
+                <input
+                  className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
+                  value={artist}
+                  disabled={!music}
+                  aria-label={t('Artist')}
+                  data-music-artist=""
+                  onChange={e => setArtist(e.target.value)}
+                />
+              </label>
             </div>
-
-            {/* Fixed line: the dialog must not resize as the error comes and goes. */}
-            <p className={`m-0 min-h-[1.4em] text-[11px] leading-[1.4] ${error ? 'text-danger' : 'text-dim'}`} data-music-error="">
-              {error ?? t('A link turns into a square card you can place like a photo.')}
-            </p>
-
-            <div className="mx-auto flex aspect-square w-full flex-none items-center justify-center overflow-hidden border border-line bg-panel-2 sm:max-w-[260px]" data-music-preview-box="">
-              {previewUrl
-                ? <img src={previewUrl} alt="" className="block h-full w-full object-contain" draggable={false} data-music-preview="" />
-                : <span className="block h-full w-full" />}
-            </div>
-
-            {music && (
-              <span className="mx-auto flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-dim" data-music-provider={music.provider}>
-                <span className="h-2 w-2 rounded-full" style={{ background: music.provider === 'spotify' ? '#1DB954' : '#FA243C' }} />
-                {PROVIDER_LABELS[music.provider]}
-              </span>
-            )}
-
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Title')}</span>
-              <input
-                className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                value={title}
-                disabled={!music}
-                aria-label={t('Title')}
-                data-music-title=""
-                onChange={e => setTitle(e.target.value)}
-              />
-            </label>
-
-            <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-dim">{t('Artist')}</span>
-              <input
-                className="box-border h-[30px] w-full border border-line-strong bg-panel-2 px-2.5 text-[12.5px] text-txt outline-0 placeholder:text-dim focus-visible:border-accent disabled:opacity-50"
-                value={artist}
-                disabled={!music}
-                aria-label={t('Artist')}
-                data-music-artist=""
-                onChange={e => setArtist(e.target.value)}
-              />
-            </label>
+            {/* The form scrolls under the footer; the fade sits in the body's
+                bottom padding, so it never dims the last field. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-3"
+              style={{ background: 'linear-gradient(to top, var(--panel), transparent)' }}
+            />
           </div>
 
           <div className="flex flex-none items-center justify-end gap-[6px] border-t border-line px-3 py-2.5">
@@ -276,7 +338,9 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
               disabled={!music || !previewUrl || adding}
               onClick={() => void add()}
             >
-              {t('Add to library')}
+              {musicCardFor
+                ? targetOccupied ? t('Replace this cell') : t('Insert into this cell')
+                : t('Add to library')}
             </Button>
           </div>
         </Dialog.Popup>
