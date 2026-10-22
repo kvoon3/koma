@@ -606,10 +606,9 @@ export const zhHant: Record<TKey, string> = {
   'Sticker saved to {folder}': '貼圖已儲存到「{folder}」',
   'Rename': '重新命名',
   'Create': '新增',
-  'Stickers': '貼圖管理',
+  'Stickers': '貼圖',
   'Unsorted': '未分類',
   'Back': '返回',
-  'Search stickers': '搜尋貼圖',
   'All': '全部',
   'Folder name': '資料夾名稱',
   'New folder': '新增資料夾',
@@ -670,10 +669,9 @@ export const zhHant: Record<TKey, string> = {
   'Open {name}': '檢視「{name}」',
   'Photo deleted': '照片已刪除',
   'Photo management': '照片管理',
-  'Photos': '照片管理',
+  'Photos': '照片',
   'Remove tag {tag}': '移除標籤「{tag}」',
   'Rename tag': '重新命名標籤',
-  'Search photos': '搜尋照片',
   'Show only {tag}': '只看「{tag}」',
   'Size': '尺寸',
   'Sticker management': '貼紙管理',
@@ -748,6 +746,7 @@ export const zhHant: Record<TKey, string> = {
   // Canvas view zoom (wave4/pane-controls): the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': '畫布 {n}% · 點擊適應視窗',
   // Unified library
+  'Search library': '搜尋素材庫',
   'No photos match this search or filter.': '沒有照片符合此搜尋或篩選。',
   'No stickers match this search or filter.': '沒有貼圖符合此搜尋或篩選。',
 }

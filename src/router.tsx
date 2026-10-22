@@ -2,8 +2,9 @@
 import type { ExportItem } from './components/ExportDialog'
 import type { AppCommands } from './lib/appCommands'
 import type { RenderedItem } from './lib/exportRun'
+import type { LibrarySearch } from './lib/library'
 import { Tooltip } from '@base-ui/react/tooltip'
-import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
+import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, redirect, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
@@ -11,10 +12,9 @@ import { ExportDialog } from './components/ExportDialog'
 import { FloatActions } from './components/FloatActions'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LegacyIndex } from './components/LegacyIndex'
+import { LibraryPage } from './components/library/LibraryPage'
 import { LibraryDrawer } from './components/LibraryDrawer'
-import { PhotoManager } from './components/PhotoManager'
 import { Stage } from './components/Stage'
-import { StickerManager } from './components/StickerManager'
 import ToastHost from './components/ToastHost'
 import { ToolsDockHost } from './components/ToolsDock'
 import { TopBar } from './components/TopBar'
@@ -26,7 +26,8 @@ import { exportOptions, renderGridCellItems, renderGridItems, renderWorkspaceIte
 import { armRun, releaseRun } from './lib/exportRun'
 import { hubKeyForPath, markHubSeen } from './lib/hubSeen'
 import { t } from './lib/i18n'
-import { EDITOR_PATH, isGridPath, isHubPath, LEGACY_INDEX_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
+import { parseLibraryType } from './lib/library'
+import { EDITOR_PATH, isGridPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
 import { say } from './lib/toast'
 import { viewTransitionOption } from './lib/viewTransition'
 import { useStore } from './store'
@@ -293,19 +294,32 @@ const workspaceRoute = createRoute({
   component: WorkspaceRoute,
 })
 
+const libraryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: LIBRARY_PATH,
+  validateSearch: (search: Record<string, unknown>): LibrarySearch => ({ type: parseLibraryType(search.type) }),
+  component: LibraryPage,
+})
+
+// The old per-type routes keep their links working: each opens the library on
+// its own tab, with no intermediate page.
 const photoRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: PHOTOS_PATH,
-  component: PhotoManager,
+  beforeLoad: () => {
+    throw redirect({ to: LIBRARY_PATH, search: { type: 'photo' } })
+  },
 })
 
 const stickerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: STICKERS_PATH,
-  component: StickerManager,
+  beforeLoad: () => {
+    throw redirect({ to: LIBRARY_PATH, search: { type: 'sticker' } })
+  },
 })
 
-const routeTree = rootRoute.addChildren([overviewRoute, legacyIndexRoute, workspaceRoute, photoRoute, stickerRoute])
+const routeTree = rootRoute.addChildren([overviewRoute, legacyIndexRoute, workspaceRoute, libraryRoute, photoRoute, stickerRoute])
 
 export const router = createRouter({
   routeTree,

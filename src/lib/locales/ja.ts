@@ -605,7 +605,6 @@ export const ja: Record<TKey, string> = {
   'Stickers': 'ステッカー',
   'Unsorted': '未分類',
   'Back': '戻る',
-  'Search stickers': 'ステッカーを検索',
   'All': 'すべて',
   'Folder name': 'フォルダー名',
   'New folder': '新しいフォルダー',
@@ -669,7 +668,6 @@ export const ja: Record<TKey, string> = {
   'Photos': '写真',
   'Remove tag {tag}': 'タグ「{tag}」を削除',
   'Rename tag': 'タグ名を変更',
-  'Search photos': '写真を検索',
   'Show only {tag}': '「{tag}」のみ表示',
   'Size': 'サイズ',
   'Sticker management': 'ステッカー管理',
@@ -744,6 +742,7 @@ export const ja: Record<TKey, string> = {
   // Canvas view zoom: the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': 'キャンバス {n}% · クリックでフィット',
   // Unified library
+  'Search library': 'ライブラリを検索',
   'No photos match this search or filter.': 'この検索や絞り込みに合う写真はありません。',
   'No stickers match this search or filter.': 'この検索や絞り込みに合うステッカーはありません。',
 }
