@@ -198,6 +198,66 @@ export function readSpotifyOembed(json: unknown): SpotifyOembed | null {
   return { title, artworkUrl: thumbnail ? spotifyArtworkUrl(thumbnail) : '' }
 }
 
+/** The keyless search that names the artist an oEmbed body leaves out. */
+export function spotifyArtistSearchUrl(title: string, kind: MusicLinkKind): string {
+  const entity = kind === 'track' ? 'song' : 'album'
+  return `https://itunes.apple.com/search?term=${encodeURIComponent(title)}&entity=${entity}&limit=5&country=us`
+}
+
+/**
+ * Title keys for matching a search hit. The loose pass ignores a parenthetical
+ * or dash suffix (a remaster or a live take), which is still the same song for
+ * naming its artist.
+ */
+function nameKey(text: string, loose: boolean): string {
+  const base = text.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
+  if (!loose)
+    return base
+  const dash = base.indexOf(' - ')
+  return (dash >= 0 ? base.slice(0, dash) : base)
+    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/**
+ * The artist from iTunes search results: an exact title first, then the same
+ * title without a suffix. A different song that merely shares words never
+ * qualifies, so a cover or a namesake cannot fill the wrong name.
+ */
+export function pickITunesArtist(json: unknown, title: string, kind: MusicLinkKind): string {
+  const body = record(json)
+  if (!body || !Array.isArray(body.results))
+    return ''
+  const hits = body.results
+    .map(record)
+    .filter((r): r is Record<string, unknown> => r != null)
+    .map(r => ({ name: text(kind === 'track' ? r.trackName : r.collectionName), artist: text(r.artistName) }))
+    .filter(h => h.name && h.artist)
+  for (const loose of [false, true]) {
+    const key = nameKey(title, loose)
+    if (!key)
+      return ''
+    const hit = hits.find(h => nameKey(h.name, loose) === key)
+    if (hit)
+      return hit.artist
+  }
+  return ''
+}
+
+/** A failed search is not a failed resolve; the artist field stays editable. */
+async function spotifyArtist(title: string, kind: MusicLinkKind, fetchImpl: MusicFetch): Promise<string> {
+  try {
+    const res = await fetchImpl(spotifyArtistSearchUrl(title, kind))
+    if (!res.ok)
+      return ''
+    return pickITunesArtist(await res.json(), title, kind)
+  }
+  catch {
+    return ''
+  }
+}
+
 export interface AppleLookupResult {
   wrapperType?: string
   trackId?: number
@@ -303,9 +363,10 @@ export async function resolveMusic(raw: string, fetchImpl: MusicFetch = fetch): 
       return { ok: false, error: 'network' }
     if (!read.artworkUrl)
       return { ok: false, error: 'artwork' }
+    const artist = await spotifyArtist(read.title, link.kind, fetchImpl)
     return {
       ok: true,
-      music: { provider: 'spotify', title: read.title, artist: '', url: link.url, artworkUrl: read.artworkUrl },
+      music: { provider: 'spotify', title: read.title, artist, url: link.url, artworkUrl: read.artworkUrl },
     }
   }
 
