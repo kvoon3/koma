@@ -28,27 +28,31 @@ function photo(id: string, extra: Partial<Photo> = {}): Photo {
 }
 
 const sticker = (id: string, extra: Partial<Photo> = {}) => photo(id, { kind: 'sticker', ...extra })
+const music = (id: string, extra: Partial<Photo> = {}) => photo(id, { kind: 'music', ...extra })
 
 describe('the kinds that make the library', () => {
   test('assets split by the marker and drop orphaned snapshots', () => {
     const photos = [
       photo('p1'),
       sticker('s1'),
+      music('m1'),
       photo('p2', { kind: 'photo' }),
       sticker('s2'),
       { ...sticker('retired'), orphaned: true },
+      { ...music('retired'), orphaned: true },
       { ...photo('gone'), orphaned: true },
     ]
     const assets = libraryAssets(photos)
     expect(assets.photo.map(p => p.id)).toEqual(['p1', 'p2'])
     expect(assets.sticker.map(p => p.id)).toEqual(['s1', 's2'])
+    expect(assets.music.map(p => p.id)).toEqual(['m1'])
   })
 
   test('counts and the total follow those lists', () => {
-    const assets = libraryAssets([photo('p1'), sticker('s1'), sticker('s2')])
+    const assets = libraryAssets([photo('p1'), sticker('s1'), sticker('s2'), music('m1')])
     const counts = libraryCounts(assets)
-    expect(counts).toEqual({ photo: 1, sticker: 2 })
-    expect(libraryTotal(counts)).toBe(3)
+    expect(counts).toEqual({ photo: 1, sticker: 2, music: 1 })
+    expect(libraryTotal(counts)).toBe(4)
     expect(libraryTotal(libraryCounts(libraryAssets([])))).toBe(0)
   })
 
@@ -68,7 +72,7 @@ describe('the type in the URL', () => {
   })
 
   test('anything else is no filter at all', () => {
-    for (const raw of [undefined, null, 0, 3, ['photo'], 'all', 'music', '', 'Photo'])
+    for (const raw of [undefined, null, 0, 3, ['photo'], 'all', '', 'Photo'])
       expect(parseLibraryType(raw)).toBeUndefined()
   })
 })

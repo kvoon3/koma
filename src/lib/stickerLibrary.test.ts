@@ -12,7 +12,9 @@ import {
   foldersInUse,
   gcRetired,
   MAX_FOLDER_NAME,
+  musicAssetsOf,
   normalizePhotoKinds,
+  paneAssetsOf,
   photoAssetsOf,
   pruneCutouts,
   referenceCounts,
@@ -99,6 +101,12 @@ describe('the two library lists', () => {
     const music = { ...photo('m1'), kind: 'music' as string } as Photo
     expect(photoAssetsOf([photo('p1'), music]).map(p => p.id)).toEqual(['p1'])
     expect(stickerAssetsOf([sticker('s1'), music]).map(p => p.id)).toEqual(['s1'])
+  })
+
+  test('music cards have their own list, and join photos for a pane', () => {
+    const list = [photo('p1'), sticker('s1'), photo('m1', { kind: 'music' }), photo('m2', { kind: 'music', orphaned: true })]
+    expect(musicAssetsOf(list).map(p => p.id)).toEqual(['m1'])
+    expect(paneAssetsOf(list).map(p => p.id)).toEqual(['p1', 'm1'])
   })
 })
 

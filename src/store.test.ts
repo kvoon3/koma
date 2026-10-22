@@ -4,6 +4,7 @@ import { degToRad, radToDeg } from './lib/detent'
 import { mulberry32 } from './lib/gridTools'
 import { canRedo, canUndo, emptyHistory, HISTORY_LIMIT, historyPath, stepCount } from './lib/history'
 import { leafList, newLabel, rotationOf } from './lib/panes'
+import { musicAssetsOf, paneAssetsOf, photoAssetsOf } from './lib/stickerLibrary'
 import { MAX_GRIDS } from './lib/workspaces'
 
 // The `document` / `localStorage` stand-ins this file relies on are the shared
@@ -999,5 +1000,61 @@ describe('photo management (tags, usage, delete)', () => {
     hydrateWith([photo('p1', { tags: ['Trip'] })], { meta: { photoTags: ['Trip'] } })
     state().clearLibrary()
     expect(state().photoTags).toEqual([])
+  })
+})
+
+describe('music cards (a library asset)', () => {
+  const state = () => useStore.getState()
+  const meta = {
+    provider: 'spotify' as const,
+    title: 'Never Gonna Give You Up',
+    artist: '',
+    url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC',
+  }
+  const card = () => new File([new Uint8Array([137, 80, 78, 71])], 'Never Gonna Give You Up.png', { type: 'image/png' })
+
+  test('addMusicCard appends a music asset with the card dimensions', () => {
+    const created = state().addMusicCard(card(), meta)
+    expect(created.kind).toBe('music')
+    expect(created.music).toEqual(meta)
+    expect(created.trueW).toBe(1024)
+    expect(created.trueH).toBe(1024)
+    expect(state().photos.find(p => p.id === created.id)).toEqual(created)
+  })
+
+  test('a card joins the pane pool but never the photo list', () => {
+    const created = state().addMusicCard(card(), meta)
+    expect(photoAssetsOf(state().photos).some(p => p.id === created.id)).toBe(false)
+    expect(musicAssetsOf(state().photos).map(p => p.id)).toEqual([created.id])
+    expect(paneAssetsOf(state().photos).map(p => p.id)).toEqual([created.id])
+  })
+
+  test('adding a card fills no pane and records no undo step', () => {
+    expect(leafList(ws().root).every(l => !l.photoId)).toBe(true)
+    const before = depth()
+    state().addMusicCard(card(), meta)
+    expect(leafList(ws().root).every(l => !l.photoId)).toBe(true)
+    expect(depth()).toBe(before)
+  })
+
+  test('a reload restores the kind and the source', () => {
+    const created = state().addMusicCard(card(), meta)
+    const cell = state().workspaces[0]!
+    state().hydrate({
+      meta: {
+        workspaces: [cell],
+        activeId: cell.id,
+        gap: 0,
+        radius: 0,
+        bg: '#000000',
+        longSide: 2048,
+        format: 'image/jpeg',
+        quality: 0.92,
+      } as never,
+      photos: state().photos,
+    })
+    const restored = state().photos.find(p => p.id === created.id)!
+    expect(restored.kind).toBe('music')
+    expect(restored.music).toEqual(meta)
   })
 })

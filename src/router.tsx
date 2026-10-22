@@ -14,6 +14,7 @@ import { HelpOverlay } from './components/HelpOverlay'
 import { LegacyIndex } from './components/LegacyIndex'
 import { LibraryPage } from './components/library/LibraryPage'
 import { LibraryDrawer } from './components/LibraryDrawer'
+import { MusicCardDialog } from './components/MusicCardDialog'
 import { Stage } from './components/Stage'
 import ToastHost from './components/ToastHost'
 import { ToolsDockHost } from './components/ToolsDock'
@@ -55,6 +56,10 @@ function RootLayout() {
   const [libOpen, setLibOpen] = usePersisted('libOpen', false)
   const [settingsOpen, setSettingsOpen] = usePersisted('settingsOpen', false)
   const [helpOpen, setHelpOpen] = useState(false)
+  // One music card dialog for the whole app: the stage dock and the library
+  // header only flip this flag.
+  const musicCardOpen = useStore(s => s.musicCardOpen)
+  const setMusicCardOpen = useStore(s => s.setMusicCardOpen)
 
   initTheme()
 
@@ -221,6 +226,8 @@ function RootLayout() {
         <HelpOverlay open={helpOpen} onClose={closeHelp} />
 
         <WeChatGuard />
+
+        <MusicCardDialog open={musicCardOpen} onClose={() => setMusicCardOpen(false)} />
 
         <ToastHost />
 

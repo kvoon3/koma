@@ -3,6 +3,7 @@ import type { BgImage } from './collageBg'
 import type { CutoutMap } from './cutout'
 import type { CutoutSets } from './cutoutVariants'
 import type { Photo } from './imageStore'
+import type { MusicMeta } from './musicLink'
 import { mapSeq } from './async'
 import { downloadBlob } from './exporter'
 
@@ -36,10 +37,12 @@ export interface WorkspaceDocV1 {
     trueH: number
     data: string
     video?: string
-    /** A made sticker rather than an imported photo; absent = photo. */
-    kind?: 'photo' | 'sticker'
+    /** A made sticker or music card rather than an imported photo; absent = photo. */
+    kind?: 'photo' | 'sticker' | 'music'
     /** Sticker folder; absent = Unsorted. */
     folder?: string
+    /** The track or album a music card was made from. */
+    music?: MusicMeta
   }[]
 }
 
@@ -102,6 +105,8 @@ export async function buildDoc(s: WorkspaceFileState): Promise<WorkspaceDocV1> {
       entry.kind = p.kind
     if (p.folder)
       entry.folder = p.folder
+    if (p.music)
+      entry.music = p.music
     if (p.videoFile)
       entry.video = await fileToDataUrl(p.videoFile)
     return entry
@@ -172,6 +177,7 @@ export async function parseWorkspaceFile(file: File): Promise<{ doc: WorkspaceDo
       trueH: p.trueH,
       kind: p.kind,
       folder: p.folder,
+      music: p.music,
     }
     if (p.video) {
       // Live Photos pair still+video by basename (livephoto.ts baseKey), so

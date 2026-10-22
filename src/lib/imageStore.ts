@@ -1,3 +1,4 @@
+import type { MusicMeta } from './musicLink'
 import type { StickerRecipe } from './stickerRecipe'
 import { decodeHeicBitmap, looksHeic, probeHeic } from './heic'
 
@@ -7,12 +8,18 @@ export interface Photo {
   file: File
   /**
    * What kind of asset this is: a photo (the default, and every photo saved
-   * before stickers became assets of their own) or a sticker the maker
-   * produced. The two library views filter on it (see lib/stickerLibrary).
+   * before stickers became assets of their own), a sticker the maker
+   * produced, or a music card rendered from a streaming link. The library
+   * views filter on it (see lib/stickerLibrary).
    */
-  kind?: 'photo' | 'sticker'
+  kind?: 'photo' | 'sticker' | 'music'
   /** Sticker folder, one level deep; absent = Unsorted. Only set on stickers. */
   folder?: string
+  /**
+   * The track or album a music card was made from, so the card can open its
+   * source and the library can label its provider. Only set on music cards.
+   */
+  music?: MusicMeta
   /**
    * Manual tags, in the order they were attached; absent = untagged. Many to a
    * photo (a sticker has one folder), and the tag list itself is session state

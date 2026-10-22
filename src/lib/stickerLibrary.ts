@@ -5,9 +5,11 @@ import type { Sticker } from './panes'
 import { cleanEntryName, MAX_NAME_LEN, sameEntryName } from './assetNames'
 
 /**
- * Sticker assets: the PNGs the sticker maker writes into the photo library,
- * kept apart from the photos by a marker on the asset itself
+ * The library's asset kinds. Stickers are the PNGs the maker writes into the
+ * photo library, kept apart from the photos by a marker on the asset itself
  * (`Photo.kind`) plus a one-level folder (`Photo.folder`, absent = Unsorted).
+ * Music cards carry the same marker (`'music'`) and no folder; they are images
+ * like photos, so they also join the pane-fill pool (`paneAssetsOf`).
  *
  * Two states beyond that marker:
  * - `orphaned`: the asset was deleted from the library while a placed copy
@@ -38,6 +40,20 @@ export function photoAssetsOf(photos: readonly Photo[]): Photo[] {
 /** The assets the sticker manager lists: makers' output only, retired ones hidden. */
 export function stickerAssetsOf(photos: readonly Photo[]): Photo[] {
   return photos.filter(p => p.kind === 'sticker' && !p.orphaned)
+}
+
+/** The assets the music section lists: rendered cards only, retired ones hidden. */
+export function musicAssetsOf(photos: readonly Photo[]): Photo[] {
+  return photos.filter(p => p.kind === 'music' && !p.orphaned)
+}
+
+/**
+ * Every asset a pane can show. Music cards are ordinary square images, so
+ * they fill panes beside photos; a sticker never does (it is decoration), and
+ * an orphaned snapshot is hidden from every picker.
+ */
+export function paneAssetsOf(photos: readonly Photo[]): Photo[] {
+  return photos.filter(p => ((p.kind ?? 'photo') === 'photo' || p.kind === 'music') && !p.orphaned)
 }
 
 /** A sticker's folder name; '' is Unsorted (the chip the page adds itself). */
