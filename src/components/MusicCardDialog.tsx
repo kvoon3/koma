@@ -218,9 +218,11 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                   void generate()
                 }}
               />
-              <Button variant="strong" data-music-generate="" disabled={!link.trim() || resolving} onClick={() => void generate()}>
-                {t('Generate')}
-              </Button>
+              <span className="flex flex-none">
+                <Button variant="strong" data-music-generate="" disabled={!link.trim() || resolving} onClick={() => void generate()}>
+                  {t('Generate')}
+                </Button>
+              </span>
             </div>
 
             {/* Fixed line: the dialog must not resize as the error comes and goes. */}
