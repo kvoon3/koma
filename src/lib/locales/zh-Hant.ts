@@ -747,4 +747,7 @@ export const zhHant: Record<TKey, string> = {
   'Photo minimap, drag to pan': '照片小地圖，拖動平移',
   // Canvas view zoom (wave4/pane-controls): the percentage chip on the stage margin.
   'Canvas at {n}% · click to fit': '畫布 {n}% · 點擊適應視窗',
+  // Unified library
+  'No photos match this search or filter.': '沒有照片符合此搜尋或篩選。',
+  'No stickers match this search or filter.': '沒有貼圖符合此搜尋或篩選。',
 }
