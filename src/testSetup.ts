@@ -32,4 +32,7 @@ Object.assign(globalThis, {
   },
   window: { localStorage: storage },
   localStorage: storage,
+  // `t()` runs at document-creation time now (a card preset's placeholder
+  // copy), and language detection reads the browser's preference list.
+  navigator: { languages: ['en-US'], userAgent: '', platform: '', maxTouchPoints: 0 },
 })

@@ -188,6 +188,21 @@ describe('undo / redo over the workspace grid', () => {
     expect(useStore.getState().activeId).toBe(ws().id)
   })
 
+  test('a seeded card arrives with its labels and leaves in one undo', () => {
+    const before = useStore.getState().workspaces
+    const added = useStore.getState().addWorkspace('cover')
+    expect(added).not.toBeNull()
+    expect(useStore.getState().workspaces).toHaveLength(before.length + 1)
+    const card = useStore.getState().workspaces.find(w => w.id === added)!
+    expect(card.canvasRatio).toBe(1)
+    expect(card.labels.map(l => l.text)).toEqual(['Your title', 'Your artist'])
+    expect(depth()).toBe(1)
+
+    useStore.getState().undo()
+    expect(useStore.getState().workspaces).toHaveLength(before.length)
+    expect(useStore.getState().workspaces.some(w => w.id === added)).toBe(false)
+  })
+
   test('a removed slot comes back with its board', () => {
     useStore.getState().split(ws().focusId, 'row')
     const id = ws().id
