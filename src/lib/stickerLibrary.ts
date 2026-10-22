@@ -30,9 +30,9 @@ import { cleanEntryName, MAX_NAME_LEN, sameEntryName } from './assetNames'
 /** Folders are one level deep and named by hand; the cap keeps a chip readable. */
 export const MAX_FOLDER_NAME = MAX_NAME_LEN
 
-/** The assets the photo library lists: never a sticker, never a retired snapshot. */
+/** The assets the photo library lists: photos only, never a retired snapshot. */
 export function photoAssetsOf(photos: readonly Photo[]): Photo[] {
-  return photos.filter(p => p.kind !== 'sticker' && !p.orphaned)
+  return photos.filter(p => (p.kind ?? 'photo') === 'photo' && !p.orphaned)
 }
 
 /** The assets the sticker manager lists: makers' output only, retired ones hidden. */
