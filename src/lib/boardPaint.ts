@@ -125,8 +125,9 @@ export function minimapStyles(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
 // room to seat; on the stage the seat is fixed, so width does not apply.
 const MINIMAP_ZOOM = 1.05
 const MINIMAP_MIN_BOX = 260
-const STAGE_SEAT_GAP = 12
-const STAGE_SEAT_LEFT = 10
+// Stage-absolute, below the action cluster and clear of the ScaleRail readout.
+const STAGE_SEAT_TOP = 56
+const STAGE_SEAT_RIGHT = 80
 
 /** Whether a focused pane shows its minimap, given where the chip would sit. */
 export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, previewUrl?: string, boxWidth: number }): boolean {
@@ -136,22 +137,12 @@ export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, p
 }
 
 /**
- * The stage-seated chip's box: bottom-left, just above the tools sheet, and
- * never above the stage's own chrome or off the viewport. Null means no room.
+ * The stage-seated chip's box, relative to the stage root: top-right, under the
+ * action cluster and clear of the ScaleRail. Fixed at every view zoom, since
+ * the seat is outside the canvas transform.
  */
-export function stageMinimapSeat(o: {
-  sheetTop: number | null
-  chromeBottom: number | null
-  chip: { w: number, h: number }
-  gap?: number
-  left?: number
-}): { left: number, top: number } | null {
-  if (o.sheetTop == null)
-    return null
-  const top = o.sheetTop - (o.gap ?? STAGE_SEAT_GAP) - o.chip.h
-  if (top < 0 || (o.chromeBottom != null && top < o.chromeBottom))
-    return null
-  return { left: o.left ?? STAGE_SEAT_LEFT, top }
+export function stageMinimapSeat(): { top: number, right: number } {
+  return { top: STAGE_SEAT_TOP, right: STAGE_SEAT_RIGHT }
 }
 
 /** The minimap window as CSS, so the render and a painted frame write the same values. */

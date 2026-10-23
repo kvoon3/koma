@@ -118,23 +118,8 @@ describe('minimapVisible', () => {
 })
 
 describe('stageMinimapSeat', () => {
-  const chip = { w: 58, h: 44 }
-
-  it('anchors the chip bottom-left, a gap above the sheet', () => {
-    expect(stageMinimapSeat({ sheetTop: 700, chromeBottom: 100, chip })).toEqual({ left: 10, top: 700 - 12 - 44 })
-  })
-
-  it('takes a custom gap and left inset', () => {
-    expect(stageMinimapSeat({ sheetTop: 700, chromeBottom: null, chip, gap: 8, left: 16 })).toEqual({ left: 16, top: 648 })
-  })
-
-  it('has no seat without a sheet', () => {
-    expect(stageMinimapSeat({ sheetTop: null, chromeBottom: null, chip })).toBeNull()
-  })
-
-  it('has no seat when it would rise above the top chrome or off the viewport', () => {
-    expect(stageMinimapSeat({ sheetTop: 200, chromeBottom: 150, chip })).toBeNull()
-    expect(stageMinimapSeat({ sheetTop: 40, chromeBottom: null, chip })).toBeNull()
+  it('anchors the chip top-right under the action cluster, clear of the rail', () => {
+    expect(stageMinimapSeat()).toEqual({ top: 56, right: 80 })
   })
 })
 

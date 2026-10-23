@@ -1,4 +1,5 @@
 import type { ContextMenu } from '@base-ui/react/context-menu'
+import type { MinimapView } from '../lib/boardPaint'
 import type { Photo, Preview } from '../lib/imageStore'
 import type { Leaf, Rect, SeamSides } from '../lib/panes'
 import { useNavigate } from '@tanstack/react-router'
@@ -7,7 +8,7 @@ import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
-import { minimapStyles, minimapViewStyle, paintPanePhoto, paneBoxStyle, photoBoxStyle, transformOf } from '../lib/boardPaint'
+import { minimapStyles, minimapViewStyle, minimapVisible, paintMinimapView, paintPanePhoto, paneBoxStyle, photoBoxStyle, stageMinimapSeat, transformOf } from '../lib/boardPaint'
 import { viewScaleAt } from '../lib/canvasView'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
@@ -17,6 +18,7 @@ import { clampLeaf, cornerRadiiCss, isPaneTransformed, leafCornerRadii, paneTran
 import { OVERVIEW_PATH } from '../lib/routes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
+import { useMinimapHost } from './minimapHost'
 import { PaneMenu } from './PaneMenu'
 
 /* One split button. The chip's height is the page row's (back / reset), so the
@@ -198,19 +200,128 @@ export function PaneSplitTools({
 const MINIMAP_INSET = 'p-5'
 
 /**
- * The focused pane's minimap: the app's floating chip (float-bg + blur),
- * pinned INSIDE the photo at its bottom-right corner once the photo overflows
- * the pane. It is the only zoom chrome left on a pane: the photo's own zoom is
- * the wheel / pinch gesture and the dock's Fit commands, and a pair of +/-
- * buttons next to it only repeated them.
+ * The minimap chip's thumbnail and viewport window, with its grab-to-pan
+ * gesture. Where it sits is the container's business: the pane's corner from
+ * lg up, the stage's top-right on compact.
+ */
+function MinimapChip({
+  view,
+  frame,
+  iw,
+  ih,
+  previewUrl,
+  onPan,
+  viewportRef,
+}: {
+  /** The pane's window as photo fractions (`lib/boardPaint.minimapView`). */
+  view: MinimapView
+  frame: string
+  iw: number
+  ih: number
+  previewUrl: string | undefined
+  /** Grab-pan to a photo fraction, through the pane's clamped commit. */
+  onPan: (cx: number, cy: number) => void
+  /** The window a gesture paints, so a stage-seated chip's box stays live. */
+  viewportRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const t = useT()
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    const el = e.currentTarget
+    el.setPointerCapture(e.pointerId)
+    // The grab point in photo fractions, keeping the drag's start offset from
+    // the viewport centre so a drag carries the view instead of jumping. Both
+    // reads are ratios against the chip's measured box, so they hold under the
+    // canvas view zoom as well.
+    const start = el.getBoundingClientRect()
+    const grab = {
+      u: view.x + view.w / 2 - (e.clientX - start.left) / start.width,
+      v: view.y + view.h / 2 - (e.clientY - start.top) / start.height,
+    }
+    const move = (ev: PointerEvent) => {
+      const r = el.getBoundingClientRect()
+      const u = (ev.clientX - r.left) / r.width + grab.u
+      const v = (ev.clientY - r.top) / r.height + grab.v
+      onPan(u, v)
+    }
+    const up = () => {
+      el.removeEventListener('pointermove', move)
+      el.removeEventListener('pointerup', up)
+      el.removeEventListener('pointercancel', up)
+    }
+    el.addEventListener('pointermove', move)
+    el.addEventListener('pointerup', up)
+    el.addEventListener('pointercancel', up)
+    // A plain click (no move) centres on the point: the same handler with
+    // the grab offset zeroed would jump; instead treat click as recenter.
+    const wasDrag = { moved: false }
+    const track = () => {
+      wasDrag.moved = true
+    }
+    el.addEventListener('pointermove', track, { once: true })
+    el.addEventListener('pointerup', () => {
+      if (!wasDrag.moved) {
+        const r = el.getBoundingClientRect()
+        onPan((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
+      }
+    }, { once: true })
+  }
+  return (
+    <div
+      data-pane-minimap-chip=""
+      className="pointer-events-auto flex drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
+      // A double click on the chip must not reach the pane's own
+      // double-click (reset the view): the chip is not the photo. A portal
+      // still bubbles through the pane's React tree, so this stays.
+      onDoubleClick={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <div
+        data-pane-minimap=""
+        aria-label={t('Photo minimap, drag to pan')}
+        title={t('Photo minimap, drag to pan')}
+        className={`relative cursor-grab overflow-hidden bg-float-bg ${frame}`}
+        style={{ aspectRatio: `${iw} / ${ih}` }}
+        onPointerDown={onPointerDown}
+      >
+        {previewUrl && (
+          <img
+            src={previewUrl}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <div
+          ref={viewportRef}
+          data-pane-minimap-viewport=""
+          className="pointer-events-none absolute border-[1.5px] border-accent outline-1 outline-white/70 bg-accent/15"
+          style={minimapViewStyle(view)}
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The focused pane's minimap: the app's floating chip (float-bg + blur), shown
+ * once the photo overflows the pane. It is the only zoom chrome left on a pane:
+ * the photo's own zoom is the wheel / pinch gesture and the dock's Fit
+ * commands, and a pair of +/- buttons next to it only repeated them.
  *
- * The corner is the placed photo's own rect (`lib/panes.placement`) clipped to
- * the pane, not the pane's corner: a zoomed-out photo pulls the chip in with
- * it, and the inset keeps it clear of the pane's edge, so it can never land on
- * a divider or a neighbour's photo. The tools sheet is a fixed overlay with no
+ * From lg up it is pinned INSIDE the photo at its bottom-right corner. The
+ * corner is the placed photo's own rect (`lib/panes.placement`) clipped to the
+ * pane, not the pane's corner: a zoomed-out photo pulls the chip in with it,
+ * and the inset keeps it clear of the pane's edge, so it can never land on a
+ * divider or a neighbour's photo. The tools sheet is a fixed overlay with no
  * put-away state, and a tall canvas keeps running underneath it, so the box
  * also stops at the sheet's top edge and the chip lifts itself over the sheet
  * instead of living behind its glass.
+ *
+ * Below lg the pane is too narrow to seat the chip and the sheet covers the
+ * pane's bottom corner, so the chip is seated on the stage instead: top-right,
+ * under the action cluster, portalled outside the canvas transform so it stays
+ * put as the board zooms.
  *
  * Quiet while the photo is the subject (0.7, 0.9 for a finger, which has no
  * hover to confirm the control exists) and full weight under the pointer, so
@@ -225,6 +336,9 @@ function PaneMinimap({
   ih,
   previewUrl,
   onPan,
+  compact,
+  host,
+  viewportRef,
 }: {
   paneEl: React.RefObject<HTMLDivElement | null>
   leaf: Leaf
@@ -238,8 +352,12 @@ function PaneMinimap({
   previewUrl: string | undefined
   /** Grab-pan to a photo fraction, through the pane's clamped commit. */
   onPan: (cx: number, cy: number) => void
+  /** Below lg the chip seats on the stage rather than in the pane. */
+  compact: boolean
+  /** The stage's overlay for a stage-seated chip; null until it mounts. */
+  host: HTMLElement | null
+  viewportRef: React.RefObject<HTMLDivElement | null>
 }) {
-  const t = useT()
   const sheetTop = useToolsSheetTop()
   const coarse = useMediaQuery('(pointer: coarse)')
   // A finger gets no hover to confirm the control exists, so the chip rests
@@ -250,6 +368,10 @@ function PaneMinimap({
   // rather than by every commit: a pan inside the pane moves neither box.
   const [paneTop, setPaneTop] = useState<number | null>(null)
   useLayoutEffect(() => {
+    // Compact has no pane-local box to clip; the effect re-reads the top
+    // before paint when the layout returns to lg.
+    if (compact)
+      return
     const el = paneEl.current
     if (!el)
       return
@@ -267,72 +389,43 @@ function PaneMinimap({
       ro.disconnect()
       window.removeEventListener('resize', read)
     }
-  }, [paneEl])
+  }, [paneEl, compact])
 
   // The photo's visible part clipped to the pane, and to the room the tools
-  // sheet leaves. The math lives in `boardPaint`, so a divider drag paints the
-  // same box through `paintPanePhoto`.
-  const sheetLimit = sheetTop == null || paneTop == null ? undefined : sheetTop - paneTop
+  // sheet leaves. A stage-seated chip has no pane box to clip. The math lives
+  // in `boardPaint`, so a divider drag paints the same box.
+  const sheetLimit = !compact && sheetTop != null && paneTop != null ? sheetTop - paneTop : undefined
 
-  // The minimap appears once the photo overflows the pane (zoom above
-  // ~1.05) and the visible box is wide enough to seat it. The viewport
-  // rect is the pane's window as photo fractions: placement inverted.
-  // Dragging feeds cx/cy through the pane's clamped commit, so the pan
-  // path's coalescing and undo carry.
+  // The chip appears once the photo overflows the pane and there is somewhere
+  // to seat it: in the pane the visible box must be wide enough; on the stage
+  // the seat is fixed, so only the overflow and the preview matter.
   const minimap = useMemo(() => {
-    const MINIMAP_ZOOM = 1.05
     const { box, view } = minimapStyles(cell, rect, leaf, iw, ih, sheetLimit)
-    if (leaf.zoom <= MINIMAP_ZOOM || box.width < 260 || !previewUrl)
+    if (!minimapVisible({ placement: compact ? 'stage' : 'pane', zoom: leaf.zoom, previewUrl, boxWidth: box.width }))
       return null
-    const frame = coarse ? 'h-[44px] w-[58px]' : 'h-[40px] w-[52px]'
-    const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-      e.stopPropagation()
-      const el = e.currentTarget
-      el.setPointerCapture(e.pointerId)
-      // The grab point in photo fractions, keeping the drag's start offset from
-      // the viewport centre so a drag carries the view instead of jumping. Both
-      // reads are ratios against the chip's measured box, so they hold under the
-      // canvas view zoom as well.
-      const start = el.getBoundingClientRect()
-      const grab = {
-        u: view.x + view.w / 2 - (e.clientX - start.left) / start.width,
-        v: view.y + view.h / 2 - (e.clientY - start.top) / start.height,
-      }
-      const move = (ev: PointerEvent) => {
-        const r = el.getBoundingClientRect()
-        const u = (ev.clientX - r.left) / r.width + grab.u
-        const v = (ev.clientY - r.top) / r.height + grab.v
-        onPan(u, v)
-      }
-      const up = () => {
-        el.removeEventListener('pointermove', move)
-        el.removeEventListener('pointerup', up)
-        el.removeEventListener('pointercancel', up)
-      }
-      el.addEventListener('pointermove', move)
-      el.addEventListener('pointerup', up)
-      el.addEventListener('pointercancel', up)
-      // A plain click (no move) centres on the point: the same handler with
-      // the grab offset zeroed would jump; instead treat click as recenter.
-      const wasDrag = { moved: false }
-      const track = () => {
-        wasDrag.moved = true
-      }
-      el.addEventListener('pointermove', track, { once: true })
-      el.addEventListener('pointerup', () => {
-        if (!wasDrag.moved) {
-          const r = el.getBoundingClientRect()
-          onPan((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
-        }
-      }, { once: true })
-    }
-    return { frame, box, view, onPointerDown }
-  }, [leaf, cell, rect, iw, ih, sheetLimit, previewUrl, onPan, coarse])
+    return { box, view }
+  }, [leaf, cell, rect, iw, ih, sheetLimit, previewUrl, compact])
 
+  const frame = coarse ? 'h-[44px] w-[58px]' : 'h-[40px] w-[52px]'
   // Nothing to show while the photo fits the pane: the chip appears with the
   // overflow it exists to navigate.
   if (!minimap)
     return null
+
+  const chip = (
+    <MinimapChip view={minimap.view} frame={frame} iw={iw} ih={ih} previewUrl={previewUrl} onPan={onPan} viewportRef={viewportRef} />
+  )
+
+  if (compact) {
+    if (!host)
+      return null
+    return createPortal(
+      <div data-pane-minimap-stage="" className={`pointer-events-none absolute transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${rest}`} style={stageMinimapSeat()}>
+        {chip}
+      </div>,
+      host,
+    )
+  }
 
   return (
     <div
@@ -340,37 +433,7 @@ function PaneMinimap({
       className={`pointer-events-none absolute z-[3] flex items-end justify-end transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${MINIMAP_INSET} ${rest}`}
       style={minimap.box}
     >
-      <div
-        data-pane-minimap-chip=""
-        className="pointer-events-auto flex drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]"
-        // A double click on the chip must not reach the pane's own
-        // double-click (reset the view): the chip is not the photo.
-        onDoubleClick={e => e.stopPropagation()}
-        onPointerDown={e => e.stopPropagation()}
-      >
-        <div
-          data-pane-minimap=""
-          aria-label={t('Photo minimap, drag to pan')}
-          title={t('Photo minimap, drag to pan')}
-          className={`relative cursor-grab overflow-hidden bg-float-bg ${minimap.frame}`}
-          style={{ aspectRatio: `${iw} / ${ih}` }}
-          onPointerDown={minimap.onPointerDown}
-        >
-          {previewUrl && (
-            <img
-              src={previewUrl}
-              alt=""
-              draggable={false}
-              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-            />
-          )}
-          <div
-            data-pane-minimap-viewport=""
-            className="pointer-events-none absolute border-[1.5px] border-accent outline-1 outline-white/70 bg-accent/15"
-            style={minimapViewStyle(minimap.view)}
-          />
-        </div>
-      </div>
+      {chip}
     </div>
   )
 }
@@ -950,6 +1013,7 @@ interface PaneGestureRuntime {
   photo: Photo | null
   hasLiveVideo: boolean
   elRef: React.RefObject<HTMLDivElement | null>
+  minimapViewRef: React.RefObject<HTMLDivElement | null>
   pointersRef: React.RefObject<Map<number, { x: number, y: number }>>
   gestureRef: React.RefObject<Gesture | null>
   touchPressRef: React.RefObject<boolean>
@@ -980,7 +1044,8 @@ function currentLeaf(rt: { leaf: Leaf, draftRef: React.RefObject<Leaf | null> })
 
 /**
  * Put a leaf's placement straight on the pane's DOM: the photo's transform,
- * and the minimap's two boxes when it is showing.
+ * and the minimap's two boxes when it is showing. On compact widths the
+ * minimap's box is the stage seat, fixed; only its window moves with the pane.
  *
  * Panning is the app's most common gesture, and a store commit per pointermove
  * made one image move by a few pixels re-render the board, the dock and the
@@ -994,6 +1059,7 @@ function paintLeaf(rt: PaneGestureRuntime, leaf: Leaf) {
     rt.iw,
     rt.ih,
   )
+  paintMinimapView(rt.minimapViewRef.current, rt.cell, rt.drawRect, leaf, rt.iw, rt.ih)
 }
 
 /** Paint the placement and keep it as the value this gesture is carrying. */
@@ -1391,6 +1457,7 @@ function usePaneGestures({
   ih,
   photo,
   elRef,
+  minimapViewRef,
   onFocus,
   exitToGrid,
   local,
@@ -1405,6 +1472,8 @@ function usePaneGestures({
   ih: number
   photo: Photo | null
   elRef: React.RefObject<HTMLDivElement | null>
+  /** The stage-seated chip's window, for the gesture paint on compact widths. */
+  minimapViewRef: React.RefObject<HTMLDivElement | null>
   onFocus: (id: string) => void
   exitToGrid: () => void
   local: (cx: number, cy: number) => { x: number, y: number }
@@ -1504,6 +1573,7 @@ function usePaneGestures({
     photo,
     hasLiveVideo,
     elRef,
+    minimapViewRef,
     pointersRef,
     gestureRef,
     touchPressRef,
@@ -1735,6 +1805,11 @@ function PaneImpl({
   onClose,
 }: Props) {
   const elRef = useRef<HTMLDivElement | null>(null)
+  // Below lg the minimap is seated on the stage, so its viewport is outside the
+  // pane: this ref is the one `paintLeaf` writes during a pan or pinch.
+  const minimapViewRef = useRef<HTMLDivElement | null>(null)
+  const compact = useMediaQuery('(max-width: 1023.98px)')
+  const minimapHost = useMinimapHost()
   // A gesture paints its placement straight onto the DOM (see `paintLeaf`), so
   // the tree still holds the value it started from. Rendering the draft keeps
   // any render that lands mid-gesture (a photo finishing its decode, say) in
@@ -1796,7 +1871,7 @@ function PaneImpl({
     moveGhostTo,
     dropMoveAt,
     cancelMove,
-  } = usePaneGestures({ leaf, cell, drawRect: rect, draftRef, iw, ih, photo, elRef, onFocus, exitToGrid, local, commit, zoomAbout })
+  } = usePaneGestures({ leaf, cell, drawRect: rect, draftRef, iw, ih, photo, elRef, minimapViewRef, onFocus, exitToGrid, local, commit, zoomAbout })
 
   // A drop on a pane that already holds a photo asks what the image should
   // become; `at` is the drop point in pane-normalized coords for stickers.
@@ -1871,7 +1946,8 @@ function PaneImpl({
       />
 
       {/* Focus-only, like the × close button: the minimap, parked inside the
-          photo at its bottom-right once the photo overflows the pane. */}
+          photo at its bottom-right once the photo overflows the pane, or on
+          the stage's top-right below lg. */}
       {photoStyle && focused && (
         <PaneMinimap
           paneEl={elRef}
@@ -1882,6 +1958,9 @@ function PaneImpl({
           ih={ih}
           previewUrl={preview?.url}
           onPan={(cx, cy) => commit({ ...shownLeaf, cx, cy })}
+          compact={compact}
+          host={minimapHost}
+          viewportRef={minimapViewRef}
         />
       )}
 
