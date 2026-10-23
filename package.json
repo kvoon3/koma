@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "deploy:storybook": "bun run build-storybook && wrangler deploy --config wrangler.storybook.jsonc",
     "dev:desktop": "mygo dev",
     "build:desktop": "mygo build",
     "lint": "eslint . --cache --cache-strategy content --concurrency off",
