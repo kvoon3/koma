@@ -199,11 +199,6 @@ export function PaneSplitTools({
  */
 const MINIMAP_INSET = 'p-5'
 
-/**
- * The minimap chip's thumbnail and viewport window, with its grab-to-pan
- * gesture. Where it sits is the container's business: the pane's corner from
- * lg up, the stage's top-right on compact.
- */
 function MinimapChip({
   view,
   frame,
@@ -213,13 +208,11 @@ function MinimapChip({
   onPan,
   viewportRef,
 }: {
-  /** The pane's window as photo fractions (`lib/boardPaint.minimapView`). */
   view: MinimapView
   frame: string
   iw: number
   ih: number
   previewUrl: string | undefined
-  /** Grab-pan to a photo fraction, through the pane's clamped commit. */
   onPan: (cx: number, cy: number) => void
   /** The window a gesture paints, so a stage-seated chip's box stays live. */
   viewportRef: React.RefObject<HTMLDivElement | null>
@@ -352,7 +345,6 @@ function PaneMinimap({
   previewUrl: string | undefined
   /** Grab-pan to a photo fraction, through the pane's clamped commit. */
   onPan: (cx: number, cy: number) => void
-  /** Below lg the chip seats on the stage rather than in the pane. */
   compact: boolean
   /** The stage's overlay for a stage-seated chip; null until it mounts. */
   host: HTMLElement | null
@@ -391,14 +383,8 @@ function PaneMinimap({
     }
   }, [paneEl, compact])
 
-  // The photo's visible part clipped to the pane, and to the room the tools
-  // sheet leaves. A stage-seated chip has no pane box to clip. The math lives
-  // in `boardPaint`, so a divider drag paints the same box.
   const sheetLimit = !compact && sheetTop != null && paneTop != null ? sheetTop - paneTop : undefined
 
-  // The chip appears once the photo overflows the pane and there is somewhere
-  // to seat it: in the pane the visible box must be wide enough; on the stage
-  // the seat is fixed, so only the overflow and the preview matter.
   const minimap = useMemo(() => {
     const { box, view } = minimapStyles(cell, rect, leaf, iw, ih, sheetLimit)
     if (!minimapVisible({ placement: compact ? 'stage' : 'pane', zoom: leaf.zoom, previewUrl, boxWidth: box.width }))
@@ -1044,8 +1030,7 @@ function currentLeaf(rt: { leaf: Leaf, draftRef: React.RefObject<Leaf | null> })
 
 /**
  * Put a leaf's placement straight on the pane's DOM: the photo's transform,
- * and the minimap's two boxes when it is showing. On compact widths the
- * minimap's box is the stage seat, fixed; only its window moves with the pane.
+ * the minimap's box on desktop, and its window wherever the chip is seated.
  *
  * Panning is the app's most common gesture, and a store commit per pointermove
  * made one image move by a few pixels re-render the board, the dock and the
@@ -1472,7 +1457,6 @@ function usePaneGestures({
   ih: number
   photo: Photo | null
   elRef: React.RefObject<HTMLDivElement | null>
-  /** The stage-seated chip's window, for the gesture paint on compact widths. */
   minimapViewRef: React.RefObject<HTMLDivElement | null>
   onFocus: (id: string) => void
   exitToGrid: () => void
@@ -1945,9 +1929,6 @@ function PaneImpl({
         className="pointer-events-none absolute left-1/2 top-[9px] z-[3] -translate-x-1/2 opacity-0 transition-opacity duration-(--dur-fast) group-hover/pane:pointer-events-auto group-hover/pane:opacity-100 max-lg:hidden"
       />
 
-      {/* Focus-only, like the × close button: the minimap, parked inside the
-          photo at its bottom-right once the photo overflows the pane, or on
-          the stage's top-right below lg. */}
       {photoStyle && focused && (
         <PaneMinimap
           paneEl={elRef}

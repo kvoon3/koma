@@ -121,8 +121,6 @@ export function minimapStyles(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
   }
 }
 
-// The chip appears once the photo overflows the pane, and in-pane it needs the
-// room to seat; on the stage the seat is fixed, so width does not apply.
 const MINIMAP_ZOOM = 1.05
 const MINIMAP_MIN_BOX = 260
 // Stage-absolute, below the action cluster and clear of the ScaleRail readout.
