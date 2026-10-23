@@ -6,8 +6,11 @@
  *
  * - POST `VITE_JEV_API_URL` with `multipart/form-data`, the photo under the
  *   field `image`.
- * - `Authorization: Bearer <VITE_JEV_API_KEY>` when a key is set.
+ * - `Authorization: Bearer <VITE_JEV_API_KEY>` when a key is set locally.
  * - JSON answer `{ "labels": string[] }`.
+ *
+ * A production build with no explicit URL posts to the same-origin proxy at
+ * `JEV_PROXY_PATH` and never sends a client key. The Worker owns the secret.
  */
 import { cleanEntryName, sameEntryName } from './assetNames'
 import { MAX_TAG_NAME } from './photoTags'
@@ -21,6 +24,12 @@ export const JEV_TIMEOUT_MS = 20_000
 /** The multipart field the photo travels under. */
 export const JEV_IMAGE_FIELD = 'image'
 
+/** Where a production build without an explicit URL sends the photo. */
+export const JEV_PROXY_PATH = '/api/jev'
+
+/** Relative paths resolve against the page, or this in a non-browser test. */
+const FALLBACK_ORIGIN = 'http://localhost'
+
 /** The assumed answer, pinned by the parser test until the real shape lands. */
 export const JEV_RESPONSE_FIXTURE: Readonly<{ labels: string[] }> = {
   labels: ['person', 'beach', 'food'],
@@ -32,8 +41,43 @@ export interface JevConfig {
 }
 
 export interface JevEnv {
+  /** True for `vite build`, false for the dev server. */
+  readonly PROD?: boolean
   readonly VITE_JEV_API_URL?: string
   readonly VITE_JEV_API_KEY?: string
+}
+
+/**
+ * Property access only. A bare `import.meta.env` would inline every VITE_
+ * value, including the local-only key, into the public bundle.
+ */
+function runtimeEnv(): JevEnv {
+  return {
+    PROD: import.meta.env.PROD,
+    VITE_JEV_API_URL: import.meta.env.VITE_JEV_API_URL,
+    VITE_JEV_API_KEY: import.meta.env.DEV ? import.meta.env.VITE_JEV_API_KEY : undefined,
+  }
+}
+
+/** An absolute http(s) URL, or a single-slash path resolved against the page. */
+function endpointUrl(raw: string): URL | null {
+  if (raw.startsWith('//'))
+    return null
+  if (raw.startsWith('/')) {
+    try {
+      return new URL(raw, globalThis.location?.origin ?? FALLBACK_ORIGIN)
+    }
+    catch {
+      return null
+    }
+  }
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null
+  }
+  catch {
+    return null
+  }
 }
 
 /** The failures stay distinct so the dialog can say what went wrong. */
@@ -43,20 +87,16 @@ export type JevResult
   = | { ok: true, labels: string[] }
     | { ok: false, reason: JevFailureReason, status?: number }
 
-export function readJevConfig(env: JevEnv = import.meta.env): JevConfig | null {
-  const raw = env.VITE_JEV_API_URL?.trim()
+export function readJevConfig(env: JevEnv = runtimeEnv()): JevConfig | null {
+  const explicit = env.VITE_JEV_API_URL?.trim()
+  const raw = explicit || (env.PROD === true ? JEV_PROXY_PATH : '')
   if (!raw)
     return null
-  let url: URL
-  try {
-    url = new URL(raw)
-  }
-  catch {
+  const url = endpointUrl(raw)
+  if (!url)
     return null
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:')
-    return null
-  const key = env.VITE_JEV_API_KEY?.trim()
+  // Production never sends the key. The Worker supplies it.
+  const key = env.PROD === true ? null : env.VITE_JEV_API_KEY?.trim()
   return { url, key: key || null }
 }
 

@@ -4,6 +4,7 @@ import {
   buildJevRequest,
   cleanJevLabels,
   JEV_IMAGE_FIELD,
+  JEV_PROXY_PATH,
   JEV_RESPONSE_FIXTURE,
   MAX_JEV_LABELS,
   parseJevResponse,
@@ -37,6 +38,43 @@ describe('the endpoint is configured or hidden', () => {
     })
     expect(blankKey?.url.toString()).toBe('http://127.0.0.1:4319/classify')
     expect(blankKey?.key).toBeNull()
+  })
+
+  test('a relative path resolves against the page, protocol-relative is refused', () => {
+    const relative = readJevConfig({ VITE_JEV_API_URL: ' /api/jev ' })
+    expect(relative?.url.pathname).toBe('/api/jev')
+    expect(relative?.url.origin).toBe('http://localhost')
+    expect(readJevConfig({ VITE_JEV_API_URL: '//evil.example/api/jev' })).toBeNull()
+  })
+
+  test('a production build falls back to the same-origin proxy', () => {
+    const fallback = readJevConfig({ PROD: true })
+    expect(fallback?.url.pathname).toBe(JEV_PROXY_PATH)
+    expect(fallback?.url.origin).toBe('http://localhost')
+    expect(fallback?.key).toBeNull()
+
+    expect(readJevConfig({ PROD: false })).toBeNull()
+  })
+
+  test('an explicit URL still wins in a production build', () => {
+    const explicit = readJevConfig({ PROD: true, VITE_JEV_API_URL: 'https://mock.example/classify' })
+    expect(explicit?.url.toString()).toBe('https://mock.example/classify')
+  })
+
+  test('production drops the local key, so the bundle never needs one', () => {
+    const prod = readJevConfig({
+      PROD: true,
+      VITE_JEV_API_URL: 'https://mock.example/classify',
+      VITE_JEV_API_KEY: ' s3cret ',
+    })
+    expect(prod?.key).toBeNull()
+
+    const dev = readJevConfig({
+      PROD: false,
+      VITE_JEV_API_URL: '/api/jev',
+      VITE_JEV_API_KEY: ' s3cret ',
+    })
+    expect(dev?.key).toBe('s3cret')
   })
 })
 
