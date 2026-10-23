@@ -6,7 +6,7 @@ import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
 import type { StickerOriginalInput, StickerRecipe } from '../lib/stickerRecipe'
 import { Dialog } from '@base-ui/react/dialog'
-import { ImagePlus, Images, Scissors, X } from 'lucide'
+import { Camera, ImagePlus, Images, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { StickerMaskEditor } from '@/components/StickerMaskEditor'
@@ -22,6 +22,7 @@ import { saveMadeSticker } from '../lib/stickerAssets'
 import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
 import { editedStickerMeta, textOriginal } from '../lib/stickerRecipe'
 import { say } from '../lib/toast'
+import { CameraCapturePanel } from './sticker/CameraCapturePanel'
 import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 
 /**
@@ -272,6 +273,7 @@ function StickerStage({
   displayLongEdge,
   onDisplaySize,
   onPick,
+  onTakePhoto,
   onRemoveBg,
   onRestore,
   onAdjust,
@@ -290,6 +292,7 @@ function StickerStage({
   displayLongEdge: number
   onDisplaySize: (longEdge: number) => void
   onPick: () => void
+  onTakePhoto: () => void
   onRemoveBg: () => void
   onRestore: () => void
   onAdjust: () => void
@@ -305,36 +308,48 @@ function StickerStage({
         {t('Choose an image')}
       </span>
     )
+    const cameraLabel = (
+      <span className="flex items-center gap-2 whitespace-nowrap text-[12.5px] font-semibold">
+        <MorphIcon icon={Camera} size={18} strokeWidth={1.75} />
+        {t('Take a photo')}
+      </span>
+    )
     const cls = 'cursor-pointer text-dim transition-colors duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-[-1px]'
-    // The sticker page can draw its subject from the photos already imported:
-    // same stage, one more door, and the file picker keeps the whole frame.
+    // The sticker page can draw its subject from imported photos; the camera
+    // and the file picker still share the stage.
     if (onPickLibrary) {
       return (
-        <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`}>
+        <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`} data-sticker-stage="empty">
           <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} onClick={onPick}>
             {label}
           </button>
-          <button type="button" className={`flex h-1/2 w-full items-center justify-center gap-2 text-[12.5px] font-semibold ${cls}`} onClick={onPickLibrary}>
-            <MorphIcon icon={Images} size={18} strokeWidth={1.75} />
-            {t('From the photo library')}
-          </button>
+          <div className="flex h-1/2 w-full divide-x divide-line-strong">
+            <button type="button" className={`flex w-1/2 items-center justify-center ${cls}`} data-camera-open="" onClick={onTakePhoto}>
+              {cameraLabel}
+            </button>
+            <button type="button" className={`flex w-1/2 items-center justify-center gap-2 text-[12.5px] font-semibold ${cls}`} onClick={onPickLibrary}>
+              <MorphIcon icon={Images} size={18} strokeWidth={1.75} />
+              {t('From the photo library')}
+            </button>
+          </div>
         </div>
       )
     }
     return (
-      <button
-        type="button"
-        className={`${stageFrameCls} w-full ${cls}`}
-        onClick={onPick}
-      >
-        {label}
-      </button>
+      <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`} data-sticker-stage="empty">
+        <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} onClick={onPick}>
+          {label}
+        </button>
+        <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} data-camera-open="" onClick={onTakePhoto}>
+          {cameraLabel}
+        </button>
+      </div>
     )
   }
 
   if (tab === 'image' && imageStage === 'cuttingOut' && imageSrc && bgJob) {
     return (
-      <div className={stageFrameCls}>
+      <div className={stageFrameCls} data-sticker-stage="cuttingOut">
         <img src={imageSrc} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
         <CutoutOverlay job={bgJob} />
         <div className="absolute right-1.5 top-1.5 z-[1]">
@@ -345,7 +360,7 @@ function StickerStage({
   }
 
   return (
-    <div className={stageFrameCls}>
+    <div className={stageFrameCls} data-sticker-stage="ready">
       <StickerPreview
         source={source}
         outlineWidth={outlineWidth}
@@ -731,26 +746,34 @@ function MakerTextFields({ text, font, fontMeta, color, onText, onFont, onColor 
  * stage. One door at a time, in the order the page offers them.
  */
 function MakerStageSlot({
+  cameraOpen,
   pickingLibrary,
   editingMask,
   baseSrc,
   imageSrc,
+  onCancelCamera,
+  onCapture,
   onCancelPick,
   onPickPhoto,
   onApplyMask,
   onCancelMask,
   stage,
 }: {
+  cameraOpen: boolean
   pickingLibrary: boolean
   editingMask: boolean
   baseSrc: string | null
   imageSrc: string | null
+  onCancelCamera: () => void
+  onCapture: (file: File) => void
   onCancelPick: () => void
   onPickPhoto: (photo: Photo) => void
   onApplyMask: (url: string) => void
   onCancelMask: () => void
   stage: React.ComponentProps<typeof StickerStage>
 }) {
+  if (cameraOpen)
+    return <CameraCapturePanel onCapture={onCapture} onCancel={onCancelCamera} />
   if (pickingLibrary)
     return <LibraryPickPanel onCancel={onCancelPick} onPick={onPickPhoto} />
   if (editingMask && baseSrc)
@@ -849,8 +872,18 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   const [inserting, setInserting] = useState(false)
   /** Library mode only: the stage is showing the photo picker instead of a pick. */
   const [pickingLibrary, setPickingLibrary] = useState(false)
+  const [cameraOpen, setCameraOpen] = useState(false)
   const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask, original } = useStickerImage(seed.image)
   const libraryMode = target?.kind === 'library'
+
+  // The board host keeps this dialog mounted, so close and tab changes are the
+  // one reset point for the transient stage panels.
+  useEffect(() => {
+    if (open && tab === 'image')
+      return
+    setPickingLibrary(false)
+    setCameraOpen(false)
+  }, [open, tab])
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
 
@@ -899,7 +932,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     setToothSpacing(seed.toothSpacing)
   }
 
-  const canInsert = !!source && !!target && !inserting && !bgJob
+  const canInsert = !!source && !!target && !inserting && !bgJob && !cameraOpen
   /** The library target's folder, in the reader's own words ('' is Unsorted). */
   const saveLabel = target?.kind === 'library'
     ? t('Save to {folder}', { folder: target.folder || t('Unsorted') })
@@ -911,9 +944,6 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
       onOpenChange={(o) => {
         if (o)
           return
-        // Closing drops the photo picker with the dialog: reopening lands on the
-        // stage, not on a half-browsed library.
-        setPickingLibrary(false)
         onClose()
       }}
     >
@@ -944,10 +974,16 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
 
             {/* Upload + live preview share one stage; cutout progress frosts the raw pick. */}
             <MakerStageSlot
+              cameraOpen={cameraOpen}
               pickingLibrary={pickingLibrary}
               editingMask={editingMask}
               baseSrc={baseSrc}
               imageSrc={imageSrc}
+              onCancelCamera={() => setCameraOpen(false)}
+              onCapture={(file) => {
+                setCameraOpen(false)
+                loadFile(file)
+              }}
               onCancelPick={() => setPickingLibrary(false)}
               onPickPhoto={(photo: Photo) => {
                 setPickingLibrary(false)
@@ -974,10 +1010,19 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
                 displayLongEdge,
                 onDisplaySize: setDisplayLongEdge,
                 onPick: pickImage,
+                onTakePhoto: () => {
+                  setPickingLibrary(false)
+                  setCameraOpen(true)
+                },
                 onRemoveBg: removeBg,
                 onRestore: restoreOriginal,
                 onAdjust: () => setEditingMask(true),
-                onPickLibrary: libraryMode ? () => setPickingLibrary(true) : null,
+                onPickLibrary: libraryMode
+                  ? () => {
+                      setCameraOpen(false)
+                      setPickingLibrary(true)
+                    }
+                  : null,
               }}
             />
 

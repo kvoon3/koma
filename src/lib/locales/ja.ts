@@ -798,4 +798,18 @@ export const ja: Record<TKey, string> = {
   'Delete music card?': 'ミュージックカードを削除？',
   'No music cards yet. Make one with the Music tool.': 'ミュージックカードはまだありません。音楽ツールで作れます。',
   'No music cards match this search.': 'この検索に合うミュージックカードはありません。',
+
+  // Sticker maker: paper texture and camera (wave12/sticker-batch)
+  'Take a photo': '写真を撮る',
+  'Starting the camera…': 'カメラを起動中…',
+  'Use photo': 'この写真を使う',
+  'Camera preview': 'カメラプレビュー',
+  'Retry': '再試行',
+  'Camera access was denied. Allow camera access in the browser, then try again.': 'カメラへのアクセスが拒否されました。ブラウザでカメラを許可してから再試行してください。',
+  'No camera was found on this device.': 'このデバイスにカメラが見つかりません。',
+  'The camera needs a secure connection (HTTPS).': 'カメラには安全な接続（HTTPS）が必要です。',
+  'This browser cannot take photos.': 'このブラウザでは写真を撮影できません。',
+  'The camera is in use by another app.': 'カメラは他のアプリで使用中です。',
+  'The camera could not be used.': 'カメラを使用できませんでした。',
+  'Could not take the photo.': '写真を撮影できませんでした。',
 }
