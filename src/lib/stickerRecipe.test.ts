@@ -153,11 +153,8 @@ describe('the recipe\'s paper texture', () => {
     expect(stickerRecipeFrom(payload({ ...STYLE, texture: null }))?.style.texture).toBeNull()
   })
 
-  it('rejects the old strength shape and anything that is not a frozen print', () => {
+  it('rejects anything that is not a frozen print', () => {
     const malformed = [
-      { strength: 60 },
-      { strength: 100 },
-      { strength: 0 },
       { type: 'newsprint' },
       'wrinkle',
       'newsprints',

@@ -23,9 +23,10 @@ export type StickerTexture = (typeof STICKER_TEXTURES)[number]
 const SCREEN_COS = Math.SQRT1_2
 
 /**
- * One screen cell across, in display pixels. The stage draws a sticker about
- * 220px tall, so this is roughly 55 to 70 cells across its long edge: coarse
- * enough to read as dots at 1x, fine enough that a face stays a face.
+ * One screen cell across, in display pixels. The stage's frame is 220px tall and
+ * up to the dialog's width, so a sticker's long edge spans roughly 55 to 130
+ * cells: coarse enough to read as dots at 1x, fine enough that a face stays a
+ * face.
  */
 const DOT_PITCH_DISPLAY = 4
 /**
@@ -55,9 +56,9 @@ interface GrainField {
 }
 
 /**
- * One grain sample per display pixel, built once. Both the preview and the save
- * run at their own texture size but describe the same display sheet, so they
- * build the same field and place the same fibers.
+ * One grain sample per display pixel, so the grain describes the display sheet
+ * rather than the bake's own resolution. The preview and the save print the
+ * same texture and differ only by the final max-edge downscale.
  */
 function buildGrainField(width: number, height: number, scale: number): GrainField {
   const fieldWidth = Math.max(2, Math.ceil(width / scale))
@@ -126,8 +127,8 @@ export function applyNewsprint(
   const sums = new Float64Array(cellsU * cellsV)
   const counts = new Uint32Array(cellsU * cellsV)
 
-  // Pass one: every opaque pixel's tone into the cell it lands in, so a dot
-  // prints the local average rather than one pixel's noise.
+  // Every opaque pixel's tone goes into its cell, so a dot prints the local
+  // average rather than one pixel's noise.
   for (let y = 0; y < height; y += 1) {
     const row = y * width * 4
     let u = y * step
@@ -145,7 +146,6 @@ export function applyNewsprint(
     }
   }
 
-  // Pass two: the dot and the paper.
   const grain = buildGrainField(width, height, scale)
   const edge = EDGE_DISPLAY / DOT_PITCH_DISPLAY
   const paperR = PAPER[0]

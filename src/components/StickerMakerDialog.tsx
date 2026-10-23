@@ -63,7 +63,7 @@ const MATERIALS: { value: StickerMaterialType, label: TKey }[] = [
   { value: 'glitter', label: 'Glitter' },
 ]
 
-/** The paper finishes: none, or the newspaper print. One tap, no strength. */
+/** The paper finishes: none, or the newspaper print. */
 const PAPER_TEXTURES: { value: 'none' | StickerTexture, label: TKey }[] = [
   { value: 'none', label: 'None' },
   { value: 'newsprint', label: 'Newspaper' },
@@ -762,8 +762,9 @@ function MakerTextFields({ text, font, fontMeta, color, onText, onFont, onColor 
 type StageView = 'stage' | 'camera' | 'library' | 'mask'
 
 /**
- * What fills the stage slot: the library picker, the mask editor, or the live
- * stage. One door at a time, in the order the page offers them.
+ * What fills the stage slot: the camera panel, the library picker, the mask
+ * editor, or the live stage. One door at a time; the text tab always shows the
+ * stage.
  */
 function MakerStageSlot({
   view,

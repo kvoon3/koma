@@ -1,6 +1,7 @@
 /**
  * Deterministic value noise shared by the filter pipeline and the sticker
- * texture. Integer ops only, so the bytes stay put across runs and engines.
+ * texture. No Math.random or transcendentals, so the bytes stay put across runs
+ * and engines.
  */
 
 /** Hermite ramp: flat at both ends, so textures do not band at their joins. */

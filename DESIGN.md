@@ -764,7 +764,7 @@ with Retry where retrying can help, and the file door stays usable. The save
 button names the target ("Save to Faces"). The library host remounts the maker
 per opening, so its new sticker starts from an empty stage. The board host keeps
 the dialog mounted, so reopening it keeps the last pick, and the camera button
-on the ready stage keeps every source door one click away.
+on the ready stage keeps the camera reachable after a pick.
 
 **Paper texture: a newspaper print.** The maker's paper control is one
 segmented choice, None or Newspaper; there is no strength. It runs in
@@ -778,8 +778,8 @@ in the paper. The cell pitch is **4 display pixels** (the stage's drawn long
 edge, the same length the stamp sliders read), so the 480px preview and the
 960px save are the same printed sheet at two scales, and a face stays a face
 at the stage's own size. The recipe stores the pick in `style.texture`
-(`'newsprint'` or null); the old wrinkled-paper `{ strength }` shape is
-rejected by the validator, and null is byte-identical to no print. The board
+(`'newsprint'` or null); any other shape is rejected by the validator, and null
+is byte-identical to no print. The board
 and the export draw the baked PNG and need no print code. The print is pure
 `lib/stickerTexture` and is tested under Bun.
 

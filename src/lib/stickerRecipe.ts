@@ -125,7 +125,7 @@ function asPerforation(value: unknown): { ok: true, design: StickerBakeStyle['pe
 /**
  * Absent or null is "no texture": every recipe written before this field
  * existed. Once present it must name one of the frozen prints, or the recipe
- * is not a recipe. The old `{ strength }` shape is not one of them.
+ * is not a recipe.
  */
 function asTexture(value: unknown): { ok: true, design: StickerTexture | null } | { ok: false } {
   if (value == null)
