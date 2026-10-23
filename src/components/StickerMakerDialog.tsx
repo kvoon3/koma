@@ -390,7 +390,13 @@ function StickerStage({
               {t('Adjust cutout')}
             </Button>
           </div>
-          <Button variant="strong" onClick={onPick}>{t('Replace')}</Button>
+          <div className="flex flex-none items-center gap-1">
+            <Button variant="strong" data-camera-open="" onClick={onTakePhoto}>
+              <MorphIcon icon={Camera} size={12} strokeWidth={1.75} />
+              {t('Take a photo')}
+            </Button>
+            <Button variant="strong" onClick={onPick}>{t('Replace')}</Button>
+          </div>
         </div>
       )}
     </div>
@@ -747,14 +753,15 @@ function MakerTextFields({ text, font, fontMeta, color, onText, onFont, onColor 
   )
 }
 
+/** Which door fills the stage slot. One at a time, by construction. */
+type StageView = 'stage' | 'camera' | 'library' | 'mask'
+
 /**
  * What fills the stage slot: the library picker, the mask editor, or the live
  * stage. One door at a time, in the order the page offers them.
  */
 function MakerStageSlot({
-  cameraOpen,
-  pickingLibrary,
-  editingMask,
+  view,
   baseSrc,
   imageSrc,
   onCancelCamera,
@@ -765,9 +772,7 @@ function MakerStageSlot({
   onCancelMask,
   stage,
 }: {
-  cameraOpen: boolean
-  pickingLibrary: boolean
-  editingMask: boolean
+  view: StageView
   baseSrc: string | null
   imageSrc: string | null
   onCancelCamera: () => void
@@ -778,11 +783,15 @@ function MakerStageSlot({
   onCancelMask: () => void
   stage: React.ComponentProps<typeof StickerStage>
 }) {
-  if (cameraOpen)
+  // The panels belong to the image source, so the text tab always shows the
+  // stage even if a panel was open in the commit before the tab changed.
+  if (stage.tab !== 'image')
+    return <StickerStage {...stage} />
+  if (view === 'camera')
     return <CameraCapturePanel onCapture={onCapture} onCancel={onCancelCamera} />
-  if (pickingLibrary)
+  if (view === 'library')
     return <LibraryPickPanel onCancel={onCancelPick} onPick={onPickPhoto} />
-  if (editingMask && baseSrc)
+  if (view === 'mask' && baseSrc)
     return <StickerMaskEditor key={imageSrc ?? baseSrc} src={imageSrc ?? baseSrc} onCancel={onCancelMask} onApply={onApplyMask} />
   return <StickerStage {...stage} />
 }
@@ -889,22 +898,18 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   const [toothSpacing, setToothSpacing] = useState(seed.toothSpacing)
   const [displayLongEdge, setDisplayLongEdge] = useState(seed.displayLongEdge)
   const [textureStrength, setTextureStrength] = useState(seed.textureStrength)
-  const [editingMask, setEditingMask] = useState(false)
+  const [stageView, setStageView] = useState<StageView>('stage')
 
   const [inserting, setInserting] = useState(false)
-  /** Library mode only: the stage is showing the photo picker instead of a pick. */
-  const [pickingLibrary, setPickingLibrary] = useState(false)
-  const [cameraOpen, setCameraOpen] = useState(false)
   const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask, original } = useStickerImage(seed.image)
   const libraryMode = target?.kind === 'library'
 
   // The board host keeps this dialog mounted, so close and tab changes are the
-  // one reset point for the transient stage panels.
+  // reset point for the transient stage panel.
   useEffect(() => {
     if (open && tab === 'image')
       return
-    setPickingLibrary(false)
-    setCameraOpen(false)
+    setStageView('stage')
   }, [open, tab])
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
@@ -956,7 +961,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     setTextureStrength(seed.textureStrength)
   }
 
-  const canInsert = !!source && !!target && !inserting && !bgJob && !cameraOpen
+  const canInsert = !!source && !!target && !inserting && !bgJob && stageView !== 'camera'
   /** The library target's folder, in the reader's own words ('' is Unsorted). */
   const saveLabel = target?.kind === 'library'
     ? t('Save to {folder}', { folder: target.folder || t('Unsorted') })
@@ -998,28 +1003,26 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
 
             {/* Upload + live preview share one stage; cutout progress frosts the raw pick. */}
             <MakerStageSlot
-              cameraOpen={cameraOpen}
-              pickingLibrary={pickingLibrary}
-              editingMask={editingMask}
+              view={stageView}
               baseSrc={baseSrc}
               imageSrc={imageSrc}
-              onCancelCamera={() => setCameraOpen(false)}
+              onCancelCamera={() => setStageView('stage')}
               onCapture={(file) => {
-                setCameraOpen(false)
+                setStageView('stage')
                 loadFile(file)
               }}
-              onCancelPick={() => setPickingLibrary(false)}
+              onCancelPick={() => setStageView('stage')}
               onPickPhoto={(photo: Photo) => {
-                setPickingLibrary(false)
+                setStageView('stage')
                 // The photo's own File is the source, so the cutout, the
                 // effects and the bake are the ones a file pick runs.
                 loadFile(photo.file)
               }}
               onApplyMask={(url) => {
                 applyMask(url)
-                setEditingMask(false)
+                setStageView('stage')
               }}
-              onCancelMask={() => setEditingMask(false)}
+              onCancelMask={() => setStageView('stage')}
               stage={{
                 tab,
                 imageStage,
@@ -1035,19 +1038,11 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
                 displayLongEdge,
                 onDisplaySize: setDisplayLongEdge,
                 onPick: pickImage,
-                onTakePhoto: () => {
-                  setPickingLibrary(false)
-                  setCameraOpen(true)
-                },
+                onTakePhoto: () => setStageView('camera'),
                 onRemoveBg: removeBg,
                 onRestore: restoreOriginal,
-                onAdjust: () => setEditingMask(true),
-                onPickLibrary: libraryMode
-                  ? () => {
-                      setCameraOpen(false)
-                      setPickingLibrary(true)
-                    }
-                  : null,
+                onAdjust: () => setStageView('mask'),
+                onPickLibrary: libraryMode ? () => setStageView('library') : null,
               }}
             />
 

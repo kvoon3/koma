@@ -756,12 +756,15 @@ own thumbnail grid inside the stage slot, or a camera still. The camera panel
 opens `getUserMedia` with `facingMode: { ideal: 'environment' }`, shows the live
 preview in the same stage slot, and hands the captured JPEG to the same
 `loadFile(File)` door, so the cutout, the edge effects and the mask editor are
-the same code on every road. The stream belongs to the panel and stops on
-capture, cancel, close and unmount. A denied permission, a missing device, a
-busy camera and an insecure context each render a sentence, with Retry where
-retrying can help, and the file door stays usable. The save button names the
-target ("Save to Faces"), and every opening starts from an empty stage so a new
-sticker never inherits the last one's pick.
+the same code on every road. The camera door is on the empty stage and again
+beside Replace once a source exists. The stream belongs to the panel and stops
+on capture, cancel, close, tab change and unmount. A denied permission, a
+missing device, a busy camera and an insecure context each render a sentence,
+with Retry where retrying can help, and the file door stays usable. The save
+button names the target ("Save to Faces"). The library host remounts the maker
+per opening, so its new sticker starts from an empty stage. The board host keeps
+the dialog mounted, so reopening it keeps the last pick, and the camera button
+on the ready stage keeps every source door one click away.
 
 **Paper texture.** A maker control (0 to 100) shades the picked image or text
 cutout as wrinkled paper. It runs in `prepareArtwork` after the visible-pixel
