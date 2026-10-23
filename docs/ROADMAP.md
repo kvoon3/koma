@@ -74,7 +74,7 @@ These have open PRs and green local gates. They are not merged, so no deploy has
 
 - PR #57: compact minimap chip seated against the tools dock's top-left corner, outside the pane
 - PR #58: the size rail resizes the canvas when nothing is selected, focused or not
-- PR #59: Storybook workshop for eight presentational components, deployed separately as `koma-storybook`
+- PR #59: Storybook workshop for eight presentational components, with a separate `koma-storybook` project still to be created
 - PR #60: Jev picks a text label's leading icon from the 128-entry icon set when its text is committed, through a Worker proxy that holds the key
 - PR #61: newspaper-print texture, fixed with no strength control, and camera capture in the sticker maker
 
