@@ -90,8 +90,8 @@ These have open PRs and green local gates. They are not merged, so no deploy has
 
 ## Waiting on the operator
 
-- Set the Jev Worker secrets: `JEV_API_URL` to `https://api.typesafe.ai/v1/systemone` and `JEV_API_KEY` to a rotated key. The key shared in chat should be rotated.
-- TypeSafe answers HTTP 451 "not available in your region" from this machine, directly and through `wrangler dev`. The integration is tested against a local mock. Decide whether to keep Jev behind a proxy in another region, switch providers, or leave the feature dormant until the API opens.
+- Rotate the Jev key, which was shared in chat. `JEV_API_URL` and `JEV_API_KEY` are already set on the `koma` Worker in `Kvoon@duck.com's Account`, and on the `wave12/jev-tags` preview plus its preview base config. Rotating means updating all three.
+- The preview proved the real path end to end: a `生日蛋糕` label came back with `icon: "cake"` through the deployed Worker proxy. A direct request from this machine still gets HTTP 451, so local runs need an egress outside the blocked region.
 - A second Cloudflare Workers Builds project for `koma-storybook`, pointed at `main` with `bun run deploy:storybook`.
 - An explicit merge call for the five in-review PRs. Merging main deploys it.
 
