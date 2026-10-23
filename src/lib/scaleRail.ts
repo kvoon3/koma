@@ -4,7 +4,7 @@ import { MAX_CANVAS_FILL, MIN_CANVAS_FILL } from '../store'
  * The size rail's mapping and its tick ladder (`components/ScaleRail`), pure so
  * bun can test it without a DOM.
  *
- * The rail is one control for whatever is selected. Its position is "tallness",
+ * The rail is one control with three targets. Its position is "tallness",
  * 0 at the bottom (smallest) and 1 at the top (largest), and a target's
  * `RailScale` says what that line spans: its bounds, its ladder's step, and the
  * stop that reads as natural (the stage fit for the canvas, a default size for a

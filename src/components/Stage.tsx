@@ -468,7 +468,6 @@ export function Stage() {
       // A press on the stage's own surface (the margin, the canvas between
       // panes) is the deselect gesture: panes, inserts, handles and dividers
       // stop their own pointerdowns, so whatever reaches here is empty space.
-      // It also puts the size rail to sleep, as an unselected board should be.
       onPointerDown={(e) => {
         if (e.button !== 0 || e.defaultPrevented)
           return
@@ -518,8 +517,9 @@ export function Stage() {
           button, which stands 30px tall on a mouse and 38px under a finger). */}
       <ViewZoomChip scale={stageZoom.scale} onFit={stageZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
 
-      {/* The size control: a right-edge rail for what is selected. `nudge` is the
-          stage's wheel lights its readout, so the number is there while it turns. */}
+      {/* The size control: a right-edge rail for the selected object or the
+          canvas. `nudge` is the stage's wheel lights its readout, so the number
+          is there while it turns. */}
       <ScaleRail nudge={sizeNudge} />
 
       {/* Canvas appearance tools always live in the dock; pane/label tools join
