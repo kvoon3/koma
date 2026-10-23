@@ -289,7 +289,6 @@ export const zhHans = {
   'Tools': '工具',
   'Canvas size': '画布大小',
   'Sticker size': '贴图大小',
-  'Text size': '文字大小',
   'Drag to resize the canvas · double-click to fit': '拖动调整画布大小 · 双击恢复适配',
   'Drag to resize · double-click to reset': '拖动调整大小 · 双击恢复默认',
   'Drag to change canvas aspect · double-click to reset': '拖动改变画布比例 · 双击恢复',

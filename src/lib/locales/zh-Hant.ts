@@ -287,7 +287,6 @@ export const zhHant: Record<TKey, string> = {
   'Tools': '工具',
   'Canvas size': '畫布大小',
   'Sticker size': '貼圖大小',
-  'Text size': '文字大小',
   'Drag to resize the canvas · double-click to fit': '拖曳調整畫布大小 · 雙擊回復適配',
   'Drag to resize · double-click to reset': '拖曳調整大小 · 雙擊回復預設',
   'Drag to change canvas aspect · double-click to reset': '拖曳改變畫布比例 · 雙擊重設',
