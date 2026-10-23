@@ -90,9 +90,8 @@ export interface MinimapView {
   h: number
 }
 
-/** The window as photo fractions: placement inverted. */
-export function minimapView(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih: number): MinimapView {
-  const p = placement(cell, leaf, iw, ih)
+/** `placement` inverted. */
+function minimapView(p: { x: number, y: number, w: number, h: number }, draw: Rect): MinimapView {
   return {
     x: Math.max(0, (draw.x - p.x) / p.w),
     y: Math.max(0, (draw.y - p.y) / p.h),
@@ -117,13 +116,12 @@ export function minimapStyles(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
       width: Math.max(0, Math.min(draw.w, p.x - draw.x + p.w) - l),
       height: Math.max(0, Math.min(draw.h, p.y - draw.y + p.h, limitH ?? Number.POSITIVE_INFINITY) - t),
     },
-    view: minimapView(cell, draw, leaf, iw, ih),
+    view: minimapView(p, draw),
   }
 }
 
 const MINIMAP_ZOOM = 1.05
 const MINIMAP_MIN_BOX = 260
-/** The stage seat's clearance from the dock's top-left corner, in px. */
 const STAGE_SEAT_GAP = 8
 const STAGE_SEAT_INSET = 10
 
@@ -168,7 +166,7 @@ export function paintMinimapView(
 ): void {
   if (!el || !iw || !ih)
     return
-  assign(el, minimapViewStyle(minimapView(cell, draw, leaf, iw, ih)))
+  assign(el, minimapViewStyle(minimapView(placement(cell, leaf, iw, ih), draw)))
 }
 
 /** A divider's hit band. */

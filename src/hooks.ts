@@ -397,9 +397,8 @@ export function useDockSeatBoxes(host: HTMLElement | null): DockSeatBoxes | null
       if (!frame)
         frame = requestAnimationFrame(measure)
     }
-    // The sheet's display is a spring writing a transform and a height, so the
-    // style and the mode are both watched. The first read is queued like the
-    // rest: until it lands the chip renders nothing, never a seat at the origin.
+    // The first read is queued like the rest: until it lands the chip renders
+    // nothing, never a seat at the origin.
     const mo = new MutationObserver(queue)
     mo.observe(dock, { attributes: true, attributeFilter: ['style', 'data-dock-mode'] })
     const ro = new ResizeObserver(queue)

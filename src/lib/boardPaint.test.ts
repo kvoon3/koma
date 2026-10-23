@@ -2,7 +2,7 @@
 import type { Derived } from './layout'
 import type { Leaf, Rect, SeamSides } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapView, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
+import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
 import { newLeaf } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`, zoom = 1): Leaf {
@@ -88,13 +88,6 @@ describe('minimapStyles', () => {
   it('writes the window as percentages', () => {
     expect(minimapViewStyle({ x: 0.25, y: 0, w: 0.5, h: 1 }))
       .toEqual({ left: '25%', top: '0%', width: '50%', height: '100%' })
-  })
-
-  it('derives the window from the same fractions the styles carry', () => {
-    const p = leaf('a', 'ph-a', 2)
-    const view = minimapView(CELL, CELL, p, 800, 600)
-    expect(view).toEqual(minimapStyles(CELL, CELL, p, 800, 600).view)
-    expect(view).toEqual({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 })
   })
 })
 

@@ -374,8 +374,8 @@ const StageToolsDock = memo(StageToolsDockImpl)
 export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const stageRef = useRef<HTMLDivElement | null>(null)
-  // Compact panes portal their minimap here (see `minimapHost`): a sibling of
-  // the canvas, so the chip never inherits the canvas transform.
+  // Compact panes portal their minimap here: a sibling of the canvas, so the
+  // chip never inherits the canvas transform.
   const [minimapHost, setMinimapHost] = useState<HTMLDivElement | null>(null)
   const t = useT()
 
@@ -488,8 +488,8 @@ export function Stage() {
       // fits the view again; on the canvas it stays the pane's own reset.
       onDoubleClick={stageZoom.onStageDoubleClick}
     >
+      <DeleteZone label={t('Drop here to delete')} />
       <MinimapHostContext value={minimapHost}>
-        <DeleteZone label={t('Drop here to delete')} />
         <StageCanvas
           view={view}
           viewScale={stageZoom.scale}
@@ -517,32 +517,32 @@ export function Stage() {
           onSplit={split}
           onClose={closePane}
         />
-        <div ref={setMinimapHost} className="pointer-events-none absolute inset-0 z-20" />
-
-        {/* Off fit, a small chip says how far and puts it back (below the back
-            button, which stands 30px tall on a mouse and 38px under a finger). */}
-        <ViewZoomChip scale={stageZoom.scale} onFit={stageZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
-
-        {/* The size control: a right-edge rail for the selected object or the
-            canvas. `nudge` is the stage's wheel lights its readout, so the number
-            is there while it turns. */}
-        <ScaleRail nudge={sizeNudge} />
-
-        {/* Canvas appearance tools always live in the dock; pane/label tools join
-            when relevant. The dock itself is mounted by the root layout. */}
-        <StageToolsDock
-          tools={tools}
-          paneToolsHidden={paneToolsHidden}
-          focusHasGps={focusHasGps}
-          focusId={focusId}
-        />
-
-        <StickerMakerDialog
-          open={stickerMakerFor != null}
-          target={paneTarget(stickerMakerFor)}
-          onClose={closeStickerMaker}
-        />
       </MinimapHostContext>
+      <div ref={setMinimapHost} className="pointer-events-none absolute inset-0 z-20" />
+
+      {/* Off fit, a small chip says how far and puts it back (below the back
+          button, which stands 30px tall on a mouse and 38px under a finger). */}
+      <ViewZoomChip scale={stageZoom.scale} onFit={stageZoom.fit} className="absolute left-2.5 top-[46px] z-20 pointer-coarse:top-[54px]" />
+
+      {/* The size control: a right-edge rail for the selected object or the
+          canvas. `nudge` is the stage's wheel lights its readout, so the number
+          is there while it turns. */}
+      <ScaleRail nudge={sizeNudge} />
+
+      {/* Canvas appearance tools always live in the dock; pane/label tools join
+          when relevant. The dock itself is mounted by the root layout. */}
+      <StageToolsDock
+        tools={tools}
+        paneToolsHidden={paneToolsHidden}
+        focusHasGps={focusHasGps}
+        focusId={focusId}
+      />
+
+      <StickerMakerDialog
+        open={stickerMakerFor != null}
+        target={paneTarget(stickerMakerFor)}
+        onClose={closeStickerMaker}
+      />
     </div>
   )
 }

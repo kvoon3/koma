@@ -5,7 +5,7 @@ import type { Leaf, Rect, SeamSides } from '../lib/panes'
 import { useNavigate } from '@tanstack/react-router'
 import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { useDockSeatBoxes, useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
 import { minimapStyles, minimapViewStyle, minimapVisible, paintMinimapView, paintPanePhoto, paneBoxStyle, photoBoxStyle, stageMinimapSeat, transformOf } from '../lib/boardPaint'
@@ -18,7 +18,7 @@ import { clampLeaf, cornerRadiiCss, isPaneTransformed, leafCornerRadii, paneTran
 import { OVERVIEW_PATH } from '../lib/routes'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { MAX_ZOOM, MIN_ZOOM, useStore } from '../store'
-import { useMinimapHost } from './minimapHost'
+import { MinimapHostContext } from './minimapHost'
 import { PaneMenu } from './PaneMenu'
 
 /* One split button. The chip's height is the page row's (back / reset), so the
@@ -214,7 +214,6 @@ function MinimapChip({
   ih: number
   previewUrl: string | undefined
   onPan: (cx: number, cy: number) => void
-  /** The window a gesture paints, so a stage-seated chip's box stays live. */
   viewportRef: React.RefObject<HTMLDivElement | null>
 }) {
   const t = useT()
@@ -352,8 +351,6 @@ function PaneMinimap({
   viewportRef: React.RefObject<HTMLDivElement | null>
 }) {
   const sheetTop = useToolsSheetTop()
-  // The stage seat is measured against the dock (see `stageMinimapSeat`); null
-  // until both the dock and the portal host are mounted.
   const seatBoxes = useDockSeatBoxes(compact ? host : null)
   const coarse = useMediaQuery('(pointer: coarse)')
   // A finger gets no hover to confirm the control exists, so the chip rests
@@ -1797,7 +1794,7 @@ function PaneImpl({
   // pane: this ref is the one `paintLeaf` writes during a pan or pinch.
   const minimapViewRef = useRef<HTMLDivElement | null>(null)
   const compact = useMediaQuery('(max-width: 1023.98px)')
-  const minimapHost = useMinimapHost()
+  const minimapHost = use(MinimapHostContext)
   // A gesture paints its placement straight onto the DOM (see `paintLeaf`), so
   // the tree still holds the value it started from. Rendering the draft keeps
   // any render that lands mid-gesture (a photo finishing its decode, say) in
