@@ -30,21 +30,8 @@ function PromptDemo({ initial = '', error = null }: { initial?: string, error?: 
 
 const meta = {
   title: 'UI/NamePrompt',
-  component: NamePrompt,
-  args: {
-    open: true,
-    title: 'New folder',
-    initial: '',
-    confirmLabel: 'Create',
-    error: null,
-    field: 'folder',
-    placeholder: 'Folder name',
-    maxLength: 40,
-    onSubmit: () => true,
-    onClose: () => undefined,
-  },
   render: () => <PromptDemo />,
-} satisfies Meta<typeof NamePrompt>
+} satisfies Meta
 
 export default meta
 type Story = StoryObj<typeof meta>

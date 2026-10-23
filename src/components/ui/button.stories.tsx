@@ -4,17 +4,10 @@ import { Button } from './button'
 const meta = {
   title: 'UI/Button',
   component: Button,
-  args: { children: 'Rename' },
 } satisfies Meta<typeof Button>
 
 export default meta
 type Story = StoryObj<typeof meta>
-
-export const Flat: Story = {}
-
-export const Selected: Story = {
-  args: { variant: 'on' },
-}
 
 export const Variants: Story = {
   render: () => (

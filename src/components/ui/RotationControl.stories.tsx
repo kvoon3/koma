@@ -13,10 +13,8 @@ function DialDemo({ initial = 0, disabled = false }: { initial?: number, disable
 
 const meta = {
   title: 'UI/RotationControl',
-  component: RotationControl,
-  args: { value: 0, onChange: () => undefined, label: 'Rotation' },
   render: () => <DialDemo />,
-} satisfies Meta<typeof RotationControl>
+} satisfies Meta
 
 export default meta
 type Story = StoryObj<typeof meta>
