@@ -9,15 +9,24 @@ interface Received {
   path: string
   auth: string | null
   accept: string | null
+  dangerZone: string | null
   contentType: string | null
+  requestType: string | null
+  request: unknown
   image: Uint8Array | null
   filename: string | null
 }
 
+const ANSWER = JSON.stringify({
+  model: 'jev-1.14.0',
+  answers: { person: { type: 'noul', noul: 0.99 } },
+  usage: { input_tokens: 2003, output_tokens: 53 },
+})
+
 let upstream: ReturnType<typeof Bun.serve>
 let received: Received | null = null
 let calls = 0
-let reply = { status: 200, type: 'application/json', body: '{"labels":["person"]}' }
+let reply = { status: 200, type: 'application/json', body: ANSWER }
 
 beforeAll(() => {
   upstream = Bun.serve({
@@ -26,13 +35,24 @@ beforeAll(() => {
     async fetch(request) {
       calls++
       const form = await request.formData()
-      const image = form.get('image')
+      const image = form.get('photo')
+      const requestPart = form.get('request')
+      let parsed: unknown = null
+      if (requestPart instanceof Blob) {
+        try {
+          parsed = JSON.parse(await requestPart.text())
+        }
+        catch {}
+      }
       received = {
         method: request.method,
         path: new URL(request.url).pathname,
         auth: request.headers.get('authorization'),
         accept: request.headers.get('accept'),
+        dangerZone: request.headers.get('typesafe-danger-zone-images'),
         contentType: request.headers.get('content-type'),
+        requestType: requestPart instanceof Blob ? requestPart.type : null,
+        request: parsed,
         image: image instanceof Blob ? new Uint8Array(await image.arrayBuffer()) : null,
         filename: image instanceof File ? image.name : null,
       }
@@ -46,7 +66,7 @@ afterAll(() => upstream.stop(true))
 beforeEach(() => {
   received = null
   calls = 0
-  reply = { status: 200, type: 'application/json', body: '{"labels":["person"]}' }
+  reply = { status: 200, type: 'application/json', body: ANSWER }
 })
 
 function environment(overrides: Partial<Env> = {}): Env {
@@ -60,9 +80,23 @@ function environment(overrides: Partial<Env> = {}): Env {
   }
 }
 
+const REQUEST_BODY = {
+  model: 'jev-latest',
+  state: { photo: 'photo' },
+  assets: { photo: { type: 'image', part: 'photo' } },
+  questions: {
+    person: {
+      type: 'noul',
+      instructions: 'Does this photo show a person?',
+      criteria: { true: 'A person is visible.', false: 'No person is visible.' },
+    },
+  },
+}
+
 function photoRequest(headers: Record<string, string> = {}): Request {
   const form = new FormData()
-  form.set('image', new File(['pixels'], 'photo.png', { type: 'image/png' }))
+  form.append('request', new Blob([JSON.stringify(REQUEST_BODY)], { type: 'application/json' }), 'request.json')
+  form.append('photo', new File(['pixels'], 'photo.jpg', { type: 'image/jpeg' }))
   return new Request(`https://app.example${JEV_PATH}`, { method: 'POST', body: form, headers })
 }
 
@@ -71,18 +105,21 @@ function apiRequest(method = 'POST', headers: Record<string, string> = {}, body?
 }
 
 describe('the proxy forwards the photo and owns the key', () => {
-  test('the multipart body crosses with the server Authorization', async () => {
+  test('the multipart body crosses with the server Authorization and the image header', async () => {
     const response = await worker.fetch(photoRequest({ authorization: 'Bearer client-key' }), environment())
     expect(response.status).toBe(200)
-    expect(await response.text()).toBe('{"labels":["person"]}')
+    expect(await response.text()).toBe(ANSWER)
     expect(received).toMatchObject({
       method: 'POST',
       path: '/classify',
       auth: 'Bearer server-key',
       accept: 'application/json',
-      filename: 'photo.png',
+      dangerZone: 'true',
+      filename: 'photo.jpg',
     })
     expect(received?.contentType?.startsWith('multipart/form-data; boundary=')).toBe(true)
+    expect(received?.requestType?.startsWith('application/json')).toBe(true)
+    expect(received?.request).toEqual(REQUEST_BODY)
     expect(new TextDecoder().decode(received?.image ?? new Uint8Array())).toBe('pixels')
   })
 

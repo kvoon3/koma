@@ -94,8 +94,10 @@ async function proxy(request: Request, env: Env): Promise<Response> {
   }
 
   const headers: Record<string, string> = {
-    accept: 'application/json',
-    authorization: `Bearer ${key}`,
+    'accept': 'application/json',
+    'authorization': `Bearer ${key}`,
+    // TypeSafe requires this on every request that carries an image.
+    'TypeSafe-Danger-Zone-Images': 'true',
   }
   const contentType = request.headers.get('content-type')
   if (contentType)
