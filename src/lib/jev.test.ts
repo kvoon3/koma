@@ -1,19 +1,23 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
 import {
-  buildJevRequest,
   JEV_LABEL_ICON_INSTRUCTIONS,
   JEV_NONE_CHOICE,
   JEV_NONE_DESCRIPTION,
   JEV_PROXY_PATH,
   JEV_QUESTION_ID,
-  JEV_RESPONSE_FIXTURE,
   JEV_TIMEOUT_MS,
   labelIconRequest,
   parseLabelIconResponse,
   pickLabelIcon,
   readJevConfig,
 } from './jev'
+
+const RESPONSE_FIXTURE = {
+  model: 'jev-1.14.0',
+  answers: { [JEV_QUESTION_ID]: { type: 'choice', choice: 'cake', confidence: 0.96 } },
+  usage: { input_tokens: 220, output_tokens: 3 },
+}
 
 const CANDIDATES = [
   { id: 'cake', description: 'Cake' },
@@ -22,9 +26,19 @@ const CANDIDATES = [
 
 const CONFIG = { url: new URL('https://api.typesafe.ai/v1/systemone'), key: null }
 
-/** Swap the global fetch for one request, typed the way Bun types its own. */
-function mockFetch(handler: (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>) {
+/** Run one check against a swapped global fetch, then restore it. */
+async function withFetch<T>(
+  handler: (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>,
+  run: () => Promise<T>,
+): Promise<T> {
+  const real = globalThis.fetch
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => handler(input, init)) as typeof fetch
+  try {
+    return await run()
+  }
+  finally {
+    globalThis.fetch = real
+  }
 }
 
 describe('the endpoint is configured or hidden', () => {
@@ -88,23 +102,20 @@ describe('the request is one JSON Choice', () => {
       },
     })
   })
+})
 
-  test('the JSON travels with its own content type and no image header', () => {
-    const { init } = buildJevRequest('生日蛋糕', CANDIDATES, CONFIG)
-    const headers = init.headers as Record<string, string>
-    expect(init.method).toBe('POST')
-    expect(headers['Content-Type']).toBe('application/json')
-    expect(headers.Accept).toBe('application/json')
-    expect(headers['TypeSafe-Danger-Zone-Images']).toBeUndefined()
-    expect(headers.Authorization).toBeUndefined()
-
-    const body = JSON.parse(String(init.body))
-    expect(body.assets).toBeUndefined()
-  })
-
-  test('the bearer rides only when a key is set', () => {
-    const { init } = buildJevRequest('x', CANDIDATES, { ...CONFIG, key: 's3cret' })
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer s3cret')
+describe('the bearer rides only when a key is set', () => {
+  test('the key becomes a bearer and its absence sends none', async () => {
+    const headersFor = async (key: string | null) => {
+      const sent: { headers?: Record<string, string> } = {}
+      await withFetch((_input, init) => {
+        sent.headers = init?.headers as Record<string, string>
+        return Response.json(RESPONSE_FIXTURE)
+      }, () => pickLabelIcon('x', CANDIDATES, { ...CONFIG, key }))
+      return sent.headers
+    }
+    expect((await headersFor(null))?.Authorization).toBeUndefined()
+    expect((await headersFor('s3cret'))?.Authorization).toBe('Bearer s3cret')
   })
 })
 
@@ -112,7 +123,7 @@ describe('the parser reads the Choice answer', () => {
   const ids = CANDIDATES.map(candidate => candidate.id)
 
   test('the fixture picks the named icon and keeps its confidence', () => {
-    expect(parseLabelIconResponse(200, JSON.stringify(JEV_RESPONSE_FIXTURE), ids))
+    expect(parseLabelIconResponse(200, JSON.stringify(RESPONSE_FIXTURE), ids))
       .toEqual({ ok: true, pick: { icon: 'cake', confidence: 0.96 } })
   })
 
@@ -163,49 +174,41 @@ describe('the parser reads the Choice answer', () => {
 
 describe('the pick is one fetch with one timeout', () => {
   test('empty text never reaches the wire', async () => {
-    const realFetch = globalThis.fetch
     let calls = 0
-    mockFetch(() => {
+    await withFetch(() => {
       calls++
       return Response.json({})
-    })
-    try {
+    }, async () => {
       expect(await pickLabelIcon('   ', CANDIDATES, CONFIG)).toEqual({ ok: false, reason: 'empty' })
-      expect(calls).toBe(0)
-    }
-    finally {
-      globalThis.fetch = realFetch
-    }
+    })
+    expect(calls).toBe(0)
   })
 
-  test('the request lands and its answer parses', async () => {
-    const realFetch = globalThis.fetch
+  test('the request lands with its own content type and no image header', async () => {
     const sent: { url?: string, init?: RequestInit } = {}
-    mockFetch((input, init) => {
+    await withFetch((input, init) => {
       sent.url = String(input)
       sent.init = init ?? {}
-      return Response.json(JEV_RESPONSE_FIXTURE)
-    })
-    try {
+      return Response.json(RESPONSE_FIXTURE)
+    }, async () => {
       expect(await pickLabelIcon('生日蛋糕', CANDIDATES, CONFIG))
         .toEqual({ ok: true, pick: { icon: 'cake', confidence: 0.96 } })
-      expect(sent.url).toBe('https://api.typesafe.ai/v1/systemone')
-      expect(JSON.parse(String(sent.init?.body)).state).toBe('生日蛋糕')
-    }
-    finally {
-      globalThis.fetch = realFetch
-    }
+    })
+    expect(sent.url).toBe('https://api.typesafe.ai/v1/systemone')
+    expect(sent.init?.method).toBe('POST')
+    const headers = sent.init?.headers as Record<string, string>
+    expect(headers['Content-Type']).toBe('application/json')
+    expect(headers.Accept).toBe('application/json')
+    expect(headers['TypeSafe-Danger-Zone-Images']).toBeUndefined()
+    const body = JSON.parse(String(sent.init?.body))
+    expect(body.state).toBe('生日蛋糕')
+    expect(body.assets).toBeUndefined()
   })
 
   test('a network failure is reported, not thrown', async () => {
-    const realFetch = globalThis.fetch
-    mockFetch(() => Promise.reject(new Error('offline')))
-    try {
+    await withFetch(() => Promise.reject(new Error('offline')), async () => {
       expect(await pickLabelIcon('生日蛋糕', CANDIDATES, CONFIG)).toEqual({ ok: false, reason: 'network' })
-    }
-    finally {
-      globalThis.fetch = realFetch
-    }
+    })
   })
 
   test('the timeout is twenty seconds', () => {

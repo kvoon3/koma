@@ -50,19 +50,6 @@ export interface LabelIconCandidate {
   description: string
 }
 
-/** A well-formed answer, pinned by the parser test. */
-export const JEV_RESPONSE_FIXTURE = {
-  model: 'jev-1.14.0',
-  answers: {
-    label_icon: {
-      type: 'choice',
-      choice: 'cake',
-      confidence: 0.96,
-    },
-  },
-  usage: { input_tokens: 220, output_tokens: 3 },
-} as const
-
 export interface JevConfig {
   url: URL
   key: string | null
@@ -91,17 +78,10 @@ function runtimeEnv(): JevEnv {
 function endpointUrl(raw: string): URL | null {
   if (raw.startsWith('//'))
     return null
-  if (raw.startsWith('/')) {
-    try {
-      const url = new URL(raw, globalThis.location?.origin ?? FALLBACK_ORIGIN)
-      return url.protocol === 'http:' || url.protocol === 'https:' ? url : null
-    }
-    catch {
-      return null
-    }
-  }
+  // Only a single-slash path is page-relative; anything else must be absolute.
+  const base = raw.startsWith('/') ? globalThis.location?.origin ?? FALLBACK_ORIGIN : undefined
   try {
-    const url = new URL(raw)
+    const url = new URL(raw, base)
     return url.protocol === 'http:' || url.protocol === 'https:' ? url : null
   }
   catch {
@@ -109,7 +89,7 @@ function endpointUrl(raw: string): URL | null {
   }
 }
 
-export type JevFailureReason = 'http' | 'malformed' | 'shape' | 'empty' | 'network' | 'timeout' | 'aborted'
+export type JevFailureReason = 'http' | 'malformed' | 'shape' | 'empty' | 'network' | 'timeout'
 
 export interface LabelIconPick {
   /** The chosen icon id, or null for the "none" option. */
@@ -170,23 +150,6 @@ export function labelIconRequest(
   }
 }
 
-export function buildJevRequest(
-  text: string,
-  candidates: readonly LabelIconCandidate[],
-  config: JevConfig,
-): { url: string, init: RequestInit } {
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-  }
-  if (config.key)
-    headers.Authorization = `Bearer ${config.key}`
-  return {
-    url: config.url.toString(),
-    init: { method: 'POST', body: JSON.stringify(labelIconRequest(text, candidates)), headers },
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -239,50 +202,38 @@ export function parseLabelIconResponse(
   return { ok: true, pick: { icon: answer.choice, confidence } }
 }
 
-export interface PickLabelIconOptions {
-  signal?: AbortSignal
-  timeoutMs?: number
-}
-
 export async function pickLabelIcon(
   text: string,
   candidates: readonly LabelIconCandidate[],
   config: JevConfig,
-  opts: PickLabelIconOptions = {},
 ): Promise<LabelIconResult> {
   if (!text.trim())
     return { ok: false, reason: 'empty' }
 
-  const controller = new AbortController()
-  let timedOut = false
-  let externallyAborted = false
-  const timer = setTimeout(() => {
-    timedOut = true
-    controller.abort()
-  }, opts.timeoutMs ?? JEV_TIMEOUT_MS)
-  const forwardAbort = () => {
-    externallyAborted = true
-    controller.abort()
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
   }
-  opts.signal?.addEventListener('abort', forwardAbort, { once: true })
-  if (opts.signal?.aborted)
-    forwardAbort()
+  if (config.key)
+    headers.Authorization = `Bearer ${config.key}`
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), JEV_TIMEOUT_MS)
 
   try {
-    const { url, init } = buildJevRequest(text, candidates, config)
-    const res = await fetch(url, { ...init, signal: controller.signal })
+    const res = await fetch(config.url, {
+      method: 'POST',
+      body: JSON.stringify(labelIconRequest(text, candidates)),
+      headers,
+      signal: controller.signal,
+    })
     const body = await res.text()
     return parseLabelIconResponse(res.status, body, candidates.map(candidate => candidate.id))
   }
   catch {
-    if (externallyAborted)
-      return { ok: false, reason: 'aborted' }
-    if (timedOut)
-      return { ok: false, reason: 'timeout' }
-    return { ok: false, reason: 'network' }
+    return { ok: false, reason: controller.signal.aborted ? 'timeout' : 'network' }
   }
   finally {
     clearTimeout(timer)
-    opts.signal?.removeEventListener('abort', forwardAbort)
   }
 }
