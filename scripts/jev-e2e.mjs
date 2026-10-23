@@ -18,7 +18,28 @@ const APP_PORT = Number(process.env.JEV_APP_PORT ?? 5199)
 const MOCK_PORT = Number(process.env.JEV_MOCK_PORT ?? 4319)
 const APP = `http://127.0.0.1:${APP_PORT}`
 const MOCK = `http://127.0.0.1:${MOCK_PORT}`
-const JEV_URL = `${MOCK}/classify`
+const JEV_URL = `${MOCK}/v1/systemone`
+
+/** The taxonomy the wire must carry, one Noul question per icon id. */
+const TAXONOMY_IDS = [
+  'person',
+  'family',
+  'cat',
+  'dog',
+  'pet',
+  'food',
+  'drink',
+  'nature',
+  'beach',
+  'mountain',
+  'city',
+  'car',
+  'plane',
+  'art',
+  'night',
+  'snow',
+  'celebration',
+]
 const CHROMIUM = process.env.JEV_CHROMIUM ?? findChromium()
 
 function findChromium() {
@@ -187,7 +208,7 @@ async function renderedLabels(page) {
 
 async function classify(page) {
   await page.click('[data-photo-classify]')
-  await page.waitForFunction(() => document.querySelectorAll('[data-jev-label]').length === 5)
+  await page.waitForFunction(() => document.querySelectorAll('[data-jev-label]').length === 3)
 }
 
 async function measurePanel(page) {
@@ -285,14 +306,20 @@ try {
 
   await classify(page)
   const first = await waitForCall(1)
-  check(first.hasImage, 'the image field reached Jev')
-  check(first.bytes > 0, `the image had bytes (${first.bytes})`)
-  check(first.type === 'image/png', `the preview kept its type (${first.type})`)
+  check(first.hasImage, 'the photo part reached Jev')
+  check(first.bytes > 0, `the photo had bytes (${first.bytes})`)
+  check(first.type === 'image/jpeg', `the prepared image is a JPEG (${first.type})`)
+  check(first.dangerZone === 'true', 'the image header reached Jev')
   check(first.auth === null, 'an unset key sends no Authorization header')
+  check(first.model === 'jev-latest', `the request named jev-latest (${first.model})`)
+  check(first.assetPart === 'photo', `the asset points at the photo part (${first.assetPart})`)
+  equal(first.questionIds, TAXONOMY_IDS, 'every taxonomy category is one Noul question')
 
   const labels = await renderedLabels(page)
-  equal(labels.map(item => item.icon), ['person', 'beach', 'food', 'cat', 'tag'], 'each label wears the icon its name earns')
+  equal(labels.map(item => item.label), ['Person', 'Beach', 'Cat'], 'only labels above the threshold render')
+  equal(labels.map(item => item.icon), ['person', 'beach', 'cat'], 'each label wears the icon its name earns')
   check(labels.every(item => item.pressed === 'true'), 'returned labels start checked')
+  check((await page.locator('[data-jev-label="Food"]').count()) === 0, 'a label below 0.7 stays hidden')
 
   const wideBox = await page.locator('[data-photo-detail]').boundingBox()
   check(wideBox && wideBox.x >= 0 && wideBox.y >= 0 && wideBox.x + wideBox.width <= 1280 && wideBox.y + wideBox.height <= 900, `dialog fits 1280x900 (${JSON.stringify(wideBox)})`)
@@ -301,11 +328,10 @@ try {
   check(wideMeasure.confirmInsideDialog && wideMeasure.confirmInsideViewport, `the confirm control is fully drawn at 1280x900 (${JSON.stringify(wideMeasure.confirm)})`)
   await page.screenshot({ path: join(SHOTS, 'confirm-1280x900.png'), animations: 'disabled' })
 
-  await page.click('[data-jev-label="Food"]')
-  await page.click('[data-jev-label="Unknown"]')
+  await page.click('[data-jev-label="Cat"]')
   await page.click('[data-jev-confirm]')
   await page.waitForSelector('[data-jev-labels]', { state: 'detached' })
-  equal(await storedTags(page), { tags: ['Person', 'Beach', 'Cat'], list: ['Person', 'Beach', 'Cat'] }, 'only checked labels attach through tagPhoto')
+  equal(await storedTags(page), { tags: ['Person', 'Beach'], list: ['Person', 'Beach'] }, 'only checked labels attach through tagPhoto')
   const chipIcons = await page.$$eval('[data-photo-detail-tag]', elements => elements.map(element => ({
     tag: element.getAttribute('data-photo-detail-tag'),
     icon: element.querySelector('[data-tag-icon]')?.getAttribute('data-tag-icon'),
@@ -313,7 +339,6 @@ try {
   equal(chipIcons, [
     { tag: 'Person', icon: 'person' },
     { tag: 'Beach', icon: 'beach' },
-    { tag: 'Cat', icon: 'cat' },
   ], 'photo detail chips wear the same icons')
 
   await clearPhotoTags(page)
@@ -330,7 +355,7 @@ try {
 
   await setMockFail(false)
   await page.click('[data-jev-retry]')
-  await page.waitForFunction(() => document.querySelectorAll('[data-jev-label]').length === 5)
+  await page.waitForFunction(() => document.querySelectorAll('[data-jev-label]').length === 3)
   const phoneBox = await page.locator('[data-photo-detail]').boundingBox()
   check(phoneBox && phoneBox.x >= 0 && phoneBox.y >= 0 && phoneBox.x + phoneBox.width <= 375 && phoneBox.y + phoneBox.height <= 812, `dialog fits 375x812 (${JSON.stringify(phoneBox)})`)
   check(await page.isVisible('[data-jev-confirm]'), 'the confirm control is visible at phone width')
@@ -339,11 +364,10 @@ try {
   check(phoneMeasure.confirmInsideDialog && phoneMeasure.confirmInsideViewport, `the confirm control is fully drawn at 375x812 (${JSON.stringify(phoneMeasure.confirm)})`)
   await page.screenshot({ path: join(SHOTS, 'confirm-375x812.png'), animations: 'disabled' })
 
-  await page.click('[data-jev-label="Cat"]')
-  await page.click('[data-jev-label="Unknown"]')
+  await page.click('[data-jev-label="Person"]')
   await page.click('[data-jev-confirm]')
   await page.waitForSelector('[data-jev-labels]', { state: 'detached' })
-  equal(await storedTags(page), { tags: ['Person', 'Beach', 'Food'], list: ['Person', 'Beach', 'Food'] }, 'the phone pass also adds only checked labels')
+  equal(await storedTags(page), { tags: ['Beach', 'Cat'], list: ['Beach', 'Cat'] }, 'the phone pass also adds only checked labels')
 
   const metrics = { wideBox, phoneBox, wideMeasure, phoneMeasure, errorText, labels, chipIcons }
   writeFileSync(join(SHOTS, 'measurements.json'), `${JSON.stringify(metrics, null, 2)}\n`)
