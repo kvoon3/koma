@@ -1,6 +1,6 @@
 # koma roadmap
 
-Items are grouped into **waves by change surface** (which files they touch), so each wave runs as 2–3 parallel worktrees without cherry-pick conflicts. Within a wave everything is parallel; between waves we merge, verify (`bun run build` + `bun test --check src`), then start the next wave.
+Items are grouped into **waves by change surface** (which files they touch), so each wave runs as 2–3 parallel worktrees without cherry-pick conflicts. Within a wave everything is parallel. Between waves we merge, verify (`bun run ci`), then start the next wave.
 
 Prioritization axes: **value × change surface**. Priority ≠ dependency. Shared-bottleneck files (`store.ts`, `exporter.ts`, `router.tsx`, the locale dictionaries) serialize the items that touch them.
 
@@ -15,122 +15,90 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 - Export seam: Safari-only (not reproducible in Chromium). The flush-draw fix was reverted; the crossfade workaround stays until the Safari root cause is found.
 - Vite devtools (`@vitejs/devtools`, dev-only) (Wave 1)
 
-## Shipped in Wave 2 (PRs #29/#30/#31)
+## Wave 2 (PRs #29, #30, #31)
 
 - Detent rotation for pane photos: reusable dial, stepless drag with detent magnetism, flips, undo-coalesced gestures
 - Tools-drawer rework: three displays with live mode-switching mid-drag, FLIP item glides, whole-drawer drag, scroll preservation, list-swap slide, edge fade
-- Workspaces: Mission Control-style switcher (pull-down in / pull-up out, 1:1 board pager, read-only strip, nameless cards), grid groups with copy-on-add, WorkspaceGrid split into components/grid/
+- Workspaces: Mission Control-style switcher (pull-down in, pull-up out, 1:1 board pager, read-only strip, nameless cards), grid groups with copy-on-add, WorkspaceGrid split into components/grid/
 - Vision acceptance pipeline (judge at 375px + 1280px) recorded in AGENTS.md; i18n drift test; UNDOABLE_PATCH_KEYS derived from the snapshot
 
-## Tech-debt wave (shipped, PRs #32/#33/#34)
+## Tech debt (PRs #32, #33, #34)
 
 - router.tsx export flow + key map extracted (687 → 274 lines)
 - store.ts split along its seams (1480 → 1211; layout/photoLibrary/settingsStore in lib/)
 - exporter decoupled from the store; motionTokens single source; paneCommands one job
 - Follow-up (M): the four store-reading command modules; action factories to shrink store.ts further
 
-- router.tsx: extract ~250 lines of export orchestration to lib/exportFlow.ts; split the keyboard map into a hook (M)
-- store.ts: split along the seams into lib/layout.ts (pure), lib/photoLibrary.ts, lib/settingsStore.ts (M)
-- exporter.ts: move isTransparentBg out of store (lib must not import the app store) (S)
-- lib/motionTokens.ts for the shared ease curve hardcoded in dockSwap/dockFlip/boardPager (S)
-- paneCommands.ts: one file one job (S)
+## Wave 3 (PRs #35 to #39)
 
-## Shipped in Wave 4 (PRs #46/#47/#48)
+- Tactile texture filters for pane photos
+- Multi-line labels with alignment, and EXIF location pins
+- Tapping the receded board leaves the switcher
+- Die-cut sticker border, stamp perforation, manual cutout adjustment
+- Dock scroll jitter fix
 
-- Pane minimap (photo pan navigator) + whole-canvas view zoom from the stage margin (0.25–2.5, % chip, double-click fit); the +/- pair removed
-- Cutout tool as a live three-state menu (original / cutout / blurred background), switchable anytime from library assets
-- Glowing pure-white label: an independent effect (theme forced transparent) with continuous falloff
+## Wave 3.5 (PRs #40 to #44)
 
-## Shipped in Wave 3.5 (PRs #41/#40/#42/#43/#44)
-
-- Pixelation filter family (six, stage-px WYSIWYG dials) + the tactile eight from Wave 3
-- Sticker management (#/stickers) with folders, usage badges, make-on-page; erase + re-edit back to the ORIGINAL (original+result pair)
-- Photo management (#/photos) with tags, EXIF detail + reverse geocoding, safe delete; the hub draft parked at #/legacy-index
+- Pixelation filter family (six, stage-px WYSIWYG dials)
+- Sticker management (#/stickers) with folders, usage badges, make-on-page
+- Sticker erase and re-edit back to the ORIGINAL (original+result pair)
+- Photo management (#/photos) with tags, EXIF detail and reverse geocoding, safe delete; the hub draft parked at #/legacy-index
 - History: step tree with a jump panel in the floating cluster; pure-overwrite rule (one chain)
 
-## Wave 3.5 (approved order)
+## Wave 4 (PRs #46, #47, #48, plus #45)
 
-1. **Pixelation filters** (replaces the glyph/painterly tier-2 direction): mosaic, tiled-grout, diamond lattice, AM halftone (screen angle, mono/duotone), Bayer ordered dither (1-bit + color-preserving), constant dot screen; sliders WYSIWYG in stage px; clean-room as before
-2. **Sticker management first**: CRUD, categories, a dedicated management page (the original roadmap item)
-3. **Sticker erase second**: re-editing EXISTING stickers (reopen the mask editor from the library/board)
-4. **History tree**: undo/redo as a step tree with a /tree-style jump UI
-- Deferred (enhanced sticker-making batch): stamp as a separate flow, wrinkled paper, camera capture
-
-## Wave 3: content features (read-only on the exporter)
-
-- **Detent rotation common component** + pane rotation/flip (`panes.ts`, `Pane.tsx`): every later rotation UI reuses it.
-- **Dock rework** (`ToolsDock.tsx`, `toolsDockMode.ts`, `dockPhysics.ts`): whole-drawer drag gesture, fix text-insert tools display, drop the minimized state for the three display modes, ratio control when nothing is selected. One agent owns the dock.
-- **Dual 9-grid comparison** (`workspaces.ts`, `WorkspaceGrid.tsx`, `Stage.tsx`).
-
-## Shipped in Wave 4 (PRs #46/#47/#48)
-
-- Pane minimap (photo pan navigator) + whole-canvas view zoom from the stage margin (0.25–2.5, % chip, double-click fit); the +/- pair removed
+- Pane minimap (photo pan navigator) and whole-canvas view zoom from the stage margin (0.25–2.5, % chip, double-click fit); the +/- pair removed
 - Cutout tool as a live three-state menu (original / cutout / blurred background), switchable anytime from library assets
 - Glowing pure-white label: an independent effect (theme forced transparent) with continuous falloff
+- PR #45: one CI runner per gate, and `bun check` for types
 
-## Shipped in Wave 3.5 (PRs #41/#40/#42/#43/#44)
+## Wave 5 (PRs #49, #51)
 
-- Pixelation filter family (six, stage-px WYSIWYG dials) + the tactile eight from Wave 3
-- Sticker management (#/stickers) with folders, usage badges, make-on-page; erase + re-edit back to the ORIGINAL (original+result pair)
-- Photo management (#/photos) with tags, EXIF detail + reverse geocoding, safe delete; the hub draft parked at #/legacy-index
-- History: step tree with a jump panel in the floating cluster; pure-overwrite rule (one chain)
+- Japanese as a third interface language
+- Translation keys typed against the zh-Hans universe
 
-## Wave 3.5 (approved order)
+## Waves 6 to 10 (PRs #50, #52 to #55)
 
-1. **Pixelation filters** (replaces the glyph/painterly tier-2 direction): mosaic, tiled-grout, diamond lattice, AM halftone (screen angle, mono/duotone), Bayer ordered dither (1-bit + color-preserving), constant dot screen; sliders WYSIWYG in stage px; clean-room as before
-2. **Sticker management first**: CRUD, categories, a dedicated management page (the original roadmap item)
-3. **Sticker erase second**: re-editing EXISTING stickers (reopen the mask editor from the library/board)
-4. **History tree**: undo/redo as a step tree with a /tree-style jump UI
-- Deferred (enhanced sticker-making batch): stamp as a separate flow, wrinkled paper, camera capture
+- Spotify-style square cards, cover and lyrics presets (#50, #53)
+- One library page for photos and stickers (#52)
+- The stage's right-edge size rail (#54)
+- Filter test time budget (#55)
 
-## Wave 3: content features (read-only on the exporter)
+## Chore (PR #56)
 
-- **Filters / stylization** (new `filters.ts`, pane render, export render path).
-- **Text: multi-line + alignment; photo geolocation pin** (`BoardInserts.tsx`, new `exif.ts`): `exif.ts` is extracted here as the shared EXIF library the map feature reuses.
-- **Sticker effects** (`StickerMakerDialog.tsx`, `sticker.ts`): irregular white border, wrinkled-paper texture, stamp stickers.
+- New worktrees install their dependencies on checkout
 
-## Wave 4: asset management
+## In review (Wave 11 and 12)
 
-- **Library → album**: independent route, in-use status, photo details, manual tagging (`Library.tsx`, `imageStore.ts`, `router.tsx`).
-- **Sticker management page**: CRUD, categories (`sticker.ts`, `router.tsx`, union-merge expected).
+These have open PRs and green local gates. They are not merged, so no deploy has happened.
+
+- PR #57: compact minimap chip seated against the tools dock's top-left corner, outside the pane
+- PR #58: the size rail resizes the canvas when nothing is selected, focused or not
+- PR #59: Storybook workshop for eight presentational components, deployed separately as `koma-storybook`
+- PR #60: Jev label classification for photos, with icon-mapped tag chips and a Worker proxy for the key
+- PR #61: wrinkled-paper texture and camera capture in the sticker maker
+
+## Remaining
+
 - **tldraw integration** (feasibility spike first).
-- Jev AI classification lands after the album structure exists.
-
-## Wave 5: steady-state cross-cutting (broad but shallow)
-
-- **Japanese locale** (new `ja.ts`; eslint i18n coverage is the acceptance gate): after UI-string churn settles.
+- **Map route cards** (reuses `exif.ts`): spike on the map rendering choice.
 - **UI transparency pass** (`theme.ts`, `buttonStyles.ts`).
-- **Storybook scaffold**: after the component set stabilizes.
+- **Website** side track: landing page and video, roadmap board fed from this file, release notes, feedback.
+- **Accounts + cloud sync / void deployment**: one design decision, not a coding task. Run a feasibility comparison (void vs the current Cloudflare deploy, backend shape for sync and sharing) and decide before scheduling implementation.
+- **Brand open items**: README header lockup, social avatar and Open Graph card, opt-in export watermark, OS light/dark app-icon pair, optional shu seal variant, brand page on the website track.
+- **Safari export seam root cause**.
 
-## Wave 6: share-image generators
+## Waiting on the operator
 
-- **Spotify cover + lyrics cards**: feasibility spike first (API access, lyrics licensing).
-- **Map route cards** (reuses `exif.ts`): spike on map rendering choice.
-
-## Side tracks (parallel anytime, zero `src/` overlap)
-
-- **Website**: landing page + video, roadmap board (feed it from this file), release notes, feedback.
-- **Accounts + cloud sync / void deployment**: one design decision, not a coding task. Run a feasibility comparison (void vs current Cloudflare deploy, backend shape for sync/sharing) and decide before scheduling implementation.
-
-## Brand (shipped + open)
-
-Shipped:
-- B direction: three-pane T mark, light/dark, 16 px small cut; symbol, outlined mincho wordmark, horizontal/stacked lockups.
-- App icons (rounded + full-bleed), theme-aware favicon + ICO, apple-touch, web manifest, MyGo 1024 icon.
-- Top-bar lockup: the mark sits on the wordmark baseline (currentColor, both themes); the mark alone carries the phone bar below `sm`.
-- Favicon: mark-only (no tile, no outer margin), 16 px small cut, synced to the resolved app theme; ink `.ico` fallback.
-
-Open brand applications (no editor-code dependency):
-- README header lockup (light + dark).
-- Social avatar and Open Graph / social card.
-- Opt-in export watermark on saved collages.
-- OS light/dark app-icon pair once MyGo exposes an icon slot.
-- Optional shu (#C8402F) seal variant for marketing.
-- Brand page on the website track (link the kit, guidelines and sheet).
+- The real Jev endpoint and response shape. The client and Worker are configured for a provisional contract, so the live call stays off until the URL is set.
+- A second Cloudflare Workers Builds project for `koma-storybook`, pointed at `main` with `bun run deploy:storybook`.
+- An explicit merge call for the five in-review PRs. Merging main deploys it.
 
 ## Rules of engagement
 
-- 2–3 code agents per wave, one worktree each, fresh agent per item; parent reviews every diff.
+- 2 to 3 code agents per wave, one worktree each, a fresh agent per item. The parent reviews every diff.
 - Anything touching `exporter.ts` is serialized across waves.
-- Locale work lands when UI strings are stable.
-- Merge: commit everything in the worktree (`git add -A`), cherry-pick into main, keep-both on conflicts, verify, remove the worktree.
+- Locale work lands when UI strings are stable, and every new key goes into all three dictionaries.
+- A lane gets its own worktree. Never run two lanes in the main checkout.
+- Branches are `waveN/<layer>`, stacked with `gh pr create --base` when one depends on another.
+- Local `bun run ci` is the feedback loop. Push when a lane is review-ready. Cloudflare deploys main on merge.
