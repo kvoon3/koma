@@ -76,7 +76,7 @@ export function classifyCameraFailure(error: unknown): CameraErrorCode {
     return error.code
   if (typeof error === 'object' && error !== null) {
     const name = (error as { name?: unknown }).name
-    if (typeof name === 'string' && name in FAILURE_CODES)
+    if (typeof name === 'string' && Object.hasOwn(FAILURE_CODES, name))
       return FAILURE_CODES[name]!
   }
   return 'generic'
@@ -136,6 +136,8 @@ function createSession(stream: MediaStream): CameraSession {
     video = element
     element.srcObject = stream
 
+    // `loadeddata` is the first frame, not just the dimensions: capture reads
+    // the live frame and refuses a video that cannot supply one.
     if (element.readyState < 2) {
       await new Promise<void>((resolve, reject) => {
         let settled = false
@@ -144,7 +146,7 @@ function createSession(stream: MediaStream): CameraSession {
             return
           settled = true
           clearTimer()
-          element.removeEventListener('loadedmetadata', onLoaded)
+          element.removeEventListener('loadeddata', onLoaded)
           element.removeEventListener('error', onError)
           cancelAttach = null
           if (error)
@@ -159,7 +161,7 @@ function createSession(stream: MediaStream): CameraSession {
           settle(new CameraError('generic'))
         }
         cancelAttach = () => settle(new CameraError('generic'))
-        element.addEventListener('loadedmetadata', onLoaded)
+        element.addEventListener('loadeddata', onLoaded)
         element.addEventListener('error', onError)
         timer = setTimeout(() => settle(new CameraError('generic')), ATTACH_TIMEOUT_MS)
       })
@@ -167,11 +169,13 @@ function createSession(stream: MediaStream): CameraSession {
 
     if (stopped)
       return
+    // A refused play leaves no frame to capture, so it is a failure rather
+    // than a silently enabled Use photo button.
     try {
       await element.play()
     }
     catch {
-      // Autoplay refusal leaves the attached frame usable; the user already opened the camera.
+      throw new CameraError('generic')
     }
   }
 
