@@ -32,8 +32,15 @@ Where a note conflicts with a poteto default, the note wins.
 
 ## Worktrees and branches
 
-- Worktrees are Herdr-managed: `herdr worktree create`, `herdr worktree remove --workspace <ID>`.
-  Never bare `git worktree add/remove/prune`, and never `reset --hard` a Herdr worktree.
+- A lane gets its own worktree; never run two lanes in the main checkout. The checkout is
+  plain git: `git worktree add ~/.herdr/worktrees/koma/<name> -b <branch>`, and
+  `git worktree remove` once merged. Herdr is only a viewer: `herdr worktree open --path
+  <path>` adds one to the sidebar, and a worktree that is open there comes down with
+  `herdr worktree remove --workspace <ID>` so its workspace goes with it.
+  `scripts/worktree-setup.sh`, wired as the post-checkout hook, installs a new
+  worktree's dependencies; if it was skipped (an old branch, or a non-git creator),
+  run `bun install` there.
+- Never `reset --hard` a worktree another lane owns; its uncommitted edits do not survive.
 - Branch names are `waveN/<layer>`. Preview URL: `<branch-slug>-koma.kvoon.workers.dev`.
 
 ## Exceptions to poteto defaults
