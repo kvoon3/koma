@@ -63,7 +63,6 @@ const MATERIALS: { value: StickerMaterialType, label: TKey }[] = [
   { value: 'glitter', label: 'Glitter' },
 ]
 
-/** The paper finishes: none, or the newspaper print. */
 const PAPER_TEXTURES: { value: 'none' | StickerTexture, label: TKey }[] = [
   { value: 'none', label: 'None' },
   { value: 'newsprint', label: 'Newspaper' },
@@ -325,12 +324,8 @@ function StickerStage({
       </span>
     )
     const cls = 'cursor-pointer text-dim transition-colors duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-[-1px]'
-    if (onPickLibrary) {
-      return (
-        <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`} data-sticker-stage="empty">
-          <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} onClick={onPick}>
-            {label}
-          </button>
+    const doors = onPickLibrary
+      ? (
           <div className="flex h-1/2 w-full divide-x divide-line-strong">
             <button type="button" className={`flex w-1/2 items-center justify-center ${cls}`} data-camera-open="" onClick={onTakePhoto}>
               {cameraLabel}
@@ -340,17 +335,18 @@ function StickerStage({
               {t('From the photo library')}
             </button>
           </div>
-        </div>
-      )
-    }
+        )
+      : (
+          <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} data-camera-open="" onClick={onTakePhoto}>
+            {cameraLabel}
+          </button>
+        )
     return (
       <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`} data-sticker-stage="empty">
         <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} onClick={onPick}>
           {label}
         </button>
-        <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} data-camera-open="" onClick={onTakePhoto}>
-          {cameraLabel}
-        </button>
+        {doors}
       </div>
     )
   }

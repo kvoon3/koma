@@ -119,22 +119,12 @@ async function newspaperPixels(page) {
       deltaSquares += delta * delta
     }
 
-    const previewImage = new Image()
-    previewImage.src = on.dataUrl
-    await previewImage.decode()
-    const preview = document.createElement('canvas')
-    preview.width = previewImage.naturalWidth
-    preview.height = previewImage.naturalHeight
-    const previewContext = preview.getContext('2d')
-    previewContext.drawImage(previewImage, 0, 0)
-    const previewData = previewContext.getImageData(0, 0, preview.width, preview.height)
-
     // Both bakes are the same sheet at different max edges, so the save goes
     // onto the preview's own grid. A fixed 480-wide canvas would crop a portrait
     // save and compare unrelated regions.
     const scaled = document.createElement('canvas')
-    scaled.width = preview.width
-    scaled.height = preview.height
+    scaled.width = b.width
+    scaled.height = b.height
     const scaledContext = scaled.getContext('2d')
     scaledContext.imageSmoothingEnabled = true
     scaledContext.imageSmoothingQuality = 'high'
@@ -143,16 +133,16 @@ async function newspaperPixels(page) {
     await saveImage.decode()
     scaledContext.drawImage(saveImage, 0, 0, scaled.width, scaled.height)
     const down = scaledContext.getImageData(0, 0, scaled.width, scaled.height)
-    const width = Math.min(preview.width, down.width)
-    const height = Math.min(preview.height, down.height)
+    const width = Math.min(b.width, down.width)
+    const height = Math.min(b.height, down.height)
     let paritySum = 0
     let parityCount = 0
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
-        const p = (y * preview.width + x) * 4
+        const p = (y * b.width + x) * 4
         const d = (y * down.width + x) * 4
         for (let channel = 0; channel < 3; channel += 1) {
-          paritySum += Math.abs(previewData.data[p + channel] - down.data[d + channel])
+          paritySum += Math.abs(b.data[p + channel] - down.data[d + channel])
           parityCount += 1
         }
       }

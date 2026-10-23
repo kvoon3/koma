@@ -4,10 +4,10 @@
  * a support value, an error code, and three methods whose lifetime it owns.
  */
 
-export type CameraSupport = 'ready' | 'insecure' | 'unsupported'
+type CameraSupport = 'ready' | 'insecure' | 'unsupported'
 
 /** The pieces of the environment the decision needs; structural so tests can pass plain objects. */
-export interface CameraScope {
+interface CameraScope {
   readonly isSecureContext?: boolean
   readonly mediaDevices?: { readonly getUserMedia?: unknown } | null
 }

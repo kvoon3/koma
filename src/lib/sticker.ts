@@ -446,10 +446,7 @@ async function prepareArtwork(
   const displayScale = displayLongEdge > 0 ? visibleLongEdge / displayLongEdge : 1
   const textured = applyTextureToCanvas(artwork, bake.texture, displayScale)
   const perforation = bake.perforation
-    ? perforationToTexture(
-        bake.perforation,
-        displayLongEdge > 0 ? visibleLongEdge / displayLongEdge : 1,
-      )
+    ? perforationToTexture(bake.perforation, displayScale)
     : null
   const canvas = cropToVisible(applySilhouette(textured, {
     radius,

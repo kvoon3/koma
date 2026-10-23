@@ -38,7 +38,7 @@
  * - **Alpha, dimensions.** Width, height and length are never touched.
  */
 
-import { hash2, lerp, smooth as smoothT, valueNoise } from './noise'
+import { hash2, lerp, smooth, valueNoise } from './noise'
 
 /**
  * Filters in dock order: the film grain pair, the three duotones, the
@@ -321,7 +321,7 @@ function duotone(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: n
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4
       const L = luma(src[i]!, src[i + 1]!, src[i + 2]!) / 255
-      const curved = clamp01(lerp(L, smoothT(L), curve))
+      const curved = clamp01(lerp(L, smooth(L), curve))
       const ink = 1 - curved
       const amp = grain * (0.6 + 0.7 * ink)
       const g = grainNoise(x, y, r, toneSeed) * amp
