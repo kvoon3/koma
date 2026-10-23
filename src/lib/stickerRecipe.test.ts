@@ -26,6 +26,13 @@ const STYLE: StickerBakeStyle = {
   baseName: 'cat',
   perforation: { depth: 4, spacing: 12 },
   displayLongEdge: 220,
+  texture: null,
+}
+
+const ORIGINAL = { type: 'text' as const, text: 'hi', color: '#000000', fontId: 'system' }
+
+function payload(style: unknown) {
+  return { original: ORIGINAL, style }
 }
 
 /** A one-pixel PNG: enough to be a real file with a real signature. */
@@ -129,6 +136,42 @@ describe('a made sticker\'s recipe', () => {
       expect(out.recipe).toBeUndefined()
       expect(recipeOf(out)).toBeNull()
     }
+  })
+})
+
+describe('the recipe\'s paper texture', () => {
+  it('round-trips a strength through a session record', () => {
+    const recipe = stickerRecipeFrom(payload({ ...STYLE, texture: { strength: 60 } }))
+    expect(recipe?.style.texture).toEqual({ strength: 60 })
+    expect(stickerRecipeFrom(structuredClone(recipe))).toEqual(recipe)
+  })
+
+  it('reads an absent field and an explicit null as no texture', () => {
+    const legacy: Partial<StickerBakeStyle> = { ...STYLE }
+    delete legacy.texture
+    expect(stickerRecipeFrom(payload(legacy))?.style.texture).toBeNull()
+    expect(stickerRecipeFrom(payload({ ...STYLE, texture: null }))?.style.texture).toBeNull()
+  })
+
+  it('clamps a finite strength outside the slider range', () => {
+    expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: 140 } }))?.style.texture)
+      .toEqual({ strength: 100 })
+    expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: -3 } }))?.style.texture)
+      .toEqual({ strength: 0 })
+  })
+
+  it('rejects a malformed texture shape', () => {
+    const malformed = [
+      { strength: '60' },
+      { strength: Number.POSITIVE_INFINITY },
+      { strength: Number.NaN },
+      {},
+      'wrinkle',
+      [60],
+      60,
+    ]
+    for (const texture of malformed)
+      expect(stickerRecipeFrom(payload({ ...STYLE, texture }))).toBeNull()
   })
 })
 

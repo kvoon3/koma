@@ -872,7 +872,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     if (!source || !target)
       return
     const baseName = baseNameOf(reEdit, tab, text, imageName)
-    const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge }
+    const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge, texture: null }
     // The picture this sticker started from, carried onto the new record.
     const fromOriginal = originalOf(tab, text, color, font, original())
     setInserting(true)
