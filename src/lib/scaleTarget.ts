@@ -17,9 +17,7 @@ import { CANVAS_SCALE } from './scaleRail'
  * The rail is one control with three targets. A sticker and a text label scale
  * uniformly and want no aspect control, which is exactly what a single scale is;
  * the canvas is the same (a scale, plus its own corner handle for the ratio).
- * When the board is not selected at all there is nothing to size, so the rail
- * has no target and goes inert: that state is the component's, this module just
- * says there is nothing.
+ * Nothing selected still means something to size: the canvas, focused or not.
  */
 
 export type ScaleTargetKind = 'canvas' | 'sticker' | 'label'
@@ -60,8 +58,6 @@ export const LABEL_SCALE: RailScale = {
 
 /** The board's selection and the one size it always carries, as the rail reads it. */
 export interface ScaleSelection {
-  /** The focused pane; '' means the board is not selected. */
-  focusId: string
   canvasFill: number
   labels: readonly PaneLabel[]
   stickers: readonly Sticker[]
@@ -70,25 +66,25 @@ export interface ScaleSelection {
   stickerSel: string | null
 }
 
-/** The canvas line, which the rail also shows while it is inert. */
+/** The canvas line: the board's fill, the target when nothing else is selected. */
 export function canvasScaleTarget(canvasFill: number): ScaleTarget {
   return { kind: 'canvas', id: '', value: canvasFill, scale: CANVAS_SCALE, format: 'percent', label: 'Canvas size' }
 }
 
 /**
  * What the rail sizes: the selected label first, then the selected sticker, then
- * the canvas while a pane has focus, and nothing when the board is not selected.
- * A selection that names something no longer on the board falls through, so a
- * removed sticker cannot leave the rail pointing at a ghost.
+ * the canvas, focused or not. A selection that names something no longer on the
+ * board falls through, so a removed sticker cannot leave the rail pointing at a
+ * ghost.
  */
-export function pickScaleTarget(sel: ScaleSelection): ScaleTarget | null {
+export function pickScaleTarget(sel: ScaleSelection): ScaleTarget {
   const label = sel.labelSel ? sel.labels.find(l => l.id === sel.labelSel) : undefined
   if (label)
     return { kind: 'label', id: label.id, value: label.size, scale: LABEL_SCALE, format: 'size', label: 'Text size' }
   const sticker = sel.stickerSel ? sel.stickers.find(s => s.id === sel.stickerSel) : undefined
   if (sticker)
     return { kind: 'sticker', id: sticker.id, value: sticker.s, scale: STICKER_SCALE, format: 'percent', label: 'Sticker size' }
-  return sel.focusId ? canvasScaleTarget(sel.canvasFill) : null
+  return canvasScaleTarget(sel.canvasFill)
 }
 
 /**
