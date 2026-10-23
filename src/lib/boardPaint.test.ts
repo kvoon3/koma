@@ -2,7 +2,7 @@
 import type { Derived } from './layout'
 import type { Leaf, Rect, SeamSides } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, paintBoard, paneBoxStyle, paneDraws, photoBoxStyle, photoTransform, transformOf } from './boardPaint'
+import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapView, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
 import { newLeaf } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`, zoom = 1): Leaf {
@@ -88,6 +88,53 @@ describe('minimapStyles', () => {
   it('writes the window as percentages', () => {
     expect(minimapViewStyle({ x: 0.25, y: 0, w: 0.5, h: 1 }))
       .toEqual({ left: '25%', top: '0%', width: '50%', height: '100%' })
+  })
+
+  it('derives the window from the same fractions the styles carry', () => {
+    const p = leaf('a', 'ph-a', 2)
+    const view = minimapView(CELL, CELL, p, 800, 600)
+    expect(view).toEqual(minimapStyles(CELL, CELL, p, 800, 600).view)
+    expect(view).toEqual({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 })
+  })
+})
+
+describe('minimapVisible', () => {
+  const base = { zoom: 2, previewUrl: 'blob:x', boxWidth: 400 }
+
+  it('seats an overflowing pane with a preview wide enough for the chip', () => {
+    expect(minimapVisible({ ...base, placement: 'pane' })).toBe(true)
+    expect(minimapVisible({ ...base, placement: 'pane', boxWidth: 259 })).toBe(false)
+  })
+
+  it('needs an overflow and a preview in either placement', () => {
+    expect(minimapVisible({ ...base, placement: 'pane', zoom: 1.05 })).toBe(false)
+    expect(minimapVisible({ ...base, placement: 'stage', zoom: 1.05 })).toBe(false)
+    expect(minimapVisible({ ...base, placement: 'stage', previewUrl: undefined })).toBe(false)
+  })
+
+  it('ignores the pane width on the stage, where the seat is fixed', () => {
+    expect(minimapVisible({ ...base, placement: 'stage', boxWidth: 40 })).toBe(true)
+  })
+})
+
+describe('stageMinimapSeat', () => {
+  const chip = { w: 58, h: 44 }
+
+  it('anchors the chip bottom-left, a gap above the sheet', () => {
+    expect(stageMinimapSeat({ sheetTop: 700, chromeBottom: 100, chip })).toEqual({ left: 10, top: 700 - 12 - 44 })
+  })
+
+  it('takes a custom gap and left inset', () => {
+    expect(stageMinimapSeat({ sheetTop: 700, chromeBottom: null, chip, gap: 8, left: 16 })).toEqual({ left: 16, top: 648 })
+  })
+
+  it('has no seat without a sheet', () => {
+    expect(stageMinimapSeat({ sheetTop: null, chromeBottom: null, chip })).toBeNull()
+  })
+
+  it('has no seat when it would rise above the top chrome or off the viewport', () => {
+    expect(stageMinimapSeat({ sheetTop: 200, chromeBottom: 150, chip })).toBeNull()
+    expect(stageMinimapSeat({ sheetTop: 40, chromeBottom: null, chip })).toBeNull()
   })
 })
 

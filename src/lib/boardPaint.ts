@@ -82,6 +82,25 @@ export function photoBoxStyle(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
   return { left: p.x - draw.x, top: p.y - draw.y, width: p.w, height: p.h }
 }
 
+/** The minimap's window onto the photo, as photo fractions. */
+export interface MinimapView {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** The window as photo fractions: placement inverted. */
+export function minimapView(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih: number): MinimapView {
+  const p = placement(cell, leaf, iw, ih)
+  return {
+    x: Math.max(0, (draw.x - p.x) / p.w),
+    y: Math.max(0, (draw.y - p.y) / p.h),
+    w: Math.min(1, draw.w / p.w),
+    h: Math.min(1, draw.h / p.h),
+  }
+}
+
 /**
  * The minimap's two boxes: the window onto the photo, and where it sits in it.
  * `limitH` clamps the window's bottom in pane-local px, which is how the chip
@@ -98,20 +117,64 @@ export function minimapStyles(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
       width: Math.max(0, Math.min(draw.w, p.x - draw.x + p.w) - l),
       height: Math.max(0, Math.min(draw.h, p.y - draw.y + p.h, limitH ?? Number.POSITIVE_INFINITY) - t),
     },
-    // The window as photo fractions: placement inverted. The gesture reads
-    // these as numbers; the DOM writes them as percentages (below).
-    view: {
-      x: Math.max(0, (draw.x - p.x) / p.w),
-      y: Math.max(0, (draw.y - p.y) / p.h),
-      w: Math.min(1, draw.w / p.w),
-      h: Math.min(1, draw.h / p.h),
-    },
+    view: minimapView(cell, draw, leaf, iw, ih),
   }
+}
+
+// The chip appears once the photo overflows the pane, and in-pane it needs the
+// room to seat; on the stage the seat is fixed, so width does not apply.
+const MINIMAP_ZOOM = 1.05
+const MINIMAP_MIN_BOX = 260
+const STAGE_SEAT_GAP = 12
+const STAGE_SEAT_LEFT = 10
+
+/** Whether a focused pane shows its minimap, given where the chip would sit. */
+export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, previewUrl?: string, boxWidth: number }): boolean {
+  if (o.zoom <= MINIMAP_ZOOM || !o.previewUrl)
+    return false
+  return o.placement === 'stage' || o.boxWidth >= MINIMAP_MIN_BOX
+}
+
+/**
+ * The stage-seated chip's box: bottom-left, just above the tools sheet, and
+ * never above the stage's own chrome or off the viewport. Null means no room.
+ */
+export function stageMinimapSeat(o: {
+  sheetTop: number | null
+  chromeBottom: number | null
+  chip: { w: number, h: number }
+  gap?: number
+  left?: number
+}): { left: number, top: number } | null {
+  if (o.sheetTop == null)
+    return null
+  const top = o.sheetTop - (o.gap ?? STAGE_SEAT_GAP) - o.chip.h
+  if (top < 0 || (o.chromeBottom != null && top < o.chromeBottom))
+    return null
+  return { left: o.left ?? STAGE_SEAT_LEFT, top }
 }
 
 /** The minimap window as CSS, so the render and a painted frame write the same values. */
 export function minimapViewStyle(view: { x: number, y: number, w: number, h: number }) {
   return { left: `${view.x * 100}%`, top: `${view.y * 100}%`, width: `${view.w * 100}%`, height: `${view.h * 100}%` }
+}
+
+/**
+ * Paint the chip's window after a pan or pinch. On compact widths the chip is
+ * seated on the stage rather than inside the pane, so the pane painter cannot
+ * find it; its box is fixed and only this window moves.
+ */
+export function paintMinimapView(
+  el: HTMLElement | null | undefined,
+  cell: Rect,
+  draw: Rect,
+  leaf: Leaf,
+  iw: number,
+  ih: number,
+): void {
+  if (!el || !iw || !ih)
+    return
+  assign(el, minimapViewStyle(minimapView(cell, draw, leaf, iw, ih)))
 }
 
 /** A divider's hit band. */
