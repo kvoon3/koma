@@ -68,9 +68,9 @@ Prioritization axes: **value × change surface**. Priority ≠ dependency. Share
 
 - New worktrees install their dependencies on checkout
 
-## In review (Wave 11 and 12)
+## Wave 11 and 12
 
-These have open PRs and green local gates. They are not merged, so no deploy has happened.
+Merged on 2026-10-24, and the merge deployed main.
 
 - PR #57: compact minimap chip seated against the tools dock's top-left corner, outside the pane
 - PR #58: the size rail resizes the canvas when nothing is selected, focused or not
@@ -93,7 +93,6 @@ These have open PRs and green local gates. They are not merged, so no deploy has
 - Rotate the Jev key, which was shared in chat. `JEV_API_URL` and `JEV_API_KEY` are already set on the `koma` Worker in `Kvoon@duck.com's Account`, and on the `wave12/jev-tags` preview plus its preview base config. Rotating means updating all three.
 - The preview proved the real path end to end: a `生日蛋糕` label came back with `icon: "cake"` through the deployed Worker proxy. A direct request from this machine still gets HTTP 451, so local runs need an egress outside the blocked region.
 - A second Cloudflare Workers Builds project for `koma-storybook`, pointed at `main` with `bun run deploy:storybook`.
-- An explicit merge call for the five in-review PRs. Merging main deploys it.
 
 ## Rules of engagement
 
