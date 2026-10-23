@@ -404,11 +404,13 @@ overlays the stage with no put-away state and a tall canvas runs underneath it,
 so the chip stops at the sheet's top edge (8px above it) rather than sitting
 behind its glass, and follows the sheet as it cycles displays.
 Below lg the pane is too narrow to seat that chip and the sheet covers the pane's
-bottom corner, so the chip moves to the stage's top-right instead: 56px below the
-stage's top edge (8px under the action cluster's 38px buttons) and 80px in from
-the right, which keeps it 8px clear of the size rail's readout. It is portalled
-outside the canvas transform, so it keeps that seat at every view zoom; the
-thumbnail and the window are the same ones the desktop chip draws.
+bottom corner, so the chip moves to the stage instead, seated against the tools
+dock: its bottom edge 8px above the dock's top edge and its left edge 10px in
+from the dock's left, measured from the dock's own rect rather than the viewport,
+so it follows the dock as it cycles displays and clears the top-right action
+cluster and the size rail by construction. It is portalled outside the canvas
+transform, so it keeps that seat at every view zoom; the thumbnail and the window
+are the same ones the desktop chip draws.
 The focused pane's tools (sticker / replace photo / text label)
 live in a panel that overlays the canvas above the footer, open by default and
 moved only by the handle on its top edge; the tools act on the focused pane, so

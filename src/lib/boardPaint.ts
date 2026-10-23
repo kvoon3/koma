@@ -123,9 +123,9 @@ export function minimapStyles(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
 
 const MINIMAP_ZOOM = 1.05
 const MINIMAP_MIN_BOX = 260
-// Stage-absolute, below the action cluster and clear of the ScaleRail readout.
-const STAGE_SEAT_TOP = 56
-const STAGE_SEAT_RIGHT = 80
+/** The stage seat's clearance from the dock's top-left corner, in px. */
+const STAGE_SEAT_GAP = 8
+const STAGE_SEAT_INSET = 10
 
 /** Whether a focused pane shows its minimap, given where the chip would sit. */
 export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, previewUrl?: string, boxWidth: number }): boolean {
@@ -135,12 +135,17 @@ export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, p
 }
 
 /**
- * The stage-seated chip's box, relative to the stage root: top-right, under the
- * action cluster and clear of the ScaleRail. Fixed at every view zoom, since
- * the seat is outside the canvas transform.
+ * The stage-seated chip's box, relative to the stage root: its bottom edge 8px
+ * above the tools dock's top, its left edge inset 10px from the dock's. Derived
+ * from the dock rather than a stage constant, so the chip rides every display
+ * the dock cycles through, and measured outside the canvas transform, so the
+ * seat holds at every view zoom.
  */
-export function stageMinimapSeat(): { top: number, right: number } {
-  return { top: STAGE_SEAT_TOP, right: STAGE_SEAT_RIGHT }
+export function stageMinimapSeat(dock: { left: number, top: number }, stage: { left: number, bottom: number }): { left: number, bottom: number } {
+  return {
+    left: dock.left - stage.left + STAGE_SEAT_INSET,
+    bottom: stage.bottom - dock.top + STAGE_SEAT_GAP,
+  }
 }
 
 /** The minimap window as CSS, so the render and a painted frame write the same values. */

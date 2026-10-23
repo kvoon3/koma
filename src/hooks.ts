@@ -354,3 +354,67 @@ export function useToolsSheetTop(): number | null {
 export function useFloatingActionsBottom(): number | null {
   return useChromeEdge('[data-float-actions]', 'bottom')
 }
+
+/** The boxes a stage-seated chip derives its seat from, in viewport px. */
+export interface DockSeatBoxes {
+  /** The tools sheet's top-left corner. */
+  dock: { left: number, top: number }
+  /** The host the chip is portalled into (the stage). */
+  stage: { left: number, bottom: number }
+}
+
+/**
+ * The tools sheet's top-left corner and the stage's box, for a chip that seats
+ * itself against the sheet. Both are measured rather than derived (the sheet is
+ * a fixed overlay whose seat changes with every display it cycles through and
+ * with a drag), and the host is watched too, since a layout change moves the
+ * stage under the sheet. Null until both are mounted.
+ */
+export function useDockSeatBoxes(host: HTMLElement | null): DockSeatBoxes | null {
+  // The host is part of the state so a second stage never reads the first one's
+  // boxes while its own first read is still queued.
+  const [measured, setMeasured] = useState<{ host: HTMLElement, boxes: DockSeatBoxes } | null>(null)
+
+  useLayoutEffect(() => {
+    const dock = document.querySelector<HTMLElement>('[data-dock-mode]')
+    if (!host || !dock)
+      return
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      const d = dock.getBoundingClientRect()
+      const h = host.getBoundingClientRect()
+      const next = { dock: { left: d.left, top: d.top }, stage: { left: h.left, bottom: h.bottom } }
+      setMeasured(prev => prev?.host === host
+        && Math.abs(prev.boxes.dock.left - next.dock.left) < 0.5
+        && Math.abs(prev.boxes.dock.top - next.dock.top) < 0.5
+        && Math.abs(prev.boxes.stage.left - next.stage.left) < 0.5
+        && Math.abs(prev.boxes.stage.bottom - next.stage.bottom) < 0.5
+        ? prev
+        : { host, boxes: next })
+    }
+    const queue = () => {
+      if (!frame)
+        frame = requestAnimationFrame(measure)
+    }
+    // The sheet's display is a spring writing a transform and a height, so the
+    // style and the mode are both watched. The first read is queued like the
+    // rest: until it lands the chip renders nothing, never a seat at the origin.
+    const mo = new MutationObserver(queue)
+    mo.observe(dock, { attributes: true, attributeFilter: ['style', 'data-dock-mode'] })
+    const ro = new ResizeObserver(queue)
+    ro.observe(dock)
+    ro.observe(host)
+    window.addEventListener('resize', queue)
+    queue()
+    return () => {
+      mo.disconnect()
+      ro.disconnect()
+      window.removeEventListener('resize', queue)
+      if (frame)
+        cancelAnimationFrame(frame)
+    }
+  }, [host])
+
+  return measured?.host === host ? measured.boxes : null
+}

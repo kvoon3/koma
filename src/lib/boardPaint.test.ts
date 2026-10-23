@@ -118,8 +118,15 @@ describe('minimapVisible', () => {
 })
 
 describe('stageMinimapSeat', () => {
-  it('anchors the chip top-right under the action cluster, clear of the rail', () => {
-    expect(stageMinimapSeat()).toEqual({ top: 56, right: 80 })
+  it('seats the chip above the dock\'s top edge, inset from its left', () => {
+    const seat = stageMinimapSeat({ left: 0, top: 660 }, { left: 0, bottom: 812 })
+    expect(seat).toEqual({ left: 10, bottom: 160 })
+    expect(812 - seat.bottom).toBe(660 - 8)
+  })
+
+  it('measures the dock in stage coordinates, not the viewport\'s', () => {
+    expect(stageMinimapSeat({ left: 100, top: 500 }, { left: 40, bottom: 800 }))
+      .toEqual({ left: 70, bottom: 308 })
   })
 })
 

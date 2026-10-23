@@ -7,7 +7,7 @@ import { ImagePlus, SquareSplitHorizontal, SquareSplitVertical, Sticker as Stick
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
-import { useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
+import { useDockSeatBoxes, useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
 import { minimapStyles, minimapViewStyle, minimapVisible, paintMinimapView, paintPanePhoto, paneBoxStyle, photoBoxStyle, stageMinimapSeat, transformOf } from '../lib/boardPaint'
 import { viewScaleAt } from '../lib/canvasView'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
@@ -312,9 +312,10 @@ function MinimapChip({
  * instead of living behind its glass.
  *
  * Below lg the pane is too narrow to seat the chip and the sheet covers the
- * pane's bottom corner, so the chip is seated on the stage instead: top-right,
- * under the action cluster, portalled outside the canvas transform so it stays
- * put as the board zooms.
+ * pane's bottom corner, so the chip is seated on the stage instead: just above
+ * the tools dock's top edge, inset from its left corner, portalled outside the
+ * canvas transform so it stays put as the board zooms and follows the dock as
+ * the dock changes display.
  *
  * Quiet while the photo is the subject (0.7, 0.9 for a finger, which has no
  * hover to confirm the control exists) and full weight under the pointer, so
@@ -351,6 +352,9 @@ function PaneMinimap({
   viewportRef: React.RefObject<HTMLDivElement | null>
 }) {
   const sheetTop = useToolsSheetTop()
+  // The stage seat is measured against the dock (see `stageMinimapSeat`); null
+  // until both the dock and the portal host are mounted.
+  const seatBoxes = useDockSeatBoxes(compact ? host : null)
   const coarse = useMediaQuery('(pointer: coarse)')
   // A finger gets no hover to confirm the control exists, so the chip rests
   // brighter; a mouse leaves it quiet until the pointer arrives.
@@ -403,10 +407,10 @@ function PaneMinimap({
   )
 
   if (compact) {
-    if (!host)
+    if (!host || !seatBoxes)
       return null
     return createPortal(
-      <div data-pane-minimap-stage="" className={`pointer-events-none absolute transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${rest}`} style={stageMinimapSeat()}>
+      <div data-pane-minimap-stage="" className={`pointer-events-none absolute transition-opacity duration-(--dur-fast) hover:opacity-100 focus-within:opacity-100 ${rest}`} style={stageMinimapSeat(seatBoxes.dock, seatBoxes.stage)}>
         {chip}
       </div>,
       host,
