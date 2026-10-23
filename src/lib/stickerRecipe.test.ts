@@ -153,11 +153,13 @@ describe('the recipe\'s paper texture', () => {
     expect(stickerRecipeFrom(payload({ ...STYLE, texture: null }))?.style.texture).toBeNull()
   })
 
-  it('clamps a finite strength outside the slider range', () => {
+  it('clamps a high strength and normalises a non-positive one to off', () => {
     expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: 140 } }))?.style.texture)
       .toEqual({ strength: 100 })
     expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: -3 } }))?.style.texture)
-      .toEqual({ strength: 0 })
+      .toBeNull()
+    expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: 0 } }))?.style.texture)
+      .toBeNull()
   })
 
   it('rejects a malformed texture shape', () => {

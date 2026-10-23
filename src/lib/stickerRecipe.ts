@@ -126,7 +126,8 @@ function asPerforation(value: unknown): { ok: true, design: StickerBakeStyle['pe
  * Absent or null is "no texture": every recipe written before this field
  * existed. Once present, the shape must be the known one or the recipe is not
  * a recipe. A finite strength outside the slider's range clamps rather than
- * invalidating the record, the way a stale filter knob is clamped.
+ * invalidating the record, the way a stale filter knob is clamped. A strength
+ * at or below 0 normalises to null, so "off" has one serialized shape.
  */
 function asTexture(value: unknown): { ok: true, design: WrinkleDesign | null } | { ok: false } {
   if (value == null)
@@ -135,9 +136,11 @@ function asTexture(value: unknown): { ok: true, design: WrinkleDesign | null } |
   const strength = asNumber(record?.strength)
   if (strength == null)
     return { ok: false }
+  if (strength <= MIN_WRINKLE_STRENGTH)
+    return { ok: true, design: null }
   return {
     ok: true,
-    design: { strength: Math.min(MAX_WRINKLE_STRENGTH, Math.max(MIN_WRINKLE_STRENGTH, strength)) },
+    design: { strength: Math.min(MAX_WRINKLE_STRENGTH, strength) },
   }
 }
 
