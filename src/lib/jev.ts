@@ -2,8 +2,8 @@
  * The Jev boundary. A committed label's text becomes one Choice question over
  * the leading-icon catalog, and the answer names an icon or "none".
  *
- * Contract, checked against the local mock; the live endpoint answers 451 in
- * this region:
+ * Contract, checked against the local mock and the deployed Worker proxy. A
+ * direct call from this machine is answered 451:
  *
  * - POST the configured URL with `application/json`. The body names the model
  *   `jev-latest`, carries the label text as `state`, and asks one Choice
