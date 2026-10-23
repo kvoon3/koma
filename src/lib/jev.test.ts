@@ -47,6 +47,20 @@ describe('the endpoint is configured or hidden', () => {
     expect(readJevConfig({ VITE_JEV_API_URL: '//evil.example/api/jev' })).toBeNull()
   })
 
+  test('a relative path stays on http, so a file page hides the action', () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'location')
+    Object.defineProperty(globalThis, 'location', { value: { origin: 'file://' }, configurable: true })
+    try {
+      expect(readJevConfig({ VITE_JEV_API_URL: '/api/jev' })).toBeNull()
+    }
+    finally {
+      if (original)
+        Object.defineProperty(globalThis, 'location', original)
+      else
+        delete (globalThis as { location?: unknown }).location
+    }
+  })
+
   test('a production build falls back to the same-origin proxy', () => {
     const fallback = readJevConfig({ PROD: true })
     expect(fallback?.url.pathname).toBe(JEV_PROXY_PATH)

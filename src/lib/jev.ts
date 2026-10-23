@@ -65,7 +65,8 @@ function endpointUrl(raw: string): URL | null {
     return null
   if (raw.startsWith('/')) {
     try {
-      return new URL(raw, globalThis.location?.origin ?? FALLBACK_ORIGIN)
+      const url = new URL(raw, globalThis.location?.origin ?? FALLBACK_ORIGIN)
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url : null
     }
     catch {
       return null
