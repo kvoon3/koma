@@ -26,6 +26,13 @@ const STYLE: StickerBakeStyle = {
   baseName: 'cat',
   perforation: { depth: 4, spacing: 12 },
   displayLongEdge: 220,
+  texture: null,
+}
+
+const ORIGINAL = { type: 'text' as const, text: 'hi', color: '#000000', fontId: 'system' }
+
+function payload(style: unknown) {
+  return { original: ORIGINAL, style }
 }
 
 /** A one-pixel PNG: enough to be a real file with a real signature. */
@@ -129,6 +136,34 @@ describe('a made sticker\'s recipe', () => {
       expect(out.recipe).toBeUndefined()
       expect(recipeOf(out)).toBeNull()
     }
+  })
+})
+
+describe('the recipe\'s paper texture', () => {
+  it('round-trips the newspaper print through a session record', () => {
+    const recipe = stickerRecipeFrom(payload({ ...STYLE, texture: 'newsprint' }))
+    expect(recipe?.style.texture).toBe('newsprint')
+    expect(stickerRecipeFrom(structuredClone(recipe))).toEqual(recipe)
+  })
+
+  it('reads an absent field and an explicit null as no texture', () => {
+    const legacy: Partial<StickerBakeStyle> = { ...STYLE }
+    delete legacy.texture
+    expect(stickerRecipeFrom(payload(legacy))?.style.texture).toBeNull()
+    expect(stickerRecipeFrom(payload({ ...STYLE, texture: null }))?.style.texture).toBeNull()
+  })
+
+  it('rejects anything that is not a frozen print', () => {
+    const malformed = [
+      { type: 'newsprint' },
+      'wrinkle',
+      'newsprints',
+      '',
+      ['newsprint'],
+      60,
+    ]
+    for (const texture of malformed)
+      expect(stickerRecipeFrom(payload({ ...STYLE, texture }))).toBeNull()
   })
 })
 

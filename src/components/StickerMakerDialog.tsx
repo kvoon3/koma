@@ -5,8 +5,9 @@ import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
 import type { StickerOriginalInput, StickerRecipe } from '../lib/stickerRecipe'
+import type { StickerTexture } from '../lib/stickerTexture'
 import { Dialog } from '@base-ui/react/dialog'
-import { ImagePlus, Images, Scissors, X } from 'lucide'
+import { Camera, ImagePlus, Images, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { StickerMaskEditor } from '@/components/StickerMaskEditor'
@@ -22,6 +23,7 @@ import { saveMadeSticker } from '../lib/stickerAssets'
 import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
 import { editedStickerMeta, textOriginal } from '../lib/stickerRecipe'
 import { say } from '../lib/toast'
+import { CameraCapturePanel } from './sticker/CameraCapturePanel'
 import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 
 /**
@@ -59,6 +61,11 @@ const MATERIALS: { value: StickerMaterialType, label: TKey }[] = [
   { value: 'original', label: 'Original' },
   { value: 'holographic', label: 'Holographic' },
   { value: 'glitter', label: 'Glitter' },
+]
+
+const PAPER_TEXTURES: { value: 'none' | StickerTexture, label: TKey }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'newsprint', label: 'Newspaper' },
 ]
 
 const OUTLINE_DEFAULT = 18
@@ -138,12 +145,13 @@ async function cutoutBackground(
 }
 
 /** Debounced live preview of the sticker the current inputs would produce. */
-function StickerPreview({ source, outlineWidth, outlineColor, material, perforation, displayLongEdge, onDisplaySize }: {
+function StickerPreview({ source, outlineWidth, outlineColor, material, perforation, texture, displayLongEdge, onDisplaySize }: {
   source: StickerSource | null
   outlineWidth: number
   outlineColor: string
   material: StickerMaterialType
   perforation: PerforationDesign | null
+  texture: StickerTexture | null
   displayLongEdge: number
   onDisplaySize: (longEdge: number) => void
 }) {
@@ -151,8 +159,8 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
   const imageRef = useRef<HTMLImageElement | null>(null)
   const [rendered, setRendered] = useState<{ key: string, url: string } | null>(null)
   const renderKey = useMemo(
-    () => (source ? JSON.stringify([source, outlineWidth, outlineColor, material, perforation, Math.round(displayLongEdge)]) : ''),
-    [source, outlineWidth, outlineColor, material, perforation, displayLongEdge],
+    () => (source ? JSON.stringify([source, outlineWidth, outlineColor, material, perforation, texture, Math.round(displayLongEdge)]) : ''),
+    [source, outlineWidth, outlineColor, material, perforation, texture, displayLongEdge],
   )
 
   // The stage is what the stamp sliders are measured against, so the drawn size
@@ -183,7 +191,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
       return
     let alive = true
     const id = window.setTimeout(() => {
-      makeSticker(source, { outlineWidth, outlineColor, perforation, displayLongEdge, maxEdge: PREVIEW_MAX, material: { type: material, intensity: 1 } })
+      makeSticker(source, { outlineWidth, outlineColor, perforation, texture, displayLongEdge, maxEdge: PREVIEW_MAX, material: { type: material, intensity: 1 } })
         .then((res) => {
           if (alive)
             setRendered({ key: renderKey, url: res.dataUrl })
@@ -197,7 +205,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
       alive = false
       window.clearTimeout(id)
     }
-  }, [source, outlineWidth, outlineColor, material, perforation, displayLongEdge, renderKey])
+  }, [source, outlineWidth, outlineColor, material, perforation, texture, displayLongEdge, renderKey])
 
   const url = source && rendered?.key === renderKey ? rendered.url || null : null
   const rendering = !!source && rendered?.key !== renderKey
@@ -269,9 +277,11 @@ function StickerStage({
   outlineColor,
   material,
   perforation,
+  texture,
   displayLongEdge,
   onDisplaySize,
   onPick,
+  onTakePhoto,
   onRemoveBg,
   onRestore,
   onAdjust,
@@ -287,9 +297,11 @@ function StickerStage({
   outlineColor: string
   material: StickerMaterialType
   perforation: PerforationDesign | null
+  texture: StickerTexture | null
   displayLongEdge: number
   onDisplaySize: (longEdge: number) => void
   onPick: () => void
+  onTakePhoto: () => void
   onRemoveBg: () => void
   onRestore: () => void
   onAdjust: () => void
@@ -305,36 +317,43 @@ function StickerStage({
         {t('Choose an image')}
       </span>
     )
+    const cameraLabel = (
+      <span className="flex items-center gap-2 whitespace-nowrap text-[12.5px] font-semibold">
+        <MorphIcon icon={Camera} size={18} strokeWidth={1.75} />
+        {t('Take a photo')}
+      </span>
+    )
     const cls = 'cursor-pointer text-dim transition-colors duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-[-1px]'
-    // The sticker page can draw its subject from the photos already imported:
-    // same stage, one more door, and the file picker keeps the whole frame.
-    if (onPickLibrary) {
-      return (
-        <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`}>
-          <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} onClick={onPick}>
-            {label}
+    const doors = onPickLibrary
+      ? (
+          <div className="flex h-1/2 w-full divide-x divide-line-strong">
+            <button type="button" className={`flex w-1/2 items-center justify-center ${cls}`} data-camera-open="" onClick={onTakePhoto}>
+              {cameraLabel}
+            </button>
+            <button type="button" className={`flex w-1/2 items-center justify-center gap-2 text-[12.5px] font-semibold ${cls}`} onClick={onPickLibrary}>
+              <MorphIcon icon={Images} size={18} strokeWidth={1.75} />
+              {t('From the photo library')}
+            </button>
+          </div>
+        )
+      : (
+          <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} data-camera-open="" onClick={onTakePhoto}>
+            {cameraLabel}
           </button>
-          <button type="button" className={`flex h-1/2 w-full items-center justify-center gap-2 text-[12.5px] font-semibold ${cls}`} onClick={onPickLibrary}>
-            <MorphIcon icon={Images} size={18} strokeWidth={1.75} />
-            {t('From the photo library')}
-          </button>
-        </div>
-      )
-    }
+        )
     return (
-      <button
-        type="button"
-        className={`${stageFrameCls} w-full ${cls}`}
-        onClick={onPick}
-      >
-        {label}
-      </button>
+      <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`} data-sticker-stage="empty">
+        <button type="button" className={`flex h-1/2 w-full items-center justify-center ${cls}`} onClick={onPick}>
+          {label}
+        </button>
+        {doors}
+      </div>
     )
   }
 
   if (tab === 'image' && imageStage === 'cuttingOut' && imageSrc && bgJob) {
     return (
-      <div className={stageFrameCls}>
+      <div className={stageFrameCls} data-sticker-stage="cuttingOut">
         <img src={imageSrc} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
         <CutoutOverlay job={bgJob} />
         <div className="absolute right-1.5 top-1.5 z-[1]">
@@ -345,13 +364,14 @@ function StickerStage({
   }
 
   return (
-    <div className={stageFrameCls}>
+    <div className={stageFrameCls} data-sticker-stage="ready">
       <StickerPreview
         source={source}
         outlineWidth={outlineWidth}
         outlineColor={outlineColor}
         material={material}
         perforation={perforation}
+        texture={texture}
         displayLongEdge={displayLongEdge}
         onDisplaySize={onDisplaySize}
       />
@@ -371,7 +391,13 @@ function StickerStage({
               {t('Adjust cutout')}
             </Button>
           </div>
-          <Button variant="strong" onClick={onPick}>{t('Replace')}</Button>
+          <div className="flex flex-none items-center gap-1">
+            <Button variant="strong" data-camera-open="" onClick={onTakePhoto}>
+              <MorphIcon icon={Camera} size={12} strokeWidth={1.75} />
+              {t('Take a photo')}
+            </Button>
+            <Button variant="strong" onClick={onPick}>{t('Replace')}</Button>
+          </div>
         </div>
       )}
     </div>
@@ -575,6 +601,7 @@ interface MakerSeed {
   toothDepth: number
   toothSpacing: number
   displayLongEdge: number
+  texture: StickerTexture | null
   /** The ORIGINAL a re-edit opens on (a recipe's stored picture), if any. */
   image: { url: string, name: string, photoId?: string } | null
 }
@@ -602,6 +629,7 @@ function seedOf(edit: { recipe: StickerRecipe } | null): MakerSeed {
     toothDepth: style?.perforation?.depth ?? TOOTH_DEPTH_DEFAULT,
     toothSpacing: style?.perforation?.spacing ?? TOOTH_SPACING_DEFAULT,
     displayLongEdge: style?.displayLongEdge ?? STAGE_HEIGHT_DEFAULT,
+    texture: style?.texture ?? null,
     image: original?.type === 'image' ? { url: original.src, name: original.name, photoId: original.photoId } : null,
   }
 }
@@ -726,39 +754,51 @@ function MakerTextFields({ text, font, fontMeta, color, onText, onFont, onColor 
   )
 }
 
+/** Which door fills the stage slot. One at a time, by construction. */
+type StageView = 'stage' | 'camera' | 'library' | 'mask'
+
 /**
- * What fills the stage slot: the library picker, the mask editor, or the live
- * stage. One door at a time, in the order the page offers them.
+ * What fills the stage slot: the camera panel, the library picker, the mask
+ * editor, or the live stage. One door at a time; the text tab always shows the
+ * stage.
  */
 function MakerStageSlot({
-  pickingLibrary,
-  editingMask,
+  view,
   baseSrc,
   imageSrc,
+  onCancelCamera,
+  onCapture,
   onCancelPick,
   onPickPhoto,
   onApplyMask,
   onCancelMask,
   stage,
 }: {
-  pickingLibrary: boolean
-  editingMask: boolean
+  view: StageView
   baseSrc: string | null
   imageSrc: string | null
+  onCancelCamera: () => void
+  onCapture: (file: File) => void
   onCancelPick: () => void
   onPickPhoto: (photo: Photo) => void
   onApplyMask: (url: string) => void
   onCancelMask: () => void
   stage: React.ComponentProps<typeof StickerStage>
 }) {
-  if (pickingLibrary)
+  // The panels belong to the image source, so the text tab always shows the
+  // stage even if a panel was open in the commit before the tab changed.
+  if (stage.tab !== 'image')
+    return <StickerStage {...stage} />
+  if (view === 'camera')
+    return <CameraCapturePanel onCapture={onCapture} onCancel={onCancelCamera} />
+  if (view === 'library')
     return <LibraryPickPanel onCancel={onCancelPick} onPick={onPickPhoto} />
-  if (editingMask && baseSrc)
+  if (view === 'mask' && baseSrc)
     return <StickerMaskEditor key={imageSrc ?? baseSrc} src={imageSrc ?? baseSrc} onCancel={onCancelMask} onApply={onApplyMask} />
   return <StickerStage {...stage} />
 }
 
-/** The edge effects: outline, stamp teeth and material. */
+/** The edge effects: outline, stamp teeth, material and the paper finish. */
 function MakerEffectsFields({
   outlineWidth,
   outlineColor,
@@ -766,12 +806,14 @@ function MakerEffectsFields({
   stamp,
   toothDepth,
   toothSpacing,
+  texture,
   onOutlineWidth,
   onOutlineColor,
   onMaterial,
   onStamp,
   onToothDepth,
   onToothSpacing,
+  onTexture,
 }: {
   outlineWidth: number
   outlineColor: string
@@ -779,12 +821,14 @@ function MakerEffectsFields({
   stamp: boolean
   toothDepth: number
   toothSpacing: number
+  texture: StickerTexture | null
   onOutlineWidth: (width: number) => void
   onOutlineColor: (color: string) => void
   onMaterial: (material: StickerMaterialType) => void
   onStamp: (stamp: boolean) => void
   onToothDepth: (depth: number) => void
   onToothSpacing: (spacing: number) => void
+  onTexture: (texture: StickerTexture | null) => void
 }) {
   const t = useT()
   return (
@@ -812,6 +856,14 @@ function MakerEffectsFields({
         items={MATERIALS.map(m => ({ value: m.value, label: t(m.label) }))}
         onChange={v => onMaterial(v as StickerMaterialType)}
       />
+      <div data-sticker-paper={texture ?? 'none'}>
+        <SegmentedField
+          label={t('Paper texture')}
+          value={texture ?? 'none'}
+          items={PAPER_TEXTURES.map(item => ({ value: item.value, label: t(item.label) }))}
+          onChange={value => onTexture(value === 'none' ? null : value as StickerTexture)}
+        />
+      </div>
     </div>
   )
 }
@@ -844,11 +896,16 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   const [toothDepth, setToothDepth] = useState(seed.toothDepth)
   const [toothSpacing, setToothSpacing] = useState(seed.toothSpacing)
   const [displayLongEdge, setDisplayLongEdge] = useState(seed.displayLongEdge)
-  const [editingMask, setEditingMask] = useState(false)
+  const [texture, setTexture] = useState<StickerTexture | null>(seed.texture)
+  // The board host keeps this dialog mounted, so the transient stage panel is
+  // keyed by the state that should reset it: a close or a tab change reads as
+  // the stage again, with no effect and no extra render.
+  const viewKey = `${open ? 'open' : 'closed'}:${tab}`
+  const [stageViewAt, setStageViewAt] = useState<{ key: string, view: StageView }>({ key: viewKey, view: 'stage' })
+  const stageView = stageViewAt.key === viewKey ? stageViewAt.view : 'stage'
+  const setStageView = (view: StageView) => setStageViewAt({ key: viewKey, view })
 
   const [inserting, setInserting] = useState(false)
-  /** Library mode only: the stage is showing the photo picker instead of a pick. */
-  const [pickingLibrary, setPickingLibrary] = useState(false)
   const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask, original } = useStickerImage(seed.image)
   const libraryMode = target?.kind === 'library'
 
@@ -867,12 +924,11 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     () => (stamp ? perforationFromSliders(toothDepth, toothSpacing) : null),
     [stamp, toothDepth, toothSpacing],
   )
-
   const insert = async () => {
     if (!source || !target)
       return
     const baseName = baseNameOf(reEdit, tab, text, imageName)
-    const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge }
+    const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge, texture }
     // The picture this sticker started from, carried onto the new record.
     const fromOriginal = originalOf(tab, text, color, font, original())
     setInserting(true)
@@ -897,9 +953,10 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     setStamp(seed.stamp)
     setToothDepth(seed.toothDepth)
     setToothSpacing(seed.toothSpacing)
+    setTexture(seed.texture)
   }
 
-  const canInsert = !!source && !!target && !inserting && !bgJob
+  const canInsert = !!source && !!target && !inserting && !bgJob && stageView !== 'camera'
   /** The library target's folder, in the reader's own words ('' is Unsorted). */
   const saveLabel = target?.kind === 'library'
     ? t('Save to {folder}', { folder: target.folder || t('Unsorted') })
@@ -911,9 +968,6 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
       onOpenChange={(o) => {
         if (o)
           return
-        // Closing drops the photo picker with the dialog: reopening lands on the
-        // stage, not on a half-browsed library.
-        setPickingLibrary(false)
         onClose()
       }}
     >
@@ -944,22 +998,26 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
 
             {/* Upload + live preview share one stage; cutout progress frosts the raw pick. */}
             <MakerStageSlot
-              pickingLibrary={pickingLibrary}
-              editingMask={editingMask}
+              view={stageView}
               baseSrc={baseSrc}
               imageSrc={imageSrc}
-              onCancelPick={() => setPickingLibrary(false)}
+              onCancelCamera={() => setStageView('stage')}
+              onCapture={(file) => {
+                setStageView('stage')
+                loadFile(file)
+              }}
+              onCancelPick={() => setStageView('stage')}
               onPickPhoto={(photo: Photo) => {
-                setPickingLibrary(false)
+                setStageView('stage')
                 // The photo's own File is the source, so the cutout, the
                 // effects and the bake are the ones a file pick runs.
                 loadFile(photo.file)
               }}
               onApplyMask={(url) => {
                 applyMask(url)
-                setEditingMask(false)
+                setStageView('stage')
               }}
-              onCancelMask={() => setEditingMask(false)}
+              onCancelMask={() => setStageView('stage')}
               stage={{
                 tab,
                 imageStage,
@@ -971,13 +1029,15 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
                 outlineColor,
                 material,
                 perforation,
+                texture,
                 displayLongEdge,
                 onDisplaySize: setDisplayLongEdge,
                 onPick: pickImage,
+                onTakePhoto: () => setStageView('camera'),
                 onRemoveBg: removeBg,
                 onRestore: restoreOriginal,
-                onAdjust: () => setEditingMask(true),
-                onPickLibrary: libraryMode ? () => setPickingLibrary(true) : null,
+                onAdjust: () => setStageView('mask'),
+                onPickLibrary: libraryMode ? () => setStageView('library') : null,
               }}
             />
 
@@ -988,12 +1048,14 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
               stamp={stamp}
               toothDepth={toothDepth}
               toothSpacing={toothSpacing}
+              texture={texture}
               onOutlineWidth={setOutlineWidth}
               onOutlineColor={setOutlineColor}
               onMaterial={setMaterial}
               onStamp={setStamp}
               onToothDepth={setToothDepth}
               onToothSpacing={setToothSpacing}
+              onTexture={setTexture}
             />
           </div>
 

@@ -3,6 +3,7 @@ import type { Photo } from './imageStore'
 import type { StickerMaterialType, StickerSource } from './sticker'
 import type { PerforationDesign } from './stickerFX'
 import type { StickerOriginalInput } from './stickerRecipe'
+import type { StickerTexture } from './stickerTexture'
 import { useStore } from '../store'
 import { makeSticker } from './sticker'
 import { buildStickerRecipe, editedStickerMeta } from './stickerRecipe'
@@ -33,6 +34,12 @@ export interface StickerBakeStyle {
   baseName: string
   perforation: PerforationDesign | null
   displayLongEdge: number
+  /**
+   * Newspaper print on the artwork before the die-cut. Null is off. Required
+   * so every bake path carries it; a recipe written before this field existed
+   * parses with null (lib/stickerRecipe).
+   */
+  texture: StickerTexture | null
 }
 
 /** Long edge of the baked PNG (the library copy is the same asset either way). */
@@ -58,6 +65,7 @@ export async function addStickerAsset(
     outlineColor: style.outlineColor,
     perforation: style.perforation,
     displayLongEdge: style.displayLongEdge,
+    texture: style.texture,
     maxEdge: INSERT_MAX,
     material: { type: style.material, intensity: 1 },
   })

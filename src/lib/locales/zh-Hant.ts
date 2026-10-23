@@ -802,4 +802,20 @@ export const zhHant: Record<TKey, string> = {
   'Delete music card?': '刪除音樂卡片？',
   'No music cards yet. Make one with the Music tool.': '還沒有音樂卡片。用「音樂」工具製作一張。',
   'No music cards match this search.': '沒有音樂卡片符合此搜尋。',
+
+  // Sticker maker: paper finish (newspaper) and camera (wave12/sticker-batch)
+  'Paper texture': '紙張紋理',
+  'Newspaper': '報紙',
+  'Take a photo': '拍照',
+  'Starting the camera…': '正在啟動相機…',
+  'Use photo': '使用照片',
+  'Camera preview': '相機預覽',
+  'Retry': '重試',
+  'Camera access was denied. Allow camera access in the browser, then try again.': '相機權限被拒絕。請在瀏覽器中允許存取相機，然後重試。',
+  'No camera was found on this device.': '在此裝置上找不到相機。',
+  'The camera needs a secure connection (HTTPS).': '相機需要安全連線（HTTPS）。',
+  'This browser cannot take photos.': '此瀏覽器無法拍照。',
+  'The camera is in use by another app.': '相機正被其他應用程式占用。',
+  'The camera could not be used.': '無法使用相機。',
+  'Could not take the photo.': '拍照失敗。',
 }

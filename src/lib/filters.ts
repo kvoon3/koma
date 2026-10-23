@@ -38,6 +38,8 @@
  * - **Alpha, dimensions.** Width, height and length are never touched.
  */
 
+import { hash2, lerp, smooth, valueNoise } from './noise'
+
 /**
  * Filters in dock order: the film grain pair, the three duotones, the
  * processes, then the pixel family (blocks, tiles, screens and ordered
@@ -231,22 +233,6 @@ export function clampKnob(id: FilterId, knob: FilterKnob, value: number): number
 // --- Primitives -------------------------------------------------------------
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
-/** Hermite ramp: flat at both ends, so textures do not band at their joins. */
-const smoothT = (t: number) => t * t * (3 - 2 * t)
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t
-
-/**
- * 32-bit integer hash of a lattice point → [0, 1). Three odd mixers picked for
- * this module (they only have to avalanche well, and they are ours).
- */
-function hash2(x: number, y: number, seed: number): number {
-  let h = Math.imul((x | 0) ^ seed, 0x27D4EB2D)
-  h = Math.imul((h ^ (y | 0)) + 0x9E3779B1, 0x165667B1)
-  h ^= h >>> 15
-  h = Math.imul(h, 0x2545F491)
-  h ^= h >>> 13
-  return (h >>> 0) / 4294967296
-}
 
 /**
  * Value noise: one hashed value per lattice cell, smoothly interpolated. `cell`
@@ -254,17 +240,7 @@ function hash2(x: number, y: number, seed: number): number {
  * scale come out resolution independent. Callers pass a pitch above zero.
  */
 function cellNoise(x: number, y: number, cell: number, seed: number): number {
-  const u = x / cell
-  const v = y / cell
-  const x0 = Math.floor(u)
-  const y0 = Math.floor(v)
-  const tx = smoothT(u - x0)
-  const ty = smoothT(v - y0)
-  const a = hash2(x0, y0, seed)
-  const b = hash2(x0 + 1, y0, seed)
-  const c = hash2(x0, y0 + 1, seed)
-  const d = hash2(x0 + 1, y0 + 1, seed)
-  return lerp(lerp(a, b, tx), lerp(c, d, tx), ty)
+  return valueNoise(x / cell, y / cell, seed)
 }
 
 /** Rec. 709 luma of one 8-bit pixel, in [0, 255]. */
@@ -345,7 +321,7 @@ function duotone(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: n
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4
       const L = luma(src[i]!, src[i + 1]!, src[i + 2]!) / 255
-      const curved = clamp01(lerp(L, smoothT(L), curve))
+      const curved = clamp01(lerp(L, smooth(L), curve))
       const ink = 1 - curved
       const amp = grain * (0.6 + 0.7 * ink)
       const g = grainNoise(x, y, r, toneSeed) * amp
