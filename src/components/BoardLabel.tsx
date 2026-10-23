@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/components/ui/field'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
+import { requestLabelIcon } from '../lib/labelIconJev'
 import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '../lib/labelIcons'
 import { DEFAULT_LABEL_THEME, LABEL_THEME_IDS, labelAlign, labelBgAlpha, labelPaint, labelTextShadow, normalizeLabelText, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
@@ -1119,10 +1120,12 @@ function LabelView({
 
   const commitEdit = (text: string) => {
     setEditing(false)
-    if (!text)
+    if (!text) {
       removeLabel(labelId)
-    else
-      setLabel(labelId, { text })
+      return
+    }
+    setLabel(labelId, { text })
+    requestLabelIcon(labelId, text)
   }
 
   return (
