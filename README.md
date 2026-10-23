@@ -25,6 +25,9 @@ only for the editor and typescript-eslint.
 Design notes: pane tree model, interaction reference, implementation details
 live in [DESIGN.md](DESIGN.md).
 
+Jev classification posts to a Worker proxy in production. The two secrets and
+the local check live in [docs/jev-proxy.md](docs/jev-proxy.md).
+
 ## License
 
 [MIT](LICENSE) © Kevin Kwong. Third-party notices live in
