@@ -124,17 +124,6 @@ async function texturePixels(page) {
       deltaSquares += delta * delta
     }
 
-    const scaled = document.createElement('canvas')
-    scaled.width = 480
-    scaled.height = 480 * c.height / c.width
-    const scaledContext = scaled.getContext('2d')
-    scaledContext.imageSmoothingEnabled = true
-    scaledContext.imageSmoothingQuality = 'high'
-    const saveImage = new Image()
-    saveImage.src = save.dataUrl
-    await saveImage.decode()
-    scaledContext.drawImage(saveImage, 0, 0, scaled.width, scaled.height)
-    const down = scaledContext.getImageData(0, 0, scaled.width, scaled.height)
     const previewImage = new Image()
     previewImage.src = on.dataUrl
     await previewImage.decode()
@@ -144,6 +133,21 @@ async function texturePixels(page) {
     const previewContext = preview.getContext('2d')
     previewContext.drawImage(previewImage, 0, 0)
     const previewData = previewContext.getImageData(0, 0, preview.width, preview.height)
+
+    // Both bakes are the same sheet at different max edges, so the save goes
+    // onto the preview's own grid. A fixed 480-wide canvas would crop a portrait
+    // save and compare unrelated regions.
+    const scaled = document.createElement('canvas')
+    scaled.width = preview.width
+    scaled.height = preview.height
+    const scaledContext = scaled.getContext('2d')
+    scaledContext.imageSmoothingEnabled = true
+    scaledContext.imageSmoothingQuality = 'high'
+    const saveImage = new Image()
+    saveImage.src = save.dataUrl
+    await saveImage.decode()
+    scaledContext.drawImage(saveImage, 0, 0, scaled.width, scaled.height)
+    const down = scaledContext.getImageData(0, 0, scaled.width, scaled.height)
     const width = Math.min(preview.width, down.width)
     const height = Math.min(preview.height, down.height)
     let paritySum = 0
@@ -162,6 +166,7 @@ async function texturePixels(page) {
     return {
       zeroIdentical: off.dataUrl === zero.dataUrl,
       dimensions: [a.width, a.height, b.width, b.height],
+      saveDimensions: [c.width, c.height],
       alphaDiff,
       rgbDiff,
       meanDelta: deltaSum / channels,
@@ -194,6 +199,11 @@ try {
   {
     const { context, page } = await newPage(browser, { width: 1280, height: 900 }, initStreams)
     await openMaker(page)
+    await page.screenshot({ path: join(OUT, 'camera-door-1280x900.png') })
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.waitForTimeout(200)
+    await page.screenshot({ path: join(OUT, 'camera-door-375x812.png') })
+    await page.setViewportSize({ width: 1280, height: 900 })
     report.texture = await texturePixels(page)
 
     await openCamera(page)
@@ -220,6 +230,10 @@ try {
       img: document.querySelector('[data-sticker-stage] img')?.getAttribute('src')?.slice(0, 5) ?? null,
     }))
     await page.waitForSelector('[data-sticker-save]:not([disabled])', { timeout: 120000 })
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.waitForTimeout(200)
+    await page.screenshot({ path: join(OUT, 'camera-ready-375x812.png') })
+    await page.setViewportSize({ width: 1280, height: 900 })
     await page.screenshot({ path: join(OUT, 'camera-captured-1280x900.png') })
 
     report.streamsEnded = await page.evaluate(() => window.__cameraStreams.map(stream => stream.getTracks().every(track => track.readyState === 'ended')))
@@ -288,6 +302,27 @@ try {
         originalName: photo?.recipe?.original?.name ?? null,
       }
     })
+
+    // Close and reopen on the same pane. The board host keeps the dialog
+    // mounted, so the picked source survives; the camera must stay reachable.
+    await page.evaluate(() => {
+      const store = window.__collage.store()
+      const workspace = store.workspaces.find(item => item.id === store.activeId)
+      const leaf = window.__collage.panes.leafList(workspace.root)[0]
+      store.openStickerMaker(leaf.id)
+    })
+    await page.waitForSelector('[data-sticker-maker="new"]')
+    report.boardReopen = await page.evaluate(() => ({
+      stage: document.querySelector('[data-sticker-stage]')?.getAttribute('data-sticker-stage') ?? null,
+      cameraDoors: document.querySelectorAll('[data-camera-open]').length,
+    }))
+    await openCamera(page)
+    await page.waitForSelector('[data-camera-panel][data-camera-state="ready"]', { timeout: 20000 })
+    await page.getByRole('button', { name: 'Text', exact: true }).click()
+    await page.waitForSelector('[data-camera-panel]', { state: 'detached' })
+    report.tabSwitchEnded = await page.evaluate(() => window.__cameraStreams.every(stream => stream.getTracks().every(track => track.readyState === 'ended')))
+    await page.keyboard.press('Escape')
+    await page.waitForSelector('[data-sticker-maker]', { state: 'detached' })
     await context.close()
   }
 
@@ -378,9 +413,12 @@ console.log(JSON.stringify(report, null, 2))
 assert(report.texture.zeroIdentical, 'strength 0 must equal no texture')
 assert(report.texture.alphaDiff === 0, 'texture must not change alpha')
 assert(report.texture.rgbDiff > 0, 'texture must change RGB')
+assert(report.texture.parityMeanDelta < 4, 'the 480 and 960 bakes must match on their shared sheet')
 assert(report.cameraLive.tracks === 1 && report.cameraLive.videoWidth > 0, 'camera must show a live frame')
 assert(report.afterCapture.stage !== 'empty', 'capture must fill the source slot')
 assert(report.boardInserted?.stickers >= 1 && report.boardInserted?.kind === 'sticker', 'a capture on the board must insert a sticker')
+assert(report.boardReopen?.stage === 'ready' && report.boardReopen?.cameraDoors === 1, 'the camera must stay reachable after a pick')
+assert(report.tabSwitchEnded, 'switching to the text tab must stop the stream')
 assert(report.saved?.kind === 'sticker' && report.saved?.originalName.startsWith('camera-'), 'capture must save a re-editable sticker')
 assert(report.streamsEnded.every(Boolean), 'capture must stop every track')
 assert(report.cancelEnded, 'cancel must stop every track')
