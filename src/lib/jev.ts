@@ -2,7 +2,8 @@
  * The Jev boundary. A committed label's text becomes one Choice question over
  * the leading-icon catalog, and the answer names an icon or "none".
  *
- * Contract, pinned to the live TypeSafe API:
+ * Contract, checked against the local mock; the live endpoint answers 451 in
+ * this region:
  *
  * - POST the configured URL with `application/json`. The body names the model
  *   `jev-latest`, carries the label text as `state`, and asks one Choice
@@ -86,7 +87,7 @@ function runtimeEnv(): JevEnv {
   }
 }
 
-/** An absolute http(s) URL, or a single-slash path resolved against the page. */
+/** A protocol-relative `//host` is refused; a single-slash path resolves against the page. */
 function endpointUrl(raw: string): URL | null {
   if (raw.startsWith('//'))
     return null
@@ -108,7 +109,6 @@ function endpointUrl(raw: string): URL | null {
   }
 }
 
-/** The failures stay distinct so a caller can tell a timeout from a bad answer. */
 export type JevFailureReason = 'http' | 'malformed' | 'shape' | 'empty' | 'network' | 'timeout' | 'aborted'
 
 export interface LabelIconPick {
@@ -148,7 +148,6 @@ export interface LabelIconRequestDocument {
   }>
 }
 
-/** One Choice over every catalog id, described by its English label text. */
 export function labelIconRequest(
   text: string,
   candidates: readonly LabelIconCandidate[],
@@ -245,7 +244,6 @@ export interface PickLabelIconOptions {
   timeoutMs?: number
 }
 
-/** One thin fetch: build the JSON request, read the answer, parse it. */
 export async function pickLabelIcon(
   text: string,
   candidates: readonly LabelIconCandidate[],

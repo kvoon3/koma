@@ -96,8 +96,9 @@ curl -X POST http://127.0.0.1:8787/api/jev \
   --data @request.json
 ```
 
-Without both secrets the route answers 503. To reach the real upstream locally,
-add them to a gitignored `.dev.vars` and restart `wrangler dev`.
+Without both secrets the route answers 503. The live upstream answers 451 in
+this region. To exercise the route locally, run `scripts/jev-mock.mjs` and point
+`JEV_API_URL` at it in a gitignored `.dev.vars`.
 
 ```ini
 JEV_API_URL=https://api.typesafe.ai/v1/systemone
@@ -106,6 +107,7 @@ JEV_API_KEY=<your key>
 
 ## Client overrides
 
-Local dev and the browser check set `VITE_JEV_API_URL` explicitly, and that value
-wins over the proxy fallback. `VITE_JEV_API_KEY` is read in dev only, so a direct
-mock can assert on it. A production build ignores it.
+The browser check sets `VITE_JEV_API_URL` explicitly, and that value wins over
+the proxy fallback. A dev run must set it too; `.env.local` carries only the key.
+`VITE_JEV_API_KEY` is read in dev only, so a direct mock can assert on it. A
+production build never reads it.

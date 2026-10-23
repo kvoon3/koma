@@ -13,12 +13,10 @@ import { activeWs, useStore } from '../store'
 import { pickLabelIcon, readJevConfig } from './jev'
 import { LABEL_ICONS } from './labelIcons'
 
-/** Every catalog entry as a Choice option, described by its English label. */
 export function labelIconCandidates(): { id: string, description: string }[] {
   return LABEL_ICONS.map(({ id, label }) => ({ id, description: label }))
 }
 
-/** The label with this id in the active workspace, if it is still there. */
 function activeLabel(labelId: string): PaneLabel | undefined {
   return activeWs(useStore.getState()).labels.find(label => label.id === labelId)
 }
@@ -52,7 +50,6 @@ export async function pickLabelIconFor(
   useStore.getState().setLabel(labelId, { icon: result.pick.icon })
 }
 
-/** The commit path's fire-and-forget trigger. */
 export function requestLabelIcon(labelId: string, text: string): void {
   void pickLabelIconFor(labelId, text).catch(() => {})
 }

@@ -1,8 +1,8 @@
 /**
  * The Jev proxy. The API key is a Worker secret, so it never enters the
  * public bundle. The client posts JSON to `/api/jev`, this handler swaps the
- * Authorization header for the server key, and the answer streams back
- * unchanged.
+ * Authorization header for the server key, and the upstream status, content
+ * type and body pass back; other headers are dropped.
  *
  * The upstream URL is always `JEV_API_URL`. Nothing on the request can change
  * where the body goes. This module exports only the handler; see `config.ts`.
@@ -23,7 +23,6 @@ function json(status: number, body: unknown, headers: Record<string, string> = {
   return Response.json(body, { status, headers: { 'cache-control': 'no-store', ...headers } })
 }
 
-/** Read at most the cap. A declared length above it is rejected without reading. */
 async function readBody(request: Request): Promise<BodyRead> {
   const declared = Number(request.headers.get('content-length') ?? Number.NaN)
   if (Number.isFinite(declared) && declared > MAX_BODY_BYTES)
