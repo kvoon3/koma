@@ -805,8 +805,9 @@ export const zhHans = {
   'No music cards yet. Make one with the Music tool.': '还没有音乐卡片。用「音乐」工具制作一张。',
   'No music cards match this search.': '没有音乐卡片符合此搜索。',
 
-  // Sticker maker: paper texture and camera (wave12/sticker-batch)
+  // Sticker maker: paper finish (newspaper) and camera (wave12/sticker-batch)
   'Paper texture': '纸张纹理',
+  'Newspaper': '报纸',
   'Take a photo': '拍照',
   'Starting the camera…': '正在启动相机…',
   'Use photo': '使用照片',

@@ -140,9 +140,9 @@ describe('a made sticker\'s recipe', () => {
 })
 
 describe('the recipe\'s paper texture', () => {
-  it('round-trips a strength through a session record', () => {
-    const recipe = stickerRecipeFrom(payload({ ...STYLE, texture: { strength: 60 } }))
-    expect(recipe?.style.texture).toEqual({ strength: 60 })
+  it('round-trips the newspaper print through a session record', () => {
+    const recipe = stickerRecipeFrom(payload({ ...STYLE, texture: 'newsprint' }))
+    expect(recipe?.style.texture).toBe('newsprint')
     expect(stickerRecipeFrom(structuredClone(recipe))).toEqual(recipe)
   })
 
@@ -153,23 +153,16 @@ describe('the recipe\'s paper texture', () => {
     expect(stickerRecipeFrom(payload({ ...STYLE, texture: null }))?.style.texture).toBeNull()
   })
 
-  it('clamps a high strength and normalises a non-positive one to off', () => {
-    expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: 140 } }))?.style.texture)
-      .toEqual({ strength: 100 })
-    expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: -3 } }))?.style.texture)
-      .toBeNull()
-    expect(stickerRecipeFrom(payload({ ...STYLE, texture: { strength: 0 } }))?.style.texture)
-      .toBeNull()
-  })
-
-  it('rejects a malformed texture shape', () => {
+  it('rejects the old strength shape and anything that is not a frozen print', () => {
     const malformed = [
-      { strength: '60' },
-      { strength: Number.POSITIVE_INFINITY },
-      { strength: Number.NaN },
-      {},
+      { strength: 60 },
+      { strength: 100 },
+      { strength: 0 },
+      { type: 'newsprint' },
       'wrinkle',
-      [60],
+      'newsprints',
+      '',
+      ['newsprint'],
       60,
     ]
     for (const texture of malformed)

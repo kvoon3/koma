@@ -1,9 +1,9 @@
 import type { Photo } from './imageStore'
 import type { StickerMaterialType } from './sticker'
 import type { StickerBakeStyle } from './stickerAssets'
-import type { WrinkleDesign } from './stickerTexture'
+import type { StickerTexture } from './stickerTexture'
 import { folderOf } from './stickerLibrary'
-import { MAX_WRINKLE_STRENGTH, MIN_WRINKLE_STRENGTH } from './stickerTexture'
+import { STICKER_TEXTURES } from './stickerTexture'
 
 /**
  * A made sticker's creation record: the original image it was started from, and
@@ -124,24 +124,15 @@ function asPerforation(value: unknown): { ok: true, design: StickerBakeStyle['pe
 
 /**
  * Absent or null is "no texture": every recipe written before this field
- * existed. Once present, the shape must be the known one or the recipe is not
- * a recipe. A finite strength outside the slider's range clamps rather than
- * invalidating the record, the way a stale filter knob is clamped. A strength
- * at or below 0 normalises to null, so "off" has one serialized shape.
+ * existed. Once present it must name one of the frozen prints, or the recipe
+ * is not a recipe. The old `{ strength }` shape is not one of them.
  */
-function asTexture(value: unknown): { ok: true, design: WrinkleDesign | null } | { ok: false } {
+function asTexture(value: unknown): { ok: true, design: StickerTexture | null } | { ok: false } {
   if (value == null)
     return { ok: true, design: null }
-  const record = asRecord(value)
-  const strength = asNumber(record?.strength)
-  if (strength == null)
-    return { ok: false }
-  if (strength <= MIN_WRINKLE_STRENGTH)
-    return { ok: true, design: null }
-  return {
-    ok: true,
-    design: { strength: Math.min(MAX_WRINKLE_STRENGTH, strength) },
-  }
+  return STICKER_TEXTURES.includes(value as StickerTexture)
+    ? { ok: true, design: value as StickerTexture }
+    : { ok: false }
 }
 
 function asStyle(value: unknown): StickerBakeStyle | null {

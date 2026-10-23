@@ -1,113 +1,84 @@
 /**
- * Wrinkled-paper shading for a sticker's artwork, applied before the die-cut
- * (see `prepareArtwork` in lib/sticker.ts). Pure: no DOM, no canvas, no time.
+ * Newspaper print for a sticker's artwork, applied before the die-cut (see
+ * `prepareArtwork` in lib/sticker.ts). Pure: no DOM, no canvas, no time.
  *
- * The field is anchored to the artwork's long edge, so the same subject carries
- * the same creases at preview and save. Alpha is never written: the die-cut's
- * distance field reads it and must not move.
+ * The artwork prints as one ink AM halftone on newsprint: every screen cell
+ * carries the artwork's own mean tone, the lattice is turned 45° the way a
+ * print screen is, the two tones are a newspaper's ink and paper, and the paper
+ * carries its own grain. The pitch is measured in *display* pixels (the same
+ * stage length the stamp sliders read), so the 480px preview and the 960px save
+ * are the same printed sheet at two scales.
+ *
+ * Alpha is never written: the die-cut's distance field reads it and must not
+ * move.
  */
 
-import { lerp, valueNoise } from './noise'
+import { valueNoise } from './noise'
 
-export interface WrinkleDesign {
-  /** The Paper texture slider's own unit: 0 (off) to 100. */
-  strength: number
-}
+/** The frozen texture picks. The recipe stores one of these, or null for off. */
+export const STICKER_TEXTURES = ['newsprint'] as const
+export type StickerTexture = (typeof STICKER_TEXTURES)[number]
 
-export const MIN_WRINKLE_STRENGTH = 0
-export const MAX_WRINKLE_STRENGTH = 100
-export const DEFAULT_WRINKLE_STRENGTH = 0
+/** cos 45°, which is also sin 45°: the screen's turn. */
+const SCREEN_COS = Math.SQRT1_2
 
 /**
- * Long edge of the shade field. The build is bounded at about 147k samples, but
- * shading still takes one bilinear sample per artwork pixel.
+ * One screen cell across, in display pixels. The stage draws a sticker about
+ * 220px tall, so this is roughly 55 to 70 cells across its long edge: coarse
+ * enough to read as dots at 1x, fine enough that a face stays a face.
  */
-const FIELD_MAX_EDGE = 384
-/** 34/255 is about 13% at full strength: visible on black text without blowing highlights. */
-const SHADE_AMPLITUDE = 34
-
+const DOT_PITCH_DISPLAY = 4
 /**
- * A fixed fold direction. The first octave is stretched along it, so the
- * creases read as long folds instead of isotropic blobs.
+ * 1/√π: a dot's radius for its share of a cell, so the screen prints the cell's
+ * own tone and neighbouring dots just touch at 78% coverage.
  */
-const FOLD_X = 0.8
-const FOLD_Y = -0.6
-const FOLD_ALONG_FREQ = 4.3
-const FOLD_ACROSS_FREQ = 11.5
-const MID_FREQ = 9
-const FINE_FREQ = 23
-const FOLD_WEIGHT = 0.55
-const MID_WEIGHT = 0.3
-const FINE_WEIGHT = 0.15
-const FOLD_SEED = 0x1B873593
-const MID_SEED = 0x85EBCA6B
-const FINE_SEED = 0xC2B2AE35
+const DOT_SPREAD = 0.5641895835477563
+/** The dot rim's ramp, in display pixels: under one pixel it anti-aliases the screen. */
+const EDGE_DISPLAY = 0.6
 
-/** Light from the upper left, in image coordinates (y grows downward). */
-const LIGHT_X = -0.62
-const LIGHT_Y = -0.78
-/** The raw derivative is a few units per normalized unit; this maps it onto [-1, 1]. */
-const SHADE_GAIN = 0.16
+/** Newsprint's two tones: a warm dark ink and the paper it soaks into. */
+const INK = [42, 39, 34] as const
+const PAPER = [233, 228, 213] as const
 
-/** Three octaves of height; the first is stretched along the fixed fold direction. */
-function heightAt(u: number, v: number): number {
-  const along = u * FOLD_X + v * FOLD_Y
-  const across = u * -FOLD_Y + v * FOLD_X
-  const fold = valueNoise(along * FOLD_ALONG_FREQ, across * FOLD_ACROSS_FREQ, FOLD_SEED)
-  const mid = valueNoise(u * MID_FREQ, v * MID_FREQ, MID_SEED)
-  const fine = valueNoise(u * FINE_FREQ, v * FINE_FREQ, FINE_SEED)
-  return fold * FOLD_WEIGHT + mid * MID_WEIGHT + fine * FINE_WEIGHT
-}
+/** Paper fiber (fine) and the pulp's unevenness (coarse), in RGB units of 255. */
+const GRAIN_CELL_DISPLAY = 1.4
+const GRAIN_AMPLITUDE = 5.5
+const MOTTLE_CELL_DISPLAY = 47
+const MOTTLE_AMPLITUDE = 3
+const GRAIN_SEED = 0x9E3779B1
+const MOTTLE_SEED = 0x85EBCA6B
 
-interface ShadeField {
+interface GrainField {
   values: Float32Array
   width: number
   height: number
 }
 
 /**
- * The directional derivative of the height field, built once at field
- * resolution. Coordinates are normalized by the artwork long edge, but the
- * derivative is divided by the field's own spacing, so it is per normalized
- * unit and does not change with the artwork's pixel size.
+ * One grain sample per display pixel, built once. Both the preview and the save
+ * run at their own texture size but describe the same display sheet, so they
+ * build the same field and place the same fibers.
  */
-function buildShadeField(width: number, height: number, longEdge: number): ShadeField {
-  const scale = Math.min(1, FIELD_MAX_EDGE / longEdge)
-  const fieldWidth = Math.max(2, Math.round(width * scale))
-  const fieldHeight = Math.max(2, Math.round(height * scale))
-  const spanU = width / longEdge
-  const spanV = height / longEdge
-  const stepU = spanU / fieldWidth
-  const stepV = spanV / fieldHeight
-  const heights = new Float32Array(fieldWidth * fieldHeight)
-
-  for (let fy = 0; fy < fieldHeight; fy += 1) {
-    const v = (fy + 0.5) * stepV
-    const row = fy * fieldWidth
-    for (let fx = 0; fx < fieldWidth; fx += 1)
-      heights[row + fx] = heightAt((fx + 0.5) * stepU, v)
-  }
-
+function buildGrainField(width: number, height: number, scale: number): GrainField {
+  const fieldWidth = Math.max(2, Math.ceil(width / scale))
+  const fieldHeight = Math.max(2, Math.ceil(height / scale))
   const values = new Float32Array(fieldWidth * fieldHeight)
   for (let fy = 0; fy < fieldHeight; fy += 1) {
-    const y0 = Math.max(0, fy - 1)
-    const y1 = Math.min(fieldHeight - 1, fy + 1)
-    const span = (y1 - y0) * stepV
+    const y = (fy + 0.5) / GRAIN_CELL_DISPLAY
+    const mottleY = (fy + 0.5) / MOTTLE_CELL_DISPLAY
     const row = fy * fieldWidth
     for (let fx = 0; fx < fieldWidth; fx += 1) {
-      const x0 = Math.max(0, fx - 1)
-      const x1 = Math.min(fieldWidth - 1, fx + 1)
-      const across = (x1 - x0) * stepU
-      const gradientX = across > 0 ? (heights[row + x1]! - heights[row + x0]!) / across : 0
-      const gradientY = span > 0 ? (heights[y1 * fieldWidth + fx]! - heights[y0 * fieldWidth + fx]!) / span : 0
-      const derivative = gradientX * LIGHT_X + gradientY * LIGHT_Y
-      values[row + fx] = Math.max(-1, Math.min(1, derivative * SHADE_GAIN))
+      const x = (fx + 0.5) / GRAIN_CELL_DISPLAY
+      const mottleX = (fx + 0.5) / MOTTLE_CELL_DISPLAY
+      const fiber = (valueNoise(x, y, GRAIN_SEED) - 0.5) * 2 * GRAIN_AMPLITUDE
+      const mottle = (valueNoise(mottleX, mottleY, MOTTLE_SEED) - 0.5) * 2 * MOTTLE_AMPLITUDE
+      values[row + fx] = fiber + mottle
     }
   }
   return { values, width: fieldWidth, height: fieldHeight }
 }
 
-function sampleField(field: ShadeField, x: number, y: number): number {
+function sampleGrain(field: GrainField, x: number, y: number): number {
   const fx = Math.max(0, Math.min(field.width - 1, x))
   const fy = Math.max(0, Math.min(field.height - 1, y))
   const x0 = Math.floor(fx)
@@ -116,63 +87,99 @@ function sampleField(field: ShadeField, x: number, y: number): number {
   const y1 = Math.min(field.height - 1, y0 + 1)
   const tx = fx - x0
   const ty = fy - y0
-  const top = lerp(field.values[y0 * field.width + x0]!, field.values[y0 * field.width + x1]!, tx)
-  const bottom = lerp(field.values[y1 * field.width + x0]!, field.values[y1 * field.width + x1]!, tx)
-  return lerp(top, bottom, ty)
+  const top = field.values[y0 * field.width + x0]! * (1 - tx) + field.values[y0 * field.width + x1]! * tx
+  const bottom = field.values[y1 * field.width + x0]! * (1 - tx) + field.values[y1 * field.width + x1]! * tx
+  return top * (1 - ty) + bottom * ty
 }
 
 /**
- * The slider's value -> the serialized design. Non-finite and <= 0 are off;
- * values over 100 clamp to 100. The recipe validator normalises a stored 0 to
- * the same off shape, so both sides agree on the one off value.
- */
-export function wrinkleFromSlider(strength: number): WrinkleDesign | null {
-  if (!Number.isFinite(strength) || strength <= MIN_WRINKLE_STRENGTH)
-    return null
-  return { strength: Math.min(MAX_WRINKLE_STRENGTH, strength) }
-}
-
-/**
- * Shade the artwork's RGB in place with a wrinkled-paper height field.
+ * Print the artwork in place as a newspaper halftone.
  *
- * - A null/undefined design, a non-finite strength, or a strength <= 0 returns
- *   before writing a byte, so strength 0 is byte-identical to no texture.
- * - Only offsets 0..2 of each quad are written; alpha is byte-for-byte
- *   unchanged and alpha-0 pixels are skipped, which is what keeps the die-cut
- *   geometry identical.
- * - Additive, not multiplicative: the maker's default black text would show no
- *   crease under a multiplicative shade.
+ * - A null/undefined design, or anything that is not a known texture, returns
+ *   before writing a byte: that is what keeps an untouched bake byte-identical.
+ * - Only offsets 0..2 of each quad are written, and alpha-0 pixels are skipped,
+ *   so the die-cut geometry and the rim's alpha are identical with and without
+ *   the print.
+ * - `texturePixelsPerDisplayPixel` is the silhouette's texture long edge over
+ *   the stage's drawn long edge (lib/sticker passes it). A missing or invalid
+ *   ratio falls back to 1:1, which is only right for a 1:1 bake.
  */
-export function applyWrinkle(
+export function applyNewsprint(
   pixels: Uint8ClampedArray,
   width: number,
   height: number,
-  design: WrinkleDesign | null | undefined,
+  texture: StickerTexture | null | undefined,
+  texturePixelsPerDisplayPixel: number,
 ): void {
-  if (!design || !Number.isFinite(design.strength) || design.strength <= 0)
+  if (texture !== 'newsprint' || width <= 0 || height <= 0)
     return
-  if (width <= 0 || height <= 0)
-    return
+  const scale = Number.isFinite(texturePixelsPerDisplayPixel) && texturePixelsPerDisplayPixel > 0
+    ? texturePixelsPerDisplayPixel
+    : 1
 
-  const strength = Math.min(MAX_WRINKLE_STRENGTH, design.strength)
-  const amplitude = SHADE_AMPLITUDE * (strength / MAX_WRINKLE_STRENGTH)
-  const longEdge = Math.max(width, height)
-  const field = buildShadeField(width, height, longEdge)
-  const fieldStepX = field.width / width
-  const fieldStepY = field.height / height
+  // A turned square lattice: u runs down one screen axis, v down the other.
+  const pitch = DOT_PITCH_DISPLAY * scale
+  const step = SCREEN_COS / pitch
+  const cellsU = Math.floor((width - 1 + height - 1) * step) + 1
+  const cellV0 = Math.floor(-(width - 1) * step)
+  const cellsV = Math.floor((height - 1) * step) - cellV0 + 1
+  const sums = new Float64Array(cellsU * cellsV)
+  const counts = new Uint32Array(cellsU * cellsV)
 
+  // Pass one: every opaque pixel's tone into the cell it lands in, so a dot
+  // prints the local average rather than one pixel's noise.
   for (let y = 0; y < height; y += 1) {
-    const fieldY = (y + 0.5) * fieldStepY - 0.5
     const row = y * width * 4
-    for (let x = 0; x < width; x += 1) {
+    let u = y * step
+    let v = y * step
+    for (let x = 0; x < width; x += 1, u += step, v -= step) {
       const index = row + x * 4
       if (pixels[index + 3] === 0)
         continue
-      const shade = sampleField(field, (x + 0.5) * fieldStepX - 0.5, fieldY)
-      const delta = amplitude * shade
-      pixels[index] = pixels[index]! + delta
-      pixels[index + 1] = pixels[index + 1]! + delta
-      pixels[index + 2] = pixels[index + 2]! + delta
+      const cell = Math.floor(u) * cellsV + (Math.floor(v) - cellV0)
+      sums[cell] = sums[cell]!
+        + 0.2126 * pixels[index]!
+        + 0.7152 * pixels[index + 1]!
+        + 0.0722 * pixels[index + 2]!
+      counts[cell] = counts[cell]! + 1
+    }
+  }
+
+  // Pass two: the dot and the paper.
+  const grain = buildGrainField(width, height, scale)
+  const edge = EDGE_DISPLAY / DOT_PITCH_DISPLAY
+  const paperR = PAPER[0]
+  const paperG = PAPER[1]
+  const paperB = PAPER[2]
+  const inkR = INK[0] - paperR
+  const inkG = INK[1] - paperG
+  const inkB = INK[2] - paperB
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width * 4
+    const fieldY = (y + 0.5) / scale - 0.5
+    let u = y * step
+    let v = y * step
+    for (let x = 0; x < width; x += 1, u += step, v -= step) {
+      const index = row + x * 4
+      if (pixels[index + 3] === 0)
+        continue
+      const cu = Math.floor(u)
+      const cv = Math.floor(v)
+      const cell = cu * cellsV + (cv - cellV0)
+      const coverage = 1 - sums[cell]! / counts[cell]! / 255
+      const radius = DOT_SPREAD * Math.sqrt(Math.max(0, Math.min(1, coverage)))
+      const du = u - cu - 0.5
+      const dv = v - cv - 0.5
+      const distance = Math.sqrt(du * du + dv * dv)
+      // A dot's rim ramps over `edge`, and a dot smaller than one ramp keeps
+      // only the area it really covers, so paper stays paper in the highlights.
+      const rim = Math.max(0, Math.min(1, (radius - distance) / edge + 0.5))
+      const subpixel = Math.min(1, radius / edge)
+      const ink = rim * subpixel * subpixel * (3 - 2 * subpixel)
+      const fiber = sampleGrain(grain, (x + 0.5) / scale - 0.5, fieldY)
+      pixels[index] = paperR + inkR * ink + fiber
+      pixels[index + 1] = paperG + inkG * ink + fiber
+      pixels[index + 2] = paperB + inkB * ink + fiber
     }
   }
 }

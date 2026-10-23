@@ -766,15 +766,21 @@ per opening, so its new sticker starts from an empty stage. The board host keeps
 the dialog mounted, so reopening it keeps the last pick, and the camera button
 on the ready stage keeps every source door one click away.
 
-**Paper texture.** A maker control (0 to 100) shades the picked image or text
-cutout as wrinkled paper. It runs in `prepareArtwork` after the visible-pixel
-crop and before `applySilhouette`, so the white die-cut border and the stamp
-punches stay clean and the distance field still reads the source alpha. The
-pattern is a deterministic, additive value-noise field anchored to the
-artwork's long edge, so the 480px preview and the 960px save are the same sheet
-at two scales; the recipe stores the strength in `style.texture` (`{ strength }`
-or null), and a strength of 0 is byte-identical to no texture. The board and
-the export draw the baked PNG and need no texture code. The field is pure
+**Paper texture: a newspaper print.** The maker's paper control is one
+segmented choice, None or Newspaper; there is no strength. It runs in
+`prepareArtwork` after the visible-pixel crop and before `applySilhouette`, so
+the white die-cut border and the stamp punches stay clean and the distance
+field still reads the source alpha. The artwork becomes a single-ink AM
+halftone on newsprint: the lattice is turned 45°, each cell's own mean tone
+sets its dot's area, the dot is drawn in a warm dark newsprint ink on warm
+off-white paper, and two octaves of value noise put fiber and pulp unevenness
+in the paper. The cell pitch is **4 display pixels** (the stage's drawn long
+edge, the same length the stamp sliders read), so the 480px preview and the
+960px save are the same printed sheet at two scales, and a face stays a face
+at the stage's own size. The recipe stores the pick in `style.texture`
+(`'newsprint'` or null); the old wrinkled-paper `{ strength }` shape is
+rejected by the validator, and null is byte-identical to no print. The board
+and the export draw the baked PNG and need no print code. The print is pure
 `lib/stickerTexture` and is tested under Bun.
 
 Entry is the top bar's Photo menu (both views) and the library header's New

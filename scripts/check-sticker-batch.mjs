@@ -1,6 +1,6 @@
 /**
- * Browser evidence for the sticker batch: the camera source, the texture's
- * pixel identity, and the maker screenshots the vision review reads.
+ * Browser evidence for the sticker batch: the camera source, the newspaper
+ * print's pixel identity, and the maker screenshots the vision review reads.
  *
  * Playwright-core and the cached Chromium are local tools, not dependencies, so
  * this runs by hand against the dev server:
@@ -64,16 +64,12 @@ async function openCamera(page) {
   await page.waitForSelector('[data-camera-panel]')
 }
 
-async function setPaperTexture(page, value) {
-  const slider = page.getByRole('slider', { name: 'Paper texture' })
-  await slider.focus()
-  await slider.press('Home')
-  for (let step = 0; step < value; step += 1)
-    await slider.press('ArrowRight')
-  await page.waitForSelector(`[data-sticker-texture="${value}"]`)
+async function setNewspaper(page) {
+  await page.getByRole('radio', { name: 'Newspaper' }).click()
+  await page.waitForSelector('[data-sticker-paper="newsprint"]')
 }
 
-async function texturePixels(page) {
+async function newspaperPixels(page) {
   return page.evaluate(async () => {
     const sticker = window.__collage.sticker
     const canvas = document.createElement('canvas')
@@ -89,10 +85,9 @@ async function texturePixels(page) {
     const src = canvas.toDataURL('image/png')
     const base = { type: 'image', src }
 
-    const off = await sticker.makeSticker(base, { maxEdge: 480, texture: null })
-    const zero = await sticker.makeSticker(base, { maxEdge: 480, texture: { strength: 0 } })
-    const on = await sticker.makeSticker(base, { maxEdge: 480, texture: { strength: 60 } })
-    const save = await sticker.makeSticker(base, { maxEdge: 960, texture: { strength: 60 } })
+    const off = await sticker.makeSticker(base, { maxEdge: 480, displayLongEdge: 220, texture: null })
+    const on = await sticker.makeSticker(base, { maxEdge: 480, displayLongEdge: 220, texture: 'newsprint' })
+    const save = await sticker.makeSticker(base, { maxEdge: 960, displayLongEdge: 220, texture: 'newsprint' })
 
     async function pixelsOf(dataUrl) {
       const image = new Image()
@@ -163,8 +158,26 @@ async function texturePixels(page) {
       }
     }
 
+    function tone(offData, onData) {
+      const lumaAt = (data, index) => 0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2]
+      let offLuma = 0
+      let onLuma = 0
+      let inked = 0
+      let opaque = 0
+      for (let index = 0; index < onData.length; index += 4) {
+        if (onData[index + 3] === 0)
+          continue
+        offLuma += lumaAt(offData, index)
+        onLuma += lumaAt(onData, index)
+        if (lumaAt(onData, index) < 128)
+          inked += 1
+        opaque += 1
+      }
+      return { offMeanLuma: offLuma / opaque, onMeanLuma: onLuma / opaque, inkCoverage: inked / opaque }
+    }
+
     return {
-      zeroIdentical: off.dataUrl === zero.dataUrl,
+      printed: off.dataUrl !== on.dataUrl,
       dimensions: [a.width, a.height, b.width, b.height],
       saveDimensions: [c.width, c.height],
       alphaDiff,
@@ -172,6 +185,7 @@ async function texturePixels(page) {
       meanDelta: deltaSum / channels,
       deltaStd: Math.sqrt(deltaSquares / channels),
       parityMeanDelta: paritySum / parityCount,
+      ...tone(a.data, b.data),
     }
   })
 }
@@ -204,7 +218,7 @@ try {
     await page.waitForTimeout(200)
     await page.screenshot({ path: join(OUT, 'camera-door-375x812.png') })
     await page.setViewportSize({ width: 1280, height: 900 })
-    report.texture = await texturePixels(page)
+    report.newspaper = await newspaperPixels(page)
 
     await openCamera(page)
     await page.waitForSelector('[data-camera-panel][data-camera-state="ready"]', { timeout: 20000 })
@@ -332,35 +346,35 @@ try {
 
     const exportPng = await page.evaluate(async () => {
       const res = await window.__collage.sticker.makeSticker(
-        { type: 'text', text: 'Wrinkled', color: '#111111', fontFamily: 'Georgia, serif', fontWeight: 700 },
-        { maxEdge: 960, texture: { strength: 100 }, outlineWidth: 18, outlineColor: '#ffffff', displayLongEdge: 220 },
+        { type: 'text', text: 'Newspaper', color: '#111111', fontFamily: 'Georgia, serif', fontWeight: 700 },
+        { maxEdge: 960, texture: 'newsprint', outlineWidth: 18, outlineColor: '#ffffff', displayLongEdge: 220 },
       )
       return res.dataUrl
     })
-    writeFileSync(join(OUT, 'texture-export.png'), Buffer.from(exportPng.split(',')[1], 'base64'))
+    writeFileSync(join(OUT, 'newspaper-export.png'), Buffer.from(exportPng.split(',')[1], 'base64'))
 
     await page.getByRole('button', { name: 'Text', exact: true }).click()
-    await page.fill('textarea', 'Wrinkled paper')
-    await setPaperTexture(page, 100)
+    await page.fill('textarea', 'Newspaper print')
+    await setNewspaper(page)
     await page.waitForTimeout(900)
     await page.click('[data-sticker-save]')
     await page.waitForSelector('[data-sticker-maker]', { state: 'detached' })
     report.textureSaved = await page.evaluate(() => {
-      const photo = window.__collage.store().photos.find(p => p.kind === 'sticker' && p.name.startsWith('Wrinkled'))
+      const photo = window.__collage.store().photos.find(p => p.kind === 'sticker' && p.name.startsWith('Newspaper'))
       return photo ? { texture: photo.recipe?.style.texture, name: photo.name } : null
     })
 
     await openMaker(page)
     await page.getByRole('button', { name: 'Text', exact: true }).click()
-    await page.fill('textarea', 'Wrinkled paper')
-    await setPaperTexture(page, 100)
+    await page.fill('textarea', 'Newspaper print')
+    await setNewspaper(page)
     await page.waitForTimeout(900)
     for (const [width, height] of [[375, 812], [1280, 900], [1280, 600], [915, 412]]) {
       await page.setViewportSize({ width, height })
       await page.locator('[data-sticker-stage]').scrollIntoViewIfNeeded()
-      await page.screenshot({ path: join(OUT, `texture-${width}x${height}-preview.png`) })
-      await page.locator('[data-sticker-texture]').scrollIntoViewIfNeeded()
-      await page.screenshot({ path: join(OUT, `texture-${width}x${height}-control.png`) })
+      await page.screenshot({ path: join(OUT, `paper-${width}x${height}-preview.png`) })
+      await page.locator('[data-sticker-paper]').scrollIntoViewIfNeeded()
+      await page.screenshot({ path: join(OUT, `paper-${width}x${height}-control.png`) })
     }
     await context.close()
   }
@@ -410,10 +424,11 @@ finally {
 writeFileSync(join(OUT, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
 console.log(JSON.stringify(report, null, 2))
 
-assert(report.texture.zeroIdentical, 'strength 0 must equal no texture')
-assert(report.texture.alphaDiff === 0, 'texture must not change alpha')
-assert(report.texture.rgbDiff > 0, 'texture must change RGB')
-assert(report.texture.parityMeanDelta < 4, 'the 480 and 960 bakes must match on their shared sheet')
+assert(report.newspaper.printed, 'the newspaper print must change the artwork')
+assert(report.newspaper.alphaDiff === 0, 'the print must not change alpha')
+assert(report.newspaper.rgbDiff > 0, 'the print must change RGB')
+assert(report.newspaper.inkCoverage > 0.1, 'the print must lay down visible ink')
+assert(report.newspaper.parityMeanDelta < 6, 'the 480 and 960 bakes must match on their shared sheet')
 assert(report.cameraLive.tracks === 1 && report.cameraLive.videoWidth > 0, 'camera must show a live frame')
 assert(report.afterCapture.stage !== 'empty', 'capture must fill the source slot')
 assert(report.boardInserted?.stickers >= 1 && report.boardInserted?.kind === 'sticker', 'a capture on the board must insert a sticker')
@@ -424,7 +439,7 @@ assert(report.streamsEnded.every(Boolean), 'capture must stop every track')
 assert(report.cancelEnded, 'cancel must stop every track')
 assert(report.closeEnded, 'close must stop every track')
 assert(report.reopenHasCamera === 0, 'reopen must not show a dead camera panel')
-assert(report.textureSaved?.texture?.strength === 100, 'the recipe must keep the texture strength')
+assert(report.textureSaved?.texture === 'newsprint', 'the recipe must keep the newspaper print')
 assert(report.denied.code === 'denied' && report.denied.text.length > 0 && report.denied.retry, 'denial must explain itself and offer Retry')
 assert(report.deniedStillUsable, 'the maker must keep working after denial')
 assert(report.unsupported.length > 0, 'a missing API must explain itself')
