@@ -112,8 +112,7 @@ function useCameraPreview(videoRef: RefObject<HTMLVideoElement | null>) {
 
 /**
  * The camera stage slot. It stands in for the stage the way LibraryPickPanel
- * does, owns exactly one stream for its lifetime, and hands the captured File
- * to the maker's existing pick door.
+ * does, and hands the captured File to the maker's existing pick door.
  */
 export function CameraCapturePanel({ onCapture, onCancel }: {
   onCapture: (file: File) => void

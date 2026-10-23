@@ -320,8 +320,6 @@ function StickerStage({
       </span>
     )
     const cls = 'cursor-pointer text-dim transition-colors duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-[-1px]'
-    // The sticker page can draw its subject from imported photos; the camera
-    // and the file picker still share the stage.
     if (onPickLibrary) {
       return (
         <div className={`${stageFrameCls} flex-col divide-y divide-line-strong`} data-sticker-stage="empty">
