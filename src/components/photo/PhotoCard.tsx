@@ -9,6 +9,7 @@ import { useT } from '../../lib/i18n'
 import { hasTag } from '../../lib/photoTags'
 import { menuGroupLabelCls, menuItemCls, menuPopupCls, menuSeparatorCls } from '../ui/menu'
 import { Tip } from '../ui/tip'
+import { TagGlyph } from './TagGlyph'
 
 const actionCls = 'grid h-[22px] w-[22px] flex-none cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-faint transition-colors duration-(--dur-fast) hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt disabled:cursor-default disabled:opacity-35'
 
@@ -102,13 +103,16 @@ export const PhotoCard = memo(({
               <button
                 key={tag}
                 type="button"
-                className="max-w-full cursor-pointer truncate rounded-none border border-line bg-transparent px-1 py-px text-[9.5px] text-dim transition-colors duration-(--dur-fast) hover:bg-chip-hover hover:text-txt"
+                className="flex max-w-full cursor-pointer items-center gap-1 truncate rounded-none border border-line bg-transparent px-1 py-px text-[9.5px] text-dim transition-colors duration-(--dur-fast) hover:bg-chip-hover hover:text-txt"
                 title={t('Show only {tag}', { tag })}
                 data-photo-tag={tag}
                 onClick={() => onPickTag(tag)}
               >
-                #
-                {tag}
+                <TagGlyph name={tag} size={9} className="text-faint" />
+                <span className="truncate">
+                  #
+                  {tag}
+                </span>
               </button>
             ))}
             {rest > 0 && (
@@ -146,7 +150,7 @@ export const PhotoCard = memo(({
                       onClick={() => onToggleTag(tag)}
                       data-photo-toggle-tag={tag}
                     >
-                      <MorphIcon icon={Tag} size={12} strokeWidth={1.75} className="flex-none text-dim" />
+                      <TagGlyph name={tag} size={12} className="text-dim" />
                       <span className="truncate">{tag}</span>
                       {hasTag(photo, tag) && <MorphIcon icon={Check} size={12} strokeWidth={2} className="ml-auto pl-4 text-accent" />}
                     </Menu.Item>
