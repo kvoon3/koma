@@ -103,16 +103,16 @@ Two controls resize, and they do different jobs:
   a 172px scale out of the undo buttons instead of behind them. It never moves
   with the canvas or the view zoom, and it sizes **whatever is selected**
   (`lib/scaleTarget`): a selected text label first, then a selected sticker,
-  then the canvas while a pane has focus. The two objects scale uniformly and
-  want no aspect control, which is exactly what one scale is; the canvas scales
-  the same way here, and its aspect has the corner handle above.
+  then the canvas, focused or not. The two objects scale uniformly and want no
+  aspect control, which is exactly what one scale is; the canvas scales the same
+  way here, and its aspect has the corner handle above.
 
-**Nothing selected is nothing to size.** With no label, no sticker and no
-focused pane the rail draws a 60px stub at 40% opacity, takes no pointer events,
-leaves the tab order and reports `aria-disabled`; the value it still shows is
-the canvas's, which is what it sizes again most often. Selecting anything draws
-it back out (`seenValue` re-opens it), and the thumb of the thing being sized is
-what moves.
+**Nothing selected still sizes the canvas.** With no label, no sticker and no
+focused pane the rail keeps the canvas line, so it is never inert: it stays
+pressable, stays in the tab order, and the same drag or wheel resizes the board.
+Left alone it tucks to its 96px stub like any idle rail. Selecting anything
+draws it back out (`seenValue` re-opens it), and the thumb of the thing being
+sized is what moves.
 
 The stage's air drives the same canvas value with the wheel (`useStageZoom`), and
 the rail's own wheel steps whatever it is sizing (one notch a step, ctrl/meta

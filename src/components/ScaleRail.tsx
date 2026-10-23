@@ -21,7 +21,7 @@ import {
   tickY,
   valueAtTallness,
 } from '../lib/scaleRail'
-import { applyScaleTarget, canvasScaleTarget, pickScaleTarget, scaleTargetHint } from '../lib/scaleTarget'
+import { applyScaleTarget, pickScaleTarget, scaleTargetHint } from '../lib/scaleTarget'
 import { activeWs, useStore } from '../store'
 import { SCALE_BAR_LONG, SCALE_BAR_THICK, SCALE_MARK_HARD, SCALE_MARK_SOFT, TickScale } from './ui/TickScale'
 
@@ -52,8 +52,6 @@ const TRACK_IDLE = 96
 const EDGE_INSET = 8
 /** The natural-size mark: longer than a half mark, shorter than the bar. */
 const TICK_FIT = 13
-/** How short the rail draws while it has nothing to size. */
-const TRACK_IDLE_NONE = 60
 /** Stable empties: a board with no labels/stickers must not re-render every time. */
 const NO_LABELS: PaneLabel[] = []
 const NO_STICKERS: Sticker[] = []
@@ -82,14 +80,12 @@ const WAKE_RAMP = 36
 const WAKE_MAX = 0.9
 
 /**
- * The size rail: the scale control on the right edge of the stage, for whatever
- * is selected (`lib/scaleTarget`).
+ * The size rail: the scale control on the right edge of the stage
+ * (`lib/scaleTarget`).
  *
- * A selected text label or sticker is what it sizes first, then the canvas while
- * a pane has focus; with nothing selected it has no target, so it draws itself
- * small and faint and takes no presses. All three scale uniformly, which is the
- * one thing a single scale can do, and the only one they need: the canvas's
- * aspect has its own corner handle, and an object's box keeps its proportions.
+ * The canvas, a text label and a sticker all scale uniformly, which is the one
+ * thing a single scale can do, and the only one they need: the canvas's aspect
+ * has its own corner handle, and an object's box keeps its proportions.
  *
  * It is the app's tick scale (`ui/TickScale`, the one the rotate dial draws
  * through) stood on its end along the stage's right edge, centred on the strip
@@ -116,8 +112,7 @@ const WAKE_MAX = 0.9
  * Left alone the rail draws itself in to a stub at the edge (3.2s idle; 8s on
  * the first visit), with the bar and the marks around it still parked at the
  * current value, so a full ladder does not lie over the photo for the whole
- * session. Hover, focus or a press draws it back out; nothing selected draws a
- * shorter stub than that, faint and inert.
+ * session. Hover, focus or a press draws it back out.
  */
 export function ScaleRail({ nudge = 0 }: {
   /** Raised by the stage's wheel: the rail shows its readout as the size turns. */
@@ -132,22 +127,15 @@ export function ScaleRail({ nudge = 0 }: {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const railRef = useRef<HTMLDivElement | null>(null)
 
-  // What the rail sizes: the selected label or sticker, else the canvas while a
-  // pane has focus, else nothing (see `lib/scaleTarget`).
   const labelSel = useStore(s => s.labelSel)
   const stickerSel = useStore(s => s.stickerSel?.stickerId ?? null)
-  const focusId = useStore(s => activeWs(s).focusId)
   const canvasFill = useStore(s => activeWs(s).canvasFill)
   const labels = useStore(s => activeWs(s).labels ?? NO_LABELS)
   const stickers = useStore(s => activeWs(s).stickers ?? NO_STICKERS)
-  const picked = useMemo(
-    () => pickScaleTarget({ focusId, canvasFill, labels, stickers, labelSel, stickerSel }),
-    [focusId, canvasFill, labels, stickers, labelSel, stickerSel],
+  const target = useMemo(
+    () => pickScaleTarget({ canvasFill, labels, stickers, labelSel, stickerSel }),
+    [canvasFill, labels, stickers, labelSel, stickerSel],
   )
-  /** Nothing selected is nothing to size: the rail goes small, faint and inert. */
-  const inert = picked == null
-  /** The line it draws: the selection's, or the canvas's while it is inert. */
-  const target = picked ?? canvasScaleTarget(canvasFill)
   const value = target.value
   const scale = target.scale
   const tall = tallnessOfValue(value, scale)
@@ -399,8 +387,6 @@ export function ScaleRail({ nudge = 0 }: {
       return
     e.preventDefault()
     e.stopPropagation()
-    if (inert)
-      return
     heldRef.current = { from: e.clientY, tall, target }
     lastValueRef.current = value
     // The wake starts where the bar already is, so nothing flies in from zero.
@@ -420,7 +406,7 @@ export function ScaleRail({ nudge = 0 }: {
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', end)
     window.addEventListener('pointercancel', end)
-  }, [end, inert, onMove, showReadout, tall, target, travel, value])
+  }, [end, onMove, showReadout, tall, target, travel, value])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? 1 : e.key === 'ArrowDown' || e.key === 'PageDown' ? -1 : 0
@@ -447,7 +433,7 @@ export function ScaleRail({ nudge = 0 }: {
    * ctrl/meta alone (a pinch is the view zoom's, everywhere).
    */
   const onWheel = useCallback((e: React.WheelEvent) => {
-    if (inert || e.ctrlKey || e.metaKey)
+    if (e.ctrlKey || e.metaKey)
       return
     const notches = wheelNotches(e.deltaY)
     if (!notches)
@@ -458,7 +444,7 @@ export function ScaleRail({ nudge = 0 }: {
     applyScaleTarget(target, next)
     setOpen(true)
     arm()
-  }, [arm, inert, scale, showReadout, target, value])
+  }, [arm, scale, showReadout, target, value])
 
   // A press grabs the rail before a double-click can land, so going back to the
   // natural size is explicit: the stage fit for the canvas, the size an object
@@ -487,10 +473,8 @@ export function ScaleRail({ nudge = 0 }: {
   const settle = drag ? 'duration-0' : 'duration-(--dur-surface)'
   const chip = readout || drag
     ? 'scale-100 opacity-100'
-    : inert
-      ? 'scale-[0.96] opacity-0'
-      : 'scale-[0.96] opacity-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:opacity-100'
-  const clip = railClip(!inert && open, barCentre, track, inert)
+    : 'scale-[0.96] opacity-0 group-hover/rail:scale-100 group-hover/rail:opacity-100 group-focus-visible/rail:opacity-100'
+  const clip = railClip(open, barCentre, track)
 
   return (
     <>
@@ -501,15 +485,13 @@ export function ScaleRail({ nudge = 0 }: {
         role="slider"
         aria-orientation="vertical"
         aria-label={t(target.label)}
-        aria-disabled={inert || undefined}
         aria-valuemin={ariaValue(scale.min)}
         aria-valuemax={ariaValue(scale.max)}
         aria-valuenow={ariaValue(value)}
         aria-valuetext={railValueLabel(value, target.format)}
-        tabIndex={inert ? -1 : 0}
+        tabIndex={0}
         title={t(scaleTargetHint(target))}
-        className={`group/rail absolute right-0 z-[9] touch-none select-none outline-0 transition-opacity duration-(--dur-surface) ${
-          inert ? 'pointer-events-none cursor-default opacity-40' : 'cursor-row-resize'}`}
+        className="group/rail absolute right-0 z-[9] cursor-row-resize touch-none select-none outline-0"
         style={{ top: box.center - track / 2, height: track, width: bandW }}
         onPointerDown={begin}
         onPointerUp={end}
@@ -617,14 +599,14 @@ export function ScaleRail({ nudge = 0 }: {
 
 /**
  * The ladder's resting window. Drawn, it is the whole scale; at rest it is a stub
- * around the bar (shorter while the rail has nothing to size), pulled inside the
- * track's own ends so it never stands in mid-air. One clip on the whole scale is
- * what draws it out and tucks it back, so nothing is re-laid-out as it moves.
+ * around the bar, pulled inside the track's own ends so it never stands in
+ * mid-air. One clip on the whole scale is what draws it out and tucks it back, so
+ * nothing is re-laid-out as it moves.
  */
-function railClip(drawn: boolean, barCentre: number, track: number, inert: boolean): string {
+function railClip(drawn: boolean, barCentre: number, track: number): string {
   if (drawn)
     return 'inset(0px)'
-  const stub = Math.min(inert ? TRACK_IDLE_NONE : TRACK_IDLE, track)
+  const stub = Math.min(TRACK_IDLE, track)
   const centre = Math.min(Math.max(barCentre, stub / 2), track - stub / 2)
   return `inset(${centre - stub / 2}px 0 ${track - centre - stub / 2}px 0)`
 }
