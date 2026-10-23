@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "koma-storybook",
+  "compatibility_date": "2026-10-11",
+  // Branch Previews (wrangler preview / Workers Builds preview builds)
+  "preview_urls": true,
+  // Static Storybook build; no worker script needed
+  "assets": {
+    "directory": "./storybook-static"
+  }
+}

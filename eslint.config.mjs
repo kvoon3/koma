@@ -91,6 +91,12 @@ export default antfu({
     'react-refresh/only-export-components': 'off',
   },
 }, {
+  // Storybook's preview file exports project annotations, not app components.
+  files: ['.storybook/**'],
+  rules: {
+    'react-refresh/only-export-components': 'off',
+  },
+}, {
   // https://github.com/NickvanDyke/eslint-plugin-react-you-might-not-need-an-effect
   ...reactYouMightNotNeedAnEffect.configs.recommended,
   name: 'react-you-might-not-need-an-effect/recommended',
