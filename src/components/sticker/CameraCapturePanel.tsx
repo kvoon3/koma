@@ -31,6 +31,7 @@ const RETRYABLE: readonly CameraErrorCode[] = ['denied', 'no-device', 'busy', 'g
  * unmount is stopped immediately and its state update is dropped.
  */
 function useCameraPreview(videoRef: RefObject<HTMLVideoElement | null>) {
+  const support = cameraSupport()
   const [state, setState] = useState<CameraUiState>({ status: 'starting' })
   const [attempt, setAttempt] = useState(0)
   const sessionRef = useRef<CameraSession | null>(null)
@@ -41,9 +42,7 @@ function useCameraPreview(videoRef: RefObject<HTMLVideoElement | null>) {
     aliveRef.current = true
     let session: CameraSession | null = null
 
-    const support = cameraSupport()
     if (support !== 'ready') {
-      setState({ status: 'error', code: support })
       return () => {
         alive = false
         aliveRef.current = false
@@ -84,7 +83,7 @@ function useCameraPreview(videoRef: RefObject<HTMLVideoElement | null>) {
       if (sessionRef.current === session)
         sessionRef.current = null
     }
-  }, [attempt, videoRef])
+  }, [attempt, videoRef, support])
 
   const retry = () => {
     setState({ status: 'starting' })
@@ -107,7 +106,7 @@ function useCameraPreview(videoRef: RefObject<HTMLVideoElement | null>) {
     }
   }
 
-  return { state, retry, capture }
+  return { state: support === 'ready' ? state : { status: 'error', code: support } as const, retry, capture }
 }
 
 /**

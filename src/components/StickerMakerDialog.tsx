@@ -898,19 +898,17 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   const [toothSpacing, setToothSpacing] = useState(seed.toothSpacing)
   const [displayLongEdge, setDisplayLongEdge] = useState(seed.displayLongEdge)
   const [textureStrength, setTextureStrength] = useState(seed.textureStrength)
-  const [stageView, setStageView] = useState<StageView>('stage')
+  // The board host keeps this dialog mounted, so the transient stage panel is
+  // keyed by the state that should reset it: a close or a tab change reads as
+  // the stage again, with no effect and no extra render.
+  const viewKey = `${open ? 'open' : 'closed'}:${tab}`
+  const [stageViewAt, setStageViewAt] = useState<{ key: string, view: StageView }>({ key: viewKey, view: 'stage' })
+  const stageView = stageViewAt.key === viewKey ? stageViewAt.view : 'stage'
+  const setStageView = (view: StageView) => setStageViewAt({ key: viewKey, view })
 
   const [inserting, setInserting] = useState(false)
   const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask, original } = useStickerImage(seed.image)
   const libraryMode = target?.kind === 'library'
-
-  // The board host keeps this dialog mounted, so close and tab changes are the
-  // reset point for the transient stage panel.
-  useEffect(() => {
-    if (open && tab === 'image')
-      return
-    setStageView('stage')
-  }, [open, tab])
 
   const fontMeta = FONTS.find(f => f.id === font) ?? FONTS[0]
 
