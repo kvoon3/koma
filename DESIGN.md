@@ -750,12 +750,38 @@ when the chips are on All) and touches no board, so it pushes no undo entry
 either. There is one maker, not two: `StickerMakerDialog` takes a
 `StickerTarget` (`lib/stickerAssets`) and only its save branches, on `pane`
 (bake, then pin onto the board, the editor's Make tool) or `library` (bake,
-then file under the folder, the page's New sticker). The source is either a
-file pick (the app's shared picker) or a photo already imported, picked from
-the drawer's own thumbnail grid inside the stage slot, so the cutout, the edge
-effects and the mask editor are the same code on both roads. The save button
-names the target ("Save to Faces"), and every opening starts from an empty
-stage so a new sticker never inherits the last one's pick.
+then file under the folder, the page's New sticker). The source is a file pick
+(the app's shared picker), a photo already imported, picked from the drawer's
+own thumbnail grid inside the stage slot, or a camera still. The camera panel
+opens `getUserMedia` with `facingMode: { ideal: 'environment' }`, shows the live
+preview in the same stage slot, and hands the captured JPEG to the same
+`loadFile(File)` door, so the cutout, the edge effects and the mask editor are
+the same code on every road. The camera door is on the empty stage and again
+beside Replace once a source exists. The stream belongs to the panel and stops
+on capture, cancel, close, tab change and unmount. A denied permission, a
+missing device, a busy camera and an insecure context each render a sentence,
+with Retry where retrying can help, and the file door stays usable. The save
+button names the target ("Save to Faces"). The library host remounts the maker
+per opening, so its new sticker starts from an empty stage. The board host keeps
+the dialog mounted, so reopening it keeps the last pick, and the camera button
+on the ready stage keeps the camera reachable after a pick.
+
+**Paper texture: a newspaper print.** The maker's paper control is one
+segmented choice, None or Newspaper; there is no strength. It runs in
+`prepareArtwork` after the visible-pixel crop and before `applySilhouette`, so
+the white die-cut border and the stamp punches stay clean and the distance
+field still reads the source alpha. The artwork becomes a single-ink AM
+halftone on newsprint: the lattice is turned 45°, each cell's own mean tone
+sets its dot's area, the dot is drawn in a warm dark newsprint ink on warm
+off-white paper, and two octaves of value noise put fiber and pulp unevenness
+in the paper. The cell pitch is **4 display pixels** (the stage's drawn long
+edge, the same length the stamp sliders read), so the 480px preview and the
+960px save are the same printed sheet at two scales, and a face stays a face
+at the stage's own size. The recipe stores the pick in `style.texture`
+(`'newsprint'` or null); any other shape is rejected by the validator, and null
+is byte-identical to no print. The board
+and the export draw the baked PNG and need no print code. The print is pure
+`lib/stickerTexture` and is tested under Bun.
 
 Entry is the top bar's Photo menu (both views) and the library header's New
 sticker button; the sticker tab is one of the page's type chips.
@@ -777,7 +803,7 @@ is whether the maker's inputs still exist:
   ORIGINAL picture the sticker was started from (`StickerMakerDialog` in its
   `reEdit` mode), re-runs the AI cutout on it, and loads the style the sticker
   was saved with as the starting values of the controls (outline, edge, teeth,
-  material) with a **Reset effects** button that puts them back. Nothing is
+  material, paper texture) with a **Reset effects** button that puts them back. Nothing is
   inherited from the finished pixels except the style numbers. It needs
   `Photo.recipe`; a legacy asset has none and the card does not draw the button.
 
@@ -793,7 +819,7 @@ type StickerOriginal
 
 interface StickerRecipe {
   original: StickerOriginal
-  style: StickerBakeStyle // outline width/color, material, baseName, perforation, displayLongEdge
+  style: StickerBakeStyle // outline width/color, material, baseName, perforation, displayLongEdge, texture
 }
 ```
 

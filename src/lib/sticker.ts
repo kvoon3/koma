@@ -23,7 +23,9 @@
 // SOFTWARE.
 
 import type { Perforation, PerforationDesign } from './stickerFX'
+import type { StickerTexture } from './stickerTexture'
 import { composeSilhouette, outlineRadius, parseHexColor, perforationToTexture, silhouettePadding } from './stickerFX'
+import { applyNewsprint } from './stickerTexture'
 
 export type StickerSource
   = | { type: 'text', text: string, color?: string, fontFamily?: string, fontWeight?: number | string }
@@ -41,10 +43,15 @@ export interface StickerMakeOptions {
    */
   perforation?: PerforationDesign | null
   /**
+   * Newspaper print on the cutout's RGB before the die-cut. Absent or null is
+   * off. Its screen pitch is read in display pixels, like the perforation.
+   */
+  texture?: StickerTexture | null
+  /**
    * Long edge, in CSS pixels, the result will be shown at (the maker's stage
-   * measures it). The perforation sliders read in those pixels, so this is
-   * what keeps them WYSIWYG: without it a design number is taken as texture
-   * pixels, which is only right for a 1:1 bake.
+   * measures it). The perforation and the print screen read in those pixels,
+   * so this is what keeps them WYSIWYG: without it a design number is taken as
+   * texture pixels, which is only right for a 1:1 bake.
    */
   displayLongEdge?: number
   maxEdge?: number
@@ -383,45 +390,67 @@ function cropToVisible(canvas: HTMLCanvasElement) {
   const cropped = document.createElement('canvas')
   cropped.width = cropWidth
   cropped.height = cropHeight
-  const target = cropped.getContext('2d')
+  const target = cropped.getContext('2d', { willReadFrequently: true })
   if (!target)
     throw new Error('Canvas 2D is unavailable.')
   target.drawImage(canvas, left, top, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
   return cropped
 }
 
+/**
+ * Canvas half of the texture: read the cropped artwork, print it, write it
+ * back. Null returns the same canvas without touching pixels, which is what
+ * keeps an unprinted bake byte-identical.
+ */
+function applyTextureToCanvas(
+  canvas: HTMLCanvasElement,
+  texture: StickerTexture | null | undefined,
+  texturePixelsPerDisplayPixel: number,
+): HTMLCanvasElement {
+  if (!texture)
+    return canvas
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context)
+    throw new Error('Canvas 2D is unavailable.')
+  const image = context.getImageData(0, 0, canvas.width, canvas.height)
+  applyNewsprint(image.data, canvas.width, canvas.height, texture, texturePixelsPerDisplayPixel)
+  context.putImageData(image, 0, 0)
+  return canvas
+}
+
 async function prepareArtwork(
   source: StickerSource,
-  outline: {
-    width: number
+  bake: {
+    outlineWidth: number
     color: string
     perforation: PerforationDesign | null
     displayLongEdge?: number
+    texture?: StickerTexture | null
   },
 ): Promise<PreparedArtwork> {
-  const radius = outlineRadius(outline.width)
-  const padding = texturePadding(outline.width)
+  const radius = outlineRadius(bake.outlineWidth)
+  const padding = texturePadding(bake.outlineWidth)
   const rendered = source.type === 'image'
     ? await renderImageSource(source, padding)
     : { canvas: await renderTextSource(source, padding), hasTransparency: true }
-  // Crop before outlining: a cutout is mostly transparent frame, and the
-  // distance field then runs over the subject's box instead of the whole
-  // texture. The outline pass pads the canvas back out for its own reach.
+  // Crop before outlining: a cutout is mostly transparent frame, so the
+  // distance field runs over the subject's box. The print comes before it: the
+  // border is drawn next, and the silhouette reads alpha, which the print
+  // never writes.
   const artwork = cropToVisible(rendered.canvas)
-  // The stamp's WYSIWYG scale: the silhouette's long edge on the texture over
-  // the long edge the stage shows it at. A dilation by r grows the box by
-  // exactly r per side, so artwork + 2r is the visible long edge.
+  // The stamp's and the print's WYSIWYG scale: the silhouette's long edge on
+  // the texture over the long edge the stage shows it at. A dilation by r grows
+  // the box by exactly r per side, so artwork + 2r is the visible long edge.
   const visibleLongEdge = Math.max(artwork.width, artwork.height) + radius * 2
-  const displayLongEdge = outline.displayLongEdge ?? 0
-  const perforation = outline.perforation
-    ? perforationToTexture(
-        outline.perforation,
-        displayLongEdge > 0 ? visibleLongEdge / displayLongEdge : 1,
-      )
+  const displayLongEdge = bake.displayLongEdge ?? 0
+  const displayScale = displayLongEdge > 0 ? visibleLongEdge / displayLongEdge : 1
+  const textured = applyTextureToCanvas(artwork, bake.texture, displayScale)
+  const perforation = bake.perforation
+    ? perforationToTexture(bake.perforation, displayScale)
     : null
-  const canvas = cropToVisible(applySilhouette(artwork, {
+  const canvas = cropToVisible(applySilhouette(textured, {
     radius,
-    color: outline.color,
+    color: bake.color,
     perforation,
   }))
   return {
@@ -749,10 +778,11 @@ export async function makeSticker(
     throw new Error('Stickers can only be created in a browser document.')
 
   const artwork = await prepareArtwork(source, {
-    width: options.outlineWidth ?? DEFAULT_OUTLINE_WIDTH,
+    outlineWidth: options.outlineWidth ?? DEFAULT_OUTLINE_WIDTH,
     color: options.outlineColor ?? DEFAULT_OUTLINE_COLOR,
     perforation: options.perforation ?? null,
     displayLongEdge: options.displayLongEdge,
+    texture: options.texture ?? null,
   })
   const originalLongEdge = Math.max(artwork.width, artwork.height)
   const previewScale = Math.min(1, (options.maxEdge ?? DEFAULT_MAX_EDGE) / originalLongEdge)

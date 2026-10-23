@@ -804,6 +804,22 @@ export const zhHans = {
   'Delete music card?': '删除音乐卡片？',
   'No music cards yet. Make one with the Music tool.': '还没有音乐卡片。用「音乐」工具制作一张。',
   'No music cards match this search.': '没有音乐卡片符合此搜索。',
+
+  // Sticker maker: paper finish (newspaper) and camera (wave12/sticker-batch)
+  'Paper texture': '纸张纹理',
+  'Newspaper': '报纸',
+  'Take a photo': '拍照',
+  'Starting the camera…': '正在启动相机…',
+  'Use photo': '使用照片',
+  'Camera preview': '相机预览',
+  'Retry': '重试',
+  'Camera access was denied. Allow camera access in the browser, then try again.': '相机权限被拒绝。请在浏览器中允许访问相机，然后重试。',
+  'No camera was found on this device.': '未在此设备上找到相机。',
+  'The camera needs a secure connection (HTTPS).': '相机需要安全连接（HTTPS）。',
+  'This browser cannot take photos.': '此浏览器无法拍照。',
+  'The camera is in use by another app.': '相机正被其他应用占用。',
+  'The camera could not be used.': '无法使用相机。',
+  'Could not take the photo.': '拍照失败。',
 } satisfies Record<string, string>
 
 /** Every source string a call site may translate. */

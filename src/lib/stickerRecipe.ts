@@ -1,7 +1,9 @@
 import type { Photo } from './imageStore'
 import type { StickerMaterialType } from './sticker'
 import type { StickerBakeStyle } from './stickerAssets'
+import type { StickerTexture } from './stickerTexture'
 import { folderOf } from './stickerLibrary'
+import { STICKER_TEXTURES } from './stickerTexture'
 
 /**
  * A made sticker's creation record: the original image it was started from, and
@@ -120,6 +122,19 @@ function asPerforation(value: unknown): { ok: true, design: StickerBakeStyle['pe
   return { ok: true, design: { depth, spacing } }
 }
 
+/**
+ * Absent or null is "no texture": every recipe written before this field
+ * existed. Once present it must name one of the frozen prints, or the recipe
+ * is not a recipe.
+ */
+function asTexture(value: unknown): { ok: true, design: StickerTexture | null } | { ok: false } {
+  if (value == null)
+    return { ok: true, design: null }
+  return STICKER_TEXTURES.includes(value as StickerTexture)
+    ? { ok: true, design: value as StickerTexture }
+    : { ok: false }
+}
+
 function asStyle(value: unknown): StickerBakeStyle | null {
   const record = asRecord(value)
   if (!record)
@@ -130,11 +145,20 @@ function asStyle(value: unknown): StickerBakeStyle | null {
   const displayLongEdge = asNumber(record.displayLongEdge)
   const material = asString(record.material) as StickerMaterialType | null
   const perforation = asPerforation(record.perforation)
+  const texture = asTexture(record.texture)
   if (outlineWidth == null || outlineColor == null || baseName == null || displayLongEdge == null)
     return null
-  if (!material || !MATERIALS.includes(material) || !perforation.ok)
+  if (!material || !MATERIALS.includes(material) || !perforation.ok || !texture.ok)
     return null
-  return { outlineWidth, outlineColor, material, baseName, perforation: perforation.design, displayLongEdge }
+  return {
+    outlineWidth,
+    outlineColor,
+    material,
+    baseName,
+    perforation: perforation.design,
+    displayLongEdge,
+    texture: texture.design,
+  }
 }
 
 function asOriginal(value: unknown): StickerOriginal | null {
