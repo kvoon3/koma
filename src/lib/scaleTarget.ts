@@ -1,3 +1,4 @@
+import type { TKey } from './locales/zh-Hans'
 import type { PaneLabel, Sticker } from './panes'
 import type { RailFormat, RailScale } from './scaleRail'
 import {
@@ -32,7 +33,7 @@ export interface ScaleTarget {
   scale: RailScale
   format: RailFormat
   /** The i18n key naming the thing being sized (the slider's `aria-label`). */
-  label: string
+  label: TKey
 }
 
 /**
@@ -94,7 +95,7 @@ export function pickScaleTarget(sel: ScaleSelection): ScaleTarget | null {
  * The rail's tooltip: the canvas double-clicks back to the stage fit, an object
  * back to the size it was made at (both are the target's `ref`).
  */
-export function scaleTargetHint(target: ScaleTarget): string {
+export function scaleTargetHint(target: ScaleTarget): TKey {
   return target.kind === 'canvas'
     ? 'Drag to resize the canvas · double-click to fit'
     : 'Drag to resize · double-click to reset'
