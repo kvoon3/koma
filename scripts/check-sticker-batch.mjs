@@ -258,6 +258,40 @@ try {
   }
 
   {
+    const { context, page } = await newPage(browser, { width: 1280, height: 900 }, initStreams)
+    const workspaceId = await page.evaluate(() => window.__collage.store().activeId)
+    await page.evaluate((id) => {
+      location.hash = `#/w/${id}`
+    }, workspaceId)
+    await page.waitForSelector('[data-canvas-view]')
+    await page.evaluate(() => {
+      const store = window.__collage.store()
+      const workspace = store.workspaces.find(item => item.id === store.activeId)
+      const leaf = window.__collage.panes.leafList(workspace.root)[0]
+      store.openStickerMaker(leaf.id)
+    })
+    await page.waitForSelector('[data-sticker-maker="new"]')
+    await openCamera(page)
+    await page.waitForSelector('[data-camera-panel][data-camera-state="ready"]', { timeout: 20000 })
+    await page.click('[data-camera-capture]')
+    await page.waitForSelector('[data-sticker-save]:not([disabled])', { timeout: 120000 })
+    await page.click('[data-sticker-save]')
+    await page.waitForSelector('[data-sticker-maker]', { state: 'detached' })
+    report.boardInserted = await page.evaluate(() => {
+      const store = window.__collage.store()
+      const workspace = store.workspaces.find(item => item.id === store.activeId)
+      const sticker = workspace.stickers.at(-1)
+      const photo = sticker && store.photos.find(item => item.id === sticker.photoId)
+      return {
+        stickers: workspace.stickers.length,
+        kind: photo?.kind ?? null,
+        originalName: photo?.recipe?.original?.name ?? null,
+      }
+    })
+    await context.close()
+  }
+
+  {
     const { context, page } = await newPage(browser, { width: 1280, height: 900 })
     await openMaker(page)
 
@@ -346,6 +380,7 @@ assert(report.texture.alphaDiff === 0, 'texture must not change alpha')
 assert(report.texture.rgbDiff > 0, 'texture must change RGB')
 assert(report.cameraLive.tracks === 1 && report.cameraLive.videoWidth > 0, 'camera must show a live frame')
 assert(report.afterCapture.stage !== 'empty', 'capture must fill the source slot')
+assert(report.boardInserted?.stickers >= 1 && report.boardInserted?.kind === 'sticker', 'a capture on the board must insert a sticker')
 assert(report.saved?.kind === 'sticker' && report.saved?.originalName.startsWith('camera-'), 'capture must save a re-editable sticker')
 assert(report.streamsEnded.every(Boolean), 'capture must stop every track')
 assert(report.cancelEnded, 'cancel must stop every track')
