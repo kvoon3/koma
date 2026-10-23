@@ -213,7 +213,9 @@ describe('applyFilter', () => {
       // Under 6 of 255 on average: the same texture, not an unrelated field.
       expect([id, sum / n < 6]).toEqual([id, true])
     }
-  })
+    // Fourteen 2048² renders plus a 1024² box average. It takes 3.3s here and
+    // 4.1-5.0s on a CI runner, so the 5s default sits inside the spread.
+  }, 30_000)
 
   it('applies to a 1024×1024 source well inside the 150ms budget', () => {
     const px = makePixels(1024, 1024)
