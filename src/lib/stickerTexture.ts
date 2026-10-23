@@ -7,6 +7,8 @@
  * distance field reads it and must not move.
  */
 
+import { lerp, valueNoise } from './noise'
+
 export interface WrinkleDesign {
   /** The Paper texture slider's own unit: 0 (off) to 100. */
   strength: number
@@ -16,7 +18,10 @@ export const MIN_WRINKLE_STRENGTH = 0
 export const MAX_WRINKLE_STRENGTH = 100
 export const DEFAULT_WRINKLE_STRENGTH = 0
 
-/** Long edge of the shade field; the cost stays about 147k samples at any artwork size. */
+/**
+ * Long edge of the shade field. The build is bounded at about 147k samples, but
+ * shading still takes one bilinear sample per artwork pixel.
+ */
 const FIELD_MAX_EDGE = 384
 /** 34/255 is about 13% at full strength: visible on black text without blowing highlights. */
 const SHADE_AMPLITUDE = 34
@@ -44,47 +49,13 @@ const LIGHT_Y = -0.78
 /** The raw derivative is a few units per normalized unit; this maps it onto [-1, 1]. */
 const SHADE_GAIN = 0.16
 
-function smooth(t: number) {
-  return t * t * (3 - 2 * t)
-}
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t
-}
-
-/**
- * 32-bit integer hash of a lattice point -> [0, 1). The same mixers as the
- * filter pipeline's local hash; integer ops only, so the bytes are stable.
- */
-function hash2(x: number, y: number, seed: number): number {
-  let h = Math.imul((x | 0) ^ seed, 0x27D4EB2D)
-  h = Math.imul((h ^ (y | 0)) + 0x9E3779B1, 0x165667B1)
-  h ^= h >>> 15
-  h = Math.imul(h, 0x2545F491)
-  h ^= h >>> 13
-  return (h >>> 0) / 4294967296
-}
-
-/** Value noise on a normalized lattice: one hashed value per cell, smooth in between. */
-function latticeNoise(x: number, y: number, seed: number): number {
-  const x0 = Math.floor(x)
-  const y0 = Math.floor(y)
-  const tx = smooth(x - x0)
-  const ty = smooth(y - y0)
-  const a = hash2(x0, y0, seed)
-  const b = hash2(x0 + 1, y0, seed)
-  const c = hash2(x0, y0 + 1, seed)
-  const d = hash2(x0 + 1, y0 + 1, seed)
-  return lerp(lerp(a, b, tx), lerp(c, d, tx), ty)
-}
-
 /** Three octaves of height; the first is stretched along the fixed fold direction. */
 function heightAt(u: number, v: number): number {
   const along = u * FOLD_X + v * FOLD_Y
   const across = u * -FOLD_Y + v * FOLD_X
-  const fold = latticeNoise(along * FOLD_ALONG_FREQ, across * FOLD_ACROSS_FREQ, FOLD_SEED)
-  const mid = latticeNoise(u * MID_FREQ, v * MID_FREQ, MID_SEED)
-  const fine = latticeNoise(u * FINE_FREQ, v * FINE_FREQ, FINE_SEED)
+  const fold = valueNoise(along * FOLD_ALONG_FREQ, across * FOLD_ACROSS_FREQ, FOLD_SEED)
+  const mid = valueNoise(u * MID_FREQ, v * MID_FREQ, MID_SEED)
+  const fine = valueNoise(u * FINE_FREQ, v * FINE_FREQ, FINE_SEED)
   return fold * FOLD_WEIGHT + mid * MID_WEIGHT + fine * FINE_WEIGHT
 }
 
@@ -152,8 +123,8 @@ function sampleField(field: ShadeField, x: number, y: number): number {
 
 /**
  * The slider's value -> the serialized design. Non-finite and <= 0 are off;
- * values over 100 clamp to 100. This is the one place "0 means no texture" is
- * decided, so the preview and the saved recipe cannot disagree.
+ * values over 100 clamp to 100. The recipe validator normalises a stored 0 to
+ * the same off shape, so both sides agree on the one off value.
  */
 export function wrinkleFromSlider(strength: number): WrinkleDesign | null {
   if (!Number.isFinite(strength) || strength <= MIN_WRINKLE_STRENGTH)
