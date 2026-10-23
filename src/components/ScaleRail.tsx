@@ -80,13 +80,12 @@ const WAKE_RAMP = 36
 const WAKE_MAX = 0.9
 
 /**
- * The size rail: the scale control on the right edge of the stage, for whatever
- * is selected (`lib/scaleTarget`).
+ * The size rail: the scale control on the right edge of the stage
+ * (`lib/scaleTarget`).
  *
- * A selected text label or sticker is what it sizes first; with nothing selected
- * it sizes the canvas, focused or not. All three scale uniformly, which is the
- * one thing a single scale can do, and the only one they need: the canvas's
- * aspect has its own corner handle, and an object's box keeps its proportions.
+ * The canvas, a text label and a sticker all scale uniformly, which is the one
+ * thing a single scale can do, and the only one they need: the canvas's aspect
+ * has its own corner handle, and an object's box keeps its proportions.
  *
  * It is the app's tick scale (`ui/TickScale`, the one the rotate dial draws
  * through) stood on its end along the stage's right edge, centred on the strip
@@ -128,8 +127,6 @@ export function ScaleRail({ nudge = 0 }: {
   const rootRef = useRef<HTMLDivElement | null>(null)
   const railRef = useRef<HTMLDivElement | null>(null)
 
-  // What the rail sizes: the selected label or sticker, else the canvas (see
-  // `lib/scaleTarget`).
   const labelSel = useStore(s => s.labelSel)
   const stickerSel = useStore(s => s.stickerSel?.stickerId ?? null)
   const canvasFill = useStore(s => activeWs(s).canvasFill)

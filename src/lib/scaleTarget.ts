@@ -17,7 +17,6 @@ import { CANVAS_SCALE } from './scaleRail'
  * The rail is one control with three targets. A sticker and a text label scale
  * uniformly and want no aspect control, which is exactly what a single scale is;
  * the canvas is the same (a scale, plus its own corner handle for the ratio).
- * Nothing selected still means something to size: the canvas, focused or not.
  */
 
 export type ScaleTargetKind = 'canvas' | 'sticker' | 'label'
@@ -72,10 +71,8 @@ export function canvasScaleTarget(canvasFill: number): ScaleTarget {
 }
 
 /**
- * What the rail sizes: the selected label first, then the selected sticker, then
- * the canvas, focused or not. A selection that names something no longer on the
- * board falls through, so a removed sticker cannot leave the rail pointing at a
- * ghost.
+ * A selection that names something no longer on the board falls through, so a
+ * removed sticker cannot leave the rail pointing at a ghost.
  */
 export function pickScaleTarget(sel: ScaleSelection): ScaleTarget {
   const label = sel.labelSel ? sel.labels.find(l => l.id === sel.labelSel) : undefined
