@@ -2,7 +2,7 @@
 import type { Derived } from './layout'
 import type { Leaf, Rect, SeamSides } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, paintBoard, paneBoxStyle, paneDraws, photoBoxStyle, photoTransform, transformOf } from './boardPaint'
+import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
 import { newLeaf } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`, zoom = 1): Leaf {
@@ -88,6 +88,38 @@ describe('minimapStyles', () => {
   it('writes the window as percentages', () => {
     expect(minimapViewStyle({ x: 0.25, y: 0, w: 0.5, h: 1 }))
       .toEqual({ left: '25%', top: '0%', width: '50%', height: '100%' })
+  })
+})
+
+describe('minimapVisible', () => {
+  const base = { zoom: 2, previewUrl: 'blob:x', boxWidth: 400 }
+
+  it('seats an overflowing pane with a preview wide enough for the chip', () => {
+    expect(minimapVisible({ ...base, placement: 'pane' })).toBe(true)
+    expect(minimapVisible({ ...base, placement: 'pane', boxWidth: 259 })).toBe(false)
+  })
+
+  it('needs an overflow and a preview in either placement', () => {
+    expect(minimapVisible({ ...base, placement: 'pane', zoom: 1.05 })).toBe(false)
+    expect(minimapVisible({ ...base, placement: 'stage', zoom: 1.05 })).toBe(false)
+    expect(minimapVisible({ ...base, placement: 'stage', previewUrl: undefined })).toBe(false)
+  })
+
+  it('ignores the pane width on the stage, where the seat is fixed', () => {
+    expect(minimapVisible({ ...base, placement: 'stage', boxWidth: 40 })).toBe(true)
+  })
+})
+
+describe('stageMinimapSeat', () => {
+  it('seats the chip above the dock\'s top edge, inset from its left', () => {
+    const seat = stageMinimapSeat({ left: 0, top: 660 }, { left: 0, bottom: 812 })
+    expect(seat).toEqual({ left: 10, bottom: 160 })
+    expect(812 - seat.bottom).toBe(660 - 8)
+  })
+
+  it('measures the dock in stage coordinates, not the viewport\'s', () => {
+    expect(stageMinimapSeat({ left: 100, top: 500 }, { left: 40, bottom: 800 }))
+      .toEqual({ left: 70, bottom: 308 })
   })
 })
 
