@@ -750,12 +750,29 @@ when the chips are on All) and touches no board, so it pushes no undo entry
 either. There is one maker, not two: `StickerMakerDialog` takes a
 `StickerTarget` (`lib/stickerAssets`) and only its save branches, on `pane`
 (bake, then pin onto the board, the editor's Make tool) or `library` (bake,
-then file under the folder, the page's New sticker). The source is either a
-file pick (the app's shared picker) or a photo already imported, picked from
-the drawer's own thumbnail grid inside the stage slot, so the cutout, the edge
-effects and the mask editor are the same code on both roads. The save button
-names the target ("Save to Faces"), and every opening starts from an empty
-stage so a new sticker never inherits the last one's pick.
+then file under the folder, the page's New sticker). The source is a file pick
+(the app's shared picker), a photo already imported, picked from the drawer's
+own thumbnail grid inside the stage slot, or a camera still. The camera panel
+opens `getUserMedia` with `facingMode: { ideal: 'environment' }`, shows the live
+preview in the same stage slot, and hands the captured JPEG to the same
+`loadFile(File)` door, so the cutout, the edge effects and the mask editor are
+the same code on every road. The stream belongs to the panel and stops on
+capture, cancel, close and unmount. A denied permission, a missing device, a
+busy camera and an insecure context each render a sentence, with Retry where
+retrying can help, and the file door stays usable. The save button names the
+target ("Save to Faces"), and every opening starts from an empty stage so a new
+sticker never inherits the last one's pick.
+
+**Paper texture.** A maker control (0 to 100) shades the picked image or text
+cutout as wrinkled paper. It runs in `prepareArtwork` after the visible-pixel
+crop and before `applySilhouette`, so the white die-cut border and the stamp
+punches stay clean and the distance field still reads the source alpha. The
+pattern is a deterministic, additive value-noise field anchored to the
+artwork's long edge, so the 480px preview and the 960px save are the same sheet
+at two scales; the recipe stores the strength in `style.texture` (`{ strength }`
+or null), and a strength of 0 is byte-identical to no texture. The board and
+the export draw the baked PNG and need no texture code. The field is pure
+`lib/stickerTexture` and is tested under Bun.
 
 Entry is the top bar's Photo menu (both views) and the library header's New
 sticker button; the sticker tab is one of the page's type chips.
@@ -777,7 +794,7 @@ is whether the maker's inputs still exist:
   ORIGINAL picture the sticker was started from (`StickerMakerDialog` in its
   `reEdit` mode), re-runs the AI cutout on it, and loads the style the sticker
   was saved with as the starting values of the controls (outline, edge, teeth,
-  material) with a **Reset effects** button that puts them back. Nothing is
+  material, paper texture) with a **Reset effects** button that puts them back. Nothing is
   inherited from the finished pixels except the style numbers. It needs
   `Photo.recipe`; a legacy asset has none and the card does not draw the button.
 
@@ -793,7 +810,7 @@ type StickerOriginal
 
 interface StickerRecipe {
   original: StickerOriginal
-  style: StickerBakeStyle // outline width/color, material, baseName, perforation, displayLongEdge
+  style: StickerBakeStyle // outline width/color, material, baseName, perforation, displayLongEdge, texture
 }
 ```
 
