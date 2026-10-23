@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { JEV_CATEGORIES, JEV_CATEGORY_IDS, jevCategory } from './jevTaxonomy'
+import { JEV_CATEGORIES, JEV_CATEGORY_IDS } from './jevTaxonomy'
 import { TAG_ICON_NODES } from './tagIcons'
 
 const ICON_KEYS: string[] = Object.keys(TAG_ICON_NODES).filter(key => key !== 'tag')
@@ -47,11 +47,5 @@ describe('each category carries one usable judgment', () => {
       expect(category.criteria.false.trim().length).toBeGreaterThan(0)
       expect(category.criteria.true).not.toBe(category.criteria.false)
     }
-  })
-
-  test('the lookup answers a known id and refuses an unknown one', () => {
-    expect(jevCategory('beach')).toMatchObject({ id: 'beach', label: 'Beach' })
-    expect(jevCategory('tag')).toBeUndefined()
-    expect(jevCategory('mystery')).toBeUndefined()
   })
 })

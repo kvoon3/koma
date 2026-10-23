@@ -161,9 +161,3 @@ export const JEV_CATEGORIES: readonly JevCategory[] = JEV_CATEGORY_IDS.map(id =>
   label: id.charAt(0).toUpperCase() + id.slice(1),
   ...DEFINITIONS[id],
 }))
-
-const BY_ID = new Map<string, JevCategory>(JEV_CATEGORIES.map(category => [category.id, category]))
-
-export function jevCategory(id: string): JevCategory | undefined {
-  return BY_ID.get(id)
-}
