@@ -82,6 +82,24 @@ export function photoBoxStyle(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
   return { left: p.x - draw.x, top: p.y - draw.y, width: p.w, height: p.h }
 }
 
+/** The minimap's window onto the photo, as photo fractions. */
+export interface MinimapView {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** `placement` inverted. */
+function minimapView(p: { x: number, y: number, w: number, h: number }, draw: Rect): MinimapView {
+  return {
+    x: Math.max(0, (draw.x - p.x) / p.w),
+    y: Math.max(0, (draw.y - p.y) / p.h),
+    w: Math.min(1, draw.w / p.w),
+    h: Math.min(1, draw.h / p.h),
+  }
+}
+
 /**
  * The minimap's two boxes: the window onto the photo, and where it sits in it.
  * `limitH` clamps the window's bottom in pane-local px, which is how the chip
@@ -98,20 +116,57 @@ export function minimapStyles(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
       width: Math.max(0, Math.min(draw.w, p.x - draw.x + p.w) - l),
       height: Math.max(0, Math.min(draw.h, p.y - draw.y + p.h, limitH ?? Number.POSITIVE_INFINITY) - t),
     },
-    // The window as photo fractions: placement inverted. The gesture reads
-    // these as numbers; the DOM writes them as percentages (below).
-    view: {
-      x: Math.max(0, (draw.x - p.x) / p.w),
-      y: Math.max(0, (draw.y - p.y) / p.h),
-      w: Math.min(1, draw.w / p.w),
-      h: Math.min(1, draw.h / p.h),
-    },
+    view: minimapView(p, draw),
+  }
+}
+
+const MINIMAP_ZOOM = 1.05
+const MINIMAP_MIN_BOX = 260
+const STAGE_SEAT_GAP = 8
+const STAGE_SEAT_INSET = 10
+
+/** Whether a focused pane shows its minimap, given where the chip would sit. */
+export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, previewUrl?: string, boxWidth: number }): boolean {
+  if (o.zoom <= MINIMAP_ZOOM || !o.previewUrl)
+    return false
+  return o.placement === 'stage' || o.boxWidth >= MINIMAP_MIN_BOX
+}
+
+/**
+ * The stage-seated chip's box, relative to the stage root: its bottom edge 8px
+ * above the tools dock's top, its left edge inset 10px from the dock's. Derived
+ * from the dock rather than a stage constant, so the chip rides every display
+ * the dock cycles through, and measured outside the canvas transform, so the
+ * seat holds at every view zoom.
+ */
+export function stageMinimapSeat(dock: { left: number, top: number }, stage: { left: number, bottom: number }): { left: number, bottom: number } {
+  return {
+    left: dock.left - stage.left + STAGE_SEAT_INSET,
+    bottom: stage.bottom - dock.top + STAGE_SEAT_GAP,
   }
 }
 
 /** The minimap window as CSS, so the render and a painted frame write the same values. */
 export function minimapViewStyle(view: { x: number, y: number, w: number, h: number }) {
   return { left: `${view.x * 100}%`, top: `${view.y * 100}%`, width: `${view.w * 100}%`, height: `${view.h * 100}%` }
+}
+
+/**
+ * Paint the chip's window after a pan or pinch. On compact widths the chip is
+ * seated on the stage rather than inside the pane, so the pane painter cannot
+ * find it; its box is fixed and only this window moves.
+ */
+export function paintMinimapView(
+  el: HTMLElement | null | undefined,
+  cell: Rect,
+  draw: Rect,
+  leaf: Leaf,
+  iw: number,
+  ih: number,
+): void {
+  if (!el || !iw || !ih)
+    return
+  assign(el, minimapViewStyle(minimapView(placement(cell, leaf, iw, ih), draw)))
 }
 
 /** A divider's hit band. */

@@ -34,6 +34,7 @@ import { CanvasMenu } from './CanvasMenu'
 import { CollageBgLayer } from './CollageBgLayer'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
+import { MinimapHostContext } from './minimapHost'
 import { Pane } from './Pane'
 import { PaneFilterTool } from './PaneFilterTools'
 import { PaneRotateTool } from './PaneRotateTools'
@@ -373,6 +374,9 @@ const StageToolsDock = memo(StageToolsDockImpl)
 export function Stage() {
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
   const stageRef = useRef<HTMLDivElement | null>(null)
+  // Compact panes portal their minimap here: a sibling of the canvas, so the
+  // chip never inherits the canvas transform.
+  const [minimapHost, setMinimapHost] = useState<HTMLDivElement | null>(null)
   const t = useT()
 
   const root = useStore(s => activeWs(s).root)
@@ -485,33 +489,36 @@ export function Stage() {
       onDoubleClick={stageZoom.onStageDoubleClick}
     >
       <DeleteZone label={t('Drop here to delete')} />
-      <StageCanvas
-        view={view}
-        viewScale={stageZoom.scale}
-        seams={seams}
-        stickers={boardStickers}
-        labels={boardLabels}
-        photoById={photoById}
-        focusId={focusId}
-        paneBorder={paneBorder}
-        blendCrossfade={blendCrossfade}
-        fadeStrength={fadeStrength}
-        transparent={transparent}
-        bg={bg}
-        wsId={wsId}
-        stageRef={stageRef}
-        sizing={sizing}
-        isLit={isLit}
-        onHotChange={setHotId}
-        onBeginDrag={beginDrag}
-        onBeginResize={beginResize}
-        onResetRatio={resetRatio}
-        onFocus={focus}
-        onSelectLabel={selectLabel}
-        onUpdate={updateLeaf}
-        onSplit={split}
-        onClose={closePane}
-      />
+      <MinimapHostContext value={minimapHost}>
+        <StageCanvas
+          view={view}
+          viewScale={stageZoom.scale}
+          seams={seams}
+          stickers={boardStickers}
+          labels={boardLabels}
+          photoById={photoById}
+          focusId={focusId}
+          paneBorder={paneBorder}
+          blendCrossfade={blendCrossfade}
+          fadeStrength={fadeStrength}
+          transparent={transparent}
+          bg={bg}
+          wsId={wsId}
+          stageRef={stageRef}
+          sizing={sizing}
+          isLit={isLit}
+          onHotChange={setHotId}
+          onBeginDrag={beginDrag}
+          onBeginResize={beginResize}
+          onResetRatio={resetRatio}
+          onFocus={focus}
+          onSelectLabel={selectLabel}
+          onUpdate={updateLeaf}
+          onSplit={split}
+          onClose={closePane}
+        />
+      </MinimapHostContext>
+      <div ref={setMinimapHost} className="pointer-events-none absolute inset-0 z-20" />
 
       {/* Off fit, a small chip says how far and puts it back (below the back
           button, which stands 30px tall on a mouse and 38px under a finger). */}
