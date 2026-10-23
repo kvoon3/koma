@@ -5,11 +5,16 @@
   // Branch Previews (wrangler preview / Workers Builds preview builds)
   "preview_urls": true,
   "previews": {},
-  // Pure static site; no worker script needed
+  // The Worker holds the Jev key and serves the SPA assets through ASSETS.
+  "main": "worker/index.ts",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     // SPA fallback: serve index.html for all unmatched routes
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    // Run the Worker for every request, so /api/jev is always proxied even
+    // when a path happens to match an asset.
+    "run_worker_first": true
   },
   // Custom domain (deploy auto-creates the DNS record in the kvoon.me zone)
   "routes": [
