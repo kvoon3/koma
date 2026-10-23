@@ -12,9 +12,10 @@
     "binding": "ASSETS",
     // SPA fallback: serve index.html for all unmatched routes
     "not_found_handling": "single-page-application",
-    // Run the Worker for every request, so /api/jev is always proxied even
-    // when a path happens to match an asset.
-    "run_worker_first": true
+    // Only the proxy path pays a Worker invocation. Assets, including the SPA
+    // fallback, keep serving directly, so a Worker fault cannot take the app
+    // down with it.
+    "run_worker_first": ["/api/jev"]
   },
   // Custom domain (deploy auto-creates the DNS record in the kvoon.me zone)
   "routes": [
