@@ -96,13 +96,13 @@ curl -X POST http://127.0.0.1:8787/api/jev \
   --data @request.json
 ```
 
-Without both secrets the route answers 503. The live upstream answers 451 in
-this region. To exercise the route locally, run `scripts/jev-mock.mjs` and point
-`JEV_API_URL` at it in a gitignored `.dev.vars`.
+Without both secrets the route answers 503. A direct request from this machine
+is answered 451, so a local run points `JEV_API_URL` at `scripts/jev-mock.mjs`
+in a gitignored `.dev.vars`. The deployed Worker reaches the real endpoint.
 
 ```ini
-JEV_API_URL=https://api.typesafe.ai/v1/systemone
-JEV_API_KEY=<your key>
+JEV_API_URL=http://127.0.0.1:4319/v1/systemone
+JEV_API_KEY=mock
 ```
 
 ## Client overrides
