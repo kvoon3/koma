@@ -672,14 +672,6 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                 )}
               </div>
             </div>
-            {/* The form scrolls under the footer. The fade rides the body's
-                bottom edge as the scroll cue and settles into the padding at
-                the end. */}
-            <div
-              aria-hidden
-              className="pointer-events-none sticky bottom-0 -mx-3 -mb-3 -mt-2.5 h-3 shrink-0 sm:-mx-4 sm:-mb-4"
-              style={{ background: 'linear-gradient(to top, var(--panel), transparent)' }}
-            />
           </div>
 
           <div className="flex flex-none items-center justify-end gap-[6px] border-t border-line bg-panel px-3 py-2.5 pb-[max(10px,env(safe-area-inset-bottom))]">
