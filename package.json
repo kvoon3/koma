@@ -73,7 +73,8 @@
   },
   "simple-git-hooks": {
     "pre-commit": "bunx nano-staged",
-    "commit-msg": "bunx commitlint --edit $1"
+    "commit-msg": "bunx commitlint --edit $1",
+    "post-checkout": "[ -f scripts/worktree-setup.sh ] && sh scripts/worktree-setup.sh"
   },
   "nano-staged": {
     "*": [
