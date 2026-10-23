@@ -390,7 +390,7 @@ function cropToVisible(canvas: HTMLCanvasElement) {
   const cropped = document.createElement('canvas')
   cropped.width = cropWidth
   cropped.height = cropHeight
-  const target = cropped.getContext('2d')
+  const target = cropped.getContext('2d', { willReadFrequently: true })
   if (!target)
     throw new Error('Canvas 2D is unavailable.')
   target.drawImage(canvas, left, top, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
@@ -421,15 +421,15 @@ function applyWrinkleToCanvas(
 async function prepareArtwork(
   source: StickerSource,
   bake: {
-    width: number
+    outlineWidth: number
     color: string
     perforation: PerforationDesign | null
     displayLongEdge?: number
     texture?: WrinkleDesign | null
   },
 ): Promise<PreparedArtwork> {
-  const radius = outlineRadius(bake.width)
-  const padding = texturePadding(bake.width)
+  const radius = outlineRadius(bake.outlineWidth)
+  const padding = texturePadding(bake.outlineWidth)
   const rendered = source.type === 'image'
     ? await renderImageSource(source, padding)
     : { canvas: await renderTextSource(source, padding), hasTransparency: true }
@@ -779,7 +779,7 @@ export async function makeSticker(
     throw new Error('Stickers can only be created in a browser document.')
 
   const artwork = await prepareArtwork(source, {
-    width: options.outlineWidth ?? DEFAULT_OUTLINE_WIDTH,
+    outlineWidth: options.outlineWidth ?? DEFAULT_OUTLINE_WIDTH,
     color: options.outlineColor ?? DEFAULT_OUTLINE_COLOR,
     perforation: options.perforation ?? null,
     displayLongEdge: options.displayLongEdge,
