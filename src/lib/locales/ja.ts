@@ -800,6 +800,7 @@ export const ja: Record<TKey, string> = {
   'No music cards match this search.': 'この検索に合うミュージックカードはありません。',
 
   // Sticker maker: paper texture and camera (wave12/sticker-batch)
+  'Paper texture': '紙の質感',
   'Take a photo': '写真を撮る',
   'Starting the camera…': 'カメラを起動中…',
   'Use photo': 'この写真を使う',

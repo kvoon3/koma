@@ -804,6 +804,7 @@ export const zhHant: Record<TKey, string> = {
   'No music cards match this search.': '沒有音樂卡片符合此搜尋。',
 
   // Sticker maker: paper texture and camera (wave12/sticker-batch)
+  'Paper texture': '紙張紋理',
   'Take a photo': '拍照',
   'Starting the camera…': '正在啟動相機…',
   'Use photo': '使用照片',

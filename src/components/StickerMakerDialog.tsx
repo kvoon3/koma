@@ -5,6 +5,7 @@ import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
 import type { StickerOriginalInput, StickerRecipe } from '../lib/stickerRecipe'
+import type { WrinkleDesign } from '../lib/stickerTexture'
 import { Dialog } from '@base-ui/react/dialog'
 import { Camera, ImagePlus, Images, Scissors, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -21,6 +22,7 @@ import { makeSticker } from '../lib/sticker'
 import { saveMadeSticker } from '../lib/stickerAssets'
 import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
 import { editedStickerMeta, textOriginal } from '../lib/stickerRecipe'
+import { DEFAULT_WRINKLE_STRENGTH, MAX_WRINKLE_STRENGTH, MIN_WRINKLE_STRENGTH, wrinkleFromSlider } from '../lib/stickerTexture'
 import { say } from '../lib/toast'
 import { CameraCapturePanel } from './sticker/CameraCapturePanel'
 import { LibraryPickPanel } from './sticker/LibraryPickPanel'
@@ -139,12 +141,13 @@ async function cutoutBackground(
 }
 
 /** Debounced live preview of the sticker the current inputs would produce. */
-function StickerPreview({ source, outlineWidth, outlineColor, material, perforation, displayLongEdge, onDisplaySize }: {
+function StickerPreview({ source, outlineWidth, outlineColor, material, perforation, texture, displayLongEdge, onDisplaySize }: {
   source: StickerSource | null
   outlineWidth: number
   outlineColor: string
   material: StickerMaterialType
   perforation: PerforationDesign | null
+  texture: WrinkleDesign | null
   displayLongEdge: number
   onDisplaySize: (longEdge: number) => void
 }) {
@@ -152,8 +155,8 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
   const imageRef = useRef<HTMLImageElement | null>(null)
   const [rendered, setRendered] = useState<{ key: string, url: string } | null>(null)
   const renderKey = useMemo(
-    () => (source ? JSON.stringify([source, outlineWidth, outlineColor, material, perforation, Math.round(displayLongEdge)]) : ''),
-    [source, outlineWidth, outlineColor, material, perforation, displayLongEdge],
+    () => (source ? JSON.stringify([source, outlineWidth, outlineColor, material, perforation, texture, Math.round(displayLongEdge)]) : ''),
+    [source, outlineWidth, outlineColor, material, perforation, texture, displayLongEdge],
   )
 
   // The stage is what the stamp sliders are measured against, so the drawn size
@@ -184,7 +187,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
       return
     let alive = true
     const id = window.setTimeout(() => {
-      makeSticker(source, { outlineWidth, outlineColor, perforation, displayLongEdge, maxEdge: PREVIEW_MAX, material: { type: material, intensity: 1 } })
+      makeSticker(source, { outlineWidth, outlineColor, perforation, texture, displayLongEdge, maxEdge: PREVIEW_MAX, material: { type: material, intensity: 1 } })
         .then((res) => {
           if (alive)
             setRendered({ key: renderKey, url: res.dataUrl })
@@ -198,7 +201,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
       alive = false
       window.clearTimeout(id)
     }
-  }, [source, outlineWidth, outlineColor, material, perforation, displayLongEdge, renderKey])
+  }, [source, outlineWidth, outlineColor, material, perforation, texture, displayLongEdge, renderKey])
 
   const url = source && rendered?.key === renderKey ? rendered.url || null : null
   const rendering = !!source && rendered?.key !== renderKey
@@ -270,6 +273,7 @@ function StickerStage({
   outlineColor,
   material,
   perforation,
+  texture,
   displayLongEdge,
   onDisplaySize,
   onPick,
@@ -289,6 +293,7 @@ function StickerStage({
   outlineColor: string
   material: StickerMaterialType
   perforation: PerforationDesign | null
+  texture: WrinkleDesign | null
   displayLongEdge: number
   onDisplaySize: (longEdge: number) => void
   onPick: () => void
@@ -367,6 +372,7 @@ function StickerStage({
         outlineColor={outlineColor}
         material={material}
         perforation={perforation}
+        texture={texture}
         displayLongEdge={displayLongEdge}
         onDisplaySize={onDisplaySize}
       />
@@ -590,6 +596,7 @@ interface MakerSeed {
   toothDepth: number
   toothSpacing: number
   displayLongEdge: number
+  textureStrength: number
   /** The ORIGINAL a re-edit opens on (a recipe's stored picture), if any. */
   image: { url: string, name: string, photoId?: string } | null
 }
@@ -617,6 +624,7 @@ function seedOf(edit: { recipe: StickerRecipe } | null): MakerSeed {
     toothDepth: style?.perforation?.depth ?? TOOTH_DEPTH_DEFAULT,
     toothSpacing: style?.perforation?.spacing ?? TOOTH_SPACING_DEFAULT,
     displayLongEdge: style?.displayLongEdge ?? STAGE_HEIGHT_DEFAULT,
+    textureStrength: style?.texture?.strength ?? DEFAULT_WRINKLE_STRENGTH,
     image: original?.type === 'image' ? { url: original.src, name: original.name, photoId: original.photoId } : null,
   }
 }
@@ -789,12 +797,14 @@ function MakerEffectsFields({
   stamp,
   toothDepth,
   toothSpacing,
+  textureStrength,
   onOutlineWidth,
   onOutlineColor,
   onMaterial,
   onStamp,
   onToothDepth,
   onToothSpacing,
+  onTextureStrength,
 }: {
   outlineWidth: number
   outlineColor: string
@@ -802,12 +812,14 @@ function MakerEffectsFields({
   stamp: boolean
   toothDepth: number
   toothSpacing: number
+  textureStrength: number
   onOutlineWidth: (width: number) => void
   onOutlineColor: (color: string) => void
   onMaterial: (material: StickerMaterialType) => void
   onStamp: (stamp: boolean) => void
   onToothDepth: (depth: number) => void
   onToothSpacing: (spacing: number) => void
+  onTextureStrength: (strength: number) => void
 }) {
   const t = useT()
   return (
@@ -835,6 +847,17 @@ function MakerEffectsFields({
         items={MATERIALS.map(m => ({ value: m.value, label: t(m.label) }))}
         onChange={v => onMaterial(v as StickerMaterialType)}
       />
+      <div data-sticker-texture={textureStrength}>
+        <RangeField
+          label={t('Paper texture')}
+          text={`${textureStrength}%`}
+          min={MIN_WRINKLE_STRENGTH}
+          max={MAX_WRINKLE_STRENGTH}
+          step={1}
+          value={textureStrength}
+          onChange={onTextureStrength}
+        />
+      </div>
     </div>
   )
 }
@@ -867,6 +890,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   const [toothDepth, setToothDepth] = useState(seed.toothDepth)
   const [toothSpacing, setToothSpacing] = useState(seed.toothSpacing)
   const [displayLongEdge, setDisplayLongEdge] = useState(seed.displayLongEdge)
+  const [textureStrength, setTextureStrength] = useState(seed.textureStrength)
   const [editingMask, setEditingMask] = useState(false)
 
   const [inserting, setInserting] = useState(false)
@@ -900,12 +924,13 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     () => (stamp ? perforationFromSliders(toothDepth, toothSpacing) : null),
     [stamp, toothDepth, toothSpacing],
   )
+  const texture = useMemo(() => wrinkleFromSlider(textureStrength), [textureStrength])
 
   const insert = async () => {
     if (!source || !target)
       return
     const baseName = baseNameOf(reEdit, tab, text, imageName)
-    const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge, texture: null }
+    const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge, texture }
     // The picture this sticker started from, carried onto the new record.
     const fromOriginal = originalOf(tab, text, color, font, original())
     setInserting(true)
@@ -930,6 +955,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     setStamp(seed.stamp)
     setToothDepth(seed.toothDepth)
     setToothSpacing(seed.toothSpacing)
+    setTextureStrength(seed.textureStrength)
   }
 
   const canInsert = !!source && !!target && !inserting && !bgJob && !cameraOpen
@@ -1007,6 +1033,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
                 outlineColor,
                 material,
                 perforation,
+                texture,
                 displayLongEdge,
                 onDisplaySize: setDisplayLongEdge,
                 onPick: pickImage,
@@ -1033,12 +1060,14 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
               stamp={stamp}
               toothDepth={toothDepth}
               toothSpacing={toothSpacing}
+              textureStrength={textureStrength}
               onOutlineWidth={setOutlineWidth}
               onOutlineColor={setOutlineColor}
               onMaterial={setMaterial}
               onStamp={setStamp}
               onToothDepth={setToothDepth}
               onToothSpacing={setToothSpacing}
+              onTextureStrength={setTextureStrength}
             />
           </div>
 

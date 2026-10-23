@@ -806,6 +806,7 @@ export const zhHans = {
   'No music cards match this search.': '没有音乐卡片符合此搜索。',
 
   // Sticker maker: paper texture and camera (wave12/sticker-batch)
+  'Paper texture': '纸张纹理',
   'Take a photo': '拍照',
   'Starting the camera…': '正在启动相机…',
   'Use photo': '使用照片',
