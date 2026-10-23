@@ -75,7 +75,7 @@ These have open PRs and green local gates. They are not merged, so no deploy has
 - PR #57: compact minimap chip seated against the tools dock's top-left corner, outside the pane
 - PR #58: the size rail resizes the canvas when nothing is selected, focused or not
 - PR #59: Storybook workshop for eight presentational components, deployed separately as `koma-storybook`
-- PR #60: Jev label classification for photos, with icon-mapped tag chips and a Worker proxy for the key
+- PR #60: TypeSafe Jev classification with one Noul per tag category over a code-owned taxonomy, icon-mapped chips, and a Worker proxy for the key
 - PR #61: wrinkled-paper texture and camera capture in the sticker maker
 
 ## Remaining
@@ -90,7 +90,7 @@ These have open PRs and green local gates. They are not merged, so no deploy has
 
 ## Waiting on the operator
 
-- The real Jev endpoint and response shape. The client and Worker are configured for a provisional contract, so the live call stays off until the URL is set.
+- Set the Jev Worker secrets: `JEV_API_URL` to `https://api.typesafe.ai/v1/systemone` and `JEV_API_KEY` to a rotated key. The key shared in chat should be rotated.
 - A second Cloudflare Workers Builds project for `koma-storybook`, pointed at `main` with `bun run deploy:storybook`.
 - An explicit merge call for the five in-review PRs. Merging main deploys it.
 
