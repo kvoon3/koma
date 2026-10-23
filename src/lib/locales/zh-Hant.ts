@@ -701,19 +701,6 @@ export const zhHant: Record<TKey, string> = {
   '{n} in the photo library': '照片庫共 {n} 張',
   '{n} in the sticker library': '貼紙庫共 {n} 張',
   'Retained draft': '保留草稿',
-  // Jev photo classification (wave12/jev-tags)
-  'Classify': '智慧分類',
-  'Classifying…': '正在分類…',
-  'Suggested tags': '建議標籤',
-  'Add selected tags': '新增所選標籤',
-  'Retry': '重試',
-  'Jev could not classify this photo. Try again.': 'Jev 無法分類這張照片。請重試。',
-  'Jev refused the request. Check the API key and try again.': 'Jev 拒絕了請求。請檢查 API 金鑰後重試。',
-  'Jev sent an answer koma could not read.': 'Jev 傳回了 koma 無法讀取的結果。',
-  'Jev found no tags for this photo.': 'Jev 沒有為這張照片找到標籤。',
-  'Could not reach Jev. Check the connection and try again.': '無法連線 Jev。請檢查網路後重試。',
-  'Jev took too long to answer. Try again.': 'Jev 回應逾時。請重試。',
-  'Classifying was cancelled.': '分類已取消。',
 
   // History (wave35/history-tree): the step tree panel and its step labels
   'History': '歷史',

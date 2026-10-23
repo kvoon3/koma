@@ -8,3 +8,4 @@ build
 .turbo
 .eslintcache
 .dev.vars
+.wrangler

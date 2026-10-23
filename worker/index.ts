@@ -1,16 +1,13 @@
 /**
  * The Jev proxy. The API key is a Worker secret, so it never enters the
- * public bundle. The client posts multipart to `/api/jev`, this handler swaps
- * the Authorization header for the server key, and the answer streams back
+ * public bundle. The client posts JSON to `/api/jev`, this handler swaps the
+ * Authorization header for the server key, and the answer streams back
  * unchanged.
  *
  * The upstream URL is always `JEV_API_URL`. Nothing on the request can change
- * where the body goes.
+ * where the body goes. This module exports only the handler; see `config.ts`.
  */
-
-export const JEV_PATH = '/api/jev'
-export const MAX_BODY_BYTES = 15 * 1024 * 1024
-export const UPSTREAM_TIMEOUT_MS = 20_000
+import { JEV_PATH, MAX_BODY_BYTES, UPSTREAM_TIMEOUT_MS } from './config'
 
 export interface Env {
   ASSETS: { fetch: (request: Request) => Promise<Response> }
@@ -94,10 +91,8 @@ async function proxy(request: Request, env: Env): Promise<Response> {
   }
 
   const headers: Record<string, string> = {
-    'accept': 'application/json',
-    'authorization': `Bearer ${key}`,
-    // TypeSafe requires this on every request that carries an image.
-    'TypeSafe-Danger-Zone-Images': 'true',
+    accept: 'application/json',
+    authorization: `Bearer ${key}`,
   }
   const contentType = request.headers.get('content-type')
   if (contentType)

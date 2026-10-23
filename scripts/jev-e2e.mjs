@@ -1,6 +1,7 @@
 /**
- * Drive the built app against `scripts/jev-mock.mjs` with Playwright, then
- * write the screenshots and measurements to /tmp/jev-tags-verify.
+ * Drive the built app against `scripts/jev-mock.mjs` with Playwright: commit a
+ * text label, let Jev choose its leading icon, and assert the store and the
+ * wire. Screenshots and measurements go to /tmp/jev-tags-verify.
  * Run with `bun scripts/jev-e2e.mjs`.
  */
 import { spawn } from 'node:child_process'
@@ -19,27 +20,6 @@ const MOCK_PORT = Number(process.env.JEV_MOCK_PORT ?? 4319)
 const APP = `http://127.0.0.1:${APP_PORT}`
 const MOCK = `http://127.0.0.1:${MOCK_PORT}`
 const JEV_URL = `${MOCK}/v1/systemone`
-
-/** The taxonomy the wire must carry, one Noul question per icon id. */
-const TAXONOMY_IDS = [
-  'person',
-  'family',
-  'cat',
-  'dog',
-  'pet',
-  'food',
-  'drink',
-  'nature',
-  'beach',
-  'mountain',
-  'city',
-  'car',
-  'plane',
-  'art',
-  'night',
-  'snow',
-  'celebration',
-]
 const CHROMIUM = process.env.JEV_CHROMIUM ?? findChromium()
 
 function findChromium() {
@@ -117,10 +97,6 @@ async function waitForCall(n) {
   throw new Error(`timed out waiting for Jev call ${n}`)
 }
 
-async function setMockFail(fail) {
-  await fetch(`${MOCK}/mode?fail=${fail ? 1 : 0}`)
-}
-
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -160,116 +136,55 @@ function serveDist() {
   })
 }
 
-async function seedPhoto(page) {
-  await page.evaluate(async () => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 320
-    canvas.height = 240
-    const ctx = canvas.getContext('2d')
-    ctx.fillStyle = '#3b82f6'
-    ctx.fillRect(0, 0, 320, 240)
-    ctx.fillStyle = '#fde68a'
-    ctx.fillRect(20, 20, 80, 60)
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
-    const file = new File([blob], 'harbour.png', { type: 'image/png' })
-    window.__collage.useStore.setState({
-      photos: [{ id: 'jev-photo', name: 'harbour.png', file, trueW: 320, trueH: 240 }],
-      photoTags: [],
-    })
-  })
-}
-
-async function clearPhotoTags(page) {
-  await page.evaluate(() => {
-    const store = window.__collage.useStore
+/** The label as the store holds it. */
+async function storedLabel(page, id) {
+  return page.evaluate((labelId) => {
     const state = window.__collage.store()
-    store.setState({
-      photos: state.photos.map(p => (p.id === 'jev-photo' ? { ...p, tags: undefined } : p)),
-      photoTags: [],
-    })
-  })
+    const ws = state.workspaces.find(w => w.id === state.activeId)
+    return ws?.labels?.find(label => label.id === labelId) ?? null
+  }, id)
 }
 
-async function storedTags(page) {
-  return page.evaluate(() => {
+/** Add a label through the store, then commit text through the real editor. */
+async function addAndType(page, x, y, text) {
+  const id = await page.evaluate(([left, top]) => window.__collage.useStore.getState().addLabel(left, top), [x, y])
+  await page.waitForSelector(`[data-label-id="${id}"]`)
+  await page.dblclick(`[data-label-id="${id}"]`)
+  await page.waitForSelector(`[data-label-id="${id}"] [contenteditable]`)
+  await page.keyboard.type(text)
+  // Escape blurs the editor, and blur is the commit.
+  await page.keyboard.press('Escape')
+  return id
+}
+
+async function waitForIcon(page, id, icon) {
+  await page.waitForFunction(([labelId, wanted]) => {
     const state = window.__collage.store()
-    const photo = state.photos.find(p => p.id === 'jev-photo')
-    return { tags: photo?.tags ?? [], list: state.photoTags }
-  })
+    const ws = state.workspaces.find(w => w.id === state.activeId)
+    return ws?.labels?.find(label => label.id === labelId)?.icon === wanted
+  }, [id, icon])
 }
 
-async function renderedLabels(page) {
-  return page.$$eval('[data-jev-label]', elements => elements.map(element => ({
-    label: element.getAttribute('data-jev-label'),
-    icon: element.querySelector('[data-tag-icon]')?.getAttribute('data-tag-icon'),
-    pressed: element.getAttribute('aria-pressed'),
-  })))
-}
-
-async function classify(page) {
-  await page.click('[data-photo-classify]')
-  await page.waitForFunction(() => document.querySelectorAll('[data-jev-label]').length === 3)
-}
-
-async function measurePanel(page) {
-  return page.evaluate(() => {
-    const rect = (element) => {
-      const r = element.getBoundingClientRect()
-      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }
-    }
-    const inside = (r, outer) => r.left >= outer.left - 0.5 && r.top >= outer.top - 0.5
-      && r.right <= outer.right + 0.5 && r.bottom <= outer.bottom + 0.5
-    const dialog = document.querySelector('[data-photo-detail]')
-    const dialogRect = rect(dialog)
-    const labels = [...document.querySelectorAll('[data-jev-label]')].map((element) => {
-      const text = element.querySelector('span')
-      return {
-        label: element.getAttribute('data-jev-label'),
-        rect: rect(element),
-        insideDialog: inside(element.getBoundingClientRect(), dialogRect),
-        textOverflow: text ? text.scrollWidth > text.clientWidth + 1 : null,
-      }
-    })
-    const confirm = document.querySelector('[data-jev-confirm]')
-    const confirmRect = rect(confirm)
-    const scroller = document.querySelector('[data-photo-detail] .overflow-y-auto')
-    return {
-      viewport: { width: innerWidth, height: innerHeight },
-      dialog: dialogRect,
-      labels,
-      allLabelsInsideDialog: labels.every(item => item.insideDialog),
-      allLabelsInsideViewport: labels.every(item => item.rect.right <= innerWidth + 0.5 && item.rect.bottom <= innerHeight + 0.5),
-      confirm: confirmRect,
-      confirmInsideDialog: inside(confirm.getBoundingClientRect(), dialogRect),
-      confirmInsideViewport: confirmRect.right <= innerWidth + 0.5 && confirmRect.bottom <= innerHeight + 0.5,
-      scroller: scroller ? { clientHeight: scroller.clientHeight, scrollHeight: scroller.scrollHeight } : null,
-    }
-  })
-}
-
-async function reviewWithOllama(file, viewport) {
-  const prompt = `This is a screenshot of a photo detail dialog at ${viewport}. The Tags section should show a Suggested tags row of checkable chips, each chip carrying a small icon, with selected chips marked. Describe what you see. Report any clipped text, any overlapping controls, and any control that falls outside the dialog. Be specific and stay under 120 words.`
-  const image = readFileSync(file).toString('base64')
-  const res = await fetch('http://localhost:11434/api/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'qwen2.5vl:7b', prompt, images: [image], stream: false, options: { temperature: 0 } }),
-  })
-  if (!res.ok)
-    throw new Error(`ollama answered ${res.status}`)
-  const data = await res.json()
-  return data.response
-}
-
-async function tryOllama() {
+async function tryOllama(files) {
   try {
     const tags = await (await fetch('http://localhost:11434/api/tags')).json()
     const installed = (tags.models ?? []).map(model => model.name)
     if (!installed.some(name => name === 'qwen2.5vl:7b' || name.startsWith('qwen2.5vl:7b')))
       return `ollama is running but qwen2.5vl:7b is not installed (have: ${installed.join(', ') || 'none'})`
-    const wide = await reviewWithOllama(join(SHOTS, 'confirm-1280x900.png'), '1280x900')
-    const phone = await reviewWithOllama(join(SHOTS, 'confirm-375x812.png'), '375x812')
-    return { wide, phone }
+    const out = {}
+    for (const [name, file] of Object.entries(files)) {
+      const prompt = 'This is a screenshot of a collage board. A text label near the center should lead with a small cake icon before its Chinese text. Describe what you see. Report clipped text, overlapping controls, or an icon detached from its text. Stay under 100 words.'
+      const image = readFileSync(file).toString('base64')
+      const res = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'qwen2.5vl:7b', prompt, images: [image], stream: false, options: { temperature: 0 } }),
+      })
+      if (!res.ok)
+        throw new Error(`ollama answered ${res.status}`)
+      out[name] = (await res.json()).response
+    }
+    return out
   }
   catch (error) {
     return `ollama review unavailable: ${error.message}`
@@ -296,91 +211,89 @@ try {
   const page = await context.newPage()
   page.on('pageerror', error => console.log(`page error: ${error.message}`))
 
-  await page.goto(`${APP}/#/library`, { waitUntil: 'load' })
-  await page.waitForSelector('[data-library]')
-  await seedPhoto(page)
-  await page.waitForSelector('[data-photo-open]')
-  await page.click('[data-photo-open]')
-  await page.waitForSelector('[data-photo-detail]')
-  await page.waitForSelector('[data-photo-classify]:not([disabled])')
+  await page.goto(`${APP}/`, { waitUntil: 'load' })
+  await page.waitForFunction(() => !!window.__collage?.useStore)
 
-  await classify(page)
+  // `/` is the board overview. Enter the active board through the hash router,
+  // which swaps the view without reloading the document.
+  const wsId = await page.evaluate(() => window.__collage.store().activeId)
+  await page.evaluate((id) => {
+    window.location.hash = `#/w/${id}`
+  }, wsId)
+  await page.waitForSelector('[data-pane-id]')
+
+  const cakeId = await addAndType(page, 0.5, 0.5, '生日蛋糕')
+  await waitForIcon(page, cakeId, 'cake')
   const first = await waitForCall(1)
-  check(first.hasImage, 'the photo part reached Jev')
-  check(first.bytes > 0, `the photo had bytes (${first.bytes})`)
-  check(first.type === 'image/jpeg', `the prepared image is a JPEG (${first.type})`)
-  check(first.dangerZone === 'true', 'the image header reached Jev')
-  check(first.auth === null, 'an unset key sends no Authorization header')
-  check(first.requestType.startsWith('application/json'), `the request part is JSON (${first.requestType})`)
+  check(first.contentType?.startsWith('application/json'), `the request is JSON (${first.contentType})`)
+  check(first.dangerZone === null, 'no image header rides the label request')
   check(first.model === 'jev-latest', `the request named jev-latest (${first.model})`)
-  check(first.assetPart === 'photo', `the asset points at the photo part (${first.assetPart})`)
-  equal(first.questionIds, TAXONOMY_IDS, 'every taxonomy category is one Noul question')
+  check(first.state === '生日蛋糕', `the label text is the state (${first.state})`)
+  equal(first.questionIds, ['label_icon'], 'one Choice question')
+  check(first.questionType === 'choice', `the question is a Choice (${first.questionType})`)
+  equal(first.criteriaCount, 129, 'every catalog icon plus none is a criterion')
+  check(first.hasNone, 'the none option is present')
+  check(first.choice === 'cake', `the mock chose the cake icon (${first.choice})`)
+  check((await storedLabel(page, cakeId))?.text === '生日蛋糕', 'the committed text stays')
 
-  const labels = await renderedLabels(page)
-  equal(labels.map(item => item.label), ['Person', 'Beach', 'Cat'], 'only labels above the threshold render')
-  equal(labels.map(item => item.icon), ['person', 'beach', 'cat'], 'each label wears the icon its name earns')
-  check(labels.every(item => item.pressed === 'true'), 'returned labels start checked')
-  check((await page.locator('[data-jev-label="Food"]').count()) === 0, 'a label below 0.7 stays hidden')
+  // A label that already has an icon keeps it: the pick never runs.
+  const pinnedId = await page.evaluate(() => {
+    const s = window.__collage.useStore.getState()
+    const id = s.addLabel(0.3, 0.3)
+    s.setLabel(id, { text: '旧标题', icon: 'pin' })
+    return id
+  })
+  await page.waitForSelector(`[data-label-id="${pinnedId}"]`)
+  await page.dblclick(`[data-label-id="${pinnedId}"]`)
+  await page.waitForSelector(`[data-label-id="${pinnedId}"] [contenteditable]`)
+  await page.keyboard.type('东京旅行')
+  await page.keyboard.press('Escape')
+  await sleep(600)
+  check((await storedLabel(page, pinnedId))?.icon === 'pin', 'a user-chosen icon survives a text edit')
+  check((await mockState()).calls === 1, 'an iconed label never reaches Jev')
 
-  const wideBox = await page.locator('[data-photo-detail]').boundingBox()
-  check(wideBox && wideBox.x >= 0 && wideBox.y >= 0 && wideBox.x + wideBox.width <= 1280 && wideBox.y + wideBox.height <= 900, `dialog fits 1280x900 (${JSON.stringify(wideBox)})`)
-  const wideMeasure = await measurePanel(page)
-  check(wideMeasure.allLabelsInsideDialog && wideMeasure.allLabelsInsideViewport, `every label chip is fully drawn at 1280x900 (${JSON.stringify(wideMeasure.labels)})`)
-  check(wideMeasure.confirmInsideDialog && wideMeasure.confirmInsideViewport, `the confirm control is fully drawn at 1280x900 (${JSON.stringify(wideMeasure.confirm)})`)
-  await page.screenshot({ path: join(SHOTS, 'confirm-1280x900.png'), animations: 'disabled' })
+  // A second text commits and picks a different icon from the same catalog.
+  const travelId = await addAndType(page, 0.7, 0.7, '东京旅行')
+  await waitForIcon(page, travelId, 'plane')
+  const second = await waitForCall(2)
+  check(second.state === '东京旅行', `the second state is its own text (${second.state})`)
+  check(second.choice === 'plane', `the mock chose the plane icon (${second.choice})`)
 
-  await page.click('[data-jev-label="Cat"]')
-  await page.click('[data-jev-confirm]')
-  await page.waitForSelector('[data-jev-labels]', { state: 'detached' })
-  equal(await storedTags(page), { tags: ['Person', 'Beach'], list: ['Person', 'Beach'] }, 'only checked labels attach through tagPhoto')
-  const chipIcons = await page.$$eval('[data-photo-detail-tag]', elements => elements.map(element => ({
-    tag: element.getAttribute('data-photo-detail-tag'),
-    icon: element.querySelector('[data-tag-icon]')?.getAttribute('data-tag-icon'),
-  })))
-  equal(chipIcons, [
-    { tag: 'Person', icon: 'person' },
-    { tag: 'Beach', icon: 'beach' },
-  ], 'photo detail chips wear the same icons')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const wideBox = await page.locator(`[data-label-id="${cakeId}"]`).boundingBox()
+  await page.screenshot({ path: join(SHOTS, 'label-1280x900.png'), animations: 'disabled' })
 
-  await clearPhotoTags(page)
   await page.setViewportSize({ width: 375, height: 812 })
-  await setMockFail(true)
-  await page.click('[data-photo-classify]')
-  await page.waitForSelector('[data-jev-error="http"]')
-  const errorText = (await page.locator('[data-jev-error] p').textContent()).trim()
-  check(errorText.length > 0, 'a failed classify shows a readable message')
-  check(await page.isVisible('[data-jev-retry]'), 'the failed state offers a retry')
-  await page.click('[data-jev-retry]')
-  await waitForCall(3)
-  await page.waitForSelector('[data-jev-error="http"]')
+  const phoneBox = await page.locator(`[data-label-id="${cakeId}"]`).boundingBox()
+  await page.screenshot({ path: join(SHOTS, 'label-375x812.png'), animations: 'disabled' })
 
-  await setMockFail(false)
-  await page.click('[data-jev-retry]')
-  await page.waitForFunction(() => document.querySelectorAll('[data-jev-label]').length === 3)
-  const phoneBox = await page.locator('[data-photo-detail]').boundingBox()
-  check(phoneBox && phoneBox.x >= 0 && phoneBox.y >= 0 && phoneBox.x + phoneBox.width <= 375 && phoneBox.y + phoneBox.height <= 812, `dialog fits 375x812 (${JSON.stringify(phoneBox)})`)
-  check(await page.isVisible('[data-jev-confirm]'), 'the confirm control is visible at phone width')
-  const phoneMeasure = await measurePanel(page)
-  check(phoneMeasure.allLabelsInsideDialog && phoneMeasure.allLabelsInsideViewport, `every label chip is fully drawn at 375x812 (${JSON.stringify(phoneMeasure.labels)})`)
-  check(phoneMeasure.confirmInsideDialog && phoneMeasure.confirmInsideViewport, `the confirm control is fully drawn at 375x812 (${JSON.stringify(phoneMeasure.confirm)})`)
-  await page.screenshot({ path: join(SHOTS, 'confirm-375x812.png'), animations: 'disabled' })
+  check(wideBox && wideBox.width > 0 && wideBox.height > 0, `the cake label draws at 1280x900 (${JSON.stringify(wideBox)})`)
+  check(phoneBox && phoneBox.width > 0 && phoneBox.height > 0, `the cake label draws at 375x812 (${JSON.stringify(phoneBox)})`)
 
-  await page.click('[data-jev-label="Person"]')
-  await page.click('[data-jev-confirm]')
-  await page.waitForSelector('[data-jev-labels]', { state: 'detached' })
-  equal(await storedTags(page), { tags: ['Beach', 'Cat'], list: ['Beach', 'Cat'] }, 'the phone pass also adds only checked labels')
-
-  const metrics = { wideBox, phoneBox, wideMeasure, phoneMeasure, errorText, labels, chipIcons }
+  const metrics = {
+    first,
+    second,
+    labels: {
+      cake: await storedLabel(page, cakeId),
+      pinned: await storedLabel(page, pinnedId),
+      travel: await storedLabel(page, travelId),
+    },
+    wideBox,
+    phoneBox,
+  }
   writeFileSync(join(SHOTS, 'measurements.json'), `${JSON.stringify(metrics, null, 2)}\n`)
 
-  const review = await tryOllama()
+  const review = await tryOllama({
+    '1280x900': join(SHOTS, 'label-1280x900.png'),
+    '375x812': join(SHOTS, 'label-375x812.png'),
+  })
   console.log('\nscreenshots:')
-  console.log(`  ${join(SHOTS, 'confirm-1280x900.png')}`)
-  console.log(`  ${join(SHOTS, 'confirm-375x812.png')}`)
+  console.log(`  ${join(SHOTS, 'label-1280x900.png')}`)
+  console.log(`  ${join(SHOTS, 'label-375x812.png')}`)
   console.log('\nmeasurements:')
   console.log(JSON.stringify(metrics, null, 2))
   console.log('\nvision review:')
-  console.log(typeof review === 'string' ? review : `1280x900: ${review.wide}\n\n375x812: ${review.phone}`)
+  console.log(typeof review === 'string' ? review : `1280x900: ${review['1280x900']}\n\n375x812: ${review['375x812']}`)
   console.log('\njev e2e: PASS')
 }
 finally {

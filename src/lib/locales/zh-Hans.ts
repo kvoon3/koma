@@ -703,19 +703,6 @@ export const zhHans = {
   '{n} in the photo library': '照片库共 {n} 张',
   '{n} in the sticker library': '贴纸库共 {n} 张',
   'Retained draft': '保留草稿',
-  // Jev photo classification (wave12/jev-tags)
-  'Classify': '智能分类',
-  'Classifying…': '正在分类…',
-  'Suggested tags': '建议标签',
-  'Add selected tags': '添加所选标签',
-  'Retry': '重试',
-  'Jev could not classify this photo. Try again.': 'Jev 无法分类这张照片。请重试。',
-  'Jev refused the request. Check the API key and try again.': 'Jev 拒绝了请求。请检查 API 密钥后重试。',
-  'Jev sent an answer koma could not read.': 'Jev 返回了 koma 无法读取的结果。',
-  'Jev found no tags for this photo.': 'Jev 没有为这张照片找到标签。',
-  'Could not reach Jev. Check the connection and try again.': '无法连接 Jev。请检查网络后重试。',
-  'Jev took too long to answer. Try again.': 'Jev 响应超时。请重试。',
-  'Classifying was cancelled.': '分类已取消。',
 
   // History (wave35/history-tree): the step tree panel and its step labels
   'History': '历史',

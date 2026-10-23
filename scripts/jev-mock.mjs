@@ -3,33 +3,12 @@ import { serve } from 'bun'
 
 /**
  * A stand-in for the TypeSafe System One endpoint, for the browser check in
- * `scripts/jev-e2e.mjs`. It reads the `request` part, answers every question id
- * with a deterministic Noul probability, and records the last call at
- * `GET /last`. `GET /mode?fail=1` makes the next calls fail for the retry path.
+ * `scripts/jev-e2e.mjs`. It reads the JSON Choice request, answers with a
+ * plausible icon from the criteria, and records the last call at `GET /last`.
+ * `GET /mode?fail=1` makes the next calls fail.
  */
 const port = Number(process.env.JEV_MOCK_PORT ?? 4319)
 const MODEL = 'jev-1.14.0'
-
-/** Deterministic probabilities with answers on both sides of 0.7. */
-const NOUL = {
-  person: 0.99,
-  family: 0.12,
-  cat: 0.88,
-  dog: 0.03,
-  pet: 0.07,
-  food: 0.62,
-  drink: 0.08,
-  nature: 0.42,
-  beach: 0.94,
-  mountain: 0.06,
-  city: 0.21,
-  car: 0.04,
-  plane: 0.02,
-  art: 0.09,
-  night: 0.11,
-  snow: 0.01,
-  celebration: 0.05,
-}
 
 let last = null
 let fail = false
@@ -39,12 +18,27 @@ function cors() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Accept, Content-Type, TypeSafe-Danger-Zone-Images',
+    'Access-Control-Allow-Headers': 'Authorization, Accept, Content-Type',
   }
 }
 
 function isPath(pathname) {
-  return pathname === '/classify' || pathname === '/v1/systemone'
+  return pathname === '/v1/systemone'
+}
+
+/** A plausible id for the label text, limited to the options that were sent. */
+function choose(state, criteria) {
+  const text = String(state ?? '').toLocaleLowerCase()
+  const wanted = [
+    ['cake', ['生日', '蛋糕', 'cake', 'birthday']],
+    ['plane', ['东京', '旅行', '飞机', 'travel', 'trip', 'tokyo']],
+    ['star', ['星', 'star']],
+  ]
+  for (const [id, words] of wanted) {
+    if (id in criteria && words.some(word => text.includes(word)))
+      return id
+  }
+  return 'none' in criteria ? 'none' : Object.keys(criteria)[0] ?? 'none'
 }
 
 const server = serve({
@@ -69,40 +63,31 @@ const server = serve({
       return Response.json({ error: 'not found' }, { status: 404, headers })
 
     calls++
+    const contentType = req.headers.get('content-type')
     const dangerZone = req.headers.get('typesafe-danger-zone-images')
     let document = null
-    let image = null
-    let requestType = ''
     try {
-      const form = await req.formData()
-      const requestPart = form.get('request')
-      requestType = requestPart?.type ?? ''
-      if (requestPart && typeof requestPart === 'object')
-        document = JSON.parse(await requestPart.text())
-      image = form.get('photo')
+      document = await req.json()
     }
     catch {}
 
-    const questionIds = Object.keys(document?.questions ?? {})
-    const answers = Object.fromEntries(questionIds.map(id => [id, {
-      type: 'noul',
-      noul: NOUL[id] ?? 0.05,
-    }]))
+    const question = document?.questions?.label_icon
+    const criteria = question?.criteria ?? {}
+    const choice = choose(document?.state, criteria)
 
     last = {
       calls,
       path: url.pathname,
-      hasImage: image != null,
-      bytes: image?.size ?? 0,
-      type: image?.type ?? '',
-      filename: image?.name ?? '',
+      contentType,
       auth: req.headers.get('authorization'),
       dangerZone,
-      requestType,
       model: document?.model ?? null,
-      assetPart: document?.assets?.photo?.part ?? null,
-      questionIds,
-      answers,
+      state: document?.state ?? null,
+      questionType: question?.type ?? null,
+      questionIds: Object.keys(document?.questions ?? {}),
+      criteriaCount: Object.keys(criteria).length,
+      hasNone: 'none' in criteria,
+      choice,
     }
 
     if (fail) {
@@ -110,26 +95,28 @@ const server = serve({
       return Response.json({ error: 'mock down' }, { status: 503, headers })
     }
 
-    if (dangerZone?.toLowerCase() !== 'true') {
+    if (dangerZone !== null) {
       last.status = 400
-      return Response.json({ error: 'TypeSafe-Danger-Zone-Images is required' }, { status: 400, headers })
+      return Response.json({ error: 'an image header is not expected' }, { status: 400, headers })
     }
 
-    if (!document || questionIds.length === 0) {
-      last.status = 422
-      return Response.json({ error: 'the request part is required' }, { status: 422, headers })
+    if (!contentType?.startsWith('application/json')) {
+      last.status = 415
+      return Response.json({ error: 'application/json is required' }, { status: 415, headers })
     }
 
-    if (!image) {
+    if (question?.type !== 'choice' || Object.keys(criteria).length === 0) {
       last.status = 422
-      return Response.json({ error: 'the photo part is required' }, { status: 422, headers })
+      return Response.json({ error: 'one Choice question is required' }, { status: 422, headers })
     }
 
     last.status = 200
     return Response.json({
       model: MODEL,
-      answers,
-      usage: { input_tokens: 2003, output_tokens: questionIds.length },
+      answers: {
+        label_icon: { type: 'choice', choice, confidence: choice === 'none' ? 0.4 : 0.93 },
+      },
+      usage: { input_tokens: 220, output_tokens: 3 },
     }, { headers })
   },
 })

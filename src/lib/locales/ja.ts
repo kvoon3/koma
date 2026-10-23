@@ -697,19 +697,6 @@ export const ja: Record<TKey, string> = {
   '{n} in the photo library': '写真ライブラリに {n} 枚',
   '{n} in the sticker library': 'ステッカーライブラリに {n} 個',
   'Retained draft': '保留中の下書き',
-  // Jev photo classification (wave12/jev-tags)
-  'Classify': 'Jev で分類',
-  'Classifying…': '分類中…',
-  'Suggested tags': '候補のタグ',
-  'Add selected tags': '選択したタグを追加',
-  'Retry': '再試行',
-  'Jev could not classify this photo. Try again.': 'Jev はこの写真を分類できませんでした。もう一度お試しください。',
-  'Jev refused the request. Check the API key and try again.': 'Jev がリクエストを拒否しました。API キーを確認して再試行してください。',
-  'Jev sent an answer koma could not read.': 'Jev から koma が読めない形式の応答が返りました。',
-  'Jev found no tags for this photo.': 'Jev はこの写真のタグを見つけられませんでした。',
-  'Could not reach Jev. Check the connection and try again.': 'Jev に接続できませんでした。接続を確認して再試行してください。',
-  'Jev took too long to answer. Try again.': 'Jev の応答がタイムアウトしました。もう一度お試しください。',
-  'Classifying was cancelled.': '分類はキャンセルされました。',
 
   // History: the step tree panel and its step labels
   'History': '履歴',

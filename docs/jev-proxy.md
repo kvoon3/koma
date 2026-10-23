@@ -1,36 +1,80 @@
-# Jev classification proxy
+# Jev label icon proxy
 
 Production builds never carry the TypeSafe key. When `VITE_JEV_API_URL` is
-unset, a production build points the Classify action at the same-origin Worker
-route `POST /api/jev`. The Worker forwards the multipart body to `JEV_API_URL`
-with `Authorization: Bearer <JEV_API_KEY>` and
-`TypeSafe-Danger-Zone-Images: true`, then returns the upstream status, content
-type and body. The client cannot choose the upstream.
+unset, a production build points the label icon pick at the same-origin Worker
+route `POST /api/jev`. The Worker forwards the JSON body unchanged to
+`JEV_API_URL` with `Authorization: Bearer <JEV_API_KEY>`, then returns the
+upstream status, content type and body. The client cannot choose the upstream.
+
+The Worker accepts only POST, caps the body at 64 KiB, and gives the upstream
+20 seconds before it answers 504. Without both secrets the route answers 503.
+
+## When the pick runs
+
+`commitEdit` in `src/components/BoardLabel.tsx` saves the label text and calls
+`requestLabelIcon`. The call is fire-and-forget, so it never blocks or reverts
+the edit.
+
+The pick starts only when the label exists, has no icon, and carries non-empty
+text. When the answer arrives, the label must still exist, still have no icon,
+and still carry the exact text that was sent. Anything else drops the answer.
+A timeout, an offline network, a 503, a malformed body, or an unknown icon id
+leaves the label text-only and shows no error. There is no retry.
+
+An icon the user chose wins. The label's icon picker sets `icon` directly, and
+the resolve guard skips a label that has one.
 
 ## The upstream contract
 
-The endpoint is `POST https://api.typesafe.ai/v1/systemone`. The first multipart
-part is `request`, a JSON document with content type `application/json`. It
-names the model `jev-latest`, points the `photo` state at the `photo` asset part,
-and asks one Noul question per tag category. The image travels as its own
-`photo` part, as PNG or JPEG with each side from 280 to 1568 pixels.
+The endpoint is `POST https://api.typesafe.ai/v1/systemone`. The request is
+`application/json` with one Choice question:
 
-`src/lib/jevTaxonomy.ts` owns the categories. Each category has an id, a display
-label, an instruction, and true and false criteria. The ids and labels follow
-`src/lib/tagIcons.ts`, so one set drives the icons and the questions. The model
-never chooses the displayed label.
+```json
+{
+  "model": "jev-latest",
+  "state": "生日蛋糕",
+  "questions": {
+    "label_icon": {
+      "type": "choice",
+      "instructions": "Pick the one leading icon that best fits the label text. Choose \"none\" when no icon fits. The label text may be in any language.",
+      "criteria": {
+        "cake": "Cake",
+        "plane": "Plane",
+        "none": "No icon fits; leave the label as text only."
+      }
+    }
+  }
+}
+```
 
-A Noul answer is a probability from 0 to 1. The client keeps answers at or above
-`JEV_NOUL_THRESHOLD`, which is 0.7, sorts them from highest to lowest, and caps
-the result at eight labels. A well-formed answer with nothing above the
-threshold is the `empty` failure.
+`state` is the committed label text. The criteria are every entry in
+`LABEL_ICONS` from `src/lib/labelIcons.ts`, keyed by the stored icon id and
+described by the icon's English label text. The catalog holds 128 icons, so a
+request carries 129 options including `none`, under the API's 255 option limit.
+No candidate is dropped.
 
-## The image
+The answer names one option and its confidence:
 
-The client draws the preview onto a canvas sized by `jevImageBox`. The long edge
-is at most 1024 pixels and the short edge is at least 280. A wide or tall source
-is letterboxed rather than upscaled past the 1568 pixel side limit. The canvas is
-filled with neutral gray and exported as JPEG at quality 0.9.
+```json
+{
+  "model": "jev-1.14.0",
+  "answers": {
+    "label_icon": {
+      "type": "choice",
+      "choice": "cake",
+      "confidence": 0.96
+    }
+  }
+}
+```
+
+`choice` is an icon id or `none`. `src/lib/jev.ts` accepts only a catalog id, a
+valid confidence, and a well-formed answer; anything else is a shape failure.
+An unknown id never lands on a label.
+
+Confidence does not gate the pick. It measures how concentrated the answer is,
+not whether the choice is safe, and a leading icon is a harmless preference
+that the user can change. A low-confidence answer applies like any other.
 
 ## Deploy the secrets
 
@@ -47,7 +91,9 @@ npx wrangler secret put JEV_API_KEY
 ```bash
 bun run build
 npx wrangler dev
-curl -X POST http://127.0.0.1:8787/api/jev -F request=@request.json -F photo=@photo.jpg
+curl -X POST http://127.0.0.1:8787/api/jev \
+  -H 'content-type: application/json' \
+  --data @request.json
 ```
 
 Without both secrets the route answers 503. To reach the real upstream locally,
