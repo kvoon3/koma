@@ -72,9 +72,11 @@ const server = serve({
     const dangerZone = req.headers.get('typesafe-danger-zone-images')
     let document = null
     let image = null
+    let requestType = ''
     try {
       const form = await req.formData()
       const requestPart = form.get('request')
+      requestType = requestPart?.type ?? ''
       if (requestPart && typeof requestPart === 'object')
         document = JSON.parse(await requestPart.text())
       image = form.get('photo')
@@ -96,6 +98,7 @@ const server = serve({
       filename: image?.name ?? '',
       auth: req.headers.get('authorization'),
       dangerZone,
+      requestType,
       model: document?.model ?? null,
       assetPart: document?.assets?.photo?.part ?? null,
       questionIds,

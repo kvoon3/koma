@@ -311,6 +311,7 @@ try {
   check(first.type === 'image/jpeg', `the prepared image is a JPEG (${first.type})`)
   check(first.dangerZone === 'true', 'the image header reached Jev')
   check(first.auth === null, 'an unset key sends no Authorization header')
+  check(first.requestType.startsWith('application/json'), `the request part is JSON (${first.requestType})`)
   check(first.model === 'jev-latest', `the request named jev-latest (${first.model})`)
   check(first.assetPart === 'photo', `the asset points at the photo part (${first.assetPart})`)
   equal(first.questionIds, TAXONOMY_IDS, 'every taxonomy category is one Noul question')
