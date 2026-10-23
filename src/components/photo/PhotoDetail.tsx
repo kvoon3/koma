@@ -1,16 +1,20 @@
 import type { ReactNode } from 'react'
-import type { Photo } from '../../lib/imageStore'
+import type { TKey } from '../../lib/i18n'
+import type { Photo, Preview } from '../../lib/imageStore'
+import type { JevFailureReason } from '../../lib/jev'
 import { Dialog } from '@base-ui/react/dialog'
-import { CalendarDays, Check, MapPin, Plus, Tag, Trash2, X } from 'lucide'
+import { CalendarDays, Check, MapPin, Plus, RefreshCw, Tag, Trash2, WandSparkles, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePreview } from '../../hooks'
 import { formatTakenAt } from '../../lib/exif'
 import { useT } from '../../lib/i18n'
+import { classifyPhoto, readJevConfig } from '../../lib/jev'
 import { hasTag, tagsOf } from '../../lib/photoTags'
 import { formatCoords, placeName } from '../../lib/regeo'
 import { Button } from '../ui/button'
 import { buttonBase, buttonVariants } from '../ui/buttonStyles'
+import { TagGlyph } from './TagGlyph'
 
 /**
  * One photo's detail: the whole frame large enough to judge, the EXIF block the
@@ -118,6 +122,7 @@ export function PhotoDetail({ photo, uses, allTags, onTag, onUntag, onDelete, on
                             className="flex max-w-full items-center gap-1 border border-line bg-panel-2 py-px pl-1.5 pr-0.5 text-[11px] text-txt"
                             data-photo-detail-tag={tag}
                           >
+                            <TagGlyph name={tag} size={10} className="text-dim" />
                             <span className="truncate">
                               #
                               {tag}
@@ -157,16 +162,19 @@ export function PhotoDetail({ photo, uses, allTags, onTag, onUntag, onDelete, on
                   </Button>
                 </div>
 
+                <ClassifyPanel key={photo?.id ?? 'none'} photo={photo} preview={preview} onTag={onTag} />
+
                 {suggestions.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {suggestions.map(tag => (
                       <button
                         key={tag}
                         type="button"
-                        className="cursor-pointer border border-line bg-transparent px-1.5 py-px text-[10.5px] text-dim transition-colors duration-(--dur-fast) hover:bg-chip-hover hover:text-txt"
+                        className="flex cursor-pointer items-center gap-1 border border-line bg-transparent px-1.5 py-px text-[10.5px] text-dim transition-colors duration-(--dur-fast) hover:bg-chip-hover hover:text-txt"
                         data-photo-tag-suggest={tag}
                         onClick={() => onTag(tag)}
                       >
+                        <TagGlyph name={tag} size={9} className="text-faint" />
                         +
                         {tag}
                       </button>
@@ -187,6 +195,173 @@ export function PhotoDetail({ photo, uses, allTags, onTag, onUntag, onDelete, on
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+type ClassifyState
+  = | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'ready', labels: string[], picked: string[] }
+    | { phase: 'failed', reason: JevFailureReason, status?: number }
+
+const FAILURE_KEY: Record<JevFailureReason, TKey> = {
+  http: 'Jev could not classify this photo. Try again.',
+  malformed: 'Jev sent an answer koma could not read.',
+  shape: 'Jev sent an answer koma could not read.',
+  empty: 'Jev found no tags for this photo.',
+  network: 'Could not reach Jev. Check the connection and try again.',
+  timeout: 'Jev took too long to answer. Try again.',
+  aborted: 'Classifying was cancelled.',
+}
+
+/** Jev's suggestion flow, hidden unless an endpoint is configured. */
+function ClassifyPanel({ photo, preview, onTag }: {
+  photo: Photo | null
+  preview: Preview | null
+  onTag: (tag: string) => void
+}) {
+  const t = useT()
+  const [config] = useState(readJevConfig)
+  const [state, setState] = useState<ClassifyState>({ phase: 'idle' })
+  const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => () => abortRef.current?.abort(), [])
+
+  if (!photo || !config)
+    return null
+
+  const run = async () => {
+    if (!preview)
+      return
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    setState({ phase: 'loading' })
+    try {
+      const res = await fetch(preview.url, { signal: controller.signal })
+      if (!res.ok)
+        throw new Error('preview unavailable')
+      const image = await res.blob()
+      const result = await classifyPhoto(image, config, { signal: controller.signal })
+      if (controller.signal.aborted)
+        return
+      setState(result.ok
+        ? { phase: 'ready', labels: result.labels, picked: result.labels }
+        : { phase: 'failed', reason: result.reason, status: result.status })
+    }
+    catch {
+      if (!controller.signal.aborted)
+        setState({ phase: 'failed', reason: 'network' })
+    }
+  }
+
+  const toggle = (label: string) => {
+    setState((s) => {
+      if (s.phase !== 'ready')
+        return s
+      return {
+        ...s,
+        picked: s.picked.includes(label)
+          ? s.picked.filter(picked => picked !== label)
+          : [...s.picked, label],
+      }
+    })
+  }
+
+  const confirm = () => {
+    if (state.phase !== 'ready')
+      return
+    for (const label of state.labels) {
+      if (state.picked.includes(label))
+        onTag(label)
+    }
+    setState({ phase: 'idle' })
+  }
+
+  let failure = ''
+  if (state.phase === 'failed') {
+    const denied = state.reason === 'http' && (state.status === 401 || state.status === 403)
+    failure = denied
+      ? t('Jev refused the request. Check the API key and try again.')
+      : t(FAILURE_KEY[state.reason])
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5" data-jev="">
+      {state.phase === 'idle' && (
+        <button
+          type="button"
+          className="flex cursor-pointer items-center gap-1 self-start border border-line bg-panel-2 px-1.5 py-1 text-[10.5px] text-dim transition-colors duration-(--dur-fast) hover:bg-chip-hover hover:text-txt disabled:cursor-default disabled:opacity-40"
+          data-photo-classify=""
+          onClick={() => void run()}
+          disabled={!preview}
+        >
+          <MorphIcon icon={WandSparkles} size={12} strokeWidth={1.75} />
+          {t('Classify')}
+        </button>
+      )}
+
+      {state.phase === 'loading' && (
+        <p className="m-0 flex items-center gap-1.5 text-[11px] text-faint" data-jev-loading="">
+          <MorphIcon icon={WandSparkles} size={12} strokeWidth={1.75} />
+          {t('Classifying…')}
+        </p>
+      )}
+
+      {state.phase === 'failed' && (
+        <div className="flex flex-col gap-1.5 border border-line bg-panel-2 p-2" data-jev-error={state.reason}>
+          <p className="m-0 text-[11px] leading-[1.5] text-danger" role="alert">{failure}</p>
+          <button
+            type="button"
+            className="flex cursor-pointer items-center gap-1 self-start border border-line bg-transparent px-1.5 py-px text-[10.5px] text-dim transition-colors duration-(--dur-fast) hover:bg-chip-hover hover:text-txt"
+            data-jev-retry=""
+            onClick={() => void run()}
+          >
+            <MorphIcon icon={RefreshCw} size={11} strokeWidth={1.75} />
+            {t('Retry')}
+          </button>
+        </div>
+      )}
+
+      {state.phase === 'ready' && (
+        <div className="flex flex-col gap-1.5" data-jev-labels="">
+          <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">{t('Suggested tags')}</p>
+          <div className="flex flex-wrap gap-1">
+            {state.labels.map((label) => {
+              const picked = state.picked.includes(label)
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={`flex cursor-pointer items-center gap-1 border px-1.5 py-px text-[11px] transition-colors duration-(--dur-fast) ${picked ? 'border-accent bg-chip-hover text-txt' : 'border-line bg-transparent text-dim hover:bg-chip-hover hover:text-txt'}`}
+                  aria-pressed={picked}
+                  data-jev-label={label}
+                  onClick={() => toggle(label)}
+                >
+                  <TagGlyph name={label} size={10} className={picked ? 'text-txt' : 'text-faint'} />
+                  <span className="max-w-[140px] truncate">{label}</span>
+                  {picked && <MorphIcon icon={Check} size={10} strokeWidth={2.25} className="text-accent" />}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="strong" data-jev-confirm="" onClick={confirm} disabled={state.picked.length === 0}>
+              {t('Add selected tags')}
+            </Button>
+            <span className="text-[10.5px] tabular-nums text-faint" data-jev-picked="">{state.picked.length}</span>
+            <button
+              type="button"
+              className="ml-auto cursor-pointer border-0 bg-transparent p-0 text-[10.5px] text-faint transition-colors duration-(--dur-fast) hover:text-txt"
+              data-jev-cancel=""
+              onClick={() => setState({ phase: 'idle' })}
+            >
+              {t('Cancel')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
