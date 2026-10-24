@@ -78,7 +78,7 @@ function environment(overrides: Partial<Env> = {}): Env {
       fetch: async request => new Response(`asset ${new URL(request.url).pathname}`, { status: 200 }),
     },
     JEV_API_URL: `http://127.0.0.1:${upstream.port}/v1/systemone`,
-    JEV_API_KEY: 'server-key',
+    JEV_API_KEY: { get: async () => 'server-key' },
     ...overrides,
   }
 }
@@ -136,8 +136,14 @@ describe('the proxy forwards the JSON and owns the key', () => {
 
 describe('the boundaries', () => {
   test('a missing URL or key answers 503 unconfigured and calls nothing', async () => {
-    for (const overrides of [{ JEV_API_URL: undefined }, { JEV_API_KEY: undefined }, { JEV_API_KEY: '  ' }]) {
-      const response = await worker.fetch(jsonRequest(), environment(overrides))
+    const overrides = [
+      { JEV_API_URL: undefined },
+      { JEV_API_KEY: undefined },
+      { JEV_API_KEY: { get: async () => '  ' } },
+      { JEV_API_KEY: { get: async () => { throw new Error('Secret "JEV_API_KEY" not found') } } },
+    ]
+    for (const override of overrides) {
+      const response = await worker.fetch(jsonRequest(), environment(override))
       expect(response.status).toBe(503)
       expect(await response.json()).toEqual({ error: 'unconfigured' })
     }

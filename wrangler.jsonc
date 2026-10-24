@@ -7,6 +7,20 @@
   "previews": {},
   // The Worker holds the Jev key and serves the SPA assets through ASSETS.
   "main": "worker/index.ts",
+  // The upstream endpoint is not a secret; a plain var deploys with the code.
+  "vars": {
+    "JEV_API_URL": "https://api.typesafe.ai/v1/systemone"
+  },
+  // The key lives in the account's Secrets Store, so every deploy path
+  // (Workers Builds, wrangler, previews) rebinds it from the config instead
+  // of losing it when a new version replaces the previous bindings.
+  "secrets_store_secrets": [
+    {
+      "binding": "JEV_API_KEY",
+      "store_id": "a899316ec4254513b2f9e7572f58996a",
+      "secret_name": "JEV_API_KEY"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

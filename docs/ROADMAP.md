@@ -90,9 +90,9 @@ Merged on 2026-10-24, and the merge deployed main.
 
 ## Waiting on the operator
 
-- Rotate the Jev key, which was shared in chat. `JEV_API_URL` and `JEV_API_KEY` are already set on the `koma` Worker in `Kvoon@duck.com's Account`, and on the `wave12/jev-tags` preview plus its preview base config. Rotating means updating all three.
-- The preview proved the real path end to end: a `生日蛋糕` label came back with `icon: "cake"` through the deployed Worker proxy. A direct request from this machine still gets HTTP 451, so local runs need an egress outside the blocked region.
-- A second Cloudflare Workers Builds project for `koma-storybook`, pointed at `main` with `bun run deploy:storybook`.
+- Rotate the Jev key, which was shared in chat. It lives in one place, the `koma-secrets` Secrets Store secret `JEV_API_KEY` (rotate with `wrangler secrets-store secret update a899316ec4254513b2f9e7572f58996a --name JEV_API_KEY --remote`); the `koma` Worker binds it from `wrangler.jsonc`, so deploys no longer lose it. The stale Worker-secret and preview-base-config copies go away with the next deploy and can be deleted from the dashboard.
+- A direct request from this machine still gets HTTP 451, so local runs need an egress outside the blocked region; `docs/jev-proxy.md` covers seeding a local store copy for `wrangler dev`.
+- `koma-storybook` is deployed at `https://koma-storybook.kvoon.workers.dev` (manual `bun run deploy:storybook`). A second Workers Builds project pointed at `main` would make it automatic.
 
 ## Rules of engagement
 

@@ -1,18 +1,20 @@
 /**
- * The Jev proxy. The API key is a Worker secret, so it never enters the
- * public bundle. The client posts JSON to `/api/jev`, this handler swaps the
+ * The Jev proxy. The API key is a Secrets Store binding, so it survives every
+ * deploy; the client posts JSON to `/api/jev`, this handler swaps the
  * Authorization header for the server key, and the upstream status, content
  * type and body pass back; other headers are dropped.
  *
- * The upstream URL is always `JEV_API_URL`. Nothing on the request can change
- * where the body goes. This module exports only the handler; see `config.ts`.
+ * The upstream URL is always the `JEV_API_URL` var. Nothing on the request can
+ * change where the body goes. This module exports only the handler; see
+ * `config.ts`.
  */
 import { JEV_PATH, MAX_BODY_BYTES, UPSTREAM_TIMEOUT_MS } from './config'
 
 export interface Env {
   ASSETS: { fetch: (request: Request) => Promise<Response> }
   JEV_API_URL?: string
-  JEV_API_KEY?: string
+  /** A Secrets Store binding; the value arrives through an async `get()`. */
+  JEV_API_KEY?: { get: () => Promise<string> }
 }
 
 type BodyRead
@@ -73,12 +75,22 @@ function configuredUrl(raw: string | undefined): URL | null {
   }
 }
 
+/** The store rejects a missing secret, which is the same as no key at all. */
+async function readApiKey(env: Env): Promise<string> {
+  try {
+    return env.JEV_API_KEY ? (await env.JEV_API_KEY.get()).trim() : ''
+  }
+  catch {
+    return ''
+  }
+}
+
 async function proxy(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST')
     return json(405, { error: 'method not allowed' }, { allow: 'POST' })
 
   const upstream = configuredUrl(env.JEV_API_URL)
-  const key = env.JEV_API_KEY?.trim()
+  const key = await readApiKey(env)
   if (!upstream || !key)
     return json(503, { error: 'unconfigured' })
 
