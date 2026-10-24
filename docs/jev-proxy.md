@@ -7,7 +7,8 @@ route `POST /api/jev`. The Worker forwards the JSON body unchanged to
 upstream status, content type and body. The client cannot choose the upstream.
 
 The Worker accepts only POST, caps the body at 64 KiB, and gives the upstream
-20 seconds before it answers 504. Without both secrets the route answers 503.
+20 seconds before it answers 504. Without the URL var or a readable key the
+route answers 503.
 
 ## When the pick runs
 
@@ -76,17 +77,29 @@ Confidence does not gate the pick. It measures how concentrated the answer is,
 not whether the choice is safe, and a leading icon is a harmless preference
 that the user can change. A low-confidence answer applies like any other.
 
-## Deploy the secrets
+## Where the key lives
 
-Set both on the Worker. Never put the key in a `VITE_` variable that a build can
-inline.
+The key is a Secrets Store secret, bound through `wrangler.jsonc`, so every
+deploy path (Workers Builds, wrangler, previews) rebinds it from the config
+instead of losing it when a new version replaces the previous bindings. The
+store is `koma-secrets`, the secret is `JEV_API_KEY`, and the upstream URL is
+the plain `JEV_API_URL` var in the same file. Never put the key in a `VITE_`
+variable that a build can inline.
+
+Rotate the key by updating the store, the one place it lives:
 
 ```bash
-npx wrangler secret put JEV_API_URL
-npx wrangler secret put JEV_API_KEY
+npx wrangler secrets-store secret update a899316ec4254513b2f9e7572f58996a --name JEV_API_KEY --remote
 ```
 
 ## Test the proxy locally
+
+`wrangler dev` reads a store copy on the machine. Seed it once (the same
+command with `--remote` writes the production store):
+
+```bash
+npx wrangler secrets-store secret create a899316ec4254513b2f9e7572f58996a --name JEV_API_KEY --scopes workers
+```
 
 ```bash
 bun run build
@@ -96,13 +109,12 @@ curl -X POST http://127.0.0.1:8787/api/jev \
   --data @request.json
 ```
 
-Without both secrets the route answers 503. A direct request from this machine
-is answered 451, so a local run points `JEV_API_URL` at `scripts/jev-mock.mjs`
-in a gitignored `.dev.vars`. The deployed Worker reaches the real endpoint.
+Without a seeded key the route answers 503. A direct request from this machine
+is answered 451 by egress, so a local run against the mock overrides the var,
+with `scripts/jev-mock.mjs` on that port:
 
-```ini
-JEV_API_URL=http://127.0.0.1:4319/v1/systemone
-JEV_API_KEY=mock
+```bash
+npx wrangler dev --var JEV_API_URL:http://127.0.0.1:4319/v1/systemone
 ```
 
 ## Client overrides
