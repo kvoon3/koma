@@ -13,9 +13,9 @@ import { Popover } from '@base-ui/react/popover'
 import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, useMediaQuery, usePreview, useStageZoom } from '../hooks'
+import { useElementSize, useMediaQuery, usePanePreview, usePreview, useStageZoom } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
-import { collectBoard, dividerBandStyle, dividerGripStyle, paintBoard, paneDraws } from '../lib/boardPaint'
+import { collectBoard, CROP_MASK_DIM, cropSpillStyles, dividerBandStyle, dividerGripStyle, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
 import { variantsOf } from '../lib/cutoutVariants'
 import { GRID_CELL_RATIOS } from '../lib/gridTools'
@@ -604,6 +604,13 @@ function StageCanvas({
   // everything (width 0 turns the whole treatment off).
   const paneFade = view.fade
   const t = useT()
+  const cropMaskShown = useStore(s => s.cropMaskShown)
+  // One derivation for the pane layers and the crop preview, so the spill can
+  // never disagree with the photo it extends.
+  const draws = useMemo(
+    () => paneDraws(view, seams, blendCrossfade, paneFade, fadeStrength),
+    [view, seams, blendCrossfade, paneFade, fadeStrength],
+  )
 
   return (
     <CanvasMenu>
@@ -629,9 +636,10 @@ function StageCanvas({
 
           <PaneLayers
             view={view}
-            draws={paneDraws(view, seams, blendCrossfade, paneFade, fadeStrength)}
+            draws={draws}
             photoById={photoById}
             focusId={focusId}
+            liftFocused={cropMaskShown}
             paneBorder={paneBorder}
             crossfade={blendCrossfade}
             onFocus={onFocus}
@@ -639,6 +647,8 @@ function StageCanvas({
             onSplit={onSplit}
             onClose={onClose}
           />
+
+          <CropMaskLayer draws={draws} photoById={photoById} />
 
           <CutoutProgress view={view} />
 
@@ -801,12 +811,14 @@ function SeamLayer({ view, photoById, paneFade, fadeStrength }: {
 }
 
 /** The photo panes themselves: one `Pane` per draw of the layout. */
-function PaneLayers({ view, draws, photoById, focusId, paneBorder, crossfade, onFocus, onUpdate, onSplit, onClose }: {
+function PaneLayers({ view, draws, photoById, focusId, liftFocused, paneBorder, crossfade, onFocus, onUpdate, onSplit, onClose }: {
   view: Derived
   /** Every pane's cell and drawn box, from `paneDraws` (one source of truth). */
   draws: PaneDraw[]
   photoById: Map<string, Photo>
   focusId: string | null
+  /** Raise the focused pane over the crop preview's spill layer (z-[2]). */
+  liftFocused: boolean
   paneBorder: boolean
   crossfade: boolean
   onFocus: React.ComponentProps<typeof Pane>['onFocus']
@@ -833,6 +845,7 @@ function PaneLayers({ view, draws, photoById, focusId, paneBorder, crossfade, on
             photo={node.photoId ? (photoById.get(node.photoId) ?? null) : null}
             photoById={photoById}
             focused={focusId === node.id}
+            lifted={liftFocused}
             canClose={view.leaves.length > 1}
             onFocus={onFocus}
             onUpdate={onUpdate}
@@ -842,6 +855,44 @@ function PaneLayers({ view, draws, photoById, focusId, paneBorder, crossfade, on
         )
       })}
     </>
+  )
+}
+
+/**
+ * The crop preview: every photo pane's photo again, unclipped, dimmed outside
+ * the box the pane paints. Unmounted entirely while the mode is off.
+ */
+function CropMaskLayer({ draws, photoById }: { draws: PaneDraw[], photoById: Map<string, Photo> }) {
+  const shown = useStore(s => s.cropMaskShown)
+  if (!shown)
+    return null
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
+      {draws.map((draw) => {
+        const photo = draw.leaf.photoId ? (photoById.get(draw.leaf.photoId) ?? null) : null
+        return photo ? <CropSpill key={draw.leaf.id} draw={draw} photo={photo} /> : null
+      })}
+    </div>
+  )
+}
+
+/** One pane's spill: the photo at the pane's own placement, holed at its box. */
+function CropSpill({ draw, photo }: { draw: PaneDraw, photo: Photo }) {
+  const preview = usePanePreview(photo, draw.leaf.filter)
+  const styles = preview ? cropSpillStyles(draw.rect, draw.draw, draw.leaf, preview.w, preview.h) : null
+  if (!preview || !styles)
+    return null
+  return (
+    <div data-crop-spill={draw.leaf.id} className="absolute inset-0" style={{ opacity: CROP_MASK_DIM, ...styles.mask }}>
+      <img
+        src={preview.url}
+        alt=""
+        draggable={false}
+        data-crop-spill-img={draw.leaf.id}
+        className="photo-in block max-w-none"
+        style={styles.img}
+      />
+    </div>
   )
 }
 

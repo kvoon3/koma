@@ -393,6 +393,14 @@ html.dark {
     will-change: transform;
   }
 
+  /* The crop preview's spill img is a pane photo's twin and takes the same
+     transform on the same frames, so it carries the hint statically: the
+     layer exists only while the mode is on, so there is no idle pane to
+     promote, and no gesture attribute to sync. */
+  [data-crop-spill-img] {
+    will-change: transform;
+  }
+
   /* The ghost pops in under the finger. It animates the individual `scale`
      property so it composes with the centering translate already on the img. */
   @keyframes swap-ghost-in {

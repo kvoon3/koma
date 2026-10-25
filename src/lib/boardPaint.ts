@@ -14,7 +14,7 @@
  */
 import type { Derived } from './layout'
 import type { Divider, Leaf, Rect, SeamSides } from './panes'
-import { blendFadePx, dividerLine, expandRectForBlend, placement } from './panes'
+import { blendFadePx, dividerLine, expandRectForBlend, paneTransform, paneTransformCss, placement } from './panes'
 
 /** One pane as the stage draws it: its cell, its drawn box, and the fade beside it. */
 export interface PaneDraw {
@@ -90,6 +90,56 @@ export function photoTransform(cell: Rect, draw: Rect, leaf: Leaf, iw: number, i
 export function photoBoxStyle(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih: number) {
   const p = placement(cell, leaf, iw, ih)
   return { left: p.x - draw.x, top: p.y - draw.y, width: p.w, height: p.h }
+}
+
+/** The crop preview's dim: how opaque a photo's out-of-window part renders. */
+export const CROP_MASK_DIM = 0.3
+
+/** The records a crop-preview pane renders and repaints from. */
+export interface CropSpillStyles {
+  /** Canvas-anchored wrapper: the dim, with `draw` punched out of it. */
+  mask: Record<string, string | number>
+  /** The photo img, placed against the cell and turned about `draw`. */
+  img: Record<string, string | number>
+}
+
+/**
+ * The crop-preview spill of one pane: its photo drawn exactly as the pane
+ * draws it, dimmed outside the box the pane paints. `cell` places the photo
+ * (what `placement` measures); the hole is `draw` (what the pane paints and
+ * the exporter clips, grown into seams by the crossfade). Null before the
+ * preview has decoded.
+ */
+export function cropSpillStyles(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih: number): CropSpillStyles | null {
+  if (!iw || !ih)
+    return null
+  const place = placement(cell, leaf, iw, ih)
+  const cx = draw.x + draw.w / 2
+  const cy = draw.y + draw.h / 2
+  const solid = 'linear-gradient(#000,#000)'
+  return {
+    mask: {
+      maskImage: `${solid}, ${solid}`,
+      WebkitMaskImage: `${solid}, ${solid}`,
+      maskSize: `100% 100%, ${draw.w}px ${draw.h}px`,
+      maskPosition: `0 0, ${draw.x}px ${draw.y}px`,
+      maskRepeat: 'no-repeat, no-repeat',
+      maskComposite: 'exclude',
+      WebkitMaskComposite: 'xor',
+    },
+    img: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      maxWidth: 'none',
+      transformOrigin: '0 0',
+      // The spill img sits at the canvas origin, not inside the pane's shell:
+      // the turn is about `draw`'s centre in canvas px, and the placement lands
+      // at its canvas position, so the pane's shell translate, its turn
+      // wrapper and its img offset compose into this one string.
+      transform: `translate(${cx}px, ${cy}px) ${paneTransformCss(paneTransform(draw, leaf))} translate(${-cx}px, ${-cy}px) translate(${place.x}px, ${place.y}px) scale(${place.scale})`,
+    },
+  }
 }
 
 /** The minimap's window onto the photo, as photo fractions. */
@@ -203,6 +253,8 @@ export interface PaintedBoard {
   panes: Map<string, HTMLElement>
   /** Each pane's outline, keyed by pane id: it rides the cell, not the box. */
   outlines: Map<string, HTMLElement>
+  /** Each pane's crop-preview spill, keyed by pane id; empty while the mode is off. */
+  spills: Map<string, HTMLElement>
   bands: Map<string, HTMLElement>
   grips: Map<string, HTMLElement>
 }
@@ -211,15 +263,17 @@ export interface PaintedBoard {
 export function collectBoard(root: HTMLElement | null): PaintedBoard {
   const panes = new Map<string, HTMLElement>()
   const outlines = new Map<string, HTMLElement>()
+  const spills = new Map<string, HTMLElement>()
   const bands = new Map<string, HTMLElement>()
   const grips = new Map<string, HTMLElement>()
   if (!root)
-    return { panes, outlines, bands, grips }
+    return { panes, outlines, spills, bands, grips }
   for (const el of root.querySelectorAll<HTMLElement>('[data-pane-id]')) panes.set(el.dataset.paneId!, el)
   for (const el of root.querySelectorAll<HTMLElement>('[data-pane-outline]')) outlines.set(el.dataset.paneOutline!, el)
+  for (const el of root.querySelectorAll<HTMLElement>('[data-crop-spill]')) spills.set(el.dataset.cropSpill!, el)
   for (const el of root.querySelectorAll<HTMLElement>('[data-divider-band]')) bands.set(el.dataset.dividerBand!, el)
   for (const el of root.querySelectorAll<HTMLElement>('[data-divider-grip]')) grips.set(el.dataset.dividerGrip!, el)
-  return { panes, outlines, bands, grips }
+  return { panes, outlines, spills, bands, grips }
 }
 
 /**
@@ -249,6 +303,12 @@ export function paintPanePhoto(el: HTMLElement | null | undefined, draw: PaneDra
   const transform = photoTransform(draw.rect, draw.draw, draw.leaf, iw, ih)
   if (img && transform)
     img.style.transform = transform
+  // The crop preview's spill is a second copy of the same photo, so it takes
+  // the same transform on the same frame. A miss means the mode is off.
+  const spill = el.closest('[data-canvas-view]')?.querySelector<HTMLImageElement>(`[data-crop-spill-img="${draw.leaf.id}"]`)
+  const styles = spill ? cropSpillStyles(draw.rect, draw.draw, draw.leaf, iw, ih) : null
+  if (spill && styles)
+    assign(spill, styles.img)
   const video = el.querySelector<HTMLVideoElement>('[data-live-video]')
   if (video)
     assign(video, photoBoxStyle(draw.rect, draw.draw, draw.leaf, iw, ih))
@@ -261,14 +321,17 @@ export function paintPanePhoto(el: HTMLElement | null | undefined, draw: PaneDra
   }
 }
 
-/** A pane's box, then everything inside it. */
+/** A pane's box, then everything inside it. Returns the preview size it painted. */
 function paintPane(el: HTMLElement | null | undefined, draw: PaneDraw) {
   if (!el)
-    return
+    return null
   assign(el, paneBoxStyle(draw.draw))
   // The preview's own size travels on the element (see `Pane`): the painter
   // cannot ask a hook for it, and reading it off the image races a decode.
-  paintPanePhoto(el, draw, Number(el.dataset.photoW ?? 0), Number(el.dataset.photoH ?? 0))
+  const iw = Number(el.dataset.photoW ?? 0)
+  const ih = Number(el.dataset.photoH ?? 0)
+  paintPanePhoto(el, draw, iw, ih)
+  return { iw, ih }
 }
 
 /**
@@ -284,10 +347,16 @@ export function paintBoard(
 ): void {
   for (const draw of draws) {
     const id = draw.leaf.id
-    paintPane(board.panes.get(id), draw)
+    const size = paintPane(board.panes.get(id), draw)
     const outline = board.outlines.get(id)
     if (outline)
       assign(outline, paneOutlineStyle(draw.rect, draw.draw))
+    // The crop preview's hole rides the split with the cell: the box it is
+    // punched at moves, so the mask is rewritten here, not by `paintPane`.
+    const spill = board.spills.get(id)
+    const styles = spill && size && cropSpillStyles(draw.rect, draw.draw, draw.leaf, size.iw, size.ih)
+    if (spill && styles)
+      assign(spill, styles.mask)
   }
   for (const d of dividers) {
     const band = board.bands.get(d.id)

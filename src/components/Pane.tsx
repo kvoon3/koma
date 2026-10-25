@@ -679,6 +679,8 @@ interface Props {
   photo: Photo | null
   photoById: Map<string, Photo>
   focused: boolean
+  /** The crop preview is on, so a focused pane posts above its spill layer. */
+  lifted: boolean
   canClose: boolean
   onFocus: (id: string) => void
   onUpdate: (id: string, patch: Partial<Leaf>) => void
@@ -1082,10 +1084,12 @@ interface SwapDropCtx {
   setSwapReturn: (v: { x: number, y: number } | null) => void
 }
 
-/** The pane shell's class: focus and emptiness are the only things that vary. */
-function paneShellClass(focused: boolean, hasPhoto: boolean): string {
+/** The pane shell's class: focus, emptiness and the crop-preview lift vary. */
+function paneShellClass(focused: boolean, hasPhoto: boolean, lifted: boolean): string {
   return `group/pane absolute cursor-grab touch-none select-none ${
-    focused ? ' z-1 cursor-grab' : ''
+    // `z-1` makes a stacking context; the crop preview's spill layer sits
+    // above it, so the focused pane rises over it while the mode is on.
+    focused ? ` ${lifted ? 'z-[3]' : 'z-1'} cursor-grab` : ''
   }${hasPhoto ? '' : ' bg-pane-bg bg-pane-empty'}`
 }
 
@@ -1789,6 +1793,7 @@ function PaneImpl({
   photo,
   photoById: _photoById,
   focused,
+  lifted,
   canClose,
   onFocus,
   onUpdate,
@@ -1889,7 +1894,7 @@ function PaneImpl({
       // photo straight onto the DOM and has no hook to ask for it.
       data-photo-w={iw || undefined}
       data-photo-h={ih || undefined}
-      className={paneShellClass(focused, !!leaf.photoId)}
+      className={paneShellClass(focused, !!leaf.photoId, lifted)}
       style={{ ...paneBoxStyle(rect), borderRadius: radiusCss }}
       onPointerDown={onPointerDown}
       onPointerDownCapture={onPointerDownCapture}

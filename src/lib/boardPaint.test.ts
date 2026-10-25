@@ -2,8 +2,8 @@
 import type { Derived } from './layout'
 import type { Leaf, Rect, SeamSides } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, paneOutlineStyle, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
-import { newLeaf } from './panes'
+import { CROP_MASK_DIM, cropSpillStyles, dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, paneOutlineStyle, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
+import { newLeaf, paneTransform, paneTransformCss, placement } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`, zoom = 1): Leaf {
   return { ...newLeaf(), id, photoId, zoom }
@@ -155,6 +155,7 @@ describe('paintBoard', () => {
       dataset,
       children: [] as unknown[],
       querySelector: () => null,
+      closest: () => null,
       written: style,
     }
   }
@@ -165,7 +166,7 @@ describe('paintBoard', () => {
     const band = fakeElement({})
     const grip = fakeElement({})
     paintBoard(
-      { panes: new Map([['a', pane as never]]), outlines: new Map([['a', outline as never]]), bands: new Map([['s', band as never]]), grips: new Map([['s', grip as never]]) },
+      { panes: new Map([['a', pane as never]]), outlines: new Map([['a', outline as never]]), spills: new Map(), bands: new Map([['s', band as never]]), grips: new Map([['s', grip as never]]) },
       paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 8, 100),
       [{ id: 's', dir: 'row', ratio: 0.5, area: { x: 0, y: 0, w: 1000, h: 600 }, gap: 0 }],
       15,
@@ -181,7 +182,7 @@ describe('paintBoard', () => {
     const outline = fakeElement({ paneOutline: 'a' })
     const seams = new Map([['a', { left: true, right: false, top: false, bottom: false }]])
     paintBoard(
-      { panes: new Map([['a', pane as never]]), outlines: new Map([['a', outline as never]]), bands: new Map(), grips: new Map() },
+      { panes: new Map([['a', pane as never]]), outlines: new Map([['a', outline as never]]), spills: new Map(), bands: new Map(), grips: new Map() },
       paneDraws(view([{ node: leaf('a'), rect: CELL }]), seams, true, 60, 100),
       [],
       15,
@@ -193,7 +194,160 @@ describe('paintBoard', () => {
 
   it('skips a pane it has no element for', () => {
     expect(() =>
-      paintBoard({ panes: new Map(), outlines: new Map(), bands: new Map(), grips: new Map() }, paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 0, 0), [], 15),
+      paintBoard({ panes: new Map(), outlines: new Map(), spills: new Map(), bands: new Map(), grips: new Map() }, paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 0, 0), [], 15),
     ).not.toThrow()
+  })
+
+  it('moves the crop preview hole with the cell, from the pane\'s own preview size', () => {
+    const pane = fakeElement({ paneId: 'a', photoW: '800', photoH: '600' })
+    const spill = fakeElement({ cropSpill: 'a' })
+    paintBoard(
+      { panes: new Map([['a', pane as never]]), outlines: new Map(), spills: new Map([['a', spill as never]]), bands: new Map(), grips: new Map() },
+      paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 8, 100),
+      [],
+      15,
+    )
+    // The painter speaks CSS: `assign` hyphenates every property name.
+    expect(spill.written['mask-size']).toBe('100% 100%, 400px 300px')
+    expect(spill.written['mask-position']).toBe('0 0, 100px 50px')
+  })
+
+  it('leaves a spill alone when the pane has no preview size yet', () => {
+    const pane = fakeElement({ paneId: 'a' })
+    const spill = fakeElement({ cropSpill: 'a' })
+    paintBoard(
+      { panes: new Map([['a', pane as never]]), outlines: new Map(), spills: new Map([['a', spill as never]]), bands: new Map(), grips: new Map() },
+      paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 8, 100),
+      [],
+      15,
+    )
+    expect(spill.written).toEqual({})
+  })
+})
+
+describe('cropSpillStyles', () => {
+  /** The mask's second layer: the hole, which must sit on the drawn box. */
+  const hole = (style: Record<string, string | number>) => {
+    const [size, position] = [String(style.maskSize).split(', ')[1], String(style.maskPosition).split(', ')[1]]
+    return { size, position }
+  }
+
+  const upright = (): Leaf => ({ ...newLeaf(), id: 'a', photoId: 'ph-a' })
+
+  it('dims at one constant, and punches the hole where the pane paints', () => {
+    const cell: Rect = { x: 100, y: 50, w: 400, h: 300 }
+    const draw: Rect = { x: 70, y: 50, w: 430, h: 300 }
+    const s = cropSpillStyles(cell, draw, upright(), 800, 600)!
+    expect(CROP_MASK_DIM).toBe(0.3)
+    expect(hole(s.mask)).toEqual({ size: '430px 300px', position: '70px 50px' })
+    expect(s.mask.maskRepeat).toBe('no-repeat, no-repeat')
+    expect(s.mask.maskComposite).toBe('exclude')
+    expect(s.mask.WebkitMaskComposite).toBe('xor')
+    expect(s.mask.maskImage).toBe('linear-gradient(#000,#000), linear-gradient(#000,#000)')
+    expect(s.mask.WebkitMaskImage).toBe(s.mask.maskImage)
+  })
+
+  it('never lets the hole collapse into the full layer', () => {
+    const cell: Rect = { x: 100, y: 50, w: 400, h: 300 }
+    const draw: Rect = { x: 70, y: 50, w: 430, h: 300 }
+    const s = cropSpillStyles(cell, draw, upright(), 800, 600)!
+    expect(hole(s.mask).size).not.toBe('100% 100%')
+    expect(hole(s.mask).size).toBe(`${draw.w}px ${draw.h}px`)
+  })
+
+  it('has no spill before the preview decodes', () => {
+    expect(cropSpillStyles(CELL, CELL, upright(), 0, 0)).toBeNull()
+    expect(cropSpillStyles(CELL, CELL, upright(), 800, 0)).toBeNull()
+  })
+
+  it('places the photo against the cell and only offsets against the drawn box', () => {
+    const draw: Rect = { x: 70, y: 50, w: 430, h: 300 }
+    const l = upright()
+    const s = cropSpillStyles(CELL, draw, l, 800, 600)!
+    const place = placement(CELL, l, 800, 600)
+    const cx = draw.x + draw.w / 2
+    const cy = draw.y + draw.h / 2
+    const expected = `translate(${cx}px, ${cy}px) ${paneTransformCss(paneTransform(draw, l))} translate(${-cx}px, ${-cy}px) translate(${place.x}px, ${place.y}px) scale(${place.scale})`
+    expect(s.img.transform).toBe(expected)
+    expect(s.img.transform).toContain(`translate(${place.x}px, ${place.y}px) scale(${place.scale})`)
+    expect(s.img.transformOrigin).toBe('0 0')
+  })
+
+  it('maps photo-space points exactly as the pane\'s own DOM does', () => {
+    // The pane composes three boxes: its shell, a turn wrapper filling it
+    // (origin at its centre), and the img inside. The spill is one
+    // canvas-anchored img, so its string must reproduce that product. Upright
+    // leaves included: the turn segment is always emitted, and identity is a
+    // no-op.
+    type M = [number, number, number, number, number, number]
+    const mul = (a: M, b: M): M => [
+      a[0] * b[0] + a[2] * b[1],
+      a[1] * b[0] + a[3] * b[1],
+      a[0] * b[2] + a[2] * b[3],
+      a[1] * b[2] + a[3] * b[3],
+      a[0] * b[4] + a[2] * b[5] + a[4],
+      a[1] * b[4] + a[3] * b[5] + a[5],
+    ]
+    const T = (x: number, y: number): M => [1, 0, 0, 1, x, y]
+    const S = (x: number, y: number): M => [x, 0, 0, y, 0, 0]
+    const R = (r: number): M => [Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0]
+    const map = (m: M, x: number, y: number) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]
+
+    /** The pane's real structure, as `Pane.tsx` builds it. */
+    const paneMatrix = (cell: Rect, draw: Rect, l: Leaf, iw: number, ih: number): M => {
+      const place = placement(cell, l, iw, ih)
+      const turn = paneTransform(draw, l)
+      const turnBox = mul(mul(T(draw.w / 2, draw.h / 2), mul(mul(R(turn.rot), S(turn.scaleX, turn.scaleY)), T(-draw.w / 2, -draw.h / 2))), mul(T(place.x - draw.x, place.y - draw.y), S(place.scale, place.scale)))
+      return mul(T(draw.x, draw.y), turnBox)
+    }
+    /**
+     * The spill's emitted string, parsed segment by segment. The string is the
+     * artifact under test, so the parser reads it rather than rebuilding the
+     * same product the implementation computes.
+     */
+    const spillMatrix = (cell: Rect, draw: Rect, l: Leaf, iw: number, ih: number): M => {
+      const css = String(cropSpillStyles(cell, draw, l, iw, ih)!.img.transform)
+      const segments = css.match(/(translate|rotate|scale)\([^)]*\)/g) ?? []
+      expect(segments.map(segment => segment.slice(0, segment.indexOf('(')))).toEqual(['translate', 'rotate', 'scale', 'translate', 'translate', 'scale'])
+      return segments.reduce<M>((acc, segment) => {
+        const numbers = (segment.match(/-?[\d.]+/g) ?? []).map(Number)
+        const name = segment.slice(0, segment.indexOf('('))
+        if (name === 'rotate')
+          return mul(acc, R(numbers[0]!))
+        if (name === 'scale')
+          return mul(acc, S(numbers[0]!, numbers[1] ?? numbers[0]!))
+        return mul(acc, T(numbers[0]!, numbers[1]!))
+      }, [1, 0, 0, 1, 0, 0])
+    }
+
+    const cell: Rect = { x: 100, y: 50, w: 400, h: 300 }
+    const draw: Rect = { x: 70, y: 50, w: 430, h: 300 }
+    const cases: Leaf[] = [
+      upright(),
+      { ...upright(), rot: 0.35 },
+      { ...upright(), flipX: true },
+      { ...upright(), rot: -1.1, flipY: true, zoom: 1.8 },
+      { ...upright(), rot: 2.5, flipX: true, flipY: true, zoom: 2.4 },
+    ]
+    for (const l of cases) {
+      const a = paneMatrix(cell, draw, l, 800, 600)
+      const b = spillMatrix(cell, draw, l, 800, 600)
+      for (const [x, y] of [[0, 0], [800, 600], [123, 456]]) {
+        const [ax, ay] = map(a, x, y)
+        const [bx, by] = map(b, x, y)
+        expect(ax).toBeCloseTo(bx, 8)
+        expect(ay).toBeCloseTo(by, 8)
+      }
+    }
+  })
+
+  it('puts the turn about the drawn box\'s centre, not the cell\'s', () => {
+    // A hole-at-cell turn would land the spill a seam-width away from the photo.
+    const draw: Rect = { x: 70, y: 50, w: 430, h: 300 }
+    const l = { ...upright(), rot: 0.5 }
+    const s = cropSpillStyles(CELL, draw, l, 800, 600)!
+    expect(s.img.transform).toContain(`translate(${draw.x + draw.w / 2}px, ${draw.y + draw.h / 2}px)`)
+    const offCentre = `translate(${CELL.x + CELL.w / 2}px, ${CELL.y + CELL.h / 2}px) ${paneTransformCss(paneTransform(draw, l))}`
+    expect(String(s.img.transform).startsWith(offCentre)).toBe(false)
   })
 })
