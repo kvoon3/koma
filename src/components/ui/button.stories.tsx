@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import { ArrowLeft, Camera, Download, Redo2, Undo2 } from 'lucide'
 import { Button } from './button'
 
 const meta = {
@@ -18,7 +19,29 @@ export const Variants: Story = {
       <Button variant="strong">Strong</Button>
       <Button variant="close" aria-label="Close">Close</Button>
       <Button variant="danger">Delete</Button>
+      <Button variant="float" icon={Camera} iconSize={15} aria-label="Snapshot" />
       <Button disabled>Disabled</Button>
+    </div>
+  ),
+}
+
+export const Icon: Story = {
+  render: () => <Button icon={Download}>Export</Button>,
+}
+
+export const Loading: Story = {
+  render: () => <Button icon={Download} loading>Export</Button>,
+}
+
+export const Float: Story = {
+  render: () => (
+    <div className="flex items-center gap-1.5">
+      <Button variant="float" icon={ArrowLeft} iconSize={15} aria-label="Back to the grid" />
+      <Button variant="float" icon={Undo2} iconSize={15} aria-label="Undo" />
+      <Button variant="float" icon={Redo2} iconSize={15} aria-label="Redo" />
+      <Button variant="float" icon={Camera} iconSize={15} aria-label="Snapshot the board" />
+      <Button variant="float" icon={Camera} iconSize={15} loading aria-label="Snapshotting the board" />
+      <Button variant="float" icon={Undo2} iconSize={15} disabled aria-label="Nothing to undo" />
     </div>
   ),
 }
