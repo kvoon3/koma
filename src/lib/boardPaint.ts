@@ -115,17 +115,17 @@ export function minimapViewStyle(view: { x: number, y: number, w: number, h: num
 }
 
 /** A divider's hit band. */
-export function dividerBandStyle(d: Divider, gap: number, hitMin: number) {
-  const hit = Math.max(gap, hitMin)
-  const line = dividerLine(d, gap)
+export function dividerBandStyle(d: Divider, hitMin: number) {
+  const hit = Math.max(d.gap, hitMin)
+  const line = dividerLine(d)
   return d.dir === 'row'
     ? { left: (line.x ?? 0) - hit / 2, top: d.area.y, width: hit, height: d.area.h }
     : { left: d.area.x, top: (line.y ?? 0) - hit / 2, width: d.area.w, height: hit }
 }
 
 /** A divider's grip: the line's midpoint (the pair of -50% classes centre it). */
-export function dividerGripStyle(d: Divider, gap: number) {
-  const line = dividerLine(d, gap)
+export function dividerGripStyle(d: Divider) {
+  const line = dividerLine(d)
   // `dividerLine` reports only the axis it owns; the 0 is unreachable, and it
   // keeps the style a plain record the DOM writer can assign.
   return d.dir === 'row'
@@ -211,16 +211,15 @@ export function paintBoard(
   board: PaintedBoard,
   draws: PaneDraw[],
   dividers: Divider[],
-  gap: number,
   hitMin: number,
 ): void {
   for (const draw of draws) paintPane(board.panes.get(draw.leaf.id), draw)
   for (const d of dividers) {
     const band = board.bands.get(d.id)
     if (band)
-      assign(band, dividerBandStyle(d, gap, hitMin))
+      assign(band, dividerBandStyle(d, hitMin))
     const grip = board.grips.get(d.id)
     if (grip)
-      assign(grip, dividerGripStyle(d, gap))
+      assign(grip, dividerGripStyle(d))
   }
 }

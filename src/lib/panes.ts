@@ -547,6 +547,12 @@ export interface Divider {
   dir: 'row' | 'column'
   area: Rect
   ratio: number
+  /**
+   * The gap this split actually laid out: the configured gap when its extent
+   * affords it, else the largest that still tiles (see `walk`). The chrome
+   * draws the line from it, so a squeezed split still has a grabbable seam.
+   */
+  gap: number
 }
 
 export interface TreeLayout {
@@ -560,16 +566,18 @@ export interface TreeLayout {
  * repeating-fraction seams that show board BG (#000) as a hairline on iOS
  * when gap is 0 (Stage overflow+transform and canvas clip AA both leak it).
  * Local 1px floor only; avoids importing MIN_PANE_PX from the store.
+ *
+ * The floor is why this never hands back an invisible pane: the snap needs a
+ * whole pixel each side, so a short `avail` splits in half instead. A hairline
+ * seam is invisible; a zero-width pane is one focus can still land on.
  */
 function snappedSplit(avail: number, ratio: number): number {
   if (avail <= 0)
     return 0
-  let a = Math.round(avail * ratio)
-  if (avail >= 2)
-    a = Math.min(avail - 1, Math.max(1, a))
-  else
-    a = Math.min(avail, Math.max(0, a))
-  return a
+  if (avail < 2)
+    return avail / 2
+  const a = Math.round(avail * ratio)
+  return Math.min(avail - 1, Math.max(1, a))
 }
 
 function walk(node: Node, rect: Rect, gap: number, out: TreeLayout) {
@@ -577,19 +585,23 @@ function walk(node: Node, rect: Rect, gap: number, out: TreeLayout) {
     out.leaves.push({ node, rect })
     return
   }
-  out.dividers.push({ id: node.id, dir: node.dir, area: rect, ratio: node.ratio })
+  // Two children need two pixels, so a gap that leaves less shrinks to what the
+  // extent affords. Then aLen + eff + bLen is exactly the extent, which puts b's
+  // far edge on the parent's; clamping `avail` instead spilled b past it.
+  const extent = node.dir === 'row' ? rect.w : rect.h
+  const eff = Math.max(0, Math.min(gap, extent - 2))
+  const avail = extent - eff
+  out.dividers.push({ id: node.id, dir: node.dir, area: rect, ratio: node.ratio, gap: eff })
 
   if (node.dir === 'row') {
-    const avail = Math.max(0, rect.w - gap)
     const aw = snappedSplit(avail, node.ratio)
     walk(node.a, { x: rect.x, y: rect.y, w: aw, h: rect.h }, gap, out)
-    walk(node.b, { x: rect.x + aw + gap, y: rect.y, w: avail - aw, h: rect.h }, gap, out)
+    walk(node.b, { x: rect.x + aw + eff, y: rect.y, w: avail - aw, h: rect.h }, gap, out)
   }
   else {
-    const avail = Math.max(0, rect.h - gap)
     const ah = snappedSplit(avail, node.ratio)
     walk(node.a, { x: rect.x, y: rect.y, w: rect.w, h: ah }, gap, out)
-    walk(node.b, { x: rect.x, y: rect.y + ah + gap, w: rect.w, h: avail - ah }, gap, out)
+    walk(node.b, { x: rect.x, y: rect.y + ah + eff, w: rect.w, h: avail - ah }, gap, out)
   }
 }
 
@@ -599,11 +611,16 @@ export function layoutTree(root: Node, W: number, H: number, gap: number): TreeL
   return out
 }
 
-export function dividerLine(d: Divider, gap: number): { x?: number, y?: number } {
-  if (d.dir === 'row') {
-    return { x: d.area.x + (d.area.w - gap) * d.ratio + gap / 2 }
-  }
-  return { y: d.area.y + (d.area.h - gap) * d.ratio + gap / 2 }
+/**
+ * Where a divider's line sits: the middle of the gap `walk` actually laid out,
+ * recomputed with walk's own math. Deriving it from the ratio and the
+ * configured gap instead would put the line off the meet point of a squeezed
+ * split, where the gap had to shrink.
+ */
+export function dividerLine(d: Divider): { x?: number, y?: number } {
+  if (d.dir === 'row')
+    return { x: d.area.x + snappedSplit(d.area.w - d.gap, d.ratio) + d.gap / 2 }
+  return { y: d.area.y + snappedSplit(d.area.h - d.gap, d.ratio) + d.gap / 2 }
 }
 
 /** Which edges of a pane face another photo-bearing pane across the gap. */
@@ -747,21 +764,25 @@ export function seamMaskStyle(seam: SeamSides | undefined, w: number): CSSProper
   }
 }
 
+/**
+ * The ratio a pointer at (px, py) asks for. Measures against the gap this
+ * split laid out (`d.gap`), not the configured one: on a squeezed split the
+ * two differ, and only the laid-out gap puts the pointer where the line is.
+ */
 export function ratioFromPointer(
   d: Divider,
   px: number,
   py: number,
-  gap: number,
   minPx: number,
 ): number {
   if (d.dir === 'row') {
-    const avail = Math.max(1, d.area.w - gap)
-    const local = px - d.area.x - gap / 2
+    const avail = Math.max(1, d.area.w - d.gap)
+    const local = px - d.area.x - d.gap / 2
     const lo = Math.min(0.45, minPx / avail)
     return Math.min(1 - lo, Math.max(lo, local / avail))
   }
-  const avail = Math.max(1, d.area.h - gap)
-  const local = py - d.area.y - gap / 2
+  const avail = Math.max(1, d.area.h - d.gap)
+  const local = py - d.area.y - d.gap / 2
   const lo = Math.min(0.45, minPx / avail)
   return Math.min(1 - lo, Math.max(lo, local / avail))
 }

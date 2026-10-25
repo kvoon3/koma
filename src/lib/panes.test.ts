@@ -1,14 +1,39 @@
 /// <reference types="bun" />
-import type { Node } from './panes'
+import type { Node, Rect, Split } from './panes'
 import { describe, expect, it } from 'bun:test'
 import { degToRad, radToDeg } from './detent'
-import { deletePane, findLeaf, isPaneTransformed, leafList, newLeaf, paneTransform, paneTransformCss, pressPlan, rotationCoverScale, swapLeafContents, wrapAngle } from './panes'
+import { deletePane, dividerLine, findLeaf, isPaneTransformed, layoutTree, leafList, newLeaf, paneTransform, paneTransformCss, pressPlan, rotationCoverScale, swapLeafContents, wrapAngle } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`) {
   return { ...newLeaf(), id, photoId }
 }
 function split(id: string, a: Node, b: Node, dir: 'row' | 'column' = 'row'): Node {
   return { type: 'split', id, dir, ratio: 0.5, a, b }
+}
+function splitRatio(id: string, ratio: number, a: Node, b: Node, dir: 'row' | 'column' = 'row'): Node {
+  return { type: 'split', id, dir, ratio, a, b }
+}
+/** Split the rightmost leaf `depth` times: what repeatedly splitting the last pane builds. */
+function rightSpine(depth: number, n = 0): Node {
+  const left = leaf(`sp${n}`)
+  return n === depth ? left : split(`ss${n}`, left, rightSpine(depth, n + 1))
+}
+function inside(r: Rect, W: number, H: number, gap: number): boolean {
+  return r.x >= gap - 1e-9 && r.y >= gap - 1e-9 && r.x + r.w <= W - gap + 1e-9 && r.y + r.h <= H - gap + 1e-9
+}
+function findSplit(node: Node, id: string): Split | null {
+  if (node.type === 'leaf')
+    return null
+  return node.id === id ? node : (findSplit(node.a, id) ?? findSplit(node.b, id))
+}
+function subtreeBox(node: Node, rects: Map<string, Rect>): Rect {
+  if (node.type === 'leaf')
+    return rects.get(node.id)!
+  const a = subtreeBox(node.a, rects)
+  const b = subtreeBox(node.b, rects)
+  const x = Math.min(a.x, b.x)
+  const y = Math.min(a.y, b.y)
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y }
 }
 
 describe('deletePane', () => {
@@ -83,6 +108,72 @@ describe('pressPlan', () => {
     expect(pressPlan(true, 'mouse')).toEqual({ capture: true, pan: true, armHold: false })
     expect(pressPlan(false, 'touch')).toEqual({ capture: false, pan: false, armHold: true })
     expect(pressPlan(false, 'mouse')).toEqual({ capture: false, pan: false, armHold: false })
+  })
+})
+
+describe('layoutTree', () => {
+  it('keeps every pane visible down a deep right spine at gap 0', () => {
+    const { leaves } = layoutTree(rightSpine(12), 327, 218, 0)
+    expect(leaves).toHaveLength(13)
+    expect(leaves.every(({ rect }) => rect.w > 0)).toBe(true)
+    // Nothing is left over and nothing is spilled: the widths are the canvas.
+    expect(leaves.reduce((sum, { rect }) => sum + rect.w, 0)).toBe(327)
+  })
+
+  it('keeps a squeezed nested split on the canvas', () => {
+    const root = splitRatio('s0', 0.05, split('s1', leaf('a'), leaf('b')), leaf('c'))
+    const { leaves } = layoutTree(root, 80, 80, 4.8)
+    expect(leaves.every(({ rect }) => inside(rect, 80, 80, 4.8))).toBe(true)
+    expect(leaves.every(({ rect }) => rect.w > 0 && rect.h > 0)).toBe(true)
+  })
+
+  it('tiles a split whose gap eats most of the extent', () => {
+    // 26 is the tightest gap that still fits two 1px panes; 30 is past it, so
+    // the gap itself has to shrink for the children to tile the parent.
+    for (const gap of [26, 30]) {
+      const { leaves, dividers } = layoutTree(split('s', leaf('a'), leaf('b')), 80, 80, gap)
+      const [a, b] = leaves.map(l => l.rect)
+      expect(a.w).toBeGreaterThan(0)
+      expect(b.w).toBeGreaterThan(0)
+      expect(a.w + b.w + dividers[0].gap).toBeCloseTo(80 - gap * 2, 12)
+      expect(b.x - (a.x + a.w)).toBeCloseTo(dividers[0].gap, 12)
+    }
+  })
+
+  it('leaves a healthy split exactly as it was', () => {
+    const row = layoutTree(split('r', leaf('a'), leaf('b')), 327, 218, 0)
+    expect(row.leaves.map(l => l.rect.w)).toEqual([164, 163])
+    const gap = 9.6
+    const col = layoutTree(split('c', leaf('a'), leaf('b'), 'column'), 327, 218, gap)
+    expect(col.leaves.reduce((sum, l) => sum + l.rect.h, 0)).toBeCloseTo(218 - gap * 2 - gap, 12)
+  })
+
+  it('draws each divider line inside the band it actually laid out', () => {
+    const trees: [Node, number][] = [
+      [splitRatio('s0', 0.05, split('s1', leaf('a'), leaf('b')), leaf('c')), 4.8],
+      [splitRatio('s0', 0.05, split('s1', leaf('a'), leaf('b')), leaf('c'), 'column'), 4.8],
+      [rightSpine(12), 9.6],
+    ]
+    for (const [root, gap] of trees) {
+      const { leaves, dividers } = layoutTree(root, 80, 80, gap)
+      const rects = new Map(leaves.map(({ node, rect }) => [node.id, rect]))
+      expect(dividers.length).toBeGreaterThan(0)
+      for (const d of dividers) {
+        expect(d.gap).toBeLessThanOrEqual(gap)
+        const node = findSplit(root, d.id)!
+        const a = subtreeBox(node.a, rects)
+        const b = subtreeBox(node.b, rects)
+        const line = dividerLine(d)
+        if (d.dir === 'row') {
+          expect(line.x!).toBeGreaterThanOrEqual(a.x + a.w)
+          expect(line.x!).toBeLessThanOrEqual(b.x)
+        }
+        else {
+          expect(line.y!).toBeGreaterThanOrEqual(a.y + a.h)
+          expect(line.y!).toBeLessThanOrEqual(b.y)
+        }
+      }
+    }
   })
 })
 
