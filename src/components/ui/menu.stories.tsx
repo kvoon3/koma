@@ -40,6 +40,7 @@ function MenuDemo() {
 
 const meta = {
   title: 'UI/Menu',
+  tags: ['autodocs'],
   component: MenuDemo,
 } satisfies Meta<typeof MenuDemo>
 

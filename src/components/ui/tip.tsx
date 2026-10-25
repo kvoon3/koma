@@ -1,6 +1,11 @@
 import type { ReactElement } from 'react'
 import { Tooltip } from '@base-ui/react/tooltip'
 
+/**
+ * A label tooltip on any element: the top bar's menus, the floating page
+ * actions and the library cards wrap their triggers in it. The popup opens on
+ * hover or keyboard focus and sits above its trigger.
+ */
 export function Tip({ label, trigger }: { label: string, trigger: ReactElement }) {
   return (
     <Tooltip.Root>

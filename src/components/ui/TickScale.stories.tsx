@@ -17,6 +17,7 @@ const nearTicks: ScaleMark[] = ticks.map(tick => ({
 const meta = {
   title: 'UI/TickScale',
   component: TickScale,
+  tags: ['autodocs'],
   args: { ticks: nearTicks, value: 0.5, orientation: 'horizontal', tone: 'panel' },
   render: args => (
     <div className="relative h-12 w-72 border border-line bg-panel">
