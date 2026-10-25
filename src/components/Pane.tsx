@@ -8,7 +8,7 @@ import { MorphIcon } from 'morphicons/react'
 import { memo, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import { useDockSeatBoxes, useMediaQuery, usePanePreview, useToolsSheetTop } from '../hooks'
-import { minimapStyles, minimapViewStyle, minimapVisible, paintMinimapView, paintPanePhoto, paneBoxStyle, photoBoxStyle, stageMinimapSeat, transformOf } from '../lib/boardPaint'
+import { minimapStyles, minimapViewStyle, minimapVisible, paintMinimapView, paintPanePhoto, paneBoxStyle, paneOutlineStyle, photoBoxStyle, stageMinimapSeat, transformOf } from '../lib/boardPaint'
 import { viewScaleAt } from '../lib/canvasView'
 import { overDeleteZone, setDeleteZone, useDeleteZone } from '../lib/deleteZone'
 import { useT } from '../lib/i18n'
@@ -633,11 +633,16 @@ function PaneCloseTool({
 }
 
 function PaneOutline({
+  paneId,
+  outline,
   focused,
   dropping,
   bordered,
   radius,
 }: {
+  paneId: string
+  /** The cell inside the pane element (see `paneOutlineStyle`). */
+  outline: { left: number, top: number, width: number, height: number }
   focused: boolean
   dropping: boolean
   bordered: boolean
@@ -646,12 +651,13 @@ function PaneOutline({
   return (
     <div
       aria-hidden
+      data-pane-outline={paneId}
       className={
-        `pointer-events-none absolute inset-0 z-[4] outline-1 -outline-offset-1 transition-[outline-color] duration-(--dur-fast) ease-(--ease-out) ${
+        `pointer-events-none absolute z-[4] outline-1 -outline-offset-1 transition-[outline-color] duration-(--dur-fast) ease-(--ease-out) ${
           focused || dropping ? 'outline-txt' : bordered ? 'outline-line' : 'outline-transparent'
         }${dropping ? ' outline-dashed' : ''}`
       }
-      style={{ borderRadius: radius }}
+      style={{ ...outline, borderRadius: radius }}
     />
   )
 }
@@ -1969,7 +1975,7 @@ function PaneImpl({
       {canClose && <PaneCloseTool paneId={leaf.id} focused={focused} onClose={onClose} />}
 
       {/* Drawn last so the pane border stays above its photo/stickers. */}
-      <PaneOutline focused={focused} dropping={dropping} bordered={bordered} radius={radiusCss} />
+      <PaneOutline paneId={leaf.id} outline={paneOutlineStyle(cell, rect)} focused={focused} dropping={dropping} bordered={bordered} radius={radiusCss} />
     </div>
   )
 
