@@ -124,16 +124,16 @@ describe('stageMinimapSeat', () => {
 })
 
 describe('divider chrome', () => {
-  const divider = { id: 's', dir: 'row' as const, ratio: 0.5, area: { x: 0, y: 0, w: 1000, h: 600 } }
+  const divider = { id: 's', dir: 'row' as const, ratio: 0.5, area: { x: 0, y: 0, w: 1000, h: 600 }, gap: 0 }
 
   it('bands a row divider down the line, as wide as the hit area', () => {
-    const band = dividerBandStyle(divider, 0, 15)
+    const band = dividerBandStyle(divider, 15)
     expect(band).toEqual({ left: 500 - 7.5, top: 0, width: 15, height: 600 })
   })
 
   it('grips the line at its midpoint', () => {
-    expect(dividerGripStyle(divider, 0)).toEqual({ left: 500, top: 300 })
-    expect(dividerGripStyle({ ...divider, dir: 'column' }, 0)).toEqual({ left: 500, top: 300 })
+    expect(dividerGripStyle(divider)).toEqual({ left: 500, top: 300 })
+    expect(dividerGripStyle({ ...divider, dir: 'column' })).toEqual({ left: 500, top: 300 })
   })
 })
 
@@ -157,8 +157,7 @@ describe('paintBoard', () => {
     paintBoard(
       { panes: new Map([['a', pane as never]]), bands: new Map([['s', band as never]]), grips: new Map([['s', grip as never]]) },
       paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 8, 100),
-      [{ id: 's', dir: 'row', ratio: 0.5, area: { x: 0, y: 0, w: 1000, h: 600 } }],
-      0,
+      [{ id: 's', dir: 'row', ratio: 0.5, area: { x: 0, y: 0, w: 1000, h: 600 }, gap: 0 }],
       15,
     )
     expect(pane.written).toEqual({ left: '100px', top: '50px', width: '400px', height: '300px' })
@@ -168,7 +167,7 @@ describe('paintBoard', () => {
 
   it('skips a pane it has no element for', () => {
     expect(() =>
-      paintBoard({ panes: new Map(), bands: new Map(), grips: new Map() }, paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 0, 0), [], 0, 15),
+      paintBoard({ panes: new Map(), bands: new Map(), grips: new Map() }, paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 0, 0), [], 15),
     ).not.toThrow()
   })
 })

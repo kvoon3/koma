@@ -185,12 +185,10 @@ function paneTarget(paneId: string | null): StickerTarget | null {
  * gesture.
  */
 function useDividerDrag({
-  view,
   stageRef,
   onPaint,
   resizeSplit,
 }: {
-  view: Derived
   stageRef: React.RefObject<HTMLDivElement | null>
   /** Paint the board as it would be at `ratio` (see `lib/boardPaint`). */
   onPaint: (divider: Divider, ratio: number, board: PaintedBoard) => void
@@ -235,7 +233,7 @@ function useDividerDrag({
       // The canvas may carry the view zoom (a CSS scale), so its client rect is
       // in screen pixels: the divider math wants the canvas's own.
       const s = viewScaleAt(stageRef.current)
-      const ratio = ratioFromPointer(drag.divider, (e.clientX - r.left) / s, (e.clientY - r.top) / s, view.gap, MIN_PANE_PX)
+      const ratio = ratioFromPointer(drag.divider, (e.clientX - r.left) / s, (e.clientY - r.top) / s, MIN_PANE_PX)
       if (ratio === drag.ratio)
         return
       drag.ratio = ratio
@@ -257,7 +255,7 @@ function useDividerDrag({
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
     }
-  }, [dragId, view.gap, resizeSplit, stageRef, onPaint])
+  }, [dragId, resizeSplit, stageRef, onPaint])
 
   // A render that lands mid-drag (a photo finishing its decode, say) would
   // otherwise snap the board back to the committed ratio: repaint the draft.
@@ -456,9 +454,9 @@ export function Stage() {
     const ratioed = setSplitRatioIn(root, divider.id, ratio)
     const geo = computeGeometry(ratioed, { canvasRatio, canvasFill, availW, availH, gapValue, radiusValue, fadeValue })
     const draws = paneDraws(withLiveLeaves(geo, ratioed), seams, blendCrossfade, geo.fade, fadeStrength)
-    paintBoard(board, draws, geo.dividers, geo.gap, HIT_MIN)
+    paintBoard(board, draws, geo.dividers, HIT_MIN)
   }, [root, canvasRatio, canvasFill, availW, availH, gapValue, radiusValue, fadeValue, seams, blendCrossfade, fadeStrength])
-  const { dragId, setHotId, isLit, beginDrag } = useDividerDrag({ view, stageRef, onPaint: paintRatio, resizeSplit })
+  const { dragId, setHotId, isLit, beginDrag } = useDividerDrag({ stageRef, onPaint: paintRatio, resizeSplit })
   const { sizing, beginResize, resetRatio } = useCanvasResize(wrapRef, stageRef, focus, setCanvasSize)
   const { tools, toolsHidden: paneToolsHidden } = usePaneTools(focusId, view, photoById)
   // The label dock's location action follows the focused pane's photo, not the
@@ -867,7 +865,7 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
             key={d.id}
             data-divider-band={d.id}
             className={`absolute z-[5] touch-none ${vertical ? 'cursor-col-resize' : 'cursor-row-resize'}`}
-            style={dividerBandStyle(d, view.gap, HIT_MIN)}
+            style={dividerBandStyle(d, HIT_MIN)}
             onPointerDown={onBeginDrag(d)}
             // The grip lives in the layer above, so it cannot light itself
             // off this hover: a mouse is tracked here, a finger only
@@ -906,7 +904,7 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
             <span
               key={d.id}
               data-divider-grip={d.id}
-              style={dividerGripStyle(d, view.gap)}
+              style={dividerGripStyle(d)}
               className={
                 `absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border backdrop-blur-[7px] transition-colors duration-(--dur-fast) ${
                   lit
