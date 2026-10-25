@@ -194,6 +194,12 @@ interface State extends PersistedSettings {
    * opened from the library, where a card is only added to the library.
    */
   musicCardFor: string | null
+  /**
+   * The crop preview mode: photo panes render their photo unclipped, dimmed
+   * outside the drawn box. A view mode, so session-only: a reload forgets it,
+   * and it is outside the board history and the export.
+   */
+  cropMaskShown: boolean
   /** Cut-out photo id → the photo it was cut from (see lib/cutout); saved with the session. */
   cutouts: CutoutMap
   /** The one running pane cutout, for the pane's progress overlay. Session-only. */
@@ -423,6 +429,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   stickerMakerFor: null,
   musicCardOpen: false,
   musicCardFor: null,
+  cropMaskShown: false,
   history: emptyHistory(),
 
   addPhotos: (files, autoFill = true, kind: PhotoKind = 'photo') => {
@@ -1333,6 +1340,9 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   /** Close the one app-wide music card dialog, or open it from the library. */
   setMusicCardOpen: open => set(st => ({ musicCardOpen: open, musicCardFor: open ? st.musicCardFor : null })),
 
+  /** Flip the crop preview mode (a view mode: no undo step, not persisted). */
+  setCropMaskShown: shown => set({ cropMaskShown: shown }),
+
   /**
    * Open the dialog with a pane to place the finished card into. A stale id
    * falls back to the library-only path.
@@ -1583,6 +1593,8 @@ interface Actions {
   openStickerMaker: (paneId: string | null) => void
   /** Close the one app-wide music card dialog, or open it from the library. */
   setMusicCardOpen: (open: boolean) => void
+  /** Flip the crop preview mode (a view mode: no undo step, not persisted). */
+  setCropMaskShown: (shown: boolean) => void
   /** Open the dialog, placing the finished card into `paneId` when it exists. */
   openMusicCard: (paneId: string | null) => void
   /** Append a rendered music card to the library; returns its record. */

@@ -1095,3 +1095,40 @@ describe('music cards (a library asset)', () => {
     expect(restored.music).toEqual(meta)
   })
 })
+
+describe('crop preview (a view mode, not board state)', () => {
+  const state = () => useStore.getState()
+
+  test('the mode boots off and the setter flips it', () => {
+    expect(state().cropMaskShown).toBe(false)
+    state().setCropMaskShown(true)
+    expect(state().cropMaskShown).toBe(true)
+    state().setCropMaskShown(false)
+    expect(state().cropMaskShown).toBe(false)
+  })
+
+  test('toggling it moves the board history by nothing', () => {
+    const steps = depth()
+    state().setCropMaskShown(true)
+    state().setCropMaskShown(false)
+    expect(depth()).toBe(steps)
+    expect(canUndo(tree())).toBe(false)
+  })
+
+  test('a reload forgets it: neither the settings payload nor the session holds it', async () => {
+    state().setCropMaskShown(true)
+    const raw = persisted.get('collage:settings')
+    expect(raw).toBeTruthy()
+    const payload = (JSON.parse(raw!) as { state: Record<string, unknown> }).state
+    expect('cropMaskShown' in payload).toBe(false)
+
+    const { sessionMeta } = await import('./lib/sessionStore')
+    expect('cropMaskShown' in sessionMeta(state())).toBe(false)
+  })
+
+  test('clearing the selection leaves the mode alone', () => {
+    state().setCropMaskShown(true)
+    state().clearSelection()
+    expect(state().cropMaskShown).toBe(true)
+  })
+})

@@ -28,6 +28,8 @@ export const zhHant: Record<TKey, string> = {
   'Export': '匯出',
   'Switch to light theme': '切換到淺色主題',
   'Switch to dark theme': '切換到深色主題',
+  'Show crop preview': '顯示裁切預覽',
+  'Hide crop preview': '隱藏裁切預覽',
 
   // FloatActions (back / undo / redo / reset under the top bar)
   'Undo': '復原',
