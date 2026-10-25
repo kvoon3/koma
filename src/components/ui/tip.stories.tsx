@@ -1,9 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { ArrowLeft, Redo2, Undo2 } from 'lucide'
-import { MorphIcon } from 'morphicons/react'
+import { Button } from './button'
 import { Tip } from './tip'
-
-const iconBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent'
 
 const meta = {
   title: 'UI/Tip',
@@ -11,11 +9,7 @@ const meta = {
   render: () => (
     <Tip
       label="Back to the grid · G"
-      trigger={(
-        <button type="button" className={iconBtnCls} aria-label="Back to the grid">
-          <MorphIcon icon={ArrowLeft} size={15} strokeWidth={1.75} />
-        </button>
-      )}
+      trigger={<Button variant="float" icon={ArrowLeft} iconSize={15} aria-label="Back to the grid" />}
     />
   ),
 } satisfies Meta
@@ -30,19 +24,11 @@ export const Row: Story = {
     <div className="flex gap-1.5">
       <Tip
         label="Undo · ⌘Z"
-        trigger={(
-          <button type="button" className={iconBtnCls} aria-label="Undo">
-            <MorphIcon icon={Undo2} size={15} strokeWidth={1.75} />
-          </button>
-        )}
+        trigger={<Button variant="float" icon={Undo2} iconSize={15} aria-label="Undo" />}
       />
       <Tip
         label="Redo · ⌘⇧Z"
-        trigger={(
-          <button type="button" className={iconBtnCls} aria-label="Redo">
-            <MorphIcon icon={Redo2} size={15} strokeWidth={1.75} />
-          </button>
-        )}
+        trigger={<Button variant="float" icon={Redo2} iconSize={15} aria-label="Redo" />}
       />
     </div>
   ),
