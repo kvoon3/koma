@@ -1289,6 +1289,33 @@ koma.kvoon.me. `bun run build:single` instead runs the same config in
 all assets) that works fully offline, opened directly via file://, which
 is also why the router uses hash history.
 
+## Component workshop
+
+Storybook (`bun run storybook`, deployed at
+https://koma-storybook.kvoon.workers.dev) hosts the presentational components
+outside the app. It imports the real `src/index.css` and boots the real theme
+and language stores: both are module stores with no React context, so
+`.storybook/preview.tsx` drives them from the toolbar globals, writing
+`localStorage` under the app's own `theme` key and calling `applyTheme()` and
+`setLang()`. A story renders the shipped themes and translations, not a
+stand-in canvas.
+
+`.storybook/main.ts` reuses the app's Vite plugin list through `viteFinal`,
+dropping only the three dev-only plugins (`vite:plugin:mkcert`,
+`vite-plugin-qrcode`, `koma:vendor-runtime`): the workshop serves plain HTTP
+and carries no transformers runtime. One plugin source keeps the workshop
+from drifting off the app's build.
+
+The preview is a CSF4 factory (`definePreview`), which composes only what it
+is handed. The docs renderer from `@storybook/addon-docs` joins through the
+factory's `addons` array; the `addons` list in `main.ts` covers the manager
+side only. Docs pages generate from each meta's `autodocs` tag and the
+component's JSDoc.
+
+The workshop deploys separately (`bun run deploy:storybook`, config
+`wrangler.storybook.jsonc`) to the `koma-storybook` Worker, so `dist/` stays
+story-free and a workshop deploy never ships the app.
+
 ## Debug
 
 The build exposes debug handles on `window.__collage`:
