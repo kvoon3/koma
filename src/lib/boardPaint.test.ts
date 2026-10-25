@@ -2,7 +2,7 @@
 import type { Derived } from './layout'
 import type { Leaf, Rect, SeamSides } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
+import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, paneOutlineStyle, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
 import { newLeaf } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`, zoom = 1): Leaf {
@@ -66,6 +66,15 @@ describe('placement styles', () => {
 
   it('boxes a pane at its drawn rect', () => {
     expect(paneBoxStyle({ x: 3, y: 4, w: 5, h: 6 })).toEqual({ left: 3, top: 4, width: 5, height: 6 })
+  })
+
+  it('fills the pane element with the outline when the box is the cell', () => {
+    expect(paneOutlineStyle(CELL, CELL)).toEqual({ left: 0, top: 0, width: 400, height: 300 })
+  })
+
+  it('insets the outline to the cell inside a blend-grown box', () => {
+    const grown: Rect = { x: 70, y: 30, w: 440, h: 340 }
+    expect(paneOutlineStyle(CELL, grown)).toEqual({ left: 30, top: 20, width: 400, height: 300 })
   })
 })
 
@@ -152,22 +161,39 @@ describe('paintBoard', () => {
 
   it('writes pane boxes and divider chrome, in px', () => {
     const pane = fakeElement({ paneId: 'a' })
+    const outline = fakeElement({ paneOutline: 'a' })
     const band = fakeElement({})
     const grip = fakeElement({})
     paintBoard(
-      { panes: new Map([['a', pane as never]]), bands: new Map([['s', band as never]]), grips: new Map([['s', grip as never]]) },
+      { panes: new Map([['a', pane as never]]), outlines: new Map([['a', outline as never]]), bands: new Map([['s', band as never]]), grips: new Map([['s', grip as never]]) },
       paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 8, 100),
       [{ id: 's', dir: 'row', ratio: 0.5, area: { x: 0, y: 0, w: 1000, h: 600 }, gap: 0 }],
       15,
     )
     expect(pane.written).toEqual({ left: '100px', top: '50px', width: '400px', height: '300px' })
+    expect(outline.written).toEqual({ left: '0px', top: '0px', width: '400px', height: '300px' })
     expect(band.written).toEqual({ left: '492.5px', top: '0px', width: '15px', height: '600px' })
     expect(grip.written).toEqual({ left: '500px', top: '300px' })
   })
 
+  it('keeps the outline on the cell while the crossfade grows the pane box', () => {
+    const pane = fakeElement({ paneId: 'a' })
+    const outline = fakeElement({ paneOutline: 'a' })
+    const seams = new Map([['a', { left: true, right: false, top: false, bottom: false }]])
+    paintBoard(
+      { panes: new Map([['a', pane as never]]), outlines: new Map([['a', outline as never]]), bands: new Map(), grips: new Map() },
+      paneDraws(view([{ node: leaf('a'), rect: CELL }]), seams, true, 60, 100),
+      [],
+      15,
+    )
+    // The pane grew 30px into its left seam; the outline still spans the cell.
+    expect(pane.written).toEqual({ left: '70px', top: '50px', width: '430px', height: '300px' })
+    expect(outline.written).toEqual({ left: '30px', top: '0px', width: '400px', height: '300px' })
+  })
+
   it('skips a pane it has no element for', () => {
     expect(() =>
-      paintBoard({ panes: new Map(), bands: new Map(), grips: new Map() }, paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 0, 0), [], 15),
+      paintBoard({ panes: new Map(), outlines: new Map(), bands: new Map(), grips: new Map() }, paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 0, 0), [], 15),
     ).not.toThrow()
   })
 })
