@@ -8,7 +8,9 @@ import { MorphIcon } from 'morphicons/react'
 import { useT } from '../../lib/i18n'
 import { Tip } from '../ui/tip'
 
-/** The floating-chip idiom shared with FloatActions (back / reset). */
+/** The floating-chip idiom shared with FloatActions (back / reset). The chips'
+ * square edge is also the `btn` `grid/switcherLayout` measures this row by to
+ * seat it under the floating action cluster on a phone. */
 const snapBtnCls = 'grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
 
 export function BoardCaption({ width, height, snapshotDisabled, snapshotBusy, onOpenSwitcher, onSnapshot }: {

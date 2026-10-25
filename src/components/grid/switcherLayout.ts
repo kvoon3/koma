@@ -60,6 +60,46 @@ export const STAGE_PAD_Y = 12
  */
 export const DOCK_CHROME_H = 144
 
+/**
+ * The floating action cluster (undo / redo / history / reset) pinned over the
+ * stage's top-right corner (FloatActions). The caption chips over the 3×3 are
+ * centred, so on a stage narrow enough the two share a horizontal band: every
+ * phone, never a desktop or a tablet. There the column has to start below the
+ * buttons instead of running under them. Kept here as numbers (not a live
+ * measurement) so the stage's geometry stays pure: FloatActions and
+ * BoardCaption own the classes; these mirror them and drift if they change.
+ */
+export const FLOAT_ACTIONS = {
+  /** The cluster's `top-2.5` / `right-2.5` offset. */
+  offset: 10,
+  /** One button's edge, per pointer type: the same `pointer-coarse` step the
+   * buttons take, and the caption chips are the same square. */
+  btn: { fine: 30, coarse: 38 } as const,
+  /** Buttons in the row, and the `gap-1.5` between them. */
+  count: 4,
+  gap: 6,
+} as const
+
+/**
+ * The top padding the board stage keeps so the caption chips clear the
+ * floating action cluster: the plain stage air where the two never share a
+ * horizontal band, and the cluster's whole row plus the caption's own air
+ * where they do. Paid out of the board's slot (like the dock's chrome at the
+ * bottom), not painted over. A height-limited column would otherwise ride up
+ * under the buttons, which is how a phone's snapshot chip landed under undo.
+ */
+export function stageTopPad(stageW: number, coarse: boolean): number {
+  const btn = coarse ? FLOAT_ACTIONS.btn.coarse : FLOAT_ACTIONS.btn.fine
+  const clusterLeft = stageW - FLOAT_ACTIONS.offset - (FLOAT_ACTIONS.count * btn + (FLOAT_ACTIONS.count - 1) * FLOAT_ACTIONS.gap)
+  // The chips are centred, so their half-span is one chip and half the gap.
+  const chipsRight = stageW / 2 + btn + FLOAT_ACTIONS.gap / 2
+  if (chipsRight <= clusterLeft)
+    return STAGE_PAD_Y
+  // On a coarse pointer the chips stand taller than the caption row itself;
+  // the half that overflows the row's top has to clear the cluster too.
+  return FLOAT_ACTIONS.offset + btn + CAPTION_GAP + Math.max(0, (btn - CAPTION_H) / 2)
+}
+
 /** A board's cells, as the pager and the cards read them. */
 export type BoardCells = { id: string, root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
 
@@ -110,15 +150,17 @@ export const RECEDE_SCALE_MIN = 0.45
 
 /**
  * Where the board column (the caption row over the 3×3) sits in the stage
- * before the recede: the stage's board area is the stage less its own air and
- * the dock's chrome, and the column is centred in it. A column taller than the
- * area overflows both ends by the same amount, which is how the shortest
- * stages (a landscape phone under the 60px cell floor) render today.
+ * before the recede: the stage's board area is the stage less its top air
+ * (`topPad`, grown to clear the floating action cluster on a phone, see
+ * `stageTopPad`), its bottom air and the dock's chrome, and the column is
+ * centred in it. A column taller than the area overflows both ends by the same
+ * amount, which is how the shortest stages (a landscape phone under the 60px
+ * cell floor) render today.
  */
-export function boardColumn(stageH: number, boardH: number) {
+export function boardColumn(stageH: number, boardH: number, topPad = STAGE_PAD_Y) {
   const h = CAPTION_H + CAPTION_GAP + boardH
-  const areaH = Math.max(1, stageH - STAGE_PAD_Y * 2 - DOCK_CHROME_H)
-  return { top: STAGE_PAD_Y + (areaH - h) / 2, h }
+  const areaH = Math.max(1, stageH - topPad - STAGE_PAD_Y - DOCK_CHROME_H)
+  return { top: topPad + (areaH - h) / 2, h }
 }
 
 /** The receded board's placement: the column's transform, and where the column lands. */
@@ -157,7 +199,7 @@ export interface Recede {
  * Width is not part of the fit: the column is never wider than the stage less
  * its air, and the fit never scales past `RECEDE_SCALE`.
  */
-export function recedeFit({ stageH, boardH, stripTop, stripH }: {
+export function recedeFit({ stageH, boardH, stripTop, stripH, topPad = STAGE_PAD_Y }: {
   /** The stage's height (the box the board and the strip are placed in). */
   stageH: number
   /** The 3×3's height as laid out, before the recede. */
@@ -165,8 +207,10 @@ export function recedeFit({ stageH, boardH, stripTop, stripH }: {
   /** The strip's box within the stage, from `switcherMetrics`. */
   stripTop: number
   stripH: number
+  /** The stage's top air the column rests under (see `stageTopPad`). */
+  topPad?: number
 }): Recede {
-  const column = boardColumn(stageH, boardH)
+  const column = boardColumn(stageH, boardH, topPad)
   const centre = column.top + column.h / 2
   const fitTop = stripTop + stripH + RECEDE_GAP
   const fitBottom = stageH - STAGE_PAD_Y
