@@ -61,6 +61,16 @@ export function paneBoxStyle(draw: Rect): { left: number, top: number, width: nu
 }
 
 /**
+ * The outline's box inside a pane element: the layout cell, where the dividers
+ * and their grips sit, not the blend-grown drawn box the element occupies.
+ * The cell is always inside the box, so both offsets are ≥ 0; with no blend the
+ * two are the same rect and this is the old `inset-0`.
+ */
+export function paneOutlineStyle(cell: Rect, box: Rect): { left: number, top: number, width: number, height: number } {
+  return { left: cell.x - box.x, top: cell.y - box.y, width: cell.w, height: cell.h }
+}
+
+/**
  * The photo's transform inside its pane. `placement` is measured from the
  * layout cell, so the offset is against the drawn box (they differ only under
  * the crossfade).
@@ -191,6 +201,8 @@ export function dividerGripStyle(d: Divider) {
 /** The pane elements a drag repaints, captured once when it starts. */
 export interface PaintedBoard {
   panes: Map<string, HTMLElement>
+  /** Each pane's outline, keyed by pane id: it rides the cell, not the box. */
+  outlines: Map<string, HTMLElement>
   bands: Map<string, HTMLElement>
   grips: Map<string, HTMLElement>
 }
@@ -198,14 +210,16 @@ export interface PaintedBoard {
 /** Snapshot the elements a divider drag will move (they are stable for it). */
 export function collectBoard(root: HTMLElement | null): PaintedBoard {
   const panes = new Map<string, HTMLElement>()
+  const outlines = new Map<string, HTMLElement>()
   const bands = new Map<string, HTMLElement>()
   const grips = new Map<string, HTMLElement>()
   if (!root)
-    return { panes, bands, grips }
+    return { panes, outlines, bands, grips }
   for (const el of root.querySelectorAll<HTMLElement>('[data-pane-id]')) panes.set(el.dataset.paneId!, el)
+  for (const el of root.querySelectorAll<HTMLElement>('[data-pane-outline]')) outlines.set(el.dataset.paneOutline!, el)
   for (const el of root.querySelectorAll<HTMLElement>('[data-divider-band]')) bands.set(el.dataset.dividerBand!, el)
   for (const el of root.querySelectorAll<HTMLElement>('[data-divider-grip]')) grips.set(el.dataset.dividerGrip!, el)
-  return { panes, bands, grips }
+  return { panes, outlines, bands, grips }
 }
 
 /**
@@ -268,7 +282,13 @@ export function paintBoard(
   dividers: Divider[],
   hitMin: number,
 ): void {
-  for (const draw of draws) paintPane(board.panes.get(draw.leaf.id), draw)
+  for (const draw of draws) {
+    const id = draw.leaf.id
+    paintPane(board.panes.get(id), draw)
+    const outline = board.outlines.get(id)
+    if (outline)
+      assign(outline, paneOutlineStyle(draw.rect, draw.draw))
+  }
   for (const d of dividers) {
     const band = board.bands.get(d.id)
     if (band)
