@@ -2,12 +2,14 @@
  * Motion for the tools dock's list swaps. The drawer keeps one tools container
  * and every route, the label tools and the focus-driven tool sets portal their
  * buttons into it, so the visible list changes in place: an instant replace
- * reads as a flicker. A swap instead slides: the incoming list enters from the
- * right edge travelling left, the outgoing one leaves to the right.
+ * reads as a flicker. A swap instead slides: the outgoing list leaves to the
+ * right, then the incoming one enters from the right edge travelling left.
  *
  * The direction is fixed both ways (a swap is a swap, not stack navigation):
- * both lists move rightward over the same curve, crossing through an opacity
- * crossfade. GPU-friendly only, transform + opacity.
+ * both lists move rightward over the same curve. The halves are serialized, so
+ * only one readable list occupies the row at a time. A crossfade put two
+ * readable lists in one row, and on narrow viewports that overflowed the dock.
+ * GPU-friendly only, transform + opacity.
  */
 import { EASE_OUT } from './motionTokens'
 
@@ -28,11 +30,17 @@ export const DOCK_SWAP_EASE = EASE_OUT
  */
 export const DOCK_SWAP_PAIR_MS = 300
 
+/** Where one half of a swap runs inside the swap's DOCK_SWAP_S window. */
+export interface SwapWindow {
+  delayS: number
+  durationS: number
+}
+
 export interface DockSwapPlan {
   /** Keep a static copy of the previous list and slide it out to the right. */
-  ghost: boolean
+  ghost: SwapWindow | null
   /** Slide the live container in from the right (and fade it up). */
-  enter: boolean
+  enter: SwapWindow | null
 }
 
 /**
@@ -40,9 +48,17 @@ export interface DockSwapPlan {
  * dock held tools before the batch (the first population has nothing to swap
  * with, so it just appears); `midSwap` is whether an exit just ran for the
  * batch that emptied the container. Reduced motion does neither.
+ *
+ * Paired halves are disjoint by construction: the entrance's window starts at
+ * the exit's end, so the row never holds two lists at once, and the pair still
+ * costs one DOCK_SWAP_S. The entrance alone gets the whole window.
  */
 export function planDockSwap(input: { hadContent: boolean, midSwap: boolean, reduce: boolean }): DockSwapPlan {
   if (input.reduce)
-    return { ghost: false, enter: false }
-  return { ghost: input.hadContent, enter: input.hadContent || input.midSwap }
+    return { ghost: null, enter: null }
+  const ghost = input.hadContent ? { delayS: 0, durationS: DOCK_SWAP_S / 2 } : null
+  const enter = ghost
+    ? { delayS: ghost.delayS + ghost.durationS, durationS: DOCK_SWAP_S / 2 }
+    : input.midSwap ? { delayS: 0, durationS: DOCK_SWAP_S } : null
+  return { ghost, enter }
 }

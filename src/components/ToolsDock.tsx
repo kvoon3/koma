@@ -15,7 +15,7 @@ import { flipCanvasRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO 
 import { dockDragFade, dockSurface } from '../lib/dockBackground'
 import { DOCK_FLIP_EASE_CSS, DOCK_FLIP_S, isBoxVisible, parseTranslate, planFlipItem, shiftFlipBox } from '../lib/dockFlip'
 import { dampOffset, dragOwner, pickSnap } from '../lib/dockPhysics'
-import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
+import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
 import { liquidGlassRef } from '../lib/liquidGlass'
 import { paneAssetsOf } from '../lib/stickerLibrary'
@@ -636,7 +636,10 @@ function useDockToolList({
         scroller.style.opacity = ''
       }
     }
-    /** Incoming list slides in from the right, outgoing slides out to the right. */
+    /**
+     * The outgoing list leaves, then the incoming one arrives: the plan's
+     * windows are disjoint, so no row ever holds two readable lists.
+     */
     const playSwap = (plan: DockSwapPlan) => {
       const scroller = scrollerOf()
       const host = scroller?.parentElement
@@ -644,8 +647,11 @@ function useDockToolList({
         return
       settleSwap()
       const run = ++swapRun
+      // The halves end a half-window apart, so settle on the last one out, not
+      // the first: settling early would tear the entrance down mid-flight.
+      let pending = (plan.ghost ? 1 : 0) + (plan.enter ? 1 : 0)
       const done = () => {
-        if (run === swapRun)
+        if (--pending === 0 && run === swapRun)
           settleSwap()
       }
       if (plan.ghost && prevScroller) {
@@ -671,11 +677,15 @@ function useDockToolList({
         ghostEl = ghost
       }
       if (plan.enter) {
-        swapAnim = animate(scroller, { x: [DOCK_SWAP_PX, 0], opacity: [0, 1] }, { duration: DOCK_SWAP_S, ease: DOCK_SWAP_EASE })
+        // Motion's delay does not apply the first keyframe early, so park the
+        // list at the entrance's start or it sits readable during the exit.
+        scroller.style.opacity = '0'
+        scroller.style.transform = `translateX(${DOCK_SWAP_PX}px)`
+        swapAnim = animate(scroller, { x: [DOCK_SWAP_PX, 0], opacity: [0, 1] }, { delay: plan.enter.delayS, duration: plan.enter.durationS, ease: DOCK_SWAP_EASE })
         void swapAnim.then(done)
       }
-      if (ghostEl)
-        void animate(ghostEl, { x: [0, DOCK_SWAP_PX], opacity: [1, 0] }, { duration: DOCK_SWAP_S, ease: DOCK_SWAP_EASE }).then(done)
+      if (ghostEl && plan.ghost)
+        void animate(ghostEl, { x: [0, DOCK_SWAP_PX], opacity: [1, 0] }, { delay: plan.ghost.delayS, duration: plan.ghost.durationS, ease: DOCK_SWAP_EASE }).then(done)
     }
 
     /**
