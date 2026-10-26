@@ -7,7 +7,7 @@ import { isWeChat } from '../lib/browser'
 import { canCopyImage, copyImageToClipboard, downloadBlob } from '../lib/exporter'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
-import { buttonBase, buttonVariants, dialogButton } from './ui/buttonStyles'
+import { buttonBase, buttonVariants, dialogAccentButton, dialogButton } from './ui/buttonStyles'
 import { Spinner } from './ui/spinner'
 
 /**
@@ -328,7 +328,7 @@ function RunFooter({ cur, list, busy, onCopy, onSaveAll, onShareAll, onSave }: {
       )}
       <button
         type="button"
-        className={`${dialogButton} border-accent bg-accent font-semibold text-on-accent hover:bg-accent hover:text-on-accent`}
+        className={dialogAccentButton}
         disabled={cur == null}
         onClick={() => cur && onSave(cur)}
       >

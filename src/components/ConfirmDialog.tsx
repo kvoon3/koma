@@ -1,13 +1,13 @@
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { useT } from '../lib/i18n'
-import { dialogButton } from './ui/buttonStyles'
+import { dialogAccentButton, dialogButton, dialogDangerButton } from './ui/buttonStyles'
 
 /**
  * The app's confirm dialog: a title, one description sentence and a
  * cancel/confirm pair, with the destructive palette under `danger`. Every
  * irreversible action routes through it (clear the library, open a workspace
- * file, reset a board, delete a photo or tag), so the wording and the red
- * confirm stay in one place.
+ * file, reset a board, delete a photo or tag), so the wording stays in one
+ * place.
  */
 export function ConfirmDialog({ open, title, description, confirmLabel, danger, onClose, onConfirm }: {
   open: boolean
@@ -41,11 +41,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel, danger, 
               {t('Cancel')}
             </AlertDialog.Close>
             <AlertDialog.Close
-              className={
-                danger
-                  ? `${dialogButton} border-danger bg-danger font-semibold text-on-accent hover:bg-danger hover:text-on-accent`
-                  : `${dialogButton} border-accent bg-accent font-semibold text-on-accent hover:bg-accent hover:text-on-accent`
-              }
+              className={danger ? dialogDangerButton : dialogAccentButton}
               onClick={onConfirm}
             >
               {confirmLabel}
