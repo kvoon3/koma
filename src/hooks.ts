@@ -151,15 +151,20 @@ export function useThumb(photo: Photo, visible: boolean): string | null {
   return url
 }
 
+/**
+ * A live element box: `w`/`h` are the client size, `top` the viewport Y of the
+ * box's top edge. Seating content against chrome that overlays the element
+ * (the tools sheet over the stage) needs both the size and where it starts.
+ */
 export function useElementSize<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
-  const [size, setSize] = useState({ w: 0, h: 0 })
+  const [size, setSize] = useState({ w: 0, h: 0, top: 0 })
 
   useLayoutEffect(() => {
     const el = ref.current
     if (!el)
       return
-    const update = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    const update = () => setSize({ w: el.clientWidth, h: el.clientHeight, top: el.getBoundingClientRect().top })
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
