@@ -591,6 +591,7 @@ const zhHans = {
   'Halftone': '半调网点',
   'Dither Mono': '抖动黑白',
   'Dither Color': '抖动彩色',
+  'Error Diffusion': '误差扩散',
   'Block': '块大小',
   'Levels': '色阶',
   'Speckle': '杂点',
