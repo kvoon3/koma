@@ -902,13 +902,18 @@ function useDockBand({
     return { base: m, items }
   }, [endpointsRef, innerRef, modeRef, rowScrollRef, rowScroller])
 
-  /** Drop the field: every translate and fade back to the layout's own. */
+  /**
+   * Drop the field: every translate and fade back to the layout's own. Only
+   * the items the field actually painted are touched, so a tool the flip is
+   * gliding while a drag crosses out of the band keeps its WAAPI fade.
+   */
   const exit = useCallback(() => {
     const field = fieldRef.current
     if (field) {
       for (const item of field.items) {
         item.el.style.translate = ''
-        item.el.style.opacity = ''
+        if (item.faded !== '')
+          item.el.style.opacity = ''
         item.el.style.willChange = ''
       }
       fieldRef.current = null
@@ -1004,7 +1009,8 @@ function useDockBand({
         return
       for (const item of field.items) {
         item.el.style.translate = ''
-        item.el.style.opacity = ''
+        if (item.faded !== '')
+          item.el.style.opacity = ''
         item.el.style.willChange = ''
       }
       fieldRef.current = null
