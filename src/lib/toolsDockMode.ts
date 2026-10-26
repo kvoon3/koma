@@ -76,6 +76,59 @@ export function dockModeAtHeight(
   return order[order.length - 1]!
 }
 
+/**
+ * A display commit within this many px of a band edge is at the edge. Half a
+ * pixel is the repo's layout-noise tolerance (lib/dockFlip).
+ */
+export const DOCK_DISPLAY_EPS = 0.5
+
+/** The one pair the displacement field serves (see lib/dockBand). */
+export function isBandTransition(from: ToolsDockMode, to: ToolsDockMode): boolean {
+  return (from === 'row' && to === 'expanded') || (from === 'expanded' && to === 'row')
+}
+
+/**
+ * The display the live height shows, given the display on screen.
+ *
+ * The latch: icons ⇄ row keeps the midpoint rule, because that swap is a
+ * caption fold rather than a spatial move, and committing it earlier would
+ * open a blank strip over the shorter icons layout. Row ⇄ expanded commits at
+ * the band edges, where the projected field already equals the incoming
+ * layout (lib/dockBand). `prev` is the commitment's memory: at an edge the
+ * answer depends on which side the user arrived from, and the edge band is
+ * only `2 * DOCK_DISPLAY_EPS` px wide, so the height alone cannot say.
+ *
+ * Reduced motion, a two-mode dock, or a degenerate band (heights within a
+ * pixel) fall back to `dockModeAtHeight` exactly: one swap at the midpoint,
+ * no field. That fallback runs before the icons branch, so the two-mode dock
+ * keeps one threshold and never assumes an `icons` snap exists. Only a raw
+ * pointer move may ask this; taps and releases commit `dockTransition`'s own
+ * answer through the sheet's one mode writer, which is why the edge overlap
+ * needs no direction parameter.
+ */
+export function dockDisplayAt(input: {
+  order: readonly ToolsDockMode[]
+  heights: readonly number[]
+  liveH: number
+  prev: ToolsDockMode
+  reduce: boolean
+}): ToolsDockMode {
+  const { order, heights, liveH, prev, reduce } = input
+  const iRow = order.indexOf('row')
+  const iExp = order.indexOf('expanded')
+  const iIcons = order.indexOf('icons')
+  // Defensive: not a dock order. The last mode is the largest display.
+  if (iRow < 0)
+    return order.at(-1)!
+  if (reduce || iIcons < 0 || iExp < 0 || heights[iExp]! - heights[iRow]! < 1)
+    return dockModeAtHeight(order, heights, liveH)
+  if (liveH <= dockModeMidpoint(heights[iIcons]!, heights[iRow]!))
+    return 'icons'
+  return prev === 'expanded'
+    ? (liveH <= heights[iRow]! + DOCK_DISPLAY_EPS ? 'row' : 'expanded')
+    : (liveH >= heights[iExp]! - DOCK_DISPLAY_EPS ? 'expanded' : 'row')
+}
+
 export type DockHandleIntent = 'expand' | 'collapse'
 
 /** What the next tap does, derived from the transition: drives icon + label. */
