@@ -148,7 +148,7 @@ function TopBarActions({
   const t = useT()
   const cropMaskShown = useStore(s => s.cropMaskShown)
   const setCropMaskShown = useStore(s => s.setCropMaskShown)
-  const cropMaskLabel = cropMaskShown ? t('Hide crop preview') : t('Show crop preview')
+  const cropMaskLabel = cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')
   return (
     <div className="flex items-center gap-[5px] max-sm:gap-0.5">
       {/* The dropdown hangs off this button, so the panel and its trigger are one component. */}

@@ -27,8 +27,8 @@ export const ja: Record<TKey, string> = {
   'Export': '書き出し',
   'Switch to light theme': 'ライトテーマに切り替え',
   'Switch to dark theme': 'ダークテーマに切り替え',
-  'Show crop preview': 'トリミングプレビューを表示',
-  'Hide crop preview': 'トリミングプレビューを非表示',
+  'Show grid crop preview': 'グリッド切り抜きプレビューを表示',
+  'Hide grid crop preview': 'グリッド切り抜きプレビューを非表示',
 
   // FloatActions (back / undo / redo / reset under the top bar)
   'Undo': '元に戻す',

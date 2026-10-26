@@ -30,8 +30,8 @@ export const zhHans = {
   'Export': '导出',
   'Switch to light theme': '切换到浅色主题',
   'Switch to dark theme': '切换到深色主题',
-  'Show crop preview': '显示裁剪预览',
-  'Hide crop preview': '隐藏裁剪预览',
+  'Show grid crop preview': '显示九宫格裁切预览',
+  'Hide grid crop preview': '隐藏九宫格裁切预览',
 
   // FloatActions (back / undo / redo / reset under the top bar)
   'Undo': '撤销',
