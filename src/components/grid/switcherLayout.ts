@@ -53,10 +53,10 @@ export const CAPTION_GAP = 8
 export const STAGE_PAD_Y = 12
 
 /**
- * The chrome the dock keeps at the bottom of the stage on the overview route:
- * its 28px handle over the tools row (70px) over the status bar (31–44px,
- * `--statusH`). The dock is an overlay, so every board has to be sized above
- * it: without the reserve the third row of cells ends up under the sheet.
+ * The chrome the dock keeps at the bottom of the stage on the overview route.
+ * A first-frame fallback only: the component measures the sheet's real top
+ * edge (the sheet height moves with its icons / row / expanded displays), and
+ * hands the measured band to `boardColumn` and `recedeFit` as `dockH`.
  */
 export const DOCK_CHROME_H = 144
 
@@ -157,9 +157,9 @@ export const RECEDE_SCALE_MIN = 0.45
  * amount, which is how the shortest stages (a landscape phone under the 60px
  * cell floor) render today.
  */
-export function boardColumn(stageH: number, boardH: number, topPad = STAGE_PAD_Y) {
+export function boardColumn(stageH: number, boardH: number, topPad = STAGE_PAD_Y, dockH = DOCK_CHROME_H) {
   const h = CAPTION_H + CAPTION_GAP + boardH
-  const areaH = Math.max(1, stageH - topPad - STAGE_PAD_Y - DOCK_CHROME_H)
+  const areaH = Math.max(1, stageH - topPad - STAGE_PAD_Y - dockH)
   return { top: topPad + (areaH - h) / 2, h }
 }
 
@@ -199,7 +199,7 @@ export interface Recede {
  * Width is not part of the fit: the column is never wider than the stage less
  * its air, and the fit never scales past `RECEDE_SCALE`.
  */
-export function recedeFit({ stageH, boardH, stripTop, stripH, topPad = STAGE_PAD_Y }: {
+export function recedeFit({ stageH, boardH, stripTop, stripH, topPad = STAGE_PAD_Y, dockH = DOCK_CHROME_H }: {
   /** The stage's height (the box the board and the strip are placed in). */
   stageH: number
   /** The 3×3's height as laid out, before the recede. */
@@ -209,8 +209,10 @@ export function recedeFit({ stageH, boardH, stripTop, stripH, topPad = STAGE_PAD
   stripH: number
   /** The stage's top air the column rests under (see `stageTopPad`). */
   topPad?: number
+  /** The dock band the resting column is seated above, same as `boardColumn`. */
+  dockH?: number
 }): Recede {
-  const column = boardColumn(stageH, boardH, topPad)
+  const column = boardColumn(stageH, boardH, topPad, dockH)
   const centre = column.top + column.h / 2
   const fitTop = stripTop + stripH + RECEDE_GAP
   const fitBottom = stageH - STAGE_PAD_Y

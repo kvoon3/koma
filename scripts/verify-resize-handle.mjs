@@ -3,7 +3,7 @@
  * ends at the tools sheet's top edge (the sheet is a fixed overlay), so a
  * height-limited board no longer seats its bottom-right corner, and the resize
  * handle straddling it, under the sheet's glass. Measurements and screenshots
- * go to /tmp/koma-resize-verify.
+ * go to /tmp/koma-resize-verify. Covers both board routes: the stage
  *
  * Run: bun scripts/verify-resize-handle.mjs  (serves dist; build first)
  */
@@ -193,6 +193,93 @@ try {
   await sleep(400)
   const squat = await measure(page, 'PC 915x412, fill=1 (fit)', 'pc-915x412.png')
   check(squat.hitAtCentre === 'handle', '915x412 fit: the handle stays clickable')
+
+  // ---- The overview (grid) route: same contract, measured not guessed ----
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await sleep(400)
+  await page.evaluate(() => {
+    window.location.hash = '#/'
+  })
+  await page.waitForSelector('[data-board]')
+  await sleep(500)
+
+  /** The grid's geometry: the board's bottom vs the sheet's top, and the
+      bottom-row cell's hit target. */
+  const measureGrid = async (label, shot) => {
+    const m = await page.evaluate(() => {
+      const sheet = document.querySelector('[data-dock-mode]')
+      const board = document.querySelector('[data-board]')
+      const stage = document.querySelector('[data-board-stage]')
+      const cells = [...document.querySelectorAll('[data-cell], [data-add-cell]')]
+      const last = cells[cells.length - 1]
+      const hit = (el) => {
+        if (!el)
+          return 'nothing'
+        const r = el.getBoundingClientRect()
+        const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        if (!at)
+          return 'nothing'
+        if (at.closest('[data-cell], [data-add-cell]'))
+          return 'cell'
+        if (at.closest('[data-dock-mode]'))
+          return 'dock'
+        return at.tagName
+      }
+      const pb = Number.parseFloat(getComputedStyle(stage).paddingBottom)
+      const dockRoot = document.querySelector('.tools-dock')
+      return {
+        boardBottom: +board.getBoundingClientRect().bottom.toFixed(1),
+        sheetTop: +sheet.getBoundingClientRect().top.toFixed(1),
+        reserve: +(pb - 12).toFixed(1),
+        hitBottomCell: hit(last),
+        cells: cells.length,
+        dockMode: sheet.getAttribute('data-dock-mode'),
+        dockOpacity: dockRoot ? Number.parseFloat(getComputedStyle(dockRoot).opacity) : 1,
+      }
+    })
+    console.log(`\n== ${label} → board bottom ${m.boardBottom}, sheet top ${m.sheetTop}, reserve ${m.reserve}, bottom cell ${m.hitBottomCell} [mode ${m.dockMode}, dock opacity ${m.dockOpacity}]`)
+    if (shot)
+      await page.screenshot({ path: join(SHOTS, shot), animations: 'disabled' })
+    results.push({ label, ...m })
+    return m
+  }
+
+  const gridFit = await measureGrid('Grid 1280x900, fit', 'grid-fit.png')
+  check(gridFit.boardBottom <= gridFit.sheetTop, `grid fit: the board clears the sheet (${gridFit.boardBottom} <= ${gridFit.sheetTop})`)
+  check(gridFit.hitBottomCell === 'cell', 'grid fit: the bottom-row cell is clickable, not under the dock')
+
+  // The switcher puts the dock away (opacity 0): the reserve must hold at the
+  // resting band so the receded board does not jump. The Workspace chip in the
+  // caption is the switcher's front door; Esc leaves it.
+  await page.click('[data-board-stage] button[aria-label="Workspace"]')
+  await sleep(700)
+  const open = await measureGrid('Grid 1280x900, switcher open', 'grid-switcher.png')
+  check(open.dockOpacity < 0.05, `switcher open: the dock is put away (opacity ${open.dockOpacity})`)
+  check(Math.abs(open.reserve - gridFit.reserve) < 0.5, `switcher open: the reserve holds at the resting band (${open.reserve} vs ${gridFit.reserve})`)
+  await page.keyboard.press('Escape')
+  await sleep(700)
+  const closed = await measureGrid('Grid 1280x900, switcher closed', 'grid-closed.png')
+  check(closed.dockOpacity > 0.95, 'switcher closed: the dock is back')
+  check(Math.abs(closed.reserve - gridFit.reserve) < 0.5, `switcher closed: the reserve returns (${closed.reserve} vs ${gridFit.reserve})`)
+
+  // Flip the dock's display (handle taps): the sheet moves, the board re-seats
+  // above whatever height the dock now takes. Cycle back to row afterwards.
+  await page.click('[data-dock-mode] > button')
+  await sleep(700)
+  const flipped = await measureGrid('Grid 1280x900, dock display flipped', 'grid-flipped.png')
+  check(flipped.boardBottom <= flipped.sheetTop, `grid flipped: the board clears the moved sheet (${flipped.boardBottom} <= ${flipped.sheetTop})`)
+  check(flipped.hitBottomCell === 'cell', 'grid flipped: the bottom-row cell is still clickable')
+  for (let i = 0; i < 3 && flipped.dockMode !== 'row'; i++) {
+    await page.click('[data-dock-mode] > button')
+    await sleep(700)
+  }
+
+  // Phone overview.
+  await page.setViewportSize({ width: 375, height: 812 })
+  await sleep(400)
+  const gridPhone = await measureGrid('Grid 375x812, fit', 'grid-phone.png')
+  check(gridPhone.boardBottom <= gridPhone.sheetTop, `grid phone: the board clears the sheet (${gridPhone.boardBottom} <= ${gridPhone.sheetTop})`)
+  check(gridPhone.hitBottomCell === 'cell', 'grid phone: the bottom-row cell is clickable')
 
   writeFileSync(join(SHOTS, 'measurements.json'), `${JSON.stringify(results, null, 2)}\n`)
   console.log(`\nmeasurements: ${join(SHOTS, 'measurements.json')}`)
