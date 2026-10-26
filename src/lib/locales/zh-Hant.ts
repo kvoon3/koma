@@ -589,6 +589,7 @@ const zhHant: Record<TKey, string> = {
   'Halftone': '半調網點',
   'Dither Mono': '抖動黑白',
   'Dither Color': '抖動彩色',
+  'Error Diffusion': '誤差擴散',
   'Block': '塊大小',
   'Levels': '色階',
   'Speckle': '雜點',

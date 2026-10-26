@@ -16,14 +16,14 @@ import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
 
 /**
  * The drawer's texture tool: one button in the pane tools that opens a palette
- * of fourteen filters (see `lib/filters`), each swatch rendered from the
+ * of fifteen filters (see `lib/filters`), each swatch rendered from the
  * focused pane's own photo, plus None to clear. A sibling of the pane tools
  * rather than a member of their list, so the dock's order and the tools'
  * existing layout are untouched (Stage.tsx renders it once, like the rotation
  * dial next to it).
  *
- * The eight textures are frozen presets; the six pixel filters (mosaic, tiles,
- * screens, ordered dithers) take parameters, and the strip under the grid dials
+ * The eight textures are frozen presets; the seven pixel filters (mosaic, tiles,
+ * screens, the dithers) take parameters, and the strip under the grid dials
  * the ACTIVE pane's own setting: a stage-pixel block, tile or cell, a posterise
  * level count, a screen angle, an ink mode. The swatch of the active filter is
  * drawn from that same setting, so the tile shows the granularity being dialled,
@@ -53,6 +53,7 @@ const FILTER_LABEL: Record<FilterId, TKey> = {
   halftone: 'Halftone',
   bayerMono: 'Dither Mono',
   bayerColor: 'Dither Color',
+  ditherDiffuse: 'Error Diffusion',
 }
 
 type KnobOf<Id extends FilterId> = (typeof FILTER_PARAMS)[Id][number]['knob']
@@ -79,6 +80,7 @@ const KNOB_LABEL = {
   halftone: { block: 'Pitch', angle: 'Angle', ink: 'Ink' },
   bayerMono: { block: 'Cell', matrix: 'Matrix' },
   bayerColor: { block: 'Cell', matrix: 'Matrix' },
+  ditherDiffuse: { block: 'Cell' },
 } as const satisfies { [Id in FilterId]: Record<KnobOf<Id>, TKey> }
 
 function knobLabel(id: FilterId, knob: FilterKnob): TKey {
