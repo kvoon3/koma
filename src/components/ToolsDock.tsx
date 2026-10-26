@@ -1,5 +1,6 @@
 import type { MotionValue } from 'motion/react'
 import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
+import type { DockToolBoxes } from '../lib/dockBand'
 import type { FlipBox } from '../lib/dockFlip'
 import type { DockSwapPlan } from '../lib/dockSwap'
 import type { TKey } from '../lib/locales/zh-Hans'
@@ -38,6 +39,13 @@ export const toolsLabelCls = 'max-h-[2em] overflow-hidden text-[11.5px] font-sem
 
 /** Handle chrome height. Keep in sync with `handleCls` h-[]. */
 const HANDLE_H = 28
+/**
+ * The expanded list's vertical scrollbar gutter, px: `scrollExpCls` asks for
+ * `overflow-y: scroll`, so the wrap leg must reserve the gutter it takes. 9 is
+ * the width that class styles its thumb to; overlay scrollbars take none, and
+ * `clientWidth` reports the difference, so both kinds of system agree.
+ */
+const EXP_GUTTER = 9
 const MAX_EXP_VH = 0.4
 const FALLBACK_ROW = 72
 const FALLBACK_ICON_ROW = 48
@@ -297,11 +305,56 @@ interface DockGeometry {
   offset: number
 }
 
+/** Every tool's box in both endpoint layouts, keyed by its button (see lib/dockBand). */
+type DockEndpoints = ReadonlyMap<HTMLElement, DockToolBoxes>
+
+/**
+ * A child's layout box relative to its container, px. `offsetLeft/Top` are
+ * relative to the nearest positioned ancestor rather than to the parent node,
+ * and the tools container is deliberately unpositioned, so its own offsets are
+ * what makes a child's box container-relative. `offsetParent` is checked
+ * rather than assumed: a container that gains `position` must not silently
+ * shift every endpoint.
+ */
+function boxIn(container: HTMLElement, child: HTMLElement): { x: number, y: number } {
+  if (child.offsetParent === container)
+    return { x: child.offsetLeft, y: child.offsetTop }
+  return { x: child.offsetLeft - container.offsetLeft, y: child.offsetTop - container.offsetTop }
+}
+
+/** Every direct child's box in whatever layout the container holds right now. */
+function captureChildBoxes(container: HTMLElement): Map<HTMLElement, { x: number, y: number }> {
+  const boxes = new Map<HTMLElement, { x: number, y: number }>()
+  for (const child of container.children)
+    boxes.set(child as HTMLElement, boxIn(container, child as HTMLElement))
+  return boxes
+}
+
+/**
+ * The width the expanded display wraps at: the scroller's client width with
+ * its vertical scrollbar gutter taken off. The element's classes belong to
+ * whichever display is on screen, so the gutter is emulated here by putting
+ * `overflow-y: scroll` on the scroller and reading the width back. Overlay
+ * scrollbars (macOS default) lose nothing; a classic one loses `EXP_GUTTER`.
+ */
+function expandedWrapWidth(scroller: HTMLElement | null, panelW: number): number {
+  if (!scroller)
+    return panelW
+  const before = scroller.clientWidth
+  scroller.style.overflowY = 'scroll'
+  scroller.style.overflowX = 'hidden'
+  const classic = scroller.clientWidth < before
+  const width = before - (classic ? EXP_GUTTER : 0)
+  return width >= 1 ? width : panelW
+}
+
 /**
  * Measure what the dock needs to snap and to decide its display: the icon-row,
- * labelled-row and wrapped heights, and whether every tool fits one row.
- * `measure` restyles the content synchronously to read each mode's height, so a
- * drag defers it to the release instead of fighting the live transform.
+ * labelled-row and wrapped heights, whether every tool fits one row, and each
+ * tool's box in the row and wrapped layouts (the displacement field's
+ * endpoints, lib/dockBand). `measure` restyles the content synchronously to
+ * read each layout, so a drag or a running band defers it to the release
+ * instead of fighting the live transform.
  */
 function useDockMeasure({
   innerRef,
@@ -311,6 +364,7 @@ function useDockMeasure({
   fitsOneRow,
   setFitsOneRow,
   captureFlipFrom,
+  bandActiveRef,
 }: {
   innerRef: React.RefObject<HTMLDivElement | null>
   contextKey: string
@@ -319,6 +373,8 @@ function useDockMeasure({
   fitsOneRow: boolean
   setFitsOneRow: (fits: boolean) => void
   captureFlipFrom: () => void
+  /** The display band owns the list: its restyle pass would tear the field apart. */
+  bandActiveRef: React.RefObject<boolean>
 }) {
   const [rowH, setRowH] = useState(FALLBACK_ROW)
   const [iconH, setIconH] = useState(FALLBACK_ICON_ROW)
@@ -327,6 +383,8 @@ function useDockMeasure({
   const draggingRef = useRef(false)
   /** A `measure()` skipped mid-drag, re-run when the drag settles. */
   const measureDirtyRef = useRef(false)
+  /** Every tool's row and wrapped boxes, captured by the last completed pass. */
+  const endpointsRef = useRef<DockEndpoints>(new Map())
   /** The committed capacity and stored display, read by `measure`'s cap-flip guess. */
   const fitsRef = useRef(fitsOneRow)
   const storedModeRef = useRef(storedMode)
@@ -339,11 +397,11 @@ function useDockMeasure({
     const el = innerRef.current
     if (!el)
       return
-    // The mode's heights are already known while a drag is in flight, and the
-    // pass below restyles the content (forced display modes, full width) under
-    // the live transform: defer it to the release instead of fighting the
-    // gesture, then measure once against whatever the drag left behind.
-    if (draggingRef.current) {
+    // The pass below restyles the content (forced display modes, full width)
+    // under the live transform, so a drag defers it to the release. The band
+    // inherits that guard for the same reason: its transforms are written
+    // against boxes this pass would move.
+    if (draggingRef.current || bandActiveRef.current) {
       measureDirtyRef.current = true
       return
     }
@@ -371,6 +429,9 @@ function useDockMeasure({
     const prevW = el.style.width
     const prevMax = el.style.maxWidth
     const prevVis = el.style.visibility
+    const prevJustify = el.style.justifyContent
+    const prevOverflowX = scroller?.style.overflowX ?? ''
+    const prevOverflowY = scroller?.style.overflowY ?? ''
     // Full sheet width, not the popup's (it shrinks to the handle when the
     // tools row fits).
     const panelW = el.closest<HTMLElement>('.tools-dock')?.clientWidth || window.innerWidth
@@ -379,19 +440,32 @@ function useDockMeasure({
     el.style.flexWrap = 'nowrap'
     el.style.width = 'max-content'
     el.style.maxWidth = 'none'
+    // The row leg is left-aligned: `rowCls` states no justify-content, and the
+    // element may still carry `wrapCls`' centre from the live display. Each
+    // leg states its own value so the measured boxes are that layout's.
+    el.style.justifyContent = 'flex-start'
     const box = el.getBoundingClientRect()
     const row = Math.ceil(box.height) || FALLBACK_ROW
     const rowW = Math.ceil(box.width)
+    const rowBoxes = captureChildBoxes(el)
+    // The wrapped leg wraps at the expanded list's content width, not the
+    // panel's (see `expandedWrapWidth`), and centres its rows the way
+    // `wrapCls` does. A position field is wrong by half that difference at the
+    // ends, so the leg has to say which layout it is.
+    const wrapW = expandedWrapWidth(scroller, panelW)
     el.style.flexWrap = 'wrap'
     el.style.width = '100%'
-    el.style.maxWidth = `${panelW}px`
+    el.style.maxWidth = `${wrapW}px`
+    el.style.justifyContent = 'center'
     const exp = Math.min(Math.ceil(el.scrollHeight) || row, maxExp)
+    const wrapBoxes = captureChildBoxes(el)
     let iconRow = FALLBACK_ICON_ROW
     if (sheet) {
       sheet.setAttribute('data-dock-mode', 'icons')
       el.style.flexWrap = 'nowrap'
       el.style.width = 'max-content'
       el.style.maxWidth = 'none'
+      el.style.justifyContent = 'flex-start'
       iconRow = Math.ceil(el.getBoundingClientRect().height) || FALLBACK_ICON_ROW
       sheet.setAttribute('data-dock-mode', prevMode ?? 'row')
     }
@@ -399,6 +473,11 @@ function useDockMeasure({
     el.style.width = prevW
     el.style.maxWidth = prevMax
     el.style.visibility = prevVis
+    el.style.justifyContent = prevJustify
+    if (scroller) {
+      scroller.style.overflowX = prevOverflowX
+      scroller.style.overflowY = prevOverflowY
+    }
     // Commit the restored display while transitions are still off: the icons
     // pass forces the caption to max-height 0, and restoring it alone would
     // animate the caption back, so every pass started a fade whose mid-fade
@@ -412,6 +491,15 @@ function useDockMeasure({
       scroller.scrollLeft = scrollLeft
     if (scroller && scroller.scrollTop !== scrollTop)
       scroller.scrollTop = scrollTop
+    // Both legs ran over the same children in one synchronous pass, so a child
+    // with a row box has a wrapped one; the lookup guards a mismatch anyway.
+    const endpoints = new Map<HTMLElement, DockToolBoxes>()
+    for (const [child, rowBox] of rowBoxes) {
+      const wrapBox = wrapBoxes.get(child)
+      if (wrapBox)
+        endpoints.set(child, { row: rowBox, wrap: wrapBox })
+    }
+    endpointsRef.current = endpoints
     setRowH(row)
     setIconH(iconRow)
     setExpH(Math.max(row, exp))
@@ -426,7 +514,7 @@ function useDockMeasure({
         captureFlipFrom()
       setFitsOneRow(nextFits)
     }
-  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow])
+  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow, bandActiveRef])
 
   // Not on `mode`: the pass forces both display modes itself, so its reads do
   // not depend on the one on screen, and re-running it on a flip would resolve
@@ -435,7 +523,7 @@ function useDockMeasure({
     measure()
   }, [measure, contextKey])
 
-  return { rowH, iconH, expH, draggingRef, measureDirtyRef, measure }
+  return { rowH, iconH, expH, draggingRef, measureDirtyRef, endpointsRef, measure }
 }
 
 /**
@@ -932,6 +1020,13 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   /** The display on screen, readable from a pointer handler mid-gesture. */
   const modeRef = useRef(mode)
   const { rowScroller, captureFlipFrom, detachFlip, settleFlip, playFlip } = useDockFlipAnimation({ innerRef, reduceRef })
+  /**
+   * The display band owns the list's transforms: the measure pass may not
+   * restyle the content under them (see `useDockMeasure`). Owned by
+   * `useDockBand` once it exists; declared here because the measure hook is
+   * constructed first and reads it.
+   */
+  const bandActiveRef = useRef(false)
   const { rowH, iconH, expH, draggingRef, measureDirtyRef, measure } = useDockMeasure({
     innerRef,
     contextKey,
@@ -940,6 +1035,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     fitsOneRow,
     setFitsOneRow,
     captureFlipFrom,
+    bandActiveRef,
   })
   useLayoutEffect(() => {
     modeRef.current = mode
