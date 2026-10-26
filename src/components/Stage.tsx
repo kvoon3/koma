@@ -474,6 +474,12 @@ export function Stage() {
         if (e.button !== 0 || e.defaultPrevented)
           return
         const el = e.target as HTMLElement
+        // Portaled popups (the dock's filter and rotate popovers render into
+        // document.body) still bubble their pointerdowns through the React
+        // tree, so they arrive here with a target outside this DOM subtree.
+        // They are not stage presses.
+        if (!wrapRef.current?.contains(el))
+          return
         if (el.closest('[data-pane-id], [data-board-sticker], [data-label-id], button, [role="button"], [role="slider"], [role="menu"], [data-dock-mode]'))
           return
         const s = useStore.getState()
