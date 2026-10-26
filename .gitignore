@@ -10,3 +10,4 @@ build
 .eslintcache
 .dev.vars
 .wrangler
+.audit/

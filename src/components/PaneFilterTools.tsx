@@ -37,6 +37,7 @@ import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
  */
 
 /** English source names, the keys both dictionaries translate. */
+// @x18n-keys
 const FILTER_LABEL: Record<FilterId, TKey> = {
   grain: 'Film Grain',
   duotoneWarm: 'Warm Duotone',
@@ -61,7 +62,8 @@ type KnobOf<Id extends FilterId> = (typeof FILTER_PARAMS)[Id][number]['knob']
  * dot pitch or a dither cell, and the label is what says so. Frozen textures
  * take none. The `satisfies` clause makes a filter's missing knob label a
  * compile error, so no lookup has to fall back to the raw id.
- */
+  * @x18n-keys
+  */
 const KNOB_LABEL = {
   grain: {},
   duotoneWarm: {},

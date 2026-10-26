@@ -60,6 +60,7 @@ const scrollLockCls = 'group-data-swiping/dock:overflow-hidden group-data-swipin
 const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
+// @x18n-keys
 const INTENT_LABEL = { expand: 'Expand tools', collapse: 'Collapse tools' } as const satisfies Record<'expand' | 'collapse', TKey>
 const INTENT_ICON = { expand: ChevronUp, collapse: ChevronDown } as const
 

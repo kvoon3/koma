@@ -5,7 +5,7 @@
  */
 import type { TKey } from './zh-Hans'
 
-export const ja: Record<TKey, string> = {
+const ja: Record<TKey, string> = {
   // TopBar
   'Help': 'ヘルプ',
   'Photo': '写真',
@@ -815,3 +815,5 @@ export const ja: Record<TKey, string> = {
   'The camera could not be used.': 'カメラを使用できませんでした。',
   'Could not take the photo.': '写真を撮影できませんでした。',
 }
+
+export default ja

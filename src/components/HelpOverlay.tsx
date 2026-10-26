@@ -6,6 +6,7 @@ import { T } from '@/components/ui/t'
 import { useT } from '../lib/i18n'
 
 /** The first column is literal keyboard notation; the second is a translation key. */
+// @x18n-keys
 const KEYS: [string, TKey][] = [
   ['H J K L', 'Focus the pane left / down / up / right'],
   ['V', 'Split the focused pane left/right (vsplit)'],
@@ -26,6 +27,7 @@ const KEYS: [string, TKey][] = [
 ]
 
 /** Both columns are translation keys. */
+// @x18n-keys
 const MOUSE: [TKey, TKey][] = [
   ['Back button floating at the top left', 'Back to the 3×3 workspace grid (edit view only)'],
   ['Undo / redo buttons floating at the top right', 'Step back and forward through the board\'s changes, from the grid overview or inside a workspace alike: the history covers every workspace. Both grey out when there is nothing to step to'],
