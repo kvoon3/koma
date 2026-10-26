@@ -163,7 +163,6 @@ function notKoma(): Error {
 }
 
 /** Parse + validate an imported file; rebuild Photo objects (id preserved, data URL → File). */
-
 export async function parseWorkspaceFile(file: File): Promise<{ doc: WorkspaceDocV1, photos: Photo[] }> {
   let raw: unknown
   try {

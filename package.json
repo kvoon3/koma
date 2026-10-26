@@ -89,7 +89,8 @@
     ],
     "*.{ts,tsx}": [
       "react-doctor --no-telemetry --blocking error",
-      "sh -c \"bun run i18n\""
+      "sh -c \"bun run i18n\"",
+      "sh -c \"bun run check-types\""
     ]
   }
 }

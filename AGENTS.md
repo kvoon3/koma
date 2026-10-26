@@ -13,8 +13,13 @@ Where a note conflicts with a poteto default, the note wins.
   under a per-lane comment. `zh-Hans` is the key universe, so a new string lands there first.
   `x18n` enforces it: `bun run i18n` (`x18n check`, wired into `bun run ci` and the pre-commit
   hook) owns parity, dead keys, empty values and placeholders. `missing-key` is off on
-  purpose: the compiler owns call-site validity (`t` takes `TKey`). A key that reaches `t`
-  through a data table instead of a direct call carries a `// @x18n-keys` marker on its table.
+  purpose: the compiler owns call-site validity (`t` takes `TKey`), and the pre-commit also
+  runs `bun run check-types` so a bad literal fails the commit, not just ci. A key that
+  reaches `t` through a data table instead of a direct call carries a `// @x18n-keys` marker
+  on its table (a `* @x18n-keys` line inside its JSDoc when it has one; `// @x18n-key`
+  before a single string). A marked table must stay TKey-typed: `missing-key` is off, so a
+  `Record<string, string>` table's entries lose existence checking entirely. `as TKey`
+  casts bypass both gates; do not write one.
 
 ## Gates
 
