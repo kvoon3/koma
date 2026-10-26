@@ -68,10 +68,13 @@ const scrollExpCls = 'overflow-x-hidden overflow-y-scroll overscroll-contain [&:
 /**
  * While the drawer itself is being dragged, or a display band is in flight,
  * its lists hold still (`data-swiping`, `data-dock-band` on the sheet). The
- * band case is what keeps a mid-transition list from scrolling content the
- * field has already moved: its transforms, not its scroll, own the pixels.
+ * band case keeps the list's own overflow: `overflow: hidden` would drop the
+ * wrapped list's classic-scrollbar gutter and re-wrap the very layout the
+ * field's transforms are projected against. `touch-action: none` is what
+ * actually stops the native pan, and a frozen press never reaches the list
+ * anyway (lib/dockPhysics).
  */
-const scrollLockCls = 'group-data-swiping/dock:overflow-hidden group-data-swiping/dock:touch-none group-data-dock-band/dock:overflow-hidden group-data-dock-band/dock:touch-none'
+const scrollLockCls = 'group-data-swiping/dock:overflow-hidden group-data-swiping/dock:touch-none group-data-dock-band/dock:touch-none'
 const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
