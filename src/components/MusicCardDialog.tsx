@@ -20,6 +20,7 @@ import { buttonBase, buttonVariants } from './ui/buttonStyles'
 const PREVIEW_DEBOUNCE_MS = 200
 
 /** The switch's names; the rendered card carries the variant itself. */
+// @x18n-keys
 const STYLE_LABELS: Record<MusicCardStyle, TKey> = {
   cover: 'Cover',
   lyrics: 'Lyrics',
@@ -36,6 +37,7 @@ const LYRIC_SIZE_LABELS: Record<LyricSize, string> = {
   m: 'M',
   l: 'L',
 }
+// @x18n-keys
 const LYRIC_SIZE_NAMES: Record<LyricSize, TKey> = {
   s: 'Small',
   m: 'Medium',
@@ -45,6 +47,7 @@ const LYRIC_SIZE_NAMES: Record<LyricSize, TKey> = {
 /** The card sets three display lines, so a pick is capped at three source lines. */
 const LYRIC_PICK_LIMIT = 3
 
+// @x18n-keys
 const LYRIC_FONT_LABELS: Record<LyricFont, TKey> = {
   sans: 'Sans',
   serif: 'Serif',

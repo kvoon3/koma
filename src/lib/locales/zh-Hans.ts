@@ -8,7 +8,7 @@
  * File name uses the BCP-47 script tag (zh-Hans) so a future `zh-Hant` file
  * can sit beside this one without colliding.
  */
-export const zhHans = {
+const zhHans = {
   // TopBar
   'Help': '帮助',
   'Photo': '照片',
@@ -823,6 +823,8 @@ export const zhHans = {
   'The camera could not be used.': '无法使用相机。',
   'Could not take the photo.': '拍照失败。',
 } satisfies Record<string, string>
+
+export default zhHans
 
 /** Every source string a call site may translate. */
 export type TKey = keyof typeof zhHans

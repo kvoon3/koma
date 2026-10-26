@@ -154,6 +154,14 @@ function isWorkspaceDoc(v: unknown): v is WorkspaceDocV1 {
   return d.version === 1 && d.app === 'koma' && Array.isArray(d.workspaces) && Array.isArray(d.photos)
 }
 
+/** The one message both reject paths throw, a key once it reaches the UI. */
+// @x18n-key
+const NOT_KOMA = 'Not a koma workspace file'
+
+function notKoma(): Error {
+  return new Error(NOT_KOMA)
+}
+
 /** Parse + validate an imported file; rebuild Photo objects (id preserved, data URL → File). */
 export async function parseWorkspaceFile(file: File): Promise<{ doc: WorkspaceDocV1, photos: Photo[] }> {
   let raw: unknown
@@ -161,10 +169,10 @@ export async function parseWorkspaceFile(file: File): Promise<{ doc: WorkspaceDo
     raw = JSON.parse(await file.text())
   }
   catch {
-    throw new Error('Not a koma workspace file')
+    throw notKoma()
   }
   if (!isWorkspaceDoc(raw))
-    throw new Error('Not a koma workspace file')
+    throw notKoma()
 
   // The mirror of the save cap: the doc's data URLs are already in memory,
   // and decoding them one at a time keeps the rebuilt files from all landing

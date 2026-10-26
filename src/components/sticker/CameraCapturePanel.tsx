@@ -14,6 +14,7 @@ type CameraUiState
     | { status: 'capturing' }
     | { status: 'error', code: CameraErrorCode }
 
+// @x18n-keys
 const ERROR_KEY: Record<CameraErrorCode, TKey> = {
   'denied': 'Camera access was denied. Allow camera access in the browser, then try again.',
   'no-device': 'No camera was found on this device.',

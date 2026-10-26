@@ -6,7 +6,7 @@
  */
 import type { TKey } from './zh-Hans'
 
-export const zhHant: Record<TKey, string> = {
+const zhHant: Record<TKey, string> = {
   // TopBar
   'Help': '說明',
   'Photo': '照片',
@@ -821,3 +821,5 @@ export const zhHant: Record<TKey, string> = {
   'The camera could not be used.': '無法使用相機。',
   'Could not take the photo.': '拍照失敗。',
 }
+
+export default zhHant
