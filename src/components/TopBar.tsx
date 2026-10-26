@@ -4,7 +4,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, Eye, EyeOff, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, LoaderCircle, Moon, Save, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, LoaderCircle, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
@@ -12,7 +12,7 @@ import { clearFilterCaches } from '../lib/filterCache'
 import { isTKey, setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { leafList } from '../lib/panes'
-import { isEditorPath, isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
+import { isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
 import { paneAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
@@ -122,7 +122,6 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
 
 function TopBarActions({
   grid,
-  editor,
   settingsOpen,
   onSettingsOpenChange,
   onSettingsTriggerEnter,
@@ -134,7 +133,6 @@ function TopBarActions({
   dark,
 }: {
   grid: boolean
-  editor: boolean
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
   onSettingsTriggerEnter: () => void
@@ -146,9 +144,6 @@ function TopBarActions({
   dark: boolean
 }) {
   const t = useT()
-  const cropMaskShown = useStore(s => s.cropMaskShown)
-  const setCropMaskShown = useStore(s => s.setCropMaskShown)
-  const cropMaskLabel = cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')
   return (
     <div className="flex items-center gap-[5px] max-sm:gap-0.5">
       {/* The dropdown hangs off this button, so the panel and its trigger are one component. */}
@@ -187,23 +182,6 @@ function TopBarActions({
           </Button>
         )}
       />
-      {/* Last in the cluster: the editor-only widget mounts and unmounts on
-          route changes, and everything before it keeps its place. */}
-      {editor && (
-        <Tip
-          label={cropMaskLabel}
-          trigger={(
-            <Button
-              variant={cropMaskShown ? 'on' : 'flat'}
-              onClick={() => setCropMaskShown(!cropMaskShown)}
-              aria-label={cropMaskLabel}
-              aria-pressed={cropMaskShown}
-            >
-              <MorphIcon icon={cropMaskShown ? EyeOff : Eye} size={15} strokeWidth={1.75} />
-            </Button>
-          )}
-        />
-      )}
     </div>
   )
 }
@@ -398,7 +376,6 @@ export function TopBar({
 
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
-  const editor = useRouterState({ select: s => isEditorPath(s.location.pathname) })
 
   const [saving, setSaving] = useState(false)
   /** Parsed doc awaiting the replace-current-board confirm. */
@@ -583,7 +560,6 @@ export function TopBar({
 
       <TopBarActions
         grid={grid}
-        editor={editor}
         settingsOpen={settingsOpen}
         onSettingsOpenChange={onSettingsOpenChange}
         onSettingsTriggerEnter={() => handOver('settings')}
