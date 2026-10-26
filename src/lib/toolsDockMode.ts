@@ -94,9 +94,9 @@ export function isBandTransition(from: ToolsDockMode, to: ToolsDockMode): boolea
  * caption fold rather than a spatial move, and committing it earlier would
  * open a blank strip over the shorter icons layout. Row ⇄ expanded commits at
  * the band edges, where the projected field already equals the incoming
- * layout (lib/dockBand). `prev` is the commitment's memory: at an edge the
- * answer depends on which side the user arrived from, and the edge band is
- * only `2 * DOCK_DISPLAY_EPS` px wide, so the height alone cannot say.
+ * layout (lib/dockBand). `prev` is the commitment's memory: mid-band the same
+ * height is crossed in both directions, so the height alone cannot say which
+ * base the field is over, and the last commit stands until an edge crosses.
  *
  * Reduced motion, a two-mode dock, or a degenerate band (heights within a
  * pixel) fall back to `dockModeAtHeight` exactly: one swap at the midpoint,

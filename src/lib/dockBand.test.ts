@@ -23,10 +23,10 @@ function peakInFlight(slots: readonly BandSlot[]): number {
 }
 
 /**
- * `ceil(width / step)`: the bound the synthesis corrects candidate 2's
- * `floor(width / step) + 1` to. The epsilon absorbs float division: width and
- * step come from the same derivation, so an exact integer ratio (3 for every
- * unclamped count) can land a hair above the integer and round a ceil up.
+ * The overlap bound: at most `ceil(width / step)` windows are open at once.
+ * The epsilon absorbs float division: width and step come from the same
+ * derivation, so an exact integer ratio (3 for every unclamped count) can
+ * land a hair above the integer and round a ceil up.
  */
 const concurrencyBound = (width: number, step: number): number => Math.ceil(width / step - 1e-9)
 

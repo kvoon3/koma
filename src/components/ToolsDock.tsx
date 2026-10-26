@@ -322,7 +322,6 @@ interface DockGeometry {
   offset: number
 }
 
-/** Every tool's box in both endpoint layouts, keyed by its button (see lib/dockBand). */
 type DockEndpoints = ReadonlyMap<HTMLElement, DockToolBoxes>
 
 /**
@@ -339,7 +338,6 @@ function boxIn(container: HTMLElement, child: HTMLElement): { x: number, y: numb
   return { x: child.offsetLeft - container.offsetLeft, y: child.offsetTop - container.offsetTop }
 }
 
-/** Every direct child's box in whatever layout the container holds right now. */
 function captureChildBoxes(container: HTMLElement): Map<HTMLElement, { x: number, y: number }> {
   const boxes = new Map<HTMLElement, { x: number, y: number }>()
   for (const child of container.children)
@@ -738,7 +736,6 @@ function bandAt(geom: DockGeometry, pos: number): number | null {
   return bandProgress(geom.toolsMaxH - pos, lower, upper)
 }
 
-/** One tool's place in the band: its displacement and the fade it enters on. */
 interface BandItem {
   /** The displacement from this tool's row box to its wrapped box, px. */
   readonly dx: number
@@ -755,7 +752,6 @@ interface BandItem {
   faded: string
 }
 
-/** The displacement field: the base layout and every tool's move over it. */
 interface BandField {
   readonly base: 'row' | 'expanded'
   readonly items: readonly BandItem[]
@@ -923,7 +919,6 @@ function useDockBand({
     }
   }, [activeRef, measureDirtyRef])
 
-  /** Enter the band: the one read pass, then the promoted layers. */
   const enter = useCallback((): boolean => {
     // An entry over the row base reads its live scroll. An entry over the
     // wrapped base cannot (that list does not scroll horizontally), so the
@@ -942,7 +937,6 @@ function useDockBand({
     return true
   }, [activeRef, build, modeRef, rowScrollRef, rowScroller])
 
-  /** Project the field at the current `y`; enter or leave the band at its ends. */
   const update = useCallback(() => {
     const p = bandAt(geomRef.current, y.get())
     // No band to serve: reduced motion, a dock without both displays, or a
@@ -1011,9 +1005,7 @@ function useDockBand({
     }
   }, [activeRef, update, y])
 
-  // Stable across renders: the sheet's display-commit layout effect names this
-  // object in its deps, and a fresh one per render would replay the FLIP.
-  return useMemo(() => ({ active, activeRef, sync, exit }), [active, activeRef, exit, sync])
+  return { active, activeRef, sync, exit }
 }
 
 /**
@@ -1692,8 +1684,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             aria-label={t('Tools')}
             data-dock-mode={mode}
             data-dock-bg={dockBg}
-            /* The band is in flight: the lists freeze (scrollLockCls) and the
-               harness can see the transit without reading a transform. */
+            /* The band is in flight: the lists freeze (scrollLockCls). */
             data-dock-band={band.active || undefined}
             ref={popupRef}
             style={{ ...surface.style, height: toolsMaxH, y } as CSSProperties & { y: typeof y }}

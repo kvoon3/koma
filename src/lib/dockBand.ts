@@ -1,6 +1,6 @@
 /**
  * The displacement field between the tools dock's labelled row and its
- * wrapped multi-row display (see DESIGN.md, "the dock"). The two displays are
+ * wrapped multi-row display. The two displays are
  * two layouts of the same buttons, and layouts cannot be tweened. What can be
  * tweened is each button's transform, so during the band between the two snap
  * heights every tool sits on its row box displaced toward its wrapped box by a
