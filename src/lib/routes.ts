@@ -29,6 +29,11 @@ export function isGridPath(path: string): boolean {
   return path === OVERVIEW_PATH
 }
 
+/** The editor stage (`/w/<id>`): the one route that mounts `Stage`. */
+export function isEditorPath(path: string): boolean {
+  return path.startsWith('/w/')
+}
+
 /** The library, its old routes, or the retired launcher: no board is drawn here. */
 export function isHubPath(path: string): boolean {
   return path === LIBRARY_PATH || path === PHOTOS_PATH || path === STICKERS_PATH || path === LEGACY_INDEX_PATH
