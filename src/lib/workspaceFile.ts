@@ -154,7 +154,6 @@ function isWorkspaceDoc(v: unknown): v is WorkspaceDocV1 {
   return d.version === 1 && d.app === 'koma' && Array.isArray(d.workspaces) && Array.isArray(d.photos)
 }
 
-/** Parse + validate an imported file; rebuild Photo objects (id preserved, data URL → File). */
 /** The one message both reject paths throw, a key once it reaches the UI. */
 // @x18n-key
 const NOT_KOMA = 'Not a koma workspace file'
@@ -162,6 +161,8 @@ const NOT_KOMA = 'Not a koma workspace file'
 function notKoma(): Error {
   return new Error(NOT_KOMA)
 }
+
+/** Parse + validate an imported file; rebuild Photo objects (id preserved, data URL → File). */
 
 export async function parseWorkspaceFile(file: File): Promise<{ doc: WorkspaceDocV1, photos: Photo[] }> {
   let raw: unknown
