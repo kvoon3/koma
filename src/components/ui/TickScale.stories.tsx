@@ -19,9 +19,24 @@ const meta = {
   title: 'UI/TickScale',
   component: TickScale,
   tags: ['autodocs'],
-  args: { ticks: nearTicks, value: 0.5, orientation: 'horizontal', tone: 'panel' },
+  args: {
+    ticks: nearTicks,
+    value: 0.5,
+    orientation: 'horizontal',
+    tone: 'panel',
+    growth: 0,
+    inset: 0,
+    barScale: 1,
+    barMotion: 'still',
+  },
   render: args => (
-    <div className="relative h-12 w-72 border border-line bg-panel">
+    <div
+      className={
+        args.orientation === 'vertical'
+          ? 'relative h-48 w-16 border border-line bg-panel'
+          : 'relative h-12 w-72 border border-line bg-panel'
+      }
+    >
       <TickScale {...args} />
     </div>
   ),
@@ -30,15 +45,21 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Horizontal: Story = {}
+export const Playground: Story = {
+  argTypes: {
+    ticks: { control: false },
+    value: { control: 'number', min: 0, max: 1, step: 0.01 },
+    orientation: { control: 'select', options: ['horizontal', 'vertical'] },
+    tone: { control: 'select', options: ['panel', 'float'] },
+    growth: { control: 'number', min: 0, max: 1, step: 0.05 },
+    inset: { control: 'number', min: 0, max: 12, step: 1 },
+    barScale: { control: 'number', min: 1, max: 2, step: 0.1 },
+    barMotion: { control: 'select', options: ['still', 'settle'] },
+  },
+}
 
 export const Vertical: Story = {
   args: { orientation: 'vertical' },
-  render: args => (
-    <div className="relative h-48 w-16 border border-line bg-panel">
-      <TickScale {...args} />
-    </div>
-  ),
 }
 
 export const FloatingOverPhoto: Story = {

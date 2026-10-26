@@ -6,6 +6,11 @@ function Chip({ on = false, children }: { on?: boolean, children: ReactNode }) {
   return <button type="button" className={`${chipCls} ${on ? chipOnCls : chipOffCls}`}>{children}</button>
 }
 
+/**
+ * The real chips are class strings, not a component, so the docs mount this
+ * stand-in that wears them. It carries only `on` and the label; `countCls`
+ * styles the trailing count in the Row story.
+ */
 const meta = {
   title: 'Library/Chips',
   component: Chip,
@@ -16,7 +21,12 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Off: Story = {}
+export const Playground: Story = {
+  argTypes: {
+    on: { control: 'boolean' },
+    children: { control: 'text' },
+  },
+}
 
 export const On: Story = {
   args: { on: true },

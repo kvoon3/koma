@@ -1,23 +1,34 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
+import type { ComponentProps } from 'react'
 import { ArrowLeft, Redo2, Undo2 } from 'lucide'
 import { Button } from './button'
 import { Tip } from './tip'
 
+type TipArgs = ComponentProps<typeof Tip>
+
 const meta = {
   title: 'UI/Tip',
+  component: Tip,
   tags: ['autodocs'],
-  render: () => (
+  args: { label: 'Back to the grid · G', defaultOpen: false, trigger: undefined },
+  render: args => (
     <Tip
-      label="Back to the grid · G"
+      {...args}
       trigger={<Button variant="float" icon={ArrowLeft} iconSize={15} aria-label="Back to the grid" />}
     />
   ),
-} satisfies Meta
+} satisfies Meta<TipArgs>
 
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const OnIconButton: Story = {}
+export const Playground: Story = {
+  argTypes: {
+    label: { control: 'text' },
+    defaultOpen: { control: 'boolean' },
+    trigger: { control: false },
+  },
+}
 
 /** The popup, pinned open so a static page shows what the hover gives. */
 export const Open: Story = {

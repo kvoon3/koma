@@ -21,4 +21,10 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const OffFit: Story = {}
+export const Playground: Story = {
+  argTypes: {
+    scale: { control: 'number', min: 0.25, max: 3, step: 0.05 },
+    onFit: { control: false },
+    className: { control: false },
+  },
+}

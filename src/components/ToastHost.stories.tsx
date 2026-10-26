@@ -18,6 +18,11 @@ function ToastDemo() {
   return <ToastHost />
 }
 
+/**
+ * ToastHost takes no props: the stack lives in the shared `toastManager`, and
+ * the app pushes toasts through it (`say`). The docs page can show the stack
+ * but has nothing for a Controls row to drive.
+ */
 const meta = {
   title: 'UI/ToastHost',
   component: ToastHost,

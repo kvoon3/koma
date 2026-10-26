@@ -48,13 +48,45 @@ function ColorDemo() {
   )
 }
 
+/** The value control re-seeds the bridge through the story key, so dragging the slider stays live. */
+function RangePlay({ value = 42, label = 'Scale', text = '42%', min = 0, max = 100, step = 1 }: {
+  value?: number
+  label?: string
+  text?: string
+  min?: number
+  max?: number
+  step?: number
+}) {
+  const [v, setV] = useState(value)
+  return <RangeField label={label} text={text} value={v} min={min} max={max} step={step} onChange={setV} />
+}
+
 const meta = {
   title: 'UI/Fields',
+  component: RangeField,
   tags: ['autodocs'],
-} satisfies Meta
+  args: { label: 'Scale', text: '42%', value: 42, min: 0, max: 100, step: 1, onChange: undefined },
+  render: args => (
+    <div className="w-80">
+      <RangePlay key={args.value} label={args.label} text={args.text} value={args.value} min={args.min} max={args.max} step={args.step} />
+    </div>
+  ),
+} satisfies Meta<typeof RangeField>
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const Playground: Story = {
+  argTypes: {
+    label: { control: 'text' },
+    text: { control: 'text' },
+    value: { control: 'number', min: 0, max: 100 },
+    min: { control: 'number' },
+    max: { control: 'number' },
+    step: { control: 'number', min: 1, max: 25 },
+    onChange: { control: false },
+  },
+}
 
 export const Range: Story = {
   render: () => <RangeDemo />,

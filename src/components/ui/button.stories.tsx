@@ -1,15 +1,56 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { ArrowLeft, Camera, Download, Redo2, Undo2 } from 'lucide'
+import type { IconNode } from 'lucide'
+import type { ComponentProps, ComponentType } from 'react'
+import { ArrowLeft, Camera, Download, Plus, Redo2, Undo2 } from 'lucide'
 import { Button } from './button'
+
+const ICONS = { Download, Camera, Undo2, ArrowLeft, Plus }
+type IconName = keyof typeof ICONS
+
+type ButtonArgs = Omit<ComponentProps<typeof Button>, 'icon'> & { icon?: IconNode | IconName }
 
 const meta = {
   title: 'UI/Button',
-  component: Button,
+  // One assertion, not a chain: Button's own props fit inside ButtonArgs (its
+  // `icon` narrows to IconNode), so the docs table still documents the real
+  // Button while the control stores the name.
+  component: Button as ComponentType<ButtonArgs>,
   tags: ['autodocs'],
-} satisfies Meta<typeof Button>
+  render: args => (
+    <div className="flex h-16 items-center">
+      <Button
+        {...args}
+        icon={typeof args.icon === 'string' ? ICONS[args.icon as IconName] : args.icon}
+      />
+    </div>
+  ),
+} satisfies Meta<ButtonArgs>
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const Playground: Story = {
+  args: {
+    children: 'Export',
+    variant: 'flat',
+    icon: 'Download',
+    iconSize: 13,
+    loading: false,
+    disabled: false,
+  },
+  argTypes: {
+    variant: { control: 'select', options: ['flat', 'on', 'strong', 'close', 'danger', 'float'] },
+    icon: { control: 'select', options: Object.keys(ICONS) },
+    iconSize: { control: 'number', min: 10, max: 24, step: 1 },
+    loading: { control: 'boolean' },
+    disabled: { control: 'boolean' },
+    children: { control: 'text' },
+    type: { control: false },
+    className: { control: false },
+    ref: { control: false },
+    onClick: { control: false },
+  },
+}
 
 export const Variants: Story = {
   render: () => (

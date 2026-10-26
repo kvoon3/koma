@@ -11,6 +11,10 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+export const Playground: Story = {
+  argTypes: { className: { control: 'text' } },
+}
+
 export const TopBar: Story = {
   render: args => (
     <div className="flex h-11 w-64 items-center gap-2 bg-panel px-3">

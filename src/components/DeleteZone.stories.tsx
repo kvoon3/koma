@@ -19,7 +19,14 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Active: Story = {}
+export const Playground: Story = {
+  argTypes: {
+    label: { control: 'text' },
+    active: { control: 'boolean' },
+    over: { control: 'boolean' },
+    setRef: { control: false },
+  },
+}
 
 export const DragOver: Story = {
   args: { over: true },

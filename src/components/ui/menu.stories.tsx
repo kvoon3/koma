@@ -38,6 +38,11 @@ function MenuDemo() {
   )
 }
 
+/**
+ * The menu's chrome is a set of class strings plus `MenuHint`, composed
+ * story-side through Base UI's `Menu.Root`; the component is the demo itself
+ * and has no props a Controls row could drive.
+ */
 const meta = {
   title: 'UI/Menu',
   tags: ['autodocs'],
