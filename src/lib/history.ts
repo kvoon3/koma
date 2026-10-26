@@ -362,7 +362,8 @@ export function stepCount<T>(history: History<T>): number {
 /**
  * The English label of a step, keyed by the tag its action committed. These
  * strings are i18n keys, so they are typed against the key universe.
- */
+  * @x18n-keys
+  */
 const LABELS: Record<string, TKey> = {
   start: 'Start',
   // pane tree
@@ -414,6 +415,7 @@ const LABELS: Record<string, TKey> = {
 }
 
 /** What one `patch:*` key is about, so the board-look label is not always the same. */
+// @x18n-keys
 const PATCH_LABELS: Record<string, TKey> = {
   bg: 'Background',
   bgGradient: 'Background',

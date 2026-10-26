@@ -12,9 +12,9 @@ import {
   parseLibraryType,
   validGroup,
 } from './library'
-import { ja } from './locales/ja'
-import { zhHans } from './locales/zh-Hans'
-import { zhHant } from './locales/zh-Hant'
+import ja from './locales/ja'
+import zhHans from './locales/zh-Hans'
+import zhHant from './locales/zh-Hant'
 
 function photo(id: string, extra: Partial<Photo> = {}): Photo {
   return {

@@ -29,7 +29,8 @@ import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 /**
  * Text font choices: a small set of system stacks (no webfont download, so the
  * preview matches the export instantly). The rounded one is the "sticker" pick.
- */
+  * @x18n-keys
+  */
 const FONTS: { id: string, label: TKey, stack: string, weight: number }[] = [
   {
     id: 'system',
@@ -57,13 +58,17 @@ const FONTS: { id: string, label: TKey, stack: string, weight: number }[] = [
   },
 ]
 
+// @x18n-keys
 const MATERIALS: { value: StickerMaterialType, label: TKey }[] = [
   { value: 'original', label: 'Original' },
   { value: 'holographic', label: 'Holographic' },
   { value: 'glitter', label: 'Glitter' },
 ]
 
-const PAPER_TEXTURES: { value: 'none' | StickerTexture, label: TKey }[] = [
+type PaperTextureChoice = 'none' | StickerTexture
+
+// @x18n-keys
+const PAPER_TEXTURES: { value: PaperTextureChoice, label: TKey }[] = [
   { value: 'none', label: 'None' },
   { value: 'newsprint', label: 'Newspaper' },
 ]

@@ -11,7 +11,15 @@ Where a note conflicts with a poteto default, the note wins.
 - Tailwind: keep a space before `${…}` in class template literals. A glued token is not scanned.
 - Locale keys go in every dictionary under `src/lib/locales` (`zh-Hans.ts`, `zh-Hant.ts`, `ja.ts`)
   under a per-lane comment. `zh-Hans` is the key universe, so a new string lands there first.
-  `bun scripts/i18n-coverage.mjs` and `src/lib/i18nDrift.test.ts` enforce both directions.
+  `x18n` enforces it: `bun run i18n` (`x18n check`, wired into `bun run ci` and the pre-commit
+  hook) owns parity, dead keys, empty values and placeholders. `missing-key` is off on
+  purpose: the compiler owns call-site validity (`t` takes `TKey`), and the pre-commit also
+  runs `bun run check-types` so a bad literal fails the commit, not just ci. A key that
+  reaches `t` through a data table instead of a direct call carries a `// @x18n-keys` marker
+  on its table (a `* @x18n-keys` line inside its JSDoc when it has one; `// @x18n-key`
+  before a single string). A marked table must stay TKey-typed: `missing-key` is off, so a
+  `Record<string, string>` table's entries lose existence checking entirely. `as TKey`
+  casts bypass both gates; do not write one.
 
 ## Gates
 

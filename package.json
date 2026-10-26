@@ -16,12 +16,13 @@
     "deploy:storybook": "bun run build-storybook && wrangler deploy --config wrangler.storybook.jsonc",
     "dev:desktop": "mygo dev",
     "build:desktop": "mygo build",
+    "i18n": "x18n check",
     "lint": "eslint . --cache --cache-strategy content --concurrency off",
     "lint:fix": "eslint . --fix --cache --cache-strategy content --concurrency off",
     "check-types": "bun check",
     "test": "bun test --check --isolate src worker",
     "test:shuffle": "bun test --check --isolate --randomize src worker",
-    "ci": "bun run --no-exit-on-error --parallel lint test build",
+    "ci": "bun run --no-exit-on-error --parallel lint test i18n build",
     "up": "taze major -Ii",
     "prepare": "simple-git-hooks",
     "doctor": "bunx react-doctor@latest"
@@ -56,6 +57,7 @@
     "@typescript-eslint/parser": "^8.72.0",
     "@vitejs/devtools": "^0.8.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "@x18n/cli": "^0.0.14",
     "eslint": "^10.13.0",
     "eslint-plugin-react-refresh": "^0.5.7",
     "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.2",
@@ -87,7 +89,8 @@
     ],
     "*.{ts,tsx}": [
       "react-doctor --no-telemetry --blocking error",
-      "bun scripts/i18n-coverage.mjs"
+      "sh -c \"bun run i18n\"",
+      "sh -c \"bun run check-types\""
     ]
   }
 }
