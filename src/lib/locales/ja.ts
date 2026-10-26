@@ -585,6 +585,7 @@ const ja: Record<TKey, string> = {
   'Halftone': 'ハーフトーン',
   'Dither Mono': 'ディザ モノ',
   'Dither Color': 'ディザ カラー',
+  'Error Diffusion': '誤差拡散',
   'Block': 'ブロック',
   'Levels': 'レベル',
   'Speckle': 'スペックル',
