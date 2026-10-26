@@ -4,11 +4,12 @@ import { Tooltip } from '@base-ui/react/tooltip'
 /**
  * A label tooltip on any element: the top bar's menus, the floating page
  * actions and the library cards wrap their triggers in it. The popup opens on
- * hover or keyboard focus and sits above its trigger.
+ * hover or keyboard focus and sits above its trigger. `defaultOpen` mounts it
+ * open, which is how a static page (docs, a screenshot) shows the popup.
  */
-export function Tip({ label, trigger }: { label: string, trigger: ReactElement }) {
+export function Tip({ label, trigger, defaultOpen = false }: { label: string, trigger: ReactElement, defaultOpen?: boolean }) {
   return (
-    <Tooltip.Root>
+    <Tooltip.Root defaultOpen={defaultOpen}>
       <Tooltip.Trigger render={trigger} />
       <Tooltip.Portal>
         <Tooltip.Positioner side="top" sideOffset={6} className="pointer-events-none z-100">
