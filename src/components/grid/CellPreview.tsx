@@ -281,11 +281,12 @@ export function CellBody({ ws, box, photoById, transparent, dimmed, quiet = fals
           : (
               // The empty pane's hint, worn by the cell: near-canvas fill, and
               // the glyph over the label centered in the neutral gray. No
-              // button of its own: the cell is the button.
-              <span className="absolute inset-0 grid place-items-center bg-pane-bg bg-pane-empty">
+              // button of its own: the cell is the button. The label adapts to
+              // the cell (the stage's pane hint, same contract).
+              <span data-cell-hint="" className="@container absolute inset-0 grid place-items-center bg-pane-bg bg-pane-empty">
                 <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
                   <MorphIcon icon={LayoutDashboard} size={22} strokeWidth={1.75} />
-                  {t('New collage')}
+                  <span className="max-w-full truncate @max-[7rem]:hidden">{t('New collage')}</span>
                 </span>
               </span>
             )}
