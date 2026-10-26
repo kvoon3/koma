@@ -14,13 +14,13 @@ import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, u
 import { createPortal } from 'react-dom'
 import { flipCanvasRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO } from '../lib/canvasCommands'
 import { dockDragFade, dockSurface } from '../lib/dockBackground'
-import { bandProgress, bandPush, bandSchedule } from '../lib/dockBand'
+import { bandProgress, bandPush, bandSchedule, bandTapSeconds } from '../lib/dockBand'
 import { DOCK_FLIP_EASE_CSS, DOCK_FLIP_S, isBoxVisible, parseTranslate, planFlipItem, shiftFlipBox } from '../lib/dockFlip'
 import { dampOffset, dragOwner, nearestSnapIndex, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
 import { liquidGlassRef } from '../lib/liquidGlass'
-import { EASE_OUT } from '../lib/motionTokens'
+import { EASE_IN_OUT } from '../lib/motionTokens'
 import { paneAssetsOf } from '../lib/stickerLibrary'
 import { clampDockMode, dockDisplayAt, dockHandleIntent, dockModeAtHeight, dockModes, dockTransition, isBandTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
@@ -86,13 +86,6 @@ const INTENT_ICON = { expand: ChevronUp, collapse: ChevronDown } as const
 const SPRING = { type: 'spring', stiffness: 420, damping: 42, mass: 1 } as const
 /** px before a press becomes a drag (taps stay clicks). */
 const DRAG_SLOP = 6
-/**
- * Seconds a handle tap takes to walk the display band. A release keeps the
- * spring (the flick's own velocity is the pace), but a tap has no finger to set
- * one, and the settle spring crosses the band in a couple of frames at peak
- * velocity, too fast for the per-tool stagger to read as a cascade.
- */
-const DOCK_BAND_TAP_S = 0.42
 
 const ratioPopupCls = `${menuSurfaceCls} ${dockPopupMotionCls} min-w-[190px]`
 const ratioItemCls = `${menuItemCls} disabled:cursor-default disabled:opacity-35`
@@ -1667,11 +1660,15 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     commitDisplay(target)
     if (!bandPair)
       return
-    if (reduce)
+    if (reduce) {
       y.set(to)
-    else
-      animate(y, to, { duration: DOCK_BAND_TAP_S, ease: EASE_OUT })
-  }, [cap, commitDisplay, geomRef, modeRef, order, reduce, y])
+      return
+    }
+    // The pacing curve stays near-linear so every window opening gets its own
+    // frame (lib/motionTokens EASE_IN_OUT); the duration is the schedule's.
+    const tools = innerRef.current?.children.length ?? 0
+    animate(y, to, { duration: bandTapSeconds(tools), ease: EASE_IN_OUT })
+  }, [cap, commitDisplay, geomRef, innerRef, modeRef, order, reduce, y])
 
   const intent = dockHandleIntent(mode, cap)
   const handleIcon = INTENT_ICON[intent]

@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import type { BandSlot } from './dockBand'
 import { describe, expect, test } from 'bun:test'
-import { BAND_CONCURRENCY, BAND_WINDOW_MAX, BAND_WINDOW_MIN, bandEase, bandProgress, bandPush, bandSchedule } from './dockBand'
+import { BAND_CONCURRENCY, BAND_WINDOW_MAX, BAND_WINDOW_MIN, bandEase, bandProgress, bandPush, bandSchedule, bandTapSeconds } from './dockBand'
 
 /** Tools strictly mid-flight (0 < u < 1) at one progress. */
 function inFlight(slots: readonly BandSlot[], p: number): number {
@@ -170,5 +170,31 @@ describe('bandPush', () => {
       for (const slot of slots)
         expect([0, 1]).toContain(bandPush(slot, p))
     }
+  })
+})
+
+describe('bandTapSeconds', () => {
+  test('scales with the schedule and stays inside the measured floor and ceiling', () => {
+    expect(bandTapSeconds(0)).toBe(0.4)
+    expect(bandTapSeconds(1)).toBe(0.4)
+    expect(bandTapSeconds(4)).toBe(0.4)
+    expect(bandTapSeconds(8)).toBe(0.4)
+    expect(bandTapSeconds(17)).toBe(0.8)
+    expect(bandTapSeconds(60)).toBe(0.85)
+  })
+
+  test('keeps one window opening per frame at 60 fps while the duration scales', () => {
+    // A gap between openings is step / p'(xi) for some xi (mean value
+    // theorem), and this curve's max slope is ~1.73, so the bound below is
+    // rigorous. Past the 0.85 s ceiling the spacing shrinks with the count,
+    // and 25 tools is the first that can share a frame.
+    const MAX_SLOPE = 1.73
+    for (let n = 2; n <= 24; n++) {
+      const slots = bandSchedule(n)
+      const step = slots[1]!.start - slots[0]!.start
+      const spacingMs = (step * bandTapSeconds(n) * 1000) / MAX_SLOPE
+      expect(spacingMs).toBeGreaterThanOrEqual(16.7 - 0.05)
+    }
+    expect(bandTapSeconds(25)).toBe(0.85)
   })
 })

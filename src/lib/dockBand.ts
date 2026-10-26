@@ -96,3 +96,16 @@ export function bandSchedule(count: number): readonly BandSlot[] {
 export function bandPush(slot: BandSlot, progress: number): number {
   return bandEase(clamp01((progress - slot.start) / slot.width))
 }
+
+/**
+ * Seconds a tap should take to walk the band with `count` tools. The pacing
+ * holds the cascade: the pacing curve's steepest middle runs ~1.7x the
+ * average speed, so while the duration scales, 50 ms per tool keeps adjacent
+ * window openings ~23 ms apart at the steepest instant, comfortably a frame
+ * at 60 fps. The 0.85 s ceiling ends the scaling, and past 24 tools adjacent
+ * openings can share a frame there. Measured floor and ceiling: under 0.4 s
+ * a tap feels like a snap, past 0.85 s the sheet feels reluctant.
+ */
+export function bandTapSeconds(count: number): number {
+  return Math.min(0.85, Math.max(0.4, 0.05 * Math.max(0, count - 1)))
+}
