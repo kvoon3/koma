@@ -1,11 +1,11 @@
 import type { Workspace } from '../store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowLeft, History, Redo2, RotateCcw, Undo2 } from 'lucide'
+import { ArrowLeft, Eye, EyeOff, History, Redo2, RotateCcw, Undo2 } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useRef, useState } from 'react'
 import { canRedo, canUndo } from '../lib/history'
 import { useT } from '../lib/i18n'
-import { isGridPath, OVERVIEW_PATH } from '../lib/routes'
+import { isEditorPath, isGridPath, OVERVIEW_PATH } from '../lib/routes'
 import { say } from '../lib/toast'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { useStore } from '../store'
@@ -14,8 +14,8 @@ import { HistoryPanel } from './HistoryPanel'
 import { Tip } from './ui/tip'
 
 // The floating-chrome idiom shared with the pane buttons and the resize
-// handle: float-bg + blur, chip-hover on hover.
-const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none border border-float-line bg-float-bg text-float-icon backdrop-blur-[7px] transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
+// handle: ghost, no background and no border, with chip-hover on hover.
+const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
 
 /**
  * Floating page chrome just under the top bar: back-to-grid on the left
@@ -33,6 +33,7 @@ const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-
 export function FloatActions() {
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
+  const editor = useRouterState({ select: s => isEditorPath(s.location.pathname) })
   const t = useT()
   const [resetAsk, setResetAsk] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -40,6 +41,7 @@ export function FloatActions() {
   const historyAnchorRef = useRef<HTMLButtonElement | null>(null)
   const undoable = useStore(s => canUndo(s.history))
   const redoable = useStore(s => canRedo(s.history))
+  const cropMaskShown = useStore(s => s.cropMaskShown)
 
   // 1-based grid position of the active workspace: it names the reset target
   // in the confirm (the grid itself carries no active-cell marker).
@@ -136,6 +138,24 @@ export function FloatActions() {
             </button>
           )}
         />
+
+        {/* The crop preview is board work, so it lives with the board chrome:
+            editor-only, ahead of the destructive reset. */}
+        {editor && (
+          <Tip
+            label={cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')}
+            trigger={(
+              <button
+                className={btnCls}
+                aria-label={cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')}
+                aria-pressed={cropMaskShown}
+                onClick={() => useStore.getState().setCropMaskShown(!cropMaskShown)}
+              >
+                <MorphIcon icon={cropMaskShown ? EyeOff : Eye} size={15} strokeWidth={1.75} />
+              </button>
+            )}
+          />
+        )}
 
         <Tip
           label={grid ? t('Reset all workspaces') : t('Reset this workspace')}

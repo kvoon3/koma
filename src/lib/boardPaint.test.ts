@@ -2,7 +2,7 @@
 import type { Derived } from './layout'
 import type { Leaf, Rect, SeamSides } from './panes'
 import { describe, expect, it } from 'bun:test'
-import { dividerBandStyle, dividerGripStyle, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, paneOutlineStyle, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
+import { CROP_MASK_DIM, dividerBandStyle, dividerGripStyle, gridCropMask, minimapStyles, minimapViewStyle, minimapVisible, paintBoard, paneBoxStyle, paneDraws, paneOutlineStyle, photoBoxStyle, photoTransform, stageMinimapSeat, transformOf } from './boardPaint'
 import { newLeaf } from './panes'
 
 function leaf(id: string, photoId: string | null = `ph-${id}`, zoom = 1): Leaf {
@@ -155,6 +155,7 @@ describe('paintBoard', () => {
       dataset,
       children: [] as unknown[],
       querySelector: () => null,
+      closest: () => null,
       written: style,
     }
   }
@@ -195,5 +196,61 @@ describe('paintBoard', () => {
     expect(() =>
       paintBoard({ panes: new Map(), outlines: new Map(), bands: new Map(), grips: new Map() }, paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 0, 0), [], 15),
     ).not.toThrow()
+  })
+})
+
+describe('gridCropMask', () => {
+  /** The mask's second layer: the hole, which must sit on the crop rect. */
+  const hole = (style: Record<string, string | number>) => {
+    const [size, position] = [String(style.maskSize).split(', ')[1], String(style.maskPosition).split(', ')[1]]
+    return { size, position }
+  }
+
+  it('punches the hole at the largest centred rect of the cell aspect', () => {
+    const m = gridCropMask(600, 400, 1)
+    expect(CROP_MASK_DIM).toBe(0.3)
+    expect(m.rect).toEqual({ x: 100, y: 0, w: 400, h: 400 })
+    expect(hole(m.mask)).toEqual({ size: '400px 400px', position: '100px 0px' })
+    expect(m.mask.maskRepeat).toBe('no-repeat, no-repeat')
+    expect(m.mask.maskComposite).toBe('exclude')
+    expect(m.mask.WebkitMaskComposite).toBe('xor')
+    expect(m.mask.maskImage).toBe('linear-gradient(#000,#000), linear-gradient(#000,#000)')
+    expect(m.mask.WebkitMaskImage).toBe(m.mask.maskImage)
+  })
+
+  it('centres the hole on a tall canvas', () => {
+    const m = gridCropMask(400, 600, 1)
+    expect(m.rect).toEqual({ x: 0, y: 100, w: 400, h: 400 })
+    expect(hole(m.mask)).toEqual({ size: '400px 400px', position: '0px 100px' })
+  })
+
+  it('a square canvas at 1:1 holes the full layer, and exclude then dims nothing', () => {
+    const m = gridCropMask(400, 400, 1)
+    expect(m.rect).toEqual({ x: 0, y: 0, w: 400, h: 400 })
+    expect(hole(m.mask)).toEqual({ size: '400px 400px', position: '0px 0px' })
+  })
+
+  it('matches the cover-fit crop the grid cell draws, at every aspect', () => {
+    // CellPreview and `renderGridCell` cover-fit the collage into the cell
+    // (s = max(cellW/W, cellH/H)) and centre-crop the overflow, so the visible
+    // source rect is cellW/s x cellH/s centred. The mask must name the same rect.
+    const cases: [number, number, number][] = [
+      [600, 400, 1],
+      [400, 600, 1],
+      [1500, 1000, 1],
+      [1000, 1500, 1],
+      [600, 400, 0.8],
+      [600, 400, 1.25],
+      [400, 600, 0.75],
+      [400, 600, 16 / 9],
+    ]
+    for (const [w, h, r] of cases) {
+      const cellW = 200
+      const cellH = cellW / r
+      const s = Math.max(cellW / w, cellH / h)
+      const sw = cellW / s
+      const sh = cellH / s
+      expect(gridCropMask(w, h, r).rect).toEqual({ x: (w - sw) / 2, y: (h - sh) / 2, w: sw, h: sh })
+    }
   })
 })

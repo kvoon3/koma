@@ -15,10 +15,10 @@ import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview, useStageZoom } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
-import { collectBoard, dividerBandStyle, dividerGripStyle, paintBoard, paneDraws } from '../lib/boardPaint'
+import { collectBoard, CROP_MASK_DIM, dividerBandStyle, dividerGripStyle, gridCropMask, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
 import { variantsOf } from '../lib/cutoutVariants'
-import { GRID_CELL_RATIOS } from '../lib/gridTools'
+import { cellRatioValue, GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { setLabelPreviewUnit } from '../lib/labelMetrics'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
@@ -640,6 +640,8 @@ function StageCanvas({
             onClose={onClose}
           />
 
+          <CropMaskLayer view={view} />
+
           <CutoutProgress view={view} />
 
           <BoardInserts
@@ -842,6 +844,25 @@ function PaneLayers({ view, draws, photoById, focusId, paneBorder, crossfade, on
         )
       })}
     </>
+  )
+}
+
+/**
+ * The crop preview: the whole panel dimmed but the rect the parent route's
+ * grid cell crops the collage to. Unmounted entirely while the mode is off.
+ */
+function CropMaskLayer({ view }: { view: Derived }) {
+  const shown = useStore(s => s.cropMaskShown)
+  const cellRatio = useStore(s => cellRatioValue(s.gridCellRatio))
+  if (!shown)
+    return null
+  const { mask } = gridCropMask(view.W, view.H, cellRatio)
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-[2] overflow-hidden"
+      style={{ background: '#000', opacity: CROP_MASK_DIM, ...mask }}
+    />
   )
 }
 

@@ -92,6 +92,43 @@ export function photoBoxStyle(cell: Rect, draw: Rect, leaf: Leaf, iw: number, ih
   return { left: p.x - draw.x, top: p.y - draw.y, width: p.w, height: p.h }
 }
 
+/** The crop preview's dim: how opaque the out-of-window part renders. */
+export const CROP_MASK_DIM = 0.3
+
+/** The crop preview over one canvas: where the grid cell looks, and the dim. */
+export interface GridCropMask {
+  /** The largest `cellRatio`-aspect rect centred in the canvas, in canvas px. */
+  rect: Rect
+  /** The wrapper style: the dim, with `rect` punched out of it. */
+  mask: Record<string, string | number>
+}
+
+/**
+ * The crop preview of the whole panel: dimmed everywhere but the rect the
+ * parent route's grid cell shows. The grid cell (CellPreview, `renderGridCell`)
+ * cover-fits the collage into the cell aspect and centre-crops the overflow, so
+ * its window here is the largest rect of that aspect centred in the canvas.
+ */
+export function gridCropMask(w: number, h: number, cellRatio: number): GridCropMask {
+  const wide = w / h > cellRatio
+  const rect: Rect = wide
+    ? { x: (w - h * cellRatio) / 2, y: 0, w: h * cellRatio, h }
+    : { x: 0, y: (h - w / cellRatio) / 2, w, h: w / cellRatio }
+  const solid = 'linear-gradient(#000,#000)'
+  return {
+    rect,
+    mask: {
+      maskImage: `${solid}, ${solid}`,
+      WebkitMaskImage: `${solid}, ${solid}`,
+      maskSize: `100% 100%, ${rect.w}px ${rect.h}px`,
+      maskPosition: `0 0, ${rect.x}px ${rect.y}px`,
+      maskRepeat: 'no-repeat, no-repeat',
+      maskComposite: 'exclude',
+      WebkitMaskComposite: 'xor',
+    },
+  }
+}
+
 /** The minimap's window onto the photo, as photo fractions. */
 export interface MinimapView {
   x: number
