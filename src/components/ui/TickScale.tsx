@@ -71,6 +71,11 @@ export interface TickScaleProps {
  */
 const FLOAT_UNDERLAY = 'var(--floatBg)'
 
+/**
+ * Paints a scale from the caller's marks and value: the rotate dial's
+ * horizontal full turn and the canvas size rail's vertical range both draw
+ * through it. The caller keeps the pointer mapping and the slider role.
+ */
 export function TickScale({
   ticks,
   value,

@@ -32,7 +32,13 @@ proxy in production. The two secrets and the local check live in
 ## Storybook
 
 The component workshop builds and deploys on its own Worker, separate from the
-app. `wrangler.storybook.jsonc` serves `storybook-static` as `koma-storybook`,
+app. Run it locally with `bun run storybook` (dev server on port 6006). Every
+covered component has a Docs page generated from its JSDoc: the page renders
+the stories, the props table and the component description. The toolbar's
+theme and language menus drive the app's real stores, so a story renders the
+shipped themes and translations.
+
+`wrangler.storybook.jsonc` serves `storybook-static` as `koma-storybook`,
 so a Storybook deploy never touches `koma` or its domain.
 
 ```bash

@@ -9,6 +9,7 @@ function Chip({ on = false, children }: { on?: boolean, children: ReactNode }) {
 const meta = {
   title: 'Library/Chips',
   component: Chip,
+  tags: ['autodocs'],
   args: { children: 'Stickers' },
 } satisfies Meta<typeof Chip>
 

@@ -1,7 +1,6 @@
 import type { Workspace } from '../store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft, Eye, EyeOff, History, Redo2, RotateCcw, Undo2 } from 'lucide'
-import { MorphIcon } from 'morphicons/react'
 import { useRef, useState } from 'react'
 import { canRedo, canUndo } from '../lib/history'
 import { useT } from '../lib/i18n'
@@ -11,11 +10,8 @@ import { viewTransitionOption } from '../lib/viewTransition'
 import { useStore } from '../store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { HistoryPanel } from './HistoryPanel'
+import { Button } from './ui/button'
 import { Tip } from './ui/tip'
-
-// The floating-chrome idiom shared with the pane buttons and the resize
-// handle: ghost, no background and no border, with chip-hover on hover.
-const btnCls = 'pointer-events-auto grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-none text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent disabled:cursor-default disabled:opacity-35 pointer-coarse:h-[38px] pointer-coarse:w-[38px]'
 
 /**
  * Floating page chrome just under the top bar: back-to-grid on the left
@@ -76,18 +72,20 @@ export function FloatActions() {
   return (
     <div className="pointer-events-none absolute inset-0 z-30">
       {!grid && (
-        <Tip
-          label={t('Back to the grid · G')}
-          trigger={(
-            <button
-              className={`${btnCls} absolute left-2.5 top-2.5`}
-              aria-label={t('Back to the grid')}
-              onClick={goGrid}
-            >
-              <MorphIcon icon={ArrowLeft} size={15} strokeWidth={1.75} />
-            </button>
-          )}
-        />
+        <div className="pointer-events-auto absolute left-2.5 top-2.5">
+          <Tip
+            label={t('Back to the grid · G')}
+            trigger={(
+              <Button
+                variant="ghost"
+                icon={ArrowLeft}
+                iconSize={15}
+                aria-label={t('Back to the grid')}
+                onClick={goGrid}
+              />
+            )}
+          />
+        </div>
       )}
 
       {/* Right cluster: undo / redo of the board, then reset last at the corner.
@@ -99,43 +97,46 @@ export function FloatActions() {
         <Tip
           label={t('Undo · ⌘Z')}
           trigger={(
-            <button
-              className={btnCls}
+            <Button
+              variant="ghost"
+              className="pointer-events-auto"
+              icon={Undo2}
+              iconSize={15}
               aria-label={t('Undo')}
               disabled={!undoable}
               onClick={() => useStore.getState().undo()}
-            >
-              <MorphIcon icon={Undo2} size={15} strokeWidth={1.75} />
-            </button>
+            />
           )}
         />
 
         <Tip
           label={t('Redo · ⌘⇧Z')}
           trigger={(
-            <button
-              className={btnCls}
+            <Button
+              variant="ghost"
+              className="pointer-events-auto"
+              icon={Redo2}
+              iconSize={15}
               aria-label={t('Redo')}
               disabled={!redoable}
               onClick={() => useStore.getState().redo()}
-            >
-              <MorphIcon icon={Redo2} size={15} strokeWidth={1.75} />
-            </button>
+            />
           )}
         />
 
         <Tip
           label={t('History · all steps')}
           trigger={(
-            <button
+            <Button
               ref={historyAnchorRef}
-              className={`${btnCls} ${historyOpen ? 'text-txt shadow-[inset_0_-2px_0_var(--accent)]' : ''}`}
+              variant="ghost"
+              className={`pointer-events-auto${historyOpen ? ' text-txt shadow-[inset_0_-2px_0_var(--accent)]' : ''}`}
+              icon={History}
+              iconSize={15}
               aria-label={t('History')}
               aria-expanded={historyOpen}
               onClick={() => setHistoryOpen(open => !open)}
-            >
-              <MorphIcon icon={History} size={15} strokeWidth={1.75} />
-            </button>
+            />
           )}
         />
 
@@ -145,14 +146,15 @@ export function FloatActions() {
           <Tip
             label={cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')}
             trigger={(
-              <button
-                className={btnCls}
+              <Button
+                variant="ghost"
+                className="pointer-events-auto"
+                icon={cropMaskShown ? EyeOff : Eye}
+                iconSize={15}
                 aria-label={cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')}
                 aria-pressed={cropMaskShown}
                 onClick={() => useStore.getState().setCropMaskShown(!cropMaskShown)}
-              >
-                <MorphIcon icon={cropMaskShown ? EyeOff : Eye} size={15} strokeWidth={1.75} />
-              </button>
+              />
             )}
           />
         )}
@@ -160,14 +162,15 @@ export function FloatActions() {
         <Tip
           label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
           trigger={(
-            <button
-              className={btnCls}
+            <Button
+              variant="ghost"
+              className="pointer-events-auto"
+              icon={RotateCcw}
+              iconSize={15}
               aria-label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
               disabled={!resettable}
               onClick={() => setResetAsk(true)}
-            >
-              <MorphIcon icon={RotateCcw} size={15} strokeWidth={1.75} />
-            </button>
+            />
           )}
         />
       </div>

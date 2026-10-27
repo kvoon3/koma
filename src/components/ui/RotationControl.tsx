@@ -60,6 +60,11 @@ const TRACK_H = 34
 const dialBaseCls = 'relative w-full touch-none select-none'
 const btnCls = 'box-border flex h-[22px] cursor-pointer items-center justify-center gap-1 rounded-none border border-line-strong bg-panel-2 px-1.5 text-[11px] text-dim hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent aria-pressed:border-accent aria-pressed:text-accent disabled:cursor-default disabled:opacity-35'
 
+/**
+ * The rotation dial the pane tools mount: drag to turn, tap the reading to
+ * reset, arrow keys to step. It takes a value in radians and reports a value,
+ * so the pane owns the photo state and the dial owns the gesture.
+ */
 export function RotationControl({ value, onChange, label, disabled = false, className = '' }: RotationControlProps) {
   const t = useT()
   /** The quantized path: whole degrees instead of the stepless drag. Alt engages it mid-drag. */

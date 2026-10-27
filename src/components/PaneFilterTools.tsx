@@ -236,7 +236,14 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   const filter = useStore(s => focusedLeaf(s)?.filter)
   const photo = useStore(s => (photoId ? s.photos.find(p => p.id === photoId) ?? null : null))
   const setPaneFilter = useStore(s => s.setPaneFilter)
-  const [open, setOpen] = useState(false)
+  /**
+   * Openings counted, not mirrored. The popover is uncontrolled like the
+   * rotate dial's, so its open state dies with the subtree the hide gate
+   * unmounts. A stage press deselects mid-dispatch and no close event
+   * arrives (issue #76), so no popup-lifetime value may live above that
+   * gate. A bump always re-measures.
+   */
+  const [openCount, bumpOpenCount] = useState(0)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const viewport = useSyncExternalStore(subscribeViewport, viewportKey, () => '0x0')
 
@@ -244,13 +251,13 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
    * The dock is a bottom sheet overlaying the stage, so "above the trigger" is
    * not "above the dock": at a short window the palette's lower rows land under
    * the sheet's chrome. Anchor the popup above the sheet's top edge instead, and
-   * cap its height to the room over that edge. Measured while open, and again
-   * whenever the window resizes (the sheet only changes size when the dock's
-   * mode does, and that tap closes the popover first).
+   * cap its height to the room over that edge. Measured at every opening, and
+   * again whenever the window resizes (the sheet only changes size when the
+   * dock's mode does, and that tap closes the popover first).
    */
   const bounds = useMemo(() => {
     const trigger = triggerRef.current
-    if (!open || !trigger)
+    if (!trigger)
       return null
     const t = trigger.getBoundingClientRect()
     const sheet = trigger.closest('[data-dock-mode]')
@@ -262,7 +269,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
       offset: Math.max(6, Math.round(t.top - sheetTop) + 6),
       maxH: Math.max(180, Math.min(560, Math.round(sheetTop) - 16, room - 16)),
     }
-  }, [open, viewport])
+  }, [openCount, viewport])
 
   // Same rule as the pane tools: no focused pane holding a photo, no tool.
   if (hidden || !photoId || !photo)
@@ -278,7 +285,11 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   }
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root onOpenChange={(next) => {
+      if (next)
+        bumpOpenCount(n => n + 1)
+    }}
+    >
       <Popover.Trigger
         ref={triggerRef}
         className={`${toolsBtnCls} ${dockBtnStateCls}`}

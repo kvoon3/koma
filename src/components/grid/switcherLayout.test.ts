@@ -246,4 +246,30 @@ describe('recedeFit', () => {
       expect(fit.columnTop).toBeGreaterThanOrEqual(stripTop + stripH)
     }
   })
+
+  test('a measured dock band moves the rest position the recede departs from', () => {
+    // The component measures the sheet's real band and hands it in as dockH.
+    // The recede must centre on that same rest position (boardColumn with the
+    // same dockH), or the morph would start with a jump; a band narrower than
+    // the constant must lower the column as the rest geometry predicts.
+    const stageH = 869
+    const boardH = 362
+    const { stripTop, stripH } = switcherMetrics(stageH)
+    const band = 129
+    const fit = recedeFit({ stageH, boardH, stripTop, stripH, dockH: band })
+    const column = boardColumn(stageH, boardH, STAGE_PAD_Y, band)
+    const centre = column.top + column.h / 2
+    const naturalTop = centre - (column.h / 2) * fit.scale
+    expect(fit.columnTop).toBeCloseTo(naturalTop + fit.translateY, 6)
+    // Narrower band than the constant: the column sits lower, by half the
+    // difference (a centred column in a taller area).
+    const rest = boardColumn(stageH, boardH)
+    expect(column.top).toBeCloseTo(rest.top + (DOCK_CHROME_H - band) / 2, 6)
+    // And the receded board still clears the strip.
+    expect(fit.columnTop).toBeGreaterThanOrEqual(stripTop + stripH + RECEDE_GAP)
+  })
+
+  test('the dockH default is the constant, so old callers are unmoved', () => {
+    expect(boardColumn(869, 362)).toEqual(boardColumn(869, 362, STAGE_PAD_Y, DOCK_CHROME_H))
+  })
 })

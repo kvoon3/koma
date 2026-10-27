@@ -151,15 +151,20 @@ export function useThumb(photo: Photo, visible: boolean): string | null {
   return url
 }
 
+/**
+ * A live element box: `w`/`h` are the client size, `top` the viewport Y of the
+ * box's top edge. Seating content against chrome that overlays the element
+ * (the tools sheet over the stage) needs both the size and where it starts.
+ */
 export function useElementSize<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
-  const [size, setSize] = useState({ w: 0, h: 0 })
+  const [size, setSize] = useState({ w: 0, h: 0, top: 0 })
 
   useLayoutEffect(() => {
     const el = ref.current
     if (!el)
       return
-    const update = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    const update = () => setSize({ w: el.clientWidth, h: el.clientHeight, top: el.getBoundingClientRect().top })
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
@@ -343,6 +348,40 @@ function useChromeEdge(selector: string, edge: 'top' | 'bottom'): number | null 
  */
 export function useToolsSheetTop(): number | null {
   return useChromeEdge('[data-dock-mode]', 'top')
+}
+
+/** `useDockRestBand`'s fallback while nothing has measured yet. */
+const DOCK_CHROME_FALLBACK = 144
+
+/**
+ * The tools sheet's band over a full-height stage: the stage height the sheet
+ * covers (its bottom is the viewport floor), measured from the stage's own
+ * top edge. The board is sized and centred above this band.
+ *
+ * While the switcher holds the overview's stage the dock is put away and its
+ * sheet rests lower than its seated height, so the band freezes at its last
+ * resting value: the receded board stays where the zoom-out left it, and the
+ * close morph never sees the board chase a moving floor.
+ *
+ * `docked` is the condition to freeze on. Held as one piece of state (the
+ * frozen band, null while live) rather than a frozen flag plus a value, so a
+ * flip of the condition is a single update.
+ */
+export function useDockRestBand(stageH: number, stageTop: number, docked: boolean): number {
+  const sheetTop = useToolsSheetTop()
+  const measured = sheetTop == null
+    ? null
+    : Math.max(0, Math.min(stageH, stageH - (sheetTop - stageTop)))
+  const [frozen, setFrozen] = useState<number | null>(null)
+  // Capture at the flip into the docked state, while the measured band still
+  // holds the seated value (the put-away translate lands after, per frame
+  // through the observer). Release once the sheet has sprung back to the
+  // frozen band; until then the reserve holds and the floor never moves.
+  if (docked && frozen == null)
+    setFrozen(measured ?? DOCK_CHROME_FALLBACK)
+  else if (!docked && frozen != null && measured != null && measured >= frozen - 0.5)
+    setFrozen(null)
+  return frozen ?? measured ?? DOCK_CHROME_FALLBACK
 }
 
 /**

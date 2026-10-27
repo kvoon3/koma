@@ -20,6 +20,12 @@ function ToastList() {
   ))
 }
 
+/**
+ * The toast surface: mounts the shared `toastManager` and renders its stack in
+ * the bottom-right corner, above the status bar. Every confirmation the app
+ * speaks through `say` lands here (a save, a reset, an export failure), so the
+ * stack's place, width and dismissal stay one component.
+ */
 export default function ToastHost() {
   return (
     <Toast.Provider toastManager={toastManager}>

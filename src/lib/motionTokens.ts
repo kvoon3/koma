@@ -13,3 +13,15 @@ export const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1]
 
 /** The same curve in the shape WAAPI (and CSS) take it. */
 export const EASE_OUT_CSS = `cubic-bezier(${EASE_OUT.join(', ')})`
+
+/**
+ * The symmetric ease shape, gentle in and out. A tween whose per-item
+ * stagger is the point (the dock's display band, lib/dockBand) must map time
+ * to progress almost evenly: a strong ease-out spends most of the distance in
+ * the first frames and every window opens at once, which reads as a wave, not
+ * a cascade. This shape's peak slope stays ~1.7x the average, so with the
+ * duration the schedule picks, window openings keep a frame to themselves at
+ * 60 fps through 24 tools (measured, lib/dockBand.test.ts). The per-item
+ * curve supplies the character; this one only paces it.
+ */
+export const EASE_IN_OUT: [number, number, number, number] = [0.45, 0.05, 0.55, 0.95]

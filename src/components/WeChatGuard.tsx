@@ -5,7 +5,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { isWeChat, tryOpenInBrowser, weChatPlatform } from '../lib/browser'
 import { useT } from '../lib/i18n'
-import { buttonBase, buttonVariants, dialogButton } from './ui/buttonStyles'
+import { buttonBase, buttonVariants, dialogAccentButton, dialogButton } from './ui/buttonStyles'
 
 /**
  * Asked once per tab session: stay in WeChat, or leave for the system browser.
@@ -81,7 +81,7 @@ export function WeChatGuard() {
               <AlertDialog.Close className={`${dialogButton} border-line bg-transparent text-txt hover:bg-chip-hover`} onClick={stay}>
                 {t('Continue anyway')}
               </AlertDialog.Close>
-              <AlertDialog.Close className={`${dialogButton} border-accent bg-accent font-semibold text-on-accent hover:bg-accent hover:text-on-accent`} onClick={toBrowser}>
+              <AlertDialog.Close className={dialogAccentButton} onClick={toBrowser}>
                 {t('Open in browser')}
               </AlertDialog.Close>
             </div>
