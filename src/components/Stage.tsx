@@ -490,7 +490,13 @@ export function Stage() {
       }}
       // A double-click on the stage margin (the empty air around the canvas)
       // fits the view again; on the canvas it stays the pane's own reset.
-      onDoubleClick={stageZoom.onStageDoubleClick}
+      // Portaled popups bubble here the same way their pointerdowns do, and
+      // they are not stage presses either.
+      onDoubleClick={(e) => {
+        if (!wrapRef.current?.contains(e.target as HTMLElement))
+          return
+        stageZoom.onStageDoubleClick(e)
+      }}
     >
       <DeleteZone label={t('Drop here to delete')} />
       <MinimapHostContext value={minimapHost}>
