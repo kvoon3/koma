@@ -1,8 +1,7 @@
 /// <reference types="bun" />
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
+import { JEV_PROXY_PATH } from '../src/lib/jev'
 import { MAX_BODY_BYTES, proxy } from './_jev'
-
-const JEV_PATH = '/api/jev'
 
 interface Received {
   method: string
@@ -79,7 +78,7 @@ function jsonRequest(
   headers: Record<string, string> = { 'content-type': 'application/json' },
   body: BodyInit = JSON.stringify(REQUEST_BODY),
 ): Request {
-  return new Request(`https://app.example${JEV_PATH}`, { method: 'POST', headers, body })
+  return new Request(`https://app.example${JEV_PROXY_PATH}`, { method: 'POST', headers, body })
 }
 
 describe('the proxy forwards the JSON and owns the key', () => {
@@ -112,7 +111,7 @@ describe('the proxy forwards the JSON and owns the key', () => {
   })
 
   test('query parameters cannot choose the upstream', async () => {
-    const request = new Request(`https://app.example${JEV_PATH}?url=https://evil.example/steal`, {
+    const request = new Request(`https://app.example${JEV_PROXY_PATH}?url=https://evil.example/steal`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(REQUEST_BODY),
@@ -153,7 +152,7 @@ describe('the boundaries', () => {
         controller.enqueue(chunk)
       },
     })
-    const request = new Request(`https://app.example${JEV_PATH}`, { method: 'POST', body: stream, duplex: 'half' } as RequestInit)
+    const request = new Request(`https://app.example${JEV_PROXY_PATH}`, { method: 'POST', body: stream, duplex: 'half' } as RequestInit)
     expect(request.headers.get('content-length')).toBeNull()
     const response = await call(request)
     expect(response.status).toBe(413)
