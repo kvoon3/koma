@@ -29,6 +29,9 @@ Where a note conflicts with a poteto default, the note wins.
   leak a seeded photo into the next file's boot snapshot, and the result depends
   on file order.
 - `bun run test:shuffle` catches tests that lean on another file's leftovers.
+- Deploy is manual (`bun run deploy`, which is `void deploy`). `void.config.ts`
+  owns the Cloudflare config; never check in a root `wrangler*.jsonc`. Deploy,
+  secrets and rollback steps live in `docs/void.md`.
 
 ## UI
 
@@ -36,7 +39,8 @@ Where a note conflicts with a poteto default, the note wins.
   the worktree's `node_modules` plus the cached Chromium; seed state via `window.__collage`.
 - Screenshot at 375×812 and 1280×900 before push, plus 1280×600 and 915×412 when
   geometry changes. A vision-capable agent (Herdr `judge` when available) reviews the PNGs.
-- Cloudflare deploys main on merge. Merging is irreversible: only on an explicit ask.
+- Deploy is manual (see `docs/void.md`); nothing auto-deploys a merge. Merging
+  is irreversible: only on an explicit ask.
 
 ## Worktrees and branches
 
