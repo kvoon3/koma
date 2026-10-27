@@ -539,8 +539,9 @@ function groutWidth(tile: number, pitch: number, r: number): number {
 export const GROUT_INK: RGB = [30, 28, 26]
 
 /** A 1-bit screen's two tones: our ink, and the paper it sits on. */
-const SCREEN_INK: RGB = [22, 21, 20]
-const SCREEN_PAPER: RGB = [246, 244, 239]
+/** The two screen tones every screen-process filter prints with. */
+export const SCREEN_INK: RGB = [22, 21, 20]
+export const SCREEN_PAPER: RGB = [246, 244, 239]
 
 /**
  * The halftone's radius per unit of coverage: 1/√π, so a dot covers exactly its
@@ -1112,8 +1113,8 @@ function bayerColor(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h
  * (luma 127.5) instead, which prints midtones ~2% bright against these warm
  * inks. The levels are the definition of FS, not a dial to harmonise.
  */
-const DIFFUSE_INK_L = 0.2126 * SCREEN_INK[0] + 0.7152 * SCREEN_INK[1] + 0.0722 * SCREEN_INK[2]
-const DIFFUSE_PAPER_L = 0.2126 * SCREEN_PAPER[0] + 0.7152 * SCREEN_PAPER[1] + 0.0722 * SCREEN_PAPER[2]
+const DIFFUSE_INK_L = luma(SCREEN_INK[0], SCREEN_INK[1], SCREEN_INK[2])
+const DIFFUSE_PAPER_L = luma(SCREEN_PAPER[0], SCREEN_PAPER[1], SCREEN_PAPER[2])
 
 /**
  * Floyd–Steinberg error diffusion, monochrome: each site is quantised to one of
