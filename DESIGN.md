@@ -660,6 +660,36 @@ library.
   still on screen; they are released once the close transition has finished
   painting (`onOpenChangeComplete`), below the close animation's paint.
 
+### Zoom and the minimap (`lib/exportView.ts`, `components/ExportPreview.tsx`)
+
+A 2048-long-side export lands in a ~696 × 560 stage at about 0.34 CSS px per
+image px, fine for the whole board and useless for a seam. So the still zooms,
+and the view is `{scale, cx, cy}` in IMAGE FRACTIONS: `cx`,`cy` is the image
+point under the viewport's centre. Fractions make a resize, a rotation and a
+scroll free, because the transform and the minimap's window are re-derived from
+the same three numbers; only their legality depends on the box. One private
+clamp (`clampExportView`) is where the write and the read path both end, so a
+view a resize made stale is re-clamped on the way out, not fixed by an effect.
+`zoomed`, the presence of `transform` and the viewport's `touch-none` class are
+one predicate, so a fitted render cannot own the pointer.
+
+The top of the range is the native-pixel rule, not a round number: at fit an
+image pixel is `fit / image` CSS px, so 1:1 is `1 / fitRatio`, capped at 8. An
+export already drawn larger than its own pixels has a ceiling of 1, so the
+feature stays inert for it: the right answer for an inspection tool.
+
+The save path shapes every gesture. Handlers sit on the viewport div, never on
+the img, and at fit a single pointer gets no capture and no `preventDefault`, so
+the img keeps its long-press sheet and its desktop drag. `preventDefault` runs at
+exactly three places: the wheel, and a pointerdown that starts a pan or a pinch.
+A non-passive `touchstart`/`touchmove` also refuses the page zoom while two
+touches are down, because a pinch that starts at fit begins under
+`touch-action: auto`. The chip seats top-right and returns to fit; the minimap
+seats bottom-right, its rect drawn from the same window as the transform. The
+lifecycle is React's key alone: `ExportPreview` mounts with `key={item?.url}`,
+and a new run, a strip switch and a close all change that identity, so there is
+no reset API, no store field and no history step.
+
 ## Library (`#/library`)
 
 Photos and stickers share one page. The header owns the back chip, the title,
