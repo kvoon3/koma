@@ -19,7 +19,7 @@
     "i18n": "x18n check",
     "lint": "eslint . --cache --cache-strategy content --concurrency off",
     "lint:fix": "eslint . --fix --cache --cache-strategy content --concurrency off",
-    "check-types": "bun check",
+    "check-types": "bun check && tsc -p tsconfig.void.json",
     "test": "bun test --check --isolate src routes",
     "test:shuffle": "bun test --check --isolate --randomize src routes",
     "ci": "bun run --no-exit-on-error --parallel lint test i18n build",
