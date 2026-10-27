@@ -29,6 +29,9 @@ Where a note conflicts with a poteto default, the note wins.
 - Screenshot at 375×812 and 1280×900 before push, plus 1280×600 and 915×412 when
   geometry changes. A vision-capable agent (Herdr `judge` when available) reviews the PNGs.
 - Cloudflare deploys main on merge. Merging is irreversible: only on an explicit ask.
+- A PR touching `src/**` or `.storybook/**` gets a Storybook docs preview comment
+  (`.github/workflows/storybook-preview.yml`); the workshop itself deploys by hand with
+  `bun run deploy:storybook`.
 
 ## Worktrees and branches
 

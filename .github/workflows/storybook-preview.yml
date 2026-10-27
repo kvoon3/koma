@@ -1,0 +1,93 @@
+# Deploy a Storybook docs preview for every PR that touches the components or
+# the workshop, and keep one comment on the PR pointing at it.
+#
+# `wrangler versions upload` ships an immutable preview version of the
+# `koma-storybook` Worker and prints its own `*.workers.dev` URL, so the
+# comment always lands on the exact build of that commit; production
+# (koma-storybook.kvoon.workers.dev) keeps deploying by hand on merge.
+#
+# The Cloudflare secrets are the only setup this needs: a token with Workers
+# Scripts:Edit for the account, and the account id. Without them the deploy
+# step skips with a warning instead of failing the PR.
+
+name: Storybook preview
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - '.storybook/**'
+      - package.json
+      - bun.lock
+      - wrangler.storybook.jsonc
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# One preview per PR: a new commit cancels the run for the stale one.
+concurrency:
+  group: storybook-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run build-storybook
+
+      - name: Upload the preview version
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN is not set - skipping the storybook preview deploy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          out=$(bunx wrangler versions upload --config wrangler.storybook.jsonc \
+            --message "PR #${{ github.event.pull_request.number }} @ ${{ github.event.pull_request.head.sha }}" 2>&1)
+          echo "$out"
+          url=$(echo "$out" | grep -oE 'https://[a-z0-9-]+\.koma-storybook\.kvoon\.workers\.dev' | head -1)
+          if [ -z "$url" ]; then
+            echo "::error::No preview URL in the wrangler output."
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the preview URL
+        if: steps.deploy.outputs.skip != 'true'
+        uses: actions/github-script@v8
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- koma-storybook-preview -->'
+            const body = [
+              marker,
+              `📚 Storybook docs preview for ${context.sha.slice(0, 7)}`,
+              '',
+              process.env.PREVIEW_URL,
+              '',
+              'Every push to this PR updates this comment; older preview URLs stay alive for their own build.',
+            ].join('\n')
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+            })
+            const existing = comments.find(c => c.body.includes(marker))
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body })
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body })
+            }
