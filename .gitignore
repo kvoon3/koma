@@ -9,6 +9,7 @@ build
 .turbo
 .eslintcache
 .dev.vars
+.env
 .wrangler
 .void
 .void-wrangler.jsonc

@@ -1,5 +1,5 @@
 import { defineHandler } from 'void'
-import { env } from 'void/env'
+import { env } from '../../env'
 import { proxy } from '../_jev'
 
 // Only POST is exported. Other methods on this path fall through to the SPA
