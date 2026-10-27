@@ -82,10 +82,6 @@ function jsonRequest(
   return new Request(`https://app.example${JEV_PATH}`, { method: 'POST', headers, body })
 }
 
-function apiRequest(method = 'POST', headers: Record<string, string> = {}, body?: BodyInit): Request {
-  return new Request(`https://app.example${JEV_PATH}`, { method, headers, body })
-}
-
 describe('the proxy forwards the JSON and owns the key', () => {
   test('the body crosses unchanged with the server Authorization', async () => {
     const response = await call(jsonRequest({ 'content-type': 'application/json', 'authorization': 'Bearer client-key' }))
@@ -139,7 +135,7 @@ describe('the boundaries', () => {
 
   test('a body above the cap answers 413 and calls nothing', async () => {
     const body = new Uint8Array(MAX_BODY_BYTES + 1)
-    const response = await call(apiRequest('POST', {}, body))
+    const response = await call(jsonRequest({}, body))
     expect(response.status).toBe(413)
     expect(calls).toBe(0)
   })
