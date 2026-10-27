@@ -7,7 +7,7 @@ import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, pointerWithi
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Image, Square, Type } from 'lucide'
+import { Camera, Image, LayoutGrid, Square, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useDockRestBand, useElementSize, useMediaQuery, useStageZoom } from '../hooks'
@@ -22,7 +22,6 @@ import { prefersReducedMotion, viewTransitionOption } from '../lib/viewTransitio
 import { MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
 import { DeleteZone } from './DeleteZone'
-import { BoardCaption } from './grid/BoardCaption'
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
 import { CAPTION_GAP, CAPTION_H, RECEDE_BLUR, RECEDE_OPACITY, recedeFit, STAGE_PAD_Y, stageTopPad, switcherMetrics } from './grid/switcherLayout'
 import { useBoardPager } from './grid/useBoardPager'
@@ -33,7 +32,9 @@ import { useSwitcherMorph } from './grid/useSwitcherMorph'
 import { PagerSurface, WorkspaceSwitcher } from './grid/WorkspaceSwitcher'
 import { DockToolset } from './Stage'
 import { ToolsDock } from './ToolsDock'
+import { Button } from './ui/button'
 import { menuItemCls, menuPopupCls } from './ui/menu'
+import { Tip } from './ui/tip'
 import { ViewZoomChip } from './ViewZoomChip'
 
 /** Side air the stage keeps around a board (both sides together). */
@@ -311,17 +312,37 @@ export function WorkspaceGrid() {
                 pointerEvents: switcher ? 'none' : undefined,
               }}
             >
-              <BoardCaption
-                width={boardW}
-                height={CAPTION_H}
-                snapshotDisabled={!anyFilled || busy || snapBusy}
-                snapshotBusy={snapBusy}
-                onOpenSwitcher={() => morphSwitcher(true)}
-                onSnapshot={() => {
-                  setSnapBusy(true)
-                  void exportGridCells().finally(() => setSnapBusy(false))
-                }}
-              />
+              <div className="flex items-center justify-center gap-1.5" style={{ width: boardW, height: CAPTION_H }}>
+                <Tip
+                  label={t('Workspace')}
+                  trigger={(
+                    <Button
+                      variant="float"
+                      icon={LayoutGrid}
+                      iconSize={15}
+                      aria-label={t('Workspace')}
+                      onClick={() => morphSwitcher(true)}
+                    />
+                  )}
+                />
+                <Tip
+                  label={t('Snapshot: each cell plus the whole grid')}
+                  trigger={(
+                    <Button
+                      variant="float"
+                      icon={Camera}
+                      iconSize={15}
+                      loading={snapBusy}
+                      disabled={!anyFilled || busy || snapBusy}
+                      aria-label={t('Snapshot: each cell plus the whole grid')}
+                      onClick={() => {
+                        setSnapBusy(true)
+                        void exportGridCells().finally(() => setSnapBusy(false))
+                      }}
+                    />
+                  )}
+                />
+              </div>
               <div
                 ref={boardRef}
                 data-board=""
