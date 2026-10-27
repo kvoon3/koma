@@ -8,10 +8,19 @@ handlers, and `env.ts` declares the server values. There is no root
 
 ## Deploy
 
-Run `bun run deploy`. It is `void deploy`, which runs the build step named
-in `inference.build` (the repo's `bun run build:void`, typecheck included,
-whose output lands in `dist/client` + `dist/ssr`), uploads the worker with
-the `routes/` handlers, and activates it on `koma.kvoon.me`. The plain
+A push to `main` deploys automatically. `.github/workflows/void-deploy.yml`
+(void's own Actions template, github_actions executor) runs
+`bunx void deploy --platform cloudflare` on every push to main and needs one
+repository secret: `CLOUDFLARE_API_TOKEN` (scoped to editing this Worker).
+The config carries `cloudflare.account_id` because the fresh checkout has
+none of the gitignored `.void/` state. Until this stack merges, the legacy
+Workers Builds integration still deploys every merge bare; see Gotchas.
+
+`bun run deploy` is the manual path. It is `void deploy`, which runs the
+build step named in `inference.build` (the repo's `bun run build:void`,
+typecheck included, whose output lands in `dist/client` + `dist/ssr`),
+uploads the worker with the `routes/` handlers, and activates it on
+`koma.kvoon.me`. The plain
 `bun run build` stays client-shaped (a root `dist/index.html`) because the
 mygo desktop shell and `scripts/jev-e2e.mjs` consume that layout; only the
 `--mode void` build runs `voidPlugin()`.
