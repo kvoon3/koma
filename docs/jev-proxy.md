@@ -6,8 +6,9 @@ route `POST /api/jev`. The Worker forwards the JSON body unchanged to
 `JEV_API_URL` with `Authorization: Bearer <JEV_API_KEY>`, then returns the
 upstream status, content type and body. The client cannot choose the upstream.
 
-The Worker accepts only POST, caps the body at 64 KiB, and gives the upstream
-20 seconds before it answers 504. Without both secrets the route answers 503.
+The route serves POST and caps the body at 64 KiB, and gives the upstream
+20 seconds before it answers 504. Other methods fall through to the SPA
+shell. Without both secrets the route answers 503.
 
 ## When the pick runs
 
@@ -79,31 +80,27 @@ that the user can change. A low-confidence answer applies like any other.
 ## Deploy the secrets
 
 Set both on the Worker. Never put the key in a `VITE_` variable that a build can
-inline.
+inline. The commands live in `docs/void.md` (void owns the pipeline now):
 
 ```bash
-npx wrangler secret put JEV_API_URL
-npx wrangler secret put JEV_API_KEY
+bunx void secret put JEV_API_URL
+bunx void secret put JEV_API_KEY
 ```
 
 ## Test the proxy locally
 
-```bash
-bun run build
-npx wrangler dev
-curl -X POST http://127.0.0.1:8787/api/jev \
-  -H 'content-type: application/json' \
-  --data @request.json
-```
-
-Without both secrets the route answers 503. A direct request from this machine
-is answered 451, so a local run points `JEV_API_URL` at `scripts/jev-mock.mjs`
-in a gitignored `.dev.vars`. The deployed Worker reaches the real endpoint.
+`bun run dev` serves `routes/` in Cloudflare's runtime, so the proxy answers
+on the dev server itself (see `docs/void.md`). Without both secrets the route
+answers 503. A direct request from this machine is answered 451, so a local
+run points `JEV_API_URL` at `scripts/jev-mock.mjs` in a root `.env`
+(`.dev.vars` is not supported). The deployed Worker reaches the real endpoint.
 
 ```ini
 JEV_API_URL=http://127.0.0.1:4319/v1/systemone
 JEV_API_KEY=mock
 ```
+
+The end-to-end flow (build, mock upstream, browser) is `bun scripts/jev-e2e.mjs`.
 
 ## Client overrides
 
