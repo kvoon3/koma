@@ -14,6 +14,8 @@ import {
   GROUT_RATIO,
   resolveFilter,
   sameFilter,
+  SCREEN_INK,
+  SCREEN_PAPER,
   stagePitch,
 } from './filters'
 
@@ -568,8 +570,8 @@ describe('ordered dither', () => {
 
 describe('error diffusion', () => {
   /** The screen tones' luma, the levels the recipe quantises between. */
-  const INK_L = 0.2126 * 22 + 0.7152 * 21 + 0.0722 * 20
-  const PAPER_L = 0.2126 * 246 + 0.7152 * 244 + 0.0722 * 239
+  const INK_L = 0.2126 * SCREEN_INK[0] + 0.7152 * SCREEN_INK[1] + 0.0722 * SCREEN_INK[2]
+  const PAPER_L = 0.2126 * SCREEN_PAPER[0] + 0.7152 * SCREEN_PAPER[1] + 0.0722 * SCREEN_PAPER[2]
 
   /**
    * The ink count the Floyd–Steinberg walk itself must produce on a 32×32 flat
@@ -618,10 +620,10 @@ describe('error diffusion', () => {
     // residual only deepens the neighbours; above the paper's, the mirror.
     const dark = flat(16, 16, [10, 10, 10])
     applyFilter(dark, { id: 'ditherDiffuse', block: 1 }, 0)
-    expect(dark.data.every((v, i) => i % 4 === 3 || v === [22, 21, 20][i % 4])).toBe(true)
+    expect(dark.data.every((v, i) => i % 4 === 3 || v === SCREEN_INK[i % 4])).toBe(true)
     const light = flat(16, 16, [250, 250, 250])
     applyFilter(light, { id: 'ditherDiffuse', block: 1 }, 0)
-    expect(light.data.every((v, i) => i % 4 === 3 || v === [246, 244, 239][i % 4])).toBe(true)
+    expect(light.data.every((v, i) => i % 4 === 3 || v === SCREEN_PAPER[i % 4])).toBe(true)
   })
 
   it('is byte-identical for the same input, and ignores the seed', () => {

@@ -1,19 +1,18 @@
 /**
- * The Jev proxy. The API key is a Worker secret, so it never enters the
- * public bundle. The client posts JSON to `/api/jev`, this handler swaps the
- * Authorization header for the server key, and the upstream status, content
- * type and body pass back; other headers are dropped.
+ * The Jev proxy logic, shared by the route and its tests. The leading
+ * underscore keeps the router from serving this file as a route.
  *
- * The upstream URL is always `JEV_API_URL`. Nothing on the request can change
- * where the body goes. This module exports only the handler; see `config.ts`.
+ * The API key is a server value, so it never enters the public bundle. The
+ * client posts JSON to `/api/jev`, this module swaps the Authorization header
+ * for the server key, and the upstream status, content type and body pass
+ * back; other headers are dropped. The upstream URL is always the configured
+ * one. Nothing on the request can change where the body goes.
  */
-import { JEV_PATH, MAX_BODY_BYTES, UPSTREAM_TIMEOUT_MS } from './config'
 
-export interface Env {
-  ASSETS: { fetch: (request: Request) => Promise<Response> }
-  JEV_API_URL?: string
-  JEV_API_KEY?: string
-}
+/** A label icon request is a few KB of JSON; the cap bounds an abusive client. */
+export const MAX_BODY_BYTES = 64 * 1024
+
+const UPSTREAM_TIMEOUT_MS = 20_000
 
 type BodyRead
   = | { ok: true, body: ArrayBuffer }
@@ -73,12 +72,13 @@ function configuredUrl(raw: string | undefined): URL | null {
   }
 }
 
-async function proxy(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST')
-    return json(405, { error: 'method not allowed' }, { allow: 'POST' })
-
-  const upstream = configuredUrl(env.JEV_API_URL)
-  const key = env.JEV_API_KEY?.trim()
+export async function proxy(
+  request: Request,
+  rawUrl: string | undefined,
+  rawKey: string | undefined,
+): Promise<Response> {
+  const upstream = configuredUrl(rawUrl)
+  const key = rawKey?.trim()
   if (!upstream || !key)
     return json(503, { error: 'unconfigured' })
 
@@ -117,11 +117,4 @@ async function proxy(request: Request, env: Env): Promise<Response> {
   if (upstreamType)
     out['content-type'] = upstreamType
   return new Response(response.body, { status: response.status, headers: out })
-}
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const { pathname } = new URL(request.url)
-    return pathname === JEV_PATH ? proxy(request, env) : env.ASSETS.fetch(request)
-  },
 }
