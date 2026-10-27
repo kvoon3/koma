@@ -41,9 +41,12 @@ Where a note conflicts with a poteto default, the note wins.
   the worktree's `node_modules` plus the cached Chromium; seed state via `window.__collage`.
 - Screenshot at 375×812 and 1280×900 before push, plus 1280×600 and 915×412 when
   geometry changes. A vision-capable agent (Herdr `judge` when available) reviews the PNGs.
-- Deploy is manual (see `docs/void.md`). Until the void stack lands, a
-  Cloudflare Workers Builds integration also deploys every `main` merge bare
-  from the in-tree wrangler.jsonc; merging
+- Once the void stack lands, every push to main auto-deploys through
+  `.github/workflows/void-deploy.yml` (void; needs the
+  `CLOUDFLARE_API_TOKEN` repo secret). `bun run deploy` is the manual path
+  (see `docs/void.md`). Before it lands, a Cloudflare Workers Builds
+  integration deploys every main merge bare and its builds fail once the
+  root wrangler.jsonc is gone; disconnect it when convenient. Merging
   is irreversible: only on an explicit ask.
 
 ## Worktrees and branches

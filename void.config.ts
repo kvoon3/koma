@@ -20,6 +20,9 @@ export default defineConfig({
   },
   cloudflare: {
     name: 'koma',
+    // void's own CI note: the Actions deploy needs it here, because the
+    // fresh checkout has none of the gitignored .void state that carries it.
+    account_id: '28a23c2ec9aeeb01a95276f1d9ca42df',
     compatibility_date: '2026-10-11',
     // Mirrors the dashboard-managed preview settings; declared so void does
     // not flip them.
