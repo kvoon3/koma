@@ -101,8 +101,8 @@ Two errors you may hit on the way:
 - Never reintroduce `cloudflare.main` or `cloudflare.assets` in
   `void.config.ts`. `void deploy` silently builds a "Static SPA" from that
   shape and drops the worker, which takes `/api/jev` down. This happened
-  twice on production before the routes/ move; both times the probes above
-  caught it inside a minute.
+  twice on production before the routes/ move: the first ran ~150 s before
+  the rollback, the retry ~56 s. The probes above caught both.
 - Never check in a root `wrangler.jsonc` or `wrangler.json`. Void refuses to
   connect or deploy while either exists at the repo root (it checks those two
   exact names, not a glob). The storybook worker's
@@ -114,9 +114,11 @@ Two errors you may hit on the way:
   `/api/*`, `/__void` and `/__void/*`. `GET /__void/ready` answers `200`
   publicly on production (measured 2026-10-27); it is void's readiness
   endpoint, not ours to shape.
-- The old config's `run_worker_first` does not exist in the native shape.
-  Whether asset hits still skip the worker invocation is unverified; measure
-  with `void project logs` before relying on it.
+- The native emission carries `run_worker_first` after all, set to `/api`,
+  `/api/*`, `/__void`, `/__void/*` in the generated `dist/ssr/wrangler.json`:
+  the worker runs ahead of assets on exactly the API surface. What stays
+  unmeasured is the cost and resilience of that invocation on asset-heavy
+  pages; measure with `void project logs` before relying on it.
 - Branch preview URLs (`<branch-slug>-koma.kvoon.workers.dev`) predate the
   Void switch and their minting mechanism is unconfirmed. Verify before
   promising one in a PR.
