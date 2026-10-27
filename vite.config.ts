@@ -9,6 +9,7 @@ import { defineConfig } from 'vite'
 import mkcert from 'vite-plugin-mkcert'
 import { qrcode } from 'vite-plugin-qrcode'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import { voidPlugin } from 'void'
 
 function isRfc1918(host: string) {
   return /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
@@ -89,6 +90,7 @@ export default defineConfig(({ mode }) => {
     // `vite build` nor `build:single` output is touched.
     devtools: { apply: 'serve' },
     plugins: [
+      voidPlugin(),
       react(),
       tailwindcss(),
       vendorRuntime(),
