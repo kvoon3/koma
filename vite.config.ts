@@ -9,6 +9,7 @@ import { defineConfig } from 'vite'
 import mkcert from 'vite-plugin-mkcert'
 import { qrcode } from 'vite-plugin-qrcode'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import { voidPlugin } from 'void'
 
 function isRfc1918(host: string) {
   return /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(host)
@@ -75,12 +76,32 @@ function vendorRuntime(): Plugin {
 }
 
 /**
+ * void 1.3.0 rewrites index.html's inline module scripts (the react-refresh
+ * preamble) into build-style `?html-proxy` module ids and emits a script tag
+ * for them. In dev that module does not exist: the request 500s and vite's
+ * error overlay covers the app. The preamble stays inline in dev, so the
+ * extra tag is a pure duplicate; strip it there.
+ */
+function stripVoidDevProxyScripts(): Plugin {
+  return {
+    name: 'koma:strip-void-dev-proxy',
+    apply: 'serve',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        return html.replace(/<script[^>]+src="\/@id\/__x00__[^"]*html-proxy[^"]*"[^>]*>\s*<\/script>/g, '')
+      },
+    },
+  }
+}
+
+/**
  * `vite build` → regular chunked bundle for the Cloudflare deploy and the
  * mygo desktop shell. `vite build --mode single` (bun run build:single) →
  * one self-contained koma.html with the HEIC decoder and every asset
  * inlined so it works fully offline, opened directly via file://.
  */
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const single = mode === 'single'
   return {
     base: './',
@@ -89,6 +110,12 @@ export default defineConfig(({ mode }) => {
     // `vite build` nor `build:single` output is touched.
     devtools: { apply: 'serve' },
     plugins: [
+      // The dev server and the `--mode void` build run routes/ on Cloudflare's
+      // runtime. Every other build (plain chunked, single-file koma.html) is a
+      // client artifact: voidPlugin there would relocate the output to
+      // dist/client and bundle a worker graph the consumer discards.
+      !single && (command === 'serve' || mode === 'void') && voidPlugin(),
+      stripVoidDevProxyScripts(),
       react(),
       tailwindcss(),
       vendorRuntime(),
