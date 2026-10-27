@@ -75,7 +75,8 @@
   --floatLine2: #d4d4d4;
   --floatIcon: #525252;
   --handleTxt: #737373;
-  --danger: #dc2626;
+  --danger: #ef4444;
+  --onDanger: #ffffff;
 
   --badgeBg: rgba(255, 255, 255, 0.94);
   --overlayDim: rgba(23, 23, 23, 0.4);
@@ -150,6 +151,7 @@ html.dark {
   --floatIcon: #d4d4d4;
   --handleTxt: #a3a3a3;
   --danger: #ef4444;
+  --onDanger: #ffffff;
 
   --badgeBg: rgba(23, 23, 23, 0.94);
   --overlayDim: rgba(0, 0, 0, 0.6);
@@ -176,6 +178,7 @@ html.dark {
   --color-faint: var(--faint);
   --color-accent: var(--accent);
   --color-on-accent: var(--onAccent);
+  --color-on-danger: var(--onDanger);
   --color-sel: var(--sel);
   --color-statusbar: var(--statusbar);
   --color-drawer-bg: var(--drawerBg);

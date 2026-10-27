@@ -1,5 +1,5 @@
 import { Dialog } from '@base-ui/react/dialog'
-import { Copy, Download, LoaderCircle, Play, Share, X } from 'lucide'
+import { Copy, Download, Play, Share, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useState } from 'react'
 import { useMediaQuery } from '../hooks'
@@ -8,7 +8,8 @@ import { canCopyImage, copyImageToClipboard, downloadBlob } from '../lib/exporte
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
 import { ExportPreview } from './ExportPreview'
-import { buttonBase, buttonVariants, dialogButton } from './ui/buttonStyles'
+import { buttonBase, buttonVariants, dialogAccentButton, dialogButton } from './ui/buttonStyles'
+import { Spinner } from './ui/spinner'
 
 /**
  * One rendered export run: a batch is the still of every non-empty workspace
@@ -286,12 +287,7 @@ function RunFooter({ cur, list, busy, onCopy, onSaveAll, onShareAll, onSave }: {
           disabled={busy != null}
           onClick={onCopy}
         >
-          <MorphIcon
-            icon={busy === 'copy' ? LoaderCircle : Copy}
-            size={13}
-            strokeWidth={1.75}
-            className={busy === 'copy' ? ' animate-spin [animation-duration:900ms]' : ''}
-          />
+          {busy === 'copy' ? <Spinner size={13} /> : <MorphIcon icon={Copy} size={13} strokeWidth={1.75} />}
           {t('Copy image')}
         </button>
       )}
@@ -314,18 +310,13 @@ function RunFooter({ cur, list, busy, onCopy, onSaveAll, onShareAll, onSave }: {
           disabled={busy != null}
           onClick={onSaveAll}
         >
-          <MorphIcon
-            icon={busy === 'all' ? LoaderCircle : Download}
-            size={13}
-            strokeWidth={1.75}
-            className={busy === 'all' ? ' animate-spin [animation-duration:900ms]' : ''}
-          />
+          {busy === 'all' ? <Spinner size={13} /> : <MorphIcon icon={Download} size={13} strokeWidth={1.75} />}
           {t('Download all ({n})', { n: list?.length ?? 0 })}
         </button>
       )}
       <button
         type="button"
-        className={`${dialogButton} border-accent bg-accent font-semibold text-on-accent hover:bg-accent hover:text-on-accent`}
+        className={dialogAccentButton}
         disabled={cur == null}
         onClick={() => cur && onSave(cur)}
       >

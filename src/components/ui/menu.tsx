@@ -16,7 +16,7 @@ const itemBase = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowra
 export const menuItemCls = `${itemBase} text-txt data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt`
 
 /** Destructive rows stay red, and invert while highlighted. */
-export const menuDangerItemCls = `${itemBase} text-danger data-highlighted:bg-danger data-highlighted:text-on-accent active:bg-danger active:text-on-accent`
+export const menuDangerItemCls = `${itemBase} text-danger data-highlighted:bg-danger data-highlighted:text-on-danger active:bg-danger active:text-on-danger`
 
 export const menuSeparatorCls = 'mx-1 my-1 h-px border-0 bg-line'
 

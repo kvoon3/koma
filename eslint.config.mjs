@@ -81,7 +81,16 @@ export default antfu({
   rules: {
     'shadcn/no-raw-colors': 'error',
     'shadcn/no-unknown-classes': 'error',
-    'shadcn/no-restyle': 'error',
+    // `Button` takes only its own look; these are the two chrome states the
+    // floating actions pass through it (hit-test opt-in, open history chip).
+    'shadcn/no-restyle': ['error', {
+      contracts: [
+        { pattern: '^Button$', allow: ['pointer-events-auto', 'text-txt', 'shadow-[inset_0_-2px_0_var(--accent)]'] },
+        // The workspace menu's save item dresses its busy mark like every
+        // other icon in the menu (`flex text-dim`).
+        { pattern: '^Spinner$', allow: ['flex', 'text-dim'] },
+      ],
+    }],
   },
 }, {
   // components style themselves; restyling checks apply to their consumers
