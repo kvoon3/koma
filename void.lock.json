@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "source": {
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "koma",
+    "compatibility_date": "2026-10-11",
+    "preview_urls": true,
+    "previews": {},
+    "main": "worker/index.ts",
+    "assets": {
+      "directory": "./dist",
+      "binding": "ASSETS",
+      "not_found_handling": "single-page-application",
+      "run_worker_first": [
+        "/api/jev"
+      ]
+    },
+    "routes": [
+      {
+        "pattern": "koma.kvoon.me",
+        "custom_domain": true
+      }
+    ]
+  },
+  "resolved": {
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "koma",
+    "compatibility_date": "2026-10-11",
+    "preview_urls": true,
+    "previews": {},
+    "main": "worker/index.ts",
+    "assets": {
+      "directory": "./dist",
+      "binding": "ASSETS",
+      "not_found_handling": "single-page-application",
+      "run_worker_first": [
+        "/api/jev"
+      ]
+    },
+    "routes": [
+      {
+        "pattern": "koma.kvoon.me",
+        "custom_domain": true
+      }
+    ]
+  },
+  "text": "{\n  \"$schema\": \"node_modules/wrangler/config-schema.json\",\n  \"name\": \"koma\",\n  \"compatibility_date\": \"2026-10-11\",\n  // Branch Previews (wrangler preview / Workers Builds preview builds)\n  \"preview_urls\": true,\n  \"previews\": {},\n  // The Worker holds the Jev key and serves the SPA assets through ASSETS.\n  \"main\": \"worker/index.ts\",\n  \"assets\": {\n    \"directory\": \"./dist\",\n    \"binding\": \"ASSETS\",\n    // SPA fallback: serve index.html for all unmatched routes\n    \"not_found_handling\": \"single-page-application\",\n    // Only the proxy path pays a Worker invocation. Assets, including the SPA\n    // fallback, keep serving directly, so a Worker fault cannot take the app\n    // down with it.\n    \"run_worker_first\": [\"/api/jev\"]\n  },\n  // Custom domain (deploy auto-creates the DNS record in the kvoon.me zone)\n  \"routes\": [\n    { \"pattern\": \"koma.kvoon.me\", \"custom_domain\": true }\n  ]\n}\n"
+}
