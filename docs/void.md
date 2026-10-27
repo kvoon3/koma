@@ -8,13 +8,14 @@ handlers, and `env.ts` declares the server values. There is no root
 
 ## Deploy
 
-A push to `main` deploys automatically. `.github/workflows/void-deploy.yml`
-(void's own Actions template, github_actions executor) runs
-`bunx void deploy --platform cloudflare` on every push to main and needs one
-repository secret: `CLOUDFLARE_API_TOKEN` (scoped to editing this Worker).
-The config carries `cloudflare.account_id` because the fresh checkout has
-none of the gitignored `.void/` state. Until this stack merges, the legacy
-Workers Builds integration still deploys every merge bare; see Gotchas.
+The auto path is quarantined. `.github/workflows/void-deploy.yml` (void's
+Actions template) ran once on 2026-10-27 and its trigger synchronization
+failed; the recovery left an empty, binding-less version active, which
+wiped both worker secrets and broke the routes until a local deploy
+repaired them (see Gotchas). void's upload patch also sets `keep_vars`
+but never `keep_secrets` (deploy-hRPvw8ci.mjs in its dist), so treat every
+CI-shaped deploy as secret-hostile until void fixes this. Keep the
+workflow disabled and deploy by hand:
 
 `bun run deploy` is the manual path. It is `void deploy`, which runs the
 build step named in `inference.build` (the repo's `bun run build:void`,
