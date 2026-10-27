@@ -41,7 +41,9 @@ Where a note conflicts with a poteto default, the note wins.
   the worktree's `node_modules` plus the cached Chromium; seed state via `window.__collage`.
 - Screenshot at 375×812 and 1280×900 before push, plus 1280×600 and 915×412 when
   geometry changes. A vision-capable agent (Herdr `judge` when available) reviews the PNGs.
-- Deploy is manual (see `docs/void.md`); nothing auto-deploys a merge. Merging
+- Deploy is manual (see `docs/void.md`). Until the void stack lands, a
+  Cloudflare Workers Builds integration also deploys every `main` merge bare
+  from the in-tree wrangler.jsonc; merging
   is irreversible: only on an explicit ask.
 
 ## Worktrees and branches

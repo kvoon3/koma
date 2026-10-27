@@ -119,6 +119,17 @@ Two errors you may hit on the way:
   the worker runs ahead of assets on exactly the API surface. What stays
   unmeasured is the cost and resilience of that invocation on asset-heavy
   pages; measure with `void project logs` before relying on it.
+- The Cloudflare Workers Builds integration ("Workers Builds: koma", a PR
+  check) has been auto-deploying every `main` merge 40–60 s later with a bare
+  `wrangler deploy` from the in-tree `wrangler.jsonc` (measured: #80, #81 and
+  #77 merged 05:31–05:53Z on 2026-10-27, each followed by a metadata-less
+  deploy; the live bundle carried #80's minimap marker). Those deploys carry
+  no `void:{...}` metadata, so `wrangler deployments list` cannot attribute
+  them to the void pipeline. Once the root `wrangler.jsonc` is gone from
+  main (this stack), the integration's build fails permanently and manual
+  `bun run deploy` becomes the only deploy path. Either accept that or
+  reconnect the integration with `bun run deploy` as its build command; do
+  not let both pipelines run.
 - Branch preview URLs (`<branch-slug>-koma.kvoon.workers.dev`) predate the
   Void switch and their minting mechanism is unconfirmed. Verify before
   promising one in a PR.
