@@ -84,7 +84,10 @@ export function useMenuEscapeClose(open: boolean, close: () => void) {
   }, [open])
 }
 
-/** One clickable row: icon, translation, optional right-aligned hint. */
+/**
+ * One clickable row: icon, translation, optional right-aligned hint. The pane
+ * and canvas context menus build their actions from it.
+ */
 export function MenuItem({
   icon,
   hint,
