@@ -11,3 +11,4 @@ build
 .dev.vars
 .wrangler
 .void
+.void-wrangler.jsonc
