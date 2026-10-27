@@ -1,5 +1,6 @@
 import type { MotionValue } from 'motion/react'
 import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
+import type { BandSlot, DockToolBoxes } from '../lib/dockBand'
 import type { FlipBox } from '../lib/dockFlip'
 import type { DockSwapPlan } from '../lib/dockSwap'
 import type { TKey } from '../lib/locales/zh-Hans'
@@ -13,13 +14,15 @@ import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, u
 import { createPortal } from 'react-dom'
 import { flipCanvasRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO } from '../lib/canvasCommands'
 import { dockDragFade, dockSurface } from '../lib/dockBackground'
+import { bandProgress, bandPush, bandSchedule, bandTapSeconds } from '../lib/dockBand'
 import { DOCK_FLIP_EASE_CSS, DOCK_FLIP_S, isBoxVisible, parseTranslate, planFlipItem, shiftFlipBox } from '../lib/dockFlip'
-import { dampOffset, dragOwner, pickSnap } from '../lib/dockPhysics'
+import { dampOffset, dragOwner, nearestSnapIndex, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
 import { liquidGlassRef } from '../lib/liquidGlass'
+import { EASE_IN_OUT } from '../lib/motionTokens'
 import { paneAssetsOf } from '../lib/stickerLibrary'
-import { clampDockMode, dockHandleIntent, dockModeAtHeight, dockModes, dockTransition } from '../lib/toolsDockMode'
+import { clampDockMode, dockDisplayAt, dockHandleIntent, dockModeAtHeight, dockModes, dockTransition, isBandTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, useStore } from '../store'
 import { Footer } from './Footer'
@@ -38,6 +41,13 @@ export const toolsLabelCls = 'max-h-[2em] overflow-hidden text-[11.5px] font-sem
 
 /** Handle chrome height. Keep in sync with `handleCls` h-[]. */
 const HANDLE_H = 28
+/**
+ * The expanded list's vertical scrollbar gutter, px: `scrollExpCls` asks for
+ * `overflow-y: scroll`, so the wrap leg must reserve the gutter it takes. 9 is
+ * the width that class styles its thumb to; overlay scrollbars take none, and
+ * `clientWidth` reports the difference, so both kinds of system agree.
+ */
+const EXP_GUTTER = 9
 const MAX_EXP_VH = 0.4
 const FALLBACK_ROW = 72
 const FALLBACK_ICON_ROW = 48
@@ -55,11 +65,20 @@ const scrollRowCls = 'overflow-x-auto overflow-y-hidden overscroll-x-contain tou
  * reserve nothing, so those environments are unchanged (measured).
  */
 const scrollExpCls = 'overflow-x-hidden overflow-y-scroll overscroll-contain [&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:rounded-none [&::-webkit-scrollbar-thumb]:bg-strip-thumb'
-/** While the drawer itself is being dragged its lists hold still (see `data-swiping`). */
-const scrollLockCls = 'group-data-swiping/dock:overflow-hidden group-data-swiping/dock:touch-none'
+/**
+ * While the drawer itself is being dragged, or a display band is in flight,
+ * its lists hold still (`data-swiping`, `data-dock-band` on the sheet). The
+ * band case keeps the list's own overflow: `overflow: hidden` would drop the
+ * wrapped list's classic-scrollbar gutter and re-wrap the very layout the
+ * field's transforms are projected against. `touch-action: none` is what
+ * actually stops the native pan, and a frozen press never reaches the list
+ * anyway (lib/dockPhysics).
+ */
+const scrollLockCls = 'group-data-swiping/dock:overflow-hidden group-data-swiping/dock:touch-none group-data-dock-band/dock:touch-none'
 const rowCls = 'flex w-max items-stretch'
 const wrapCls = 'flex w-full flex-wrap items-stretch justify-center'
 
+// @x18n-keys
 const INTENT_LABEL = { expand: 'Expand tools', collapse: 'Collapse tools' } as const satisfies Record<'expand' | 'collapse', TKey>
 const INTENT_ICON = { expand: ChevronUp, collapse: ChevronDown } as const
 
@@ -284,6 +303,13 @@ interface DockDrag {
   horizontal: boolean
   /** The press landed in the expanded list, with that list's scroll state at the press. */
   list: { scrollTop: number, clientHeight: number, scrollHeight: number } | null
+  /**
+   * The snap the gesture started on (`pickSnap`'s `from`). Required, not
+   * optional, once the display latches at the band edges: mid-band the display
+   * on screen is the lower one, so the release's own display would make a
+   * downward flick from high in the band jump two snaps instead of one.
+   */
+  startIdx: number
 }
 
 /** The geometry the transform and the drag math are written against. */
@@ -296,11 +322,54 @@ interface DockGeometry {
   offset: number
 }
 
+type DockEndpoints = ReadonlyMap<HTMLElement, DockToolBoxes>
+
+/**
+ * A child's layout box relative to its container, px. `offsetLeft/Top` are
+ * relative to the nearest positioned ancestor rather than to the parent node,
+ * and the tools container is deliberately unpositioned, so its own offsets are
+ * what makes a child's box container-relative. `offsetParent` is checked
+ * rather than assumed: a container that gains `position` must not silently
+ * shift every endpoint.
+ */
+function boxIn(container: HTMLElement, child: HTMLElement): { x: number, y: number } {
+  if (child.offsetParent === container)
+    return { x: child.offsetLeft, y: child.offsetTop }
+  return { x: child.offsetLeft - container.offsetLeft, y: child.offsetTop - container.offsetTop }
+}
+
+function captureChildBoxes(container: HTMLElement): Map<HTMLElement, { x: number, y: number }> {
+  const boxes = new Map<HTMLElement, { x: number, y: number }>()
+  for (const child of container.children)
+    boxes.set(child as HTMLElement, boxIn(container, child as HTMLElement))
+  return boxes
+}
+
+/**
+ * The width the expanded display wraps at: the scroller's client width with
+ * its vertical scrollbar gutter taken off. The element's classes belong to
+ * whichever display is on screen, so the gutter is emulated here by putting
+ * `overflow-y: scroll` on the scroller and reading the width back. Overlay
+ * scrollbars (macOS default) lose nothing; a classic one loses `EXP_GUTTER`.
+ */
+function expandedWrapWidth(scroller: HTMLElement | null, panelW: number): number {
+  if (!scroller)
+    return panelW
+  const before = scroller.clientWidth
+  scroller.style.overflowY = 'scroll'
+  scroller.style.overflowX = 'hidden'
+  const classic = scroller.clientWidth < before
+  const width = before - (classic ? EXP_GUTTER : 0)
+  return width >= 1 ? width : panelW
+}
+
 /**
  * Measure what the dock needs to snap and to decide its display: the icon-row,
- * labelled-row and wrapped heights, and whether every tool fits one row.
- * `measure` restyles the content synchronously to read each mode's height, so a
- * drag defers it to the release instead of fighting the live transform.
+ * labelled-row and wrapped heights, whether every tool fits one row, and each
+ * tool's box in the row and wrapped layouts (the displacement field's
+ * endpoints, lib/dockBand). `measure` restyles the content synchronously to
+ * read each layout, so a drag or a running band defers it to the release
+ * instead of fighting the live transform.
  */
 function useDockMeasure({
   innerRef,
@@ -310,6 +379,7 @@ function useDockMeasure({
   fitsOneRow,
   setFitsOneRow,
   captureFlipFrom,
+  bandActiveRef,
 }: {
   innerRef: React.RefObject<HTMLDivElement | null>
   contextKey: string
@@ -318,6 +388,8 @@ function useDockMeasure({
   fitsOneRow: boolean
   setFitsOneRow: (fits: boolean) => void
   captureFlipFrom: () => void
+  /** The display band owns the list: its restyle pass would tear the field apart. */
+  bandActiveRef: React.RefObject<boolean>
 }) {
   const [rowH, setRowH] = useState(FALLBACK_ROW)
   const [iconH, setIconH] = useState(FALLBACK_ICON_ROW)
@@ -326,6 +398,8 @@ function useDockMeasure({
   const draggingRef = useRef(false)
   /** A `measure()` skipped mid-drag, re-run when the drag settles. */
   const measureDirtyRef = useRef(false)
+  /** Every tool's row and wrapped boxes, captured by the last completed pass. */
+  const endpointsRef = useRef<DockEndpoints>(new Map())
   /** The committed capacity and stored display, read by `measure`'s cap-flip guess. */
   const fitsRef = useRef(fitsOneRow)
   const storedModeRef = useRef(storedMode)
@@ -338,11 +412,11 @@ function useDockMeasure({
     const el = innerRef.current
     if (!el)
       return
-    // The mode's heights are already known while a drag is in flight, and the
-    // pass below restyles the content (forced display modes, full width) under
-    // the live transform: defer it to the release instead of fighting the
-    // gesture, then measure once against whatever the drag left behind.
-    if (draggingRef.current) {
+    // The pass below restyles the content (forced display modes, full width)
+    // under the live transform, so a drag defers it to the release. The band
+    // inherits that guard for the same reason: its transforms are written
+    // against boxes this pass would move.
+    if (draggingRef.current || bandActiveRef.current) {
       measureDirtyRef.current = true
       return
     }
@@ -370,6 +444,9 @@ function useDockMeasure({
     const prevW = el.style.width
     const prevMax = el.style.maxWidth
     const prevVis = el.style.visibility
+    const prevJustify = el.style.justifyContent
+    const prevOverflowX = scroller?.style.overflowX ?? ''
+    const prevOverflowY = scroller?.style.overflowY ?? ''
     // Full sheet width, not the popup's (it shrinks to the handle when the
     // tools row fits).
     const panelW = el.closest<HTMLElement>('.tools-dock')?.clientWidth || window.innerWidth
@@ -378,19 +455,32 @@ function useDockMeasure({
     el.style.flexWrap = 'nowrap'
     el.style.width = 'max-content'
     el.style.maxWidth = 'none'
+    // The row leg is left-aligned: `rowCls` states no justify-content, and the
+    // element may still carry `wrapCls`' centre from the live display. Each
+    // leg states its own value so the measured boxes are that layout's.
+    el.style.justifyContent = 'flex-start'
     const box = el.getBoundingClientRect()
     const row = Math.ceil(box.height) || FALLBACK_ROW
     const rowW = Math.ceil(box.width)
+    const rowBoxes = captureChildBoxes(el)
+    // The wrapped leg wraps at the expanded list's content width, not the
+    // panel's (see `expandedWrapWidth`), and centres its rows the way
+    // `wrapCls` does. A position field is wrong by half that difference at the
+    // ends, so the leg has to say which layout it is.
+    const wrapW = expandedWrapWidth(scroller, panelW)
     el.style.flexWrap = 'wrap'
     el.style.width = '100%'
-    el.style.maxWidth = `${panelW}px`
+    el.style.maxWidth = `${wrapW}px`
+    el.style.justifyContent = 'center'
     const exp = Math.min(Math.ceil(el.scrollHeight) || row, maxExp)
+    const wrapBoxes = captureChildBoxes(el)
     let iconRow = FALLBACK_ICON_ROW
     if (sheet) {
       sheet.setAttribute('data-dock-mode', 'icons')
       el.style.flexWrap = 'nowrap'
       el.style.width = 'max-content'
       el.style.maxWidth = 'none'
+      el.style.justifyContent = 'flex-start'
       iconRow = Math.ceil(el.getBoundingClientRect().height) || FALLBACK_ICON_ROW
       sheet.setAttribute('data-dock-mode', prevMode ?? 'row')
     }
@@ -398,6 +488,11 @@ function useDockMeasure({
     el.style.width = prevW
     el.style.maxWidth = prevMax
     el.style.visibility = prevVis
+    el.style.justifyContent = prevJustify
+    if (scroller) {
+      scroller.style.overflowX = prevOverflowX
+      scroller.style.overflowY = prevOverflowY
+    }
     // Commit the restored display while transitions are still off: the icons
     // pass forces the caption to max-height 0, and restoring it alone would
     // animate the caption back, so every pass started a fade whose mid-fade
@@ -411,6 +506,15 @@ function useDockMeasure({
       scroller.scrollLeft = scrollLeft
     if (scroller && scroller.scrollTop !== scrollTop)
       scroller.scrollTop = scrollTop
+    // Both legs ran over the same children in one synchronous pass, so a child
+    // with a row box has a wrapped one; the lookup guards a mismatch anyway.
+    const endpoints = new Map<HTMLElement, DockToolBoxes>()
+    for (const [child, rowBox] of rowBoxes) {
+      const wrapBox = wrapBoxes.get(child)
+      if (wrapBox)
+        endpoints.set(child, { row: rowBox, wrap: wrapBox })
+    }
+    endpointsRef.current = endpoints
     setRowH(row)
     setIconH(iconRow)
     setExpH(Math.max(row, exp))
@@ -425,7 +529,7 @@ function useDockMeasure({
         captureFlipFrom()
       setFitsOneRow(nextFits)
     }
-  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow])
+  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow, bandActiveRef])
 
   // Not on `mode`: the pass forces both display modes itself, so its reads do
   // not depend on the one on screen, and re-running it on a flip would resolve
@@ -434,7 +538,7 @@ function useDockMeasure({
     measure()
   }, [measure, contextKey])
 
-  return { rowH, iconH, expH, draggingRef, measureDirtyRef, measure }
+  return { rowH, iconH, expH, draggingRef, measureDirtyRef, endpointsRef, measure }
 }
 
 /**
@@ -576,6 +680,332 @@ function useDockFlipAnimation({
   }, [innerRef, reduceRef, settleFlip, toolsView])
 
   return { rowScroller, captureFlipFrom, detachFlip, settleFlip, playFlip }
+}
+
+/**
+ * The band's interruption contract (see `useDockBand`): a child-list change
+ * while the field is live leaves every endpoint stale, so the band settles at
+ * once instead of animating against boxes its tools no longer occupy. The
+ * swap ghost (lib/dockSwap) is already the animation for that event, so the
+ * settle replays nothing. Measure-driven interruptions do not need this: the
+ * measure pass refuses to run mid-band and the band settles before it does.
+ */
+function useDockBandInterrupt({
+  innerRef,
+  activeRef,
+  settle,
+}: {
+  innerRef: React.RefObject<HTMLDivElement | null>
+  activeRef: React.RefObject<boolean>
+  settle: () => void
+}) {
+  const settleRef = useRef(settle)
+  useLayoutEffect(() => {
+    settleRef.current = settle
+  })
+  useEffect(() => {
+    const el = innerRef.current
+    if (!el)
+      return
+    const mo = new MutationObserver((records) => {
+      if (!activeRef.current)
+        return
+      const swapped = records.some(r => r.type === 'childList' && r.target === el)
+      if (swapped)
+        settleRef.current()
+    })
+    mo.observe(el, { childList: true })
+    return () => mo.disconnect()
+  }, [activeRef, innerRef])
+}
+
+/**
+ * The band progress the geometry and the sheet position read, or null when
+ * there is no band to serve: a dock without both displays, or a degenerate
+ * pair. `dockDisplayAt` takes the same branch for the display rule.
+ */
+function bandAt(geom: DockGeometry, pos: number): number | null {
+  const iRow = geom.order.indexOf('row')
+  const iExp = geom.order.indexOf('expanded')
+  if (iRow < 0 || iExp < 0)
+    return null
+  const lower = geom.heights[iRow]!
+  const upper = geom.heights[iExp]!
+  if (upper - lower < 1)
+    return null
+  return bandProgress(geom.toolsMaxH - pos, lower, upper)
+}
+
+interface BandItem {
+  /** The displacement from this tool's row box to its wrapped box, px. */
+  readonly dx: number
+  readonly dy: number
+  readonly slot: BandSlot
+  /** The share of the tool's row box the row scroller clipped at capture, 0..1. */
+  readonly clip: number
+  /** Resting opacity: disabled tools sit below 1, and the fade lands there. */
+  readonly base: number
+  el: HTMLElement
+  /** The last translate written, so a still frame writes nothing. */
+  wrote: string
+  /** The last opacity written, '' while the CSS value stands. */
+  faded: string
+}
+
+interface BandField {
+  readonly base: 'row' | 'expanded'
+  readonly items: readonly BandItem[]
+}
+
+/**
+ * Write one tool's frame. Over the row base it moves by `D·t`; over the
+ * wrapped base it starts at `D·(t − 1)`, which is the row box, and decays to
+ * zero at the wrapped one. A value equal to the last write is skipped, so a
+ * still frame touches no style at all.
+ */
+function writeBandItem(item: BandItem, base: BandField['base'], t: number) {
+  const u = base === 'row' ? t : t - 1
+  const translate = `${(item.dx * u).toFixed(2)}px ${(item.dy * u).toFixed(2)}px`
+  if (translate !== item.wrote) {
+    item.wrote = translate
+    item.el.style.translate = translate
+  }
+  // Only a tool the row scroller clipped at capture fades: it enters from its
+  // clipped fraction and lands on its resting opacity, which is below 1 for a
+  // disabled tool. Every other tool's opacity is the CSS value, so the inline
+  // one is cleared rather than written.
+  const opacity = item.clip < 1 ? String(item.clip + (item.base - item.clip) * t) : ''
+  if (opacity !== item.faded) {
+    item.faded = opacity
+    item.el.style.opacity = opacity
+  }
+}
+
+/**
+ * The displacement field between the labelled row and the wrapped display
+ * (lib/dockBand). It owns one thing on the tool buttons, `style.translate`,
+ * and nothing else: `transform` and `opacity` belong to the flip, the reorder
+ * glide's transform composes with it additively, and press uses `scale`, so
+ * the band and the existing animations can never fight over the same pixels.
+ *
+ * Positions are `D_k · u_k(p)`, a pure function of the `y` motion value, so a
+ * drag, a release spring, a tap and a reversal all get the same cascade with no
+ * animation state to interrupt. The field is built once per band entry (and
+ * once per base swap), never per frame: a frame is O(N) arithmetic and O(N)
+ * style writes, zero DOM reads, zero React renders.
+ */
+function useDockBand({
+  y,
+  innerRef,
+  rowScroller,
+  geomRef,
+  modeRef,
+  endpointsRef,
+  rowScrollRef,
+  reduceRef,
+  activeRef,
+  measureDirtyRef,
+  measure,
+}: {
+  y: MotionValue<number>
+  innerRef: React.RefObject<HTMLDivElement | null>
+  rowScroller: () => HTMLElement | null
+  geomRef: React.RefObject<DockGeometry>
+  modeRef: React.RefObject<ToolsDockMode>
+  endpointsRef: React.RefObject<DockEndpoints>
+  /** The row scroll a band draws while its base is the wrapped layout. */
+  rowScrollRef: React.RefObject<number | null>
+  reduceRef: React.RefObject<boolean | null>
+  /** The band is in flight: the measure pass and the press hand-off read it. */
+  activeRef: React.RefObject<boolean>
+  measureDirtyRef: React.RefObject<boolean>
+  measure: () => void
+}) {
+  const [active, setActive] = useState(false)
+  const fieldRef = useRef<BandField | null>(null)
+  // `exit` may run a measure that skipped while the band held the list; the
+  // callback is refreshed every render so the subscription never goes stale.
+  const measureRef = useRef(measure)
+  useLayoutEffect(() => {
+    measureRef.current = measure
+  })
+
+  /**
+   * Build the field against the committed display. Every read here is an entry
+   * or base-swap read; the per-frame path allocates nothing and reads nothing.
+   */
+  const build = useCallback((prev: BandField | null = null): BandField | null => {
+    const el = innerRef.current
+    const m = modeRef.current
+    if (!el || (m !== 'row' && m !== 'expanded'))
+      return null
+    const endpoints = endpointsRef.current
+    const picked: { el: HTMLElement, boxes: DockToolBoxes }[] = []
+    for (const child of el.children) {
+      const h = child as HTMLElement
+      const boxes = endpoints.get(h)
+      if (boxes)
+        picked.push({ el: h, boxes })
+    }
+    if (picked.length === 0)
+      return null
+    // Visual order, not DOM order: disabled tools sort last via CSS `order`,
+    // so a DOM-order cascade would look shuffled whenever a tool disables.
+    picked.sort((a, b) => a.boxes.row.x - b.boxes.row.x || a.boxes.row.y - b.boxes.row.y)
+    const slots = bandSchedule(picked.length)
+    // The row's scroll is absorbed into D: at the row end the field carries
+    // the scrolled appearance, at the wrapped end the term has decayed away.
+    const scroller = rowScroller()
+    const s0 = m === 'row' ? (scroller?.scrollLeft ?? 0) : (rowScrollRef.current ?? 0)
+    const container = el.getBoundingClientRect()
+    const view = scroller?.getBoundingClientRect()
+    // Resting opacities are read once per tool and carried across a base swap:
+    // `getComputedStyle` returns the field's own inline fade while one is
+    // written, so re-reading it on every rebuild would ratchet a clipped tool
+    // toward transparent.
+    const baseOf = (h: HTMLElement) => {
+      const carried = prev?.items.find(item => item.el === h)
+      return carried ? carried.base : (Number(getComputedStyle(h).opacity) || 1)
+    }
+    const items = picked.map(({ el: h, boxes }, i) => {
+      const width = h.offsetWidth || 1
+      let clip = 1
+      if (view) {
+        // The container is the scrolled content, so its rect already carries
+        // the row's scroll: the box's viewport left is the sum, not minus `s0`.
+        const left = container.left + boxes.row.x
+        const overlap = Math.min(left + width, view.right) - Math.max(left, view.left)
+        clip = Math.min(1, Math.max(0, overlap / width))
+      }
+      return {
+        el: h,
+        dx: boxes.wrap.x - boxes.row.x + s0,
+        dy: boxes.wrap.y - boxes.row.y,
+        slot: slots[i]!,
+        clip,
+        base: baseOf(h),
+        wrote: '',
+        faded: '',
+      }
+    })
+    return { base: m, items }
+  }, [endpointsRef, innerRef, modeRef, rowScrollRef, rowScroller])
+
+  /**
+   * Drop the field: every translate and fade back to the layout's own. Only
+   * the items the field actually painted are touched, so a tool the flip is
+   * gliding while a drag crosses out of the band keeps its WAAPI fade.
+   */
+  const exit = useCallback(() => {
+    const field = fieldRef.current
+    if (field) {
+      for (const item of field.items) {
+        item.el.style.translate = ''
+        if (item.faded !== '')
+          item.el.style.opacity = ''
+        item.el.style.willChange = ''
+      }
+      fieldRef.current = null
+    }
+    if (activeRef.current) {
+      activeRef.current = false
+      setActive(false)
+    }
+    // A measure that ran mid-band was deferred: the list is free now, and the
+    // field's boxes are gone, so the pass cannot tear anything apart.
+    if (measureDirtyRef.current) {
+      measureDirtyRef.current = false
+      measureRef.current()
+    }
+  }, [activeRef, measureDirtyRef])
+
+  const enter = useCallback((): boolean => {
+    // An entry over the row base reads its live scroll. An entry over the
+    // wrapped base cannot (that list does not scroll horizontally), so the
+    // field draws the memory the last row exit left; the band commit that
+    // brought it here read it before the class swap clamped it.
+    if (modeRef.current === 'row')
+      rowScrollRef.current = rowScroller()?.scrollLeft ?? 0
+    const field = build()
+    if (!field)
+      return false
+    for (const item of field.items)
+      item.el.style.willChange = 'transform'
+    fieldRef.current = field
+    activeRef.current = true
+    setActive(true)
+    return true
+  }, [activeRef, build, modeRef, rowScrollRef, rowScroller])
+
+  const update = useCallback(() => {
+    const p = bandAt(geomRef.current, y.get())
+    // No band to serve: reduced motion, a dock without both displays, or a
+    // degenerate pair. `dockDisplayAt` takes the same branch for the display.
+    if (p == null || reduceRef.current)
+      return exit()
+    const m = modeRef.current
+    // The committed display decides which half of the band can be in flight:
+    // over the row base the field grows with `p`, over the wrapped base it
+    // shrinks, so each end is exited where its translate is already zero.
+    if (m !== 'row' && m !== 'expanded')
+      return exit()
+    if (m === 'row' ? p <= 0 : p >= 1)
+      return exit()
+    if (!activeRef.current && !enter())
+      return
+    const field = fieldRef.current
+    if (!field)
+      return
+    for (const item of field.items)
+      writeBandItem(item, field.base, bandPush(item.slot, p))
+  }, [activeRef, enter, exit, geomRef, modeRef, reduceRef, y])
+
+  /**
+   * Re-project after a display commit (band pairs only), before paint. The
+   * transforms are recomputed against the new base, so the base swap is a
+   * change of representation rather than a move: the screen is continuous.
+   */
+  const sync = useCallback(() => {
+    if (!activeRef.current)
+      return update()
+    const scroller = rowScroller()
+    if (modeRef.current === 'row' && scroller) {
+      // The class swap clamped the offset; the content width is back, so the
+      // remembered raw scroll lands again. Re-read it: the clamp is the truth.
+      if (rowScrollRef.current != null && scroller.scrollLeft !== rowScrollRef.current)
+        scroller.scrollLeft = rowScrollRef.current
+      rowScrollRef.current = scroller.scrollLeft
+    }
+    // The base and the scroll both moved, so the field is rebuilt against the
+    // new layout; `build` starts every item's `wrote` empty, so the first frame
+    // of the new base writes its own numbers rather than reusing the old ones.
+    fieldRef.current = build(fieldRef.current)
+    update()
+  }, [activeRef, build, modeRef, rowScrollRef, rowScroller, update])
+
+  // One subscription, for every writer of `y`: the drag, the release spring,
+  // the tap tween and a reversal all scrub the same field. The cleanup is the
+  // unmount path: drop the styles and the field, with no state write to an
+  // unmounting sheet.
+  useEffect(() => {
+    const off = y.on('change', update)
+    return () => {
+      off()
+      const field = fieldRef.current
+      if (!field)
+        return
+      for (const item of field.items) {
+        item.el.style.translate = ''
+        if (item.faded !== '')
+          item.el.style.opacity = ''
+        item.el.style.willChange = ''
+      }
+      fieldRef.current = null
+      activeRef.current = false
+    }
+  }, [activeRef, update, y])
+
+  return { active, activeRef, sync, exit }
 }
 
 /**
@@ -789,30 +1219,33 @@ function useDockGesture({
   y,
   dragRef,
   geomRef,
-  mode,
+  modeRef,
   order,
   cap,
   reduce,
-  flipMode,
+  commitDisplay,
   measure,
   draggingRef,
   measureDirtyRef,
   pendingVelRef,
+  bandActiveRef,
 }: {
   hidden: boolean
   wrap: boolean
   y: MotionValue<number>
   dragRef: React.RefObject<DockDrag | null>
   geomRef: React.RefObject<DockGeometry>
-  mode: ToolsDockMode
+  modeRef: React.RefObject<ToolsDockMode>
   order: readonly ToolsDockMode[]
   cap: DockCapacity
   reduce: boolean | null
-  flipMode: (mode: ToolsDockMode) => void
+  commitDisplay: (next: ToolsDockMode) => void
   measure: () => void
   draggingRef: React.RefObject<boolean>
   measureDirtyRef: React.RefObject<boolean>
   pendingVelRef: React.RefObject<number>
+  /** The band owns the pointer's presses while it is in flight (see lib/dockPhysics). */
+  bandActiveRef: React.RefObject<boolean>
 }) {
   const suppressClickRef = useRef(false)
 
@@ -832,6 +1265,7 @@ function useDockGesture({
       list: wrap && scroller
         ? { scrollTop: scroller.scrollTop, clientHeight: scroller.clientHeight, scrollHeight: scroller.scrollHeight }
         : null,
+      startIdx: nearestSnapIndex(geomRef.current.offsets, y.get()),
     }
   }
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -845,8 +1279,9 @@ function useDockGesture({
         return
       // A horizontal swipe in the tools row scrolls it; a vertical one in a
       // list that can still move scrolls the list. Everything else drags the
-      // drawer, which then owns the pointer (data-swiping).
-      if (dragOwner({ horizontal: d.horizontal, list: d.list }, dx, dy) === 'scroller') {
+      // drawer, which then owns the pointer (data-swiping). A frozen list (the
+      // band is in flight) never owns it: see `DragSurface.frozen`.
+      if (dragOwner({ horizontal: d.horizontal, list: d.list, frozen: bandActiveRef.current }, dx, dy) === 'scroller') {
         dragRef.current = null
         return
       }
@@ -860,12 +1295,17 @@ function useDockGesture({
     const { offsets: offs, toolsMaxH: maxH, order: modes, heights } = geomRef.current
     const next = dampOffset(d.start + dy, Math.min(...offs), Math.max(...offs))
     y.set(next)
-    // The content morphs as the pointer crosses a mode midpoint, so the release
-    // only settles the position (see lib/toolsDockMode.dockModeAtHeight). One
-    // state update per crossing, never per frame. The geometry the transform
-    // is written against does not depend on the display, so the crossing
-    // cannot jump it.
-    flipMode(dockModeAtHeight(modes, heights, maxH - next))
+    // The content follows the pointer: icons against row settle at their
+    // midpoint, row against expanded at the band edges. One state update per
+    // crossing, never per frame. Only a pointer move asks the latch; taps and
+    // releases commit their own answer (see `dockDisplayAt`).
+    commitDisplay(dockDisplayAt({
+      order: modes,
+      heights,
+      liveH: maxH - next,
+      prev: modeRef.current,
+      reduce: !!reduce,
+    }))
   }
   const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = dragRef.current
@@ -888,17 +1328,18 @@ function useDockGesture({
     }
     const { offsets: offs, offset: cur } = geomRef.current
     const velocity = e.type === 'pointercancel' ? 0 : y.getVelocity()
-    // The crossing already chose the display for a settled release, so `next`
-    // is `mode` and only the position moves; a flick still shifts one display,
-    // which is the drawer's existing fling rule (lib/dockPhysics.pickSnap).
-    const idx = pickSnap(offs, y.get(), velocity, Math.max(0, order.indexOf(mode)))
-    const next = dockTransition(mode, { type: 'snap', mode: order[idx]! }, cap)
-    if (next === mode) {
+    // The release names the snap with the drawer's existing fling rule, from
+    // the snap the gesture began on: the display on screen lags the band by
+    // design (see `dockDisplayAt`), so it cannot be the flick's origin.
+    const from = modeRef.current
+    const idx = pickSnap(offs, y.get(), velocity, d.startIdx)
+    const next = dockTransition(from, { type: 'snap', mode: order[idx]! }, cap)
+    if (next === from) {
       animate(y, cur, reduce ? { duration: 0 } : { ...SPRING, velocity })
     }
     else {
       pendingVelRef.current = velocity
-      flipMode(next)
+      commitDisplay(next)
     }
   }
 
@@ -931,7 +1372,14 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   /** The display on screen, readable from a pointer handler mid-gesture. */
   const modeRef = useRef(mode)
   const { rowScroller, captureFlipFrom, detachFlip, settleFlip, playFlip } = useDockFlipAnimation({ innerRef, reduceRef })
-  const { rowH, iconH, expH, draggingRef, measureDirtyRef, measure } = useDockMeasure({
+  /**
+   * The display band owns the list's transforms: the measure pass may not
+   * restyle the content under them (see `useDockMeasure`). Owned by
+   * `useDockBand` once it exists; declared here because the measure hook is
+   * constructed first and reads it.
+   */
+  const bandActiveRef = useRef(false)
+  const { rowH, iconH, expH, draggingRef, measureDirtyRef, endpointsRef, measure } = useDockMeasure({
     innerRef,
     contextKey,
     storedMode,
@@ -939,6 +1387,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     fitsOneRow,
     setFitsOneRow,
     captureFlipFrom,
+    bandActiveRef,
   })
   useLayoutEffect(() => {
     modeRef.current = mode
@@ -1006,32 +1455,6 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
       scroller.scrollLeft += want
   }, [rowScroller])
 
-  /**
-   * Show a display (drag crossing, release snap, tap, Escape). Setting the
-   * display already on screen is a no-op, so a drag may call it every frame.
-   */
-  const flipMode = useCallback((next: ToolsDockMode) => {
-    if (next === modeRef.current)
-      return
-    // The display is about to change: remember the boxes the tools show now
-    // (`playFlip`) and the tool at the row's left edge (`saveRowAnchor`).
-    if (!reduceRef.current)
-      captureFlipFrom()
-    modeRef.current = next
-    saveRowAnchor()
-    setMode(next)
-  }, [captureFlipFrom, modeRef, reduceRef, saveRowAnchor, setMode])
-  // Commits before paint, so the row never paints at the clamped position, and
-  // ordered so the FLIP's rect math is final: detach any in-flight transform,
-  // restore the anchor's scroll, then glide the captured boxes to the new ones.
-  useLayoutEffect(() => {
-    const carry = detachFlip()
-    restoreRowAnchor()
-    playFlip(carry)
-  }, [mode, detachFlip, restoreRowAnchor, playFlip])
-
-  const surface = dockSurface(dockBg, dockOpacity)
-
   // Sheet position is one motion value: px below fully open (0 = largest
   // snap). Drags write it directly (rubber-banded past the end snaps);
   // releases and mode changes spring it to the snap with the release
@@ -1046,12 +1469,138 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     geomRef.current = { toolsMaxH, rowH, order, heights: snapPoints, offsets, offset }
   })
 
+  /** The row scroll a band draws while its base is the wrapped layout. */
+  const rowScrollRef = useRef<number | null>(null)
+  /**
+   * A band-crossing tap owns `y`'s travel (see `goTo`): the settle effect must
+   * not restart it, or the cascade would run at the spring's pace instead.
+   */
+  const bandTweenRef = useRef(false)
+  const band = useDockBand({
+    y,
+    innerRef,
+    rowScroller,
+    geomRef,
+    modeRef,
+    endpointsRef,
+    rowScrollRef,
+    reduceRef,
+    activeRef: bandActiveRef,
+    measureDirtyRef,
+    measure,
+  })
+  /**
+   * The commit left a band pair behind: the layout effect below re-projects
+   * the field instead of playing a FLIP. One flag, consumed once.
+   */
+  const pendingBandRef = useRef(false)
+  /**
+   * The driver's stable methods, read by the commit paths. Calling them from a
+   * ref keeps those paths off `band`, whose `active` flips on every band edge:
+   * an effect keyed on it would replay the FLIP at each edge.
+   */
+  const bandRef = useRef(band)
+  useLayoutEffect(() => {
+    bandRef.current = band
+  })
+
+  /**
+   * The one writer of the display (drag crossing, release snap, tap, Escape).
+   * Setting the display already on screen is a no-op, so a drag may call it
+   * every frame.
+   *
+   * A band pair needs no FLIP: the field is already showing the continuous
+   * position, so the commit only swaps the base under it. Everything else
+   * captures the boxes the tools show now and glides them (`playFlip`).
+   * Ordering matters twice: the field's translate must be cleared after
+   * `captureFlipFrom` (the start box is what is on screen) and before
+   * `saveRowAnchor` (the anchor reads layout), and the row scroll must be read
+   * before `setMode`, whose class swap clamps it.
+   */
+  const commitDisplay = useCallback((next: ToolsDockMode) => {
+    if (next === modeRef.current)
+      return
+    const from = modeRef.current
+    const bandPair = isBandTransition(from, next) && order.includes('expanded')
+    if (!bandPair && !reduceRef.current)
+      captureFlipFrom()
+    if (!bandPair)
+      bandRef.current.exit()
+    if (bandPair && from === 'row')
+      rowScrollRef.current = rowScroller()?.scrollLeft ?? null
+    if (!bandPair)
+      saveRowAnchor()
+    modeRef.current = next
+    pendingBandRef.current = bandPair
+    setMode(next)
+  }, [captureFlipFrom, modeRef, order, reduceRef, rowScroller, saveRowAnchor, setMode])
+  // Commits before paint. Either way any flip still in flight is detached (a
+  // band commit never plays a carry: the field is the continuous position);
+  // a band pair re-projects, and any other pair restores the anchor and glides.
+  useLayoutEffect(() => {
+    const carry = detachFlip()
+    const wasBand = pendingBandRef.current
+    pendingBandRef.current = false
+    if (wasBand) {
+      bandRef.current.sync()
+      return
+    }
+    restoreRowAnchor()
+    playFlip(carry)
+  }, [mode, detachFlip, restoreRowAnchor, playFlip])
+
+  // The band's exit restores the raw row scroll once, before paint: a rollback
+  // clears the transforms while the scroller still holds the wrapped width, and
+  // the class swap lands in the same commit, so the row never flashes at its
+  // start. Distinct from the anchor above, a width change's offset.
+  useLayoutEffect(() => {
+    if (band.active || mode !== 'row' || rowScrollRef.current == null)
+      return
+    const scroller = rowScroller()
+    if (scroller && scroller.scrollLeft !== rowScrollRef.current)
+      scroller.scrollLeft = rowScrollRef.current
+  }, [band.active, mode, rowScroller])
+
+  /**
+   * The band's interruption exit: commit the display the live height is
+   * nearest, then drop the field and put `y` on that snap. Committing first
+   * means the sheet already holds the layout that snap shows, so clearing the
+   * transforms moves nothing on screen. Idempotent: with no field in flight it
+   * is a plain settle to the snap.
+   */
+  const settleBand = useCallback(() => {
+    const { offsets: offs, order: modes } = geomRef.current
+    const idx = nearestSnapIndex(offs, y.get())
+    const target = modes[idx] ?? dockModeAtHeight(modes, geomRef.current.heights, geomRef.current.toolsMaxH - y.get())
+    commitDisplay(dockTransition(modeRef.current, { type: 'snap', mode: target }, cap))
+    bandRef.current.exit()
+    y.jump(offs[idx] ?? geomRef.current.offset)
+  }, [cap, commitDisplay, geomRef, modeRef, y])
+
+  // A tool list change mid-band leaves every endpoint stale, and a preference
+  // that drops the band mid-flight leaves the field with nothing to project:
+  // both settle to the nearest display at once (the swap ghost covers the
+  // change itself).
+  useDockBandInterrupt({ innerRef, activeRef: bandActiveRef, settle: settleBand })
+  useLayoutEffect(() => {
+    if (reduce && band.active)
+      settleBand()
+  }, [reduce, band.active, settleBand])
+
+  const surface = dockSurface(dockBg, dockOpacity)
+
   // Settle on mode / geometry change. Content-driven geometry (route switch,
   // wrap change) jumps: the user's mode didn't change, so nothing slides.
   const lastGeomRef = useRef({ toolsMaxH, mode })
   useLayoutEffect(() => {
     const prev = lastGeomRef.current
     lastGeomRef.current = { toolsMaxH, mode }
+    // A band tap's duration tween started before this render and reaches the
+    // `offset` below by construction: leave it running.
+    if (bandTweenRef.current) {
+      bandTweenRef.current = false
+      return
+    }
     if (dragRef.current?.active)
       return
     const velocity = pendingVelRef.current
@@ -1072,16 +1621,46 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     y,
     dragRef,
     geomRef,
-    mode,
-    order,
+    modeRef,
     cap,
+    order,
     reduce,
-    flipMode,
+    commitDisplay,
     measure,
     draggingRef,
     measureDirtyRef,
     pendingVelRef,
+    bandActiveRef,
   })
+
+  /**
+   * A display the user asked for directly (a handle tap, Escape): commit it
+   * first, then walk `y` to its snap. A band pair commits the display at the
+   * current height, where the field is still at the outgoing layout, so the
+   * travel plays the cascade rather than the settle spring compressing it into
+   * a couple of frames. Reduced motion swaps in one frame, as always.
+   */
+  const goTo = useCallback((next: ToolsDockMode) => {
+    const target = clampDockMode(next, cap)
+    if (target === modeRef.current)
+      return
+    const bandPair = isBandTransition(modeRef.current, target) && order.includes('expanded')
+    const to = geomRef.current.offsets[order.indexOf(target)] ?? geomRef.current.offset
+    // Claim the next settle before the commit re-renders: the layout effect
+    // below would otherwise replace this tween with the settle spring.
+    bandTweenRef.current = bandPair && !reduce
+    commitDisplay(target)
+    if (!bandPair)
+      return
+    if (reduce) {
+      y.set(to)
+      return
+    }
+    // The pacing curve stays near-linear so every window opening gets its own
+    // frame (lib/motionTokens EASE_IN_OUT); the duration is the schedule's.
+    const tools = innerRef.current?.children.length ?? 0
+    animate(y, to, { duration: bandTapSeconds(tools), ease: EASE_IN_OUT })
+  }, [cap, commitDisplay, geomRef, innerRef, modeRef, order, reduce, y])
 
   const intent = dockHandleIntent(mode, cap)
   const handleIcon = INTENT_ICON[intent]
@@ -1105,6 +1684,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             aria-label={t('Tools')}
             data-dock-mode={mode}
             data-dock-bg={dockBg}
+            /* The band is in flight: the lists freeze (scrollLockCls). */
+            data-dock-band={band.active || undefined}
             ref={popupRef}
             style={{ ...surface.style, height: toolsMaxH, y } as CSSProperties & { y: typeof y }}
             onPointerDown={onPointerDown}
@@ -1120,7 +1701,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             }}
             onKeyDown={(e) => {
               if (e.key === 'Escape')
-                flipMode(dockTransition(mode, { type: 'dismiss' }, cap))
+                goTo(dockTransition(mode, { type: 'dismiss' }, cap))
             }}
             className={`dock-surface group/dock relative box-border flex w-full flex-col ${surface.className} pointer-events-auto overflow-hidden rounded-none border-0 border-t border-solid outline-0 transition-[background-color,border-color,box-shadow,backdrop-filter,--glass-fade] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform`}
           >
@@ -1130,7 +1711,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
               title={handleLabel}
               aria-label={handleLabel}
               aria-expanded={mode !== 'icons'}
-              onClick={() => flipMode(dockTransition(mode, { type: 'tap' }, cap))}
+              onClick={() => goTo(dockTransition(mode, { type: 'tap' }, cap))}
             >
               <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
             </button>
@@ -1138,7 +1719,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             <div className="relative flex min-h-0 flex-1 flex-col outline-0">
               <div
                 ref={scrollRef}
-                style={wrap ? scrollFadeStyle : scrollFadeStyleX}
+                /* Mid-band the list cannot scroll, so a fade over it would
+                   advertise an affordance the lock has taken away. */
+                style={band.active ? undefined : (wrap ? scrollFadeStyle : scrollFadeStyleX)}
                 data-dock-fade=""
                 className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${scrollLockCls}`}
               >

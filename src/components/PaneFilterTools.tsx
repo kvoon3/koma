@@ -16,14 +16,14 @@ import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
 
 /**
  * The drawer's texture tool: one button in the pane tools that opens a palette
- * of fourteen filters (see `lib/filters`), each swatch rendered from the
+ * of fifteen filters (see `lib/filters`), each swatch rendered from the
  * focused pane's own photo, plus None to clear. A sibling of the pane tools
  * rather than a member of their list, so the dock's order and the tools'
  * existing layout are untouched (Stage.tsx renders it once, like the rotation
  * dial next to it).
  *
- * The eight textures are frozen presets; the six pixel filters (mosaic, tiles,
- * screens, ordered dithers) take parameters, and the strip under the grid dials
+ * The eight textures are frozen presets; the seven pixel filters (mosaic, tiles,
+ * screens, the dithers) take parameters, and the strip under the grid dials
  * the ACTIVE pane's own setting: a stage-pixel block, tile or cell, a posterise
  * level count, a screen angle, an ink mode. The swatch of the active filter is
  * drawn from that same setting, so the tile shows the granularity being dialled,
@@ -37,6 +37,7 @@ import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
  */
 
 /** English source names, the keys both dictionaries translate. */
+// @x18n-keys
 const FILTER_LABEL: Record<FilterId, TKey> = {
   grain: 'Film Grain',
   duotoneWarm: 'Warm Duotone',
@@ -52,6 +53,7 @@ const FILTER_LABEL: Record<FilterId, TKey> = {
   halftone: 'Halftone',
   bayerMono: 'Dither Mono',
   bayerColor: 'Dither Color',
+  ditherDiffuse: 'Error Diffusion',
 }
 
 type KnobOf<Id extends FilterId> = (typeof FILTER_PARAMS)[Id][number]['knob']
@@ -61,7 +63,8 @@ type KnobOf<Id extends FilterId> = (typeof FILTER_PARAMS)[Id][number]['knob']
  * dot pitch or a dither cell, and the label is what says so. Frozen textures
  * take none. The `satisfies` clause makes a filter's missing knob label a
  * compile error, so no lookup has to fall back to the raw id.
- */
+  * @x18n-keys
+  */
 const KNOB_LABEL = {
   grain: {},
   duotoneWarm: {},
@@ -77,6 +80,7 @@ const KNOB_LABEL = {
   halftone: { block: 'Pitch', angle: 'Angle', ink: 'Ink' },
   bayerMono: { block: 'Cell', matrix: 'Matrix' },
   bayerColor: { block: 'Cell', matrix: 'Matrix' },
+  ditherDiffuse: { block: 'Cell' },
 } as const satisfies { [Id in FilterId]: Record<KnobOf<Id>, TKey> }
 
 function knobLabel(id: FilterId, knob: FilterKnob): TKey {
@@ -232,7 +236,14 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   const filter = useStore(s => focusedLeaf(s)?.filter)
   const photo = useStore(s => (photoId ? s.photos.find(p => p.id === photoId) ?? null : null))
   const setPaneFilter = useStore(s => s.setPaneFilter)
-  const [open, setOpen] = useState(false)
+  /**
+   * Openings counted, not mirrored. The popover is uncontrolled like the
+   * rotate dial's, so its open state dies with the subtree the hide gate
+   * unmounts. A stage press deselects mid-dispatch and no close event
+   * arrives (issue #76), so no popup-lifetime value may live above that
+   * gate. A bump always re-measures.
+   */
+  const [openCount, bumpOpenCount] = useState(0)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const viewport = useSyncExternalStore(subscribeViewport, viewportKey, () => '0x0')
 
@@ -240,13 +251,13 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
    * The dock is a bottom sheet overlaying the stage, so "above the trigger" is
    * not "above the dock": at a short window the palette's lower rows land under
    * the sheet's chrome. Anchor the popup above the sheet's top edge instead, and
-   * cap its height to the room over that edge. Measured while open, and again
-   * whenever the window resizes (the sheet only changes size when the dock's
-   * mode does, and that tap closes the popover first).
+   * cap its height to the room over that edge. Measured at every opening, and
+   * again whenever the window resizes (the sheet only changes size when the
+   * dock's mode does, and that tap closes the popover first).
    */
   const bounds = useMemo(() => {
     const trigger = triggerRef.current
-    if (!open || !trigger)
+    if (!trigger)
       return null
     const t = trigger.getBoundingClientRect()
     const sheet = trigger.closest('[data-dock-mode]')
@@ -258,7 +269,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
       offset: Math.max(6, Math.round(t.top - sheetTop) + 6),
       maxH: Math.max(180, Math.min(560, Math.round(sheetTop) - 16, room - 16)),
     }
-  }, [open, viewport])
+  }, [openCount, viewport])
 
   // Same rule as the pane tools: no focused pane holding a photo, no tool.
   if (hidden || !photoId || !photo)
@@ -274,7 +285,11 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   }
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root onOpenChange={(next) => {
+      if (next)
+        bumpOpenCount(n => n + 1)
+    }}
+    >
       <Popover.Trigger
         ref={triggerRef}
         className={`${toolsBtnCls} ${dockBtnStateCls}`}

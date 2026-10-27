@@ -65,9 +65,17 @@ export interface ScaleSelection {
   stickerSel: string | null
 }
 
+/** The name the rail reads aloud for each kind of target. */
+// @x18n-keys
+const TARGET_LABELS = {
+  canvas: 'Canvas size',
+  label: 'Text size',
+  sticker: 'Sticker size',
+} as const
+
 /** The canvas line: the board's fill, the target when nothing else is selected. */
 export function canvasScaleTarget(canvasFill: number): ScaleTarget {
-  return { kind: 'canvas', id: '', value: canvasFill, scale: CANVAS_SCALE, format: 'percent', label: 'Canvas size' }
+  return { kind: 'canvas', id: '', value: canvasFill, scale: CANVAS_SCALE, format: 'percent', label: TARGET_LABELS.canvas }
 }
 
 /**
@@ -77,21 +85,28 @@ export function canvasScaleTarget(canvasFill: number): ScaleTarget {
 export function pickScaleTarget(sel: ScaleSelection): ScaleTarget {
   const label = sel.labelSel ? sel.labels.find(l => l.id === sel.labelSel) : undefined
   if (label)
-    return { kind: 'label', id: label.id, value: label.size, scale: LABEL_SCALE, format: 'size', label: 'Text size' }
+    return { kind: 'label', id: label.id, value: label.size, scale: LABEL_SCALE, format: 'size', label: TARGET_LABELS.label }
   const sticker = sel.stickerSel ? sel.stickers.find(s => s.id === sel.stickerSel) : undefined
   if (sticker)
-    return { kind: 'sticker', id: sticker.id, value: sticker.s, scale: STICKER_SCALE, format: 'percent', label: 'Sticker size' }
+    return { kind: 'sticker', id: sticker.id, value: sticker.s, scale: STICKER_SCALE, format: 'percent', label: TARGET_LABELS.sticker }
   return canvasScaleTarget(sel.canvasFill)
 }
 
 /**
- * The rail's tooltip: the canvas double-clicks back to the stage fit, an object
- * back to the size it was made at (both are the target's `ref`).
+ * The rail's tooltip per target kind: the canvas double-clicks back to the
+ * stage fit, an object back to the size it was made at (both are the target's
+ * `ref`).
+ *
+ * @x18n-keys
  */
+const SCALE_HINTS = {
+  canvas: 'Drag to resize the canvas · double-click to fit',
+  object: 'Drag to resize · double-click to reset',
+} as const
+
+/** The hint for the target the rail is sizing now. */
 export function scaleTargetHint(target: ScaleTarget): TKey {
-  return target.kind === 'canvas'
-    ? 'Drag to resize the canvas · double-click to fit'
-    : 'Drag to resize · double-click to reset'
+  return target.kind === 'canvas' ? SCALE_HINTS.canvas : SCALE_HINTS.object
 }
 
 /**

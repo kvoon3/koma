@@ -6,8 +6,8 @@ import { buttonBase, buttonVariants } from './buttonStyles'
 import { Spinner } from './spinner'
 
 /**
- * The app's plain button: one base metric with six palettes (`flat`, `on`,
- * `strong`, `close`, `danger`, `float`). The top bar, the dialogs, the library
+ * The app's plain button: one base metric with seven palettes (`flat`, `on`,
+ * `strong`, `close`, `danger`, `float`, `ghost`). The top bar, the dialogs, the library
  * sections and the floating chrome render it, so a new surface inherits the
  * shared padding, press scale and focus ring instead of restyling a bare
  * `<button>`.

@@ -6,7 +6,7 @@
  */
 import type { TKey } from './zh-Hans'
 
-export const zhHant: Record<TKey, string> = {
+const zhHant: Record<TKey, string> = {
   // TopBar
   'Help': '說明',
   'Photo': '照片',
@@ -28,6 +28,8 @@ export const zhHant: Record<TKey, string> = {
   'Export': '匯出',
   'Switch to light theme': '切換到淺色主題',
   'Switch to dark theme': '切換到深色主題',
+  'Show grid crop preview': '顯示九宮格裁切預覽',
+  'Hide grid crop preview': '隱藏九宮格裁切預覽',
 
   // FloatActions (back / undo / redo / reset under the top bar)
   'Undo': '復原',
@@ -475,6 +477,11 @@ export const zhHant: Record<TKey, string> = {
   'Saved': '已儲存',
   'Saved {n} files': '已儲存 {n} 個檔案',
 
+  // Export preview zoom (export-preview-zoom-minimap): the chip, the minimap and the coarse hint.
+  'Preview at {n}% · click to fit': '預覽 {n}% · 點擊適應視窗',
+  'Export preview minimap, drag to pan': '匯出預覽小地圖，拖曳平移',
+  'Double-tap the preview to zoom in.': '連點預覽圖兩下可放大。',
+
   // WeChatGuard (the WeChat browser guard and its menu guide)
   'WeChat browser detected': '偵測到微信瀏覽器',
   'Saving an exported image may not work in the WeChat browser. Open koma in the system browser for the full editor, or continue here.': '微信瀏覽器可能無法儲存匯出的圖片。建議用系統瀏覽器開啟以使用完整編輯器，或繼續使用。',
@@ -587,6 +594,7 @@ export const zhHant: Record<TKey, string> = {
   'Halftone': '半調網點',
   'Dither Mono': '抖動黑白',
   'Dither Color': '抖動彩色',
+  'Error Diffusion': '誤差擴散',
   'Block': '塊大小',
   'Levels': '色階',
   'Speckle': '雜點',
@@ -819,3 +827,5 @@ export const zhHant: Record<TKey, string> = {
   'The camera could not be used.': '無法使用相機。',
   'Could not take the photo.': '拍照失敗。',
 }
+
+export default zhHant

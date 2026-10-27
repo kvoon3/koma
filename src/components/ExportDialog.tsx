@@ -7,6 +7,7 @@ import { isWeChat } from '../lib/browser'
 import { canCopyImage, copyImageToClipboard, downloadBlob } from '../lib/exporter'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
+import { ExportPreview } from './ExportPreview'
 import { buttonBase, buttonVariants, dialogAccentButton, dialogButton } from './ui/buttonStyles'
 import { Spinner } from './ui/spinner'
 
@@ -237,22 +238,6 @@ function RunStrip({ list, at, onSelect }: { list: ExportItem[] | null, at: numbe
   )
 }
 
-/**
- * The checkerboard behind the still: a PNG keeps its alpha in the preview
- * exactly as it will in the file. The popup has a height of its own, and this
- * box takes what the rows around it leave, so a control is never pushed out
- * on a short screen.
- */
-function PreviewStage({ cur }: { cur: ExportItem | null }) {
-  return (
-    <div className="stage-clear flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3">
-      {cur != null && (cur.kind === 'image'
-        ? <img src={cur.url} alt={cur.name} className="export-shot h-full w-full object-contain shadow-[0_18px_44px_-24px_rgba(0,0,0,0.6)]" />
-        : <video src={cur.url} controls playsInline preload="auto" className="h-full w-full object-contain" />)}
-    </div>
-  )
-}
-
 /** The one-line description of what is on screen. */
 function RunCaption({ cur }: { cur: ExportItem | null }) {
   const t = useT()
@@ -265,15 +250,18 @@ function RunCaption({ cur }: { cur: ExportItem | null }) {
 
 /**
  * A finger is the pointer that can long-press, and WeChat's WebView blocks the
- * download button even when it reports a mouse.
+ * download button even when it reports a mouse. The zoom sentence is a second
+ * key rather than an edit of the first: a still can be zoomed AND saved, and
+ * rewording the save sentence would orphan its translations.
  */
-function LongPressHint({ coarse }: { coarse: boolean }) {
+function LongPressHint({ coarse, image }: { coarse: boolean, image: boolean }) {
   const t = useT()
   if (!(coarse || isWeChat()))
     return null
   return (
     <p className="m-0 flex-none border-t border-line px-4 py-2 text-[11px] leading-[1.5] text-faint">
       {t('Long-press the preview to save it to your photos.')}
+      {image && ` ${t('Double-tap the preview to zoom in.')}`}
     </p>
   )
 }
@@ -394,11 +382,11 @@ export function ExportDialog({ items, onClose, onReleased }: { items: ExportItem
 
           <RunStrip list={list} at={at} onSelect={setSel} />
 
-          <PreviewStage cur={cur} />
+          <ExportPreview key={cur?.url ?? ''} item={cur} />
 
           <RunCaption cur={cur} />
 
-          <LongPressHint coarse={coarse} />
+          <LongPressHint coarse={coarse} image={cur?.kind === 'image'} />
 
           <RunFooter
             cur={cur}

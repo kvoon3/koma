@@ -1,10 +1,10 @@
 import type { Workspace } from '../store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowLeft, History, Redo2, RotateCcw, Undo2 } from 'lucide'
+import { ArrowLeft, Eye, EyeOff, History, Redo2, RotateCcw, Undo2 } from 'lucide'
 import { useRef, useState } from 'react'
 import { canRedo, canUndo } from '../lib/history'
 import { useT } from '../lib/i18n'
-import { isGridPath, OVERVIEW_PATH } from '../lib/routes'
+import { isEditorPath, isGridPath, OVERVIEW_PATH } from '../lib/routes'
 import { say } from '../lib/toast'
 import { viewTransitionOption } from '../lib/viewTransition'
 import { useStore } from '../store'
@@ -29,6 +29,7 @@ import { Tip } from './ui/tip'
 export function FloatActions() {
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
+  const editor = useRouterState({ select: s => isEditorPath(s.location.pathname) })
   const t = useT()
   const [resetAsk, setResetAsk] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -36,6 +37,7 @@ export function FloatActions() {
   const historyAnchorRef = useRef<HTMLButtonElement | null>(null)
   const undoable = useStore(s => canUndo(s.history))
   const redoable = useStore(s => canRedo(s.history))
+  const cropMaskShown = useStore(s => s.cropMaskShown)
 
   // 1-based grid position of the active workspace: it names the reset target
   // in the confirm (the grid itself carries no active-cell marker).
@@ -75,7 +77,7 @@ export function FloatActions() {
             label={t('Back to the grid · G')}
             trigger={(
               <Button
-                variant="float"
+                variant="ghost"
                 icon={ArrowLeft}
                 iconSize={15}
                 aria-label={t('Back to the grid')}
@@ -87,13 +89,16 @@ export function FloatActions() {
       )}
 
       {/* Right cluster: undo / redo of the board, then reset last at the corner.
-          `data-float-actions` is what the size rail measures to start below it. */}
+          `data-float-actions` is what the size rail measures to start below it,
+          and `grid/switcherLayout` (FLOAT_ACTIONS) mirrors this row so the
+          overview's caption chips start below it too. Resize the row and the
+          mirror moves with it. */}
       <div data-float-actions="" className="pointer-events-none absolute right-2.5 top-2.5 flex gap-1.5">
         <Tip
           label={t('Undo · ⌘Z')}
           trigger={(
             <Button
-              variant="float"
+              variant="ghost"
               className="pointer-events-auto"
               icon={Undo2}
               iconSize={15}
@@ -108,7 +113,7 @@ export function FloatActions() {
           label={t('Redo · ⌘⇧Z')}
           trigger={(
             <Button
-              variant="float"
+              variant="ghost"
               className="pointer-events-auto"
               icon={Redo2}
               iconSize={15}
@@ -124,7 +129,7 @@ export function FloatActions() {
           trigger={(
             <Button
               ref={historyAnchorRef}
-              variant="float"
+              variant="ghost"
               className={`pointer-events-auto${historyOpen ? ' text-txt shadow-[inset_0_-2px_0_var(--accent)]' : ''}`}
               icon={History}
               iconSize={15}
@@ -135,11 +140,30 @@ export function FloatActions() {
           )}
         />
 
+        {/* The crop preview is board work, so it lives with the board chrome:
+            editor-only, ahead of the destructive reset. */}
+        {editor && (
+          <Tip
+            label={cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')}
+            trigger={(
+              <Button
+                variant="ghost"
+                className="pointer-events-auto"
+                icon={cropMaskShown ? EyeOff : Eye}
+                iconSize={15}
+                aria-label={cropMaskShown ? t('Hide grid crop preview') : t('Show grid crop preview')}
+                aria-pressed={cropMaskShown}
+                onClick={() => useStore.getState().setCropMaskShown(!cropMaskShown)}
+              />
+            )}
+          />
+        )}
+
         <Tip
           label={grid ? t('Reset all workspaces') : t('Reset this workspace')}
           trigger={(
             <Button
-              variant="float"
+              variant="ghost"
               className="pointer-events-auto"
               icon={RotateCcw}
               iconSize={15}

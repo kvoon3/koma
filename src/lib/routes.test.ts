@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { isGridPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH } from './routes'
+import { isEditorPath, isGridPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH } from './routes'
 
 describe('the route predicates the chrome keys off', () => {
   test('the board overview is the root', () => {
@@ -30,5 +30,16 @@ describe('the route predicates the chrome keys off', () => {
     // The launcher used to live at the root; the demoted path must not collide
     // with a library or the editor.
     expect([OVERVIEW_PATH, LIBRARY_PATH, '/photos', '/stickers', '/w/$wsId']).not.toContain(LEGACY_INDEX_PATH)
+  })
+
+  test('the editor stage is the one board route behind /w/', () => {
+    expect(isEditorPath('/w/w-1')).toBe(true)
+    // The route file's own template: the id is a param, not a literal segment.
+    expect(isEditorPath('/w/$wsId')).toBe(true)
+    expect(isEditorPath(OVERVIEW_PATH)).toBe(false)
+    expect(isEditorPath(LIBRARY_PATH)).toBe(false)
+    expect(isEditorPath('/photos')).toBe(false)
+    expect(isEditorPath('/stickers')).toBe(false)
+    expect(isEditorPath(LEGACY_INDEX_PATH)).toBe(false)
   })
 })

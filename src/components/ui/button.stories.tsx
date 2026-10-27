@@ -20,6 +20,7 @@ export const Variants: Story = {
       <Button variant="close" aria-label="Close">Close</Button>
       <Button variant="danger">Delete</Button>
       <Button variant="float" icon={Camera} iconSize={15} aria-label="Snapshot" />
+      <Button variant="ghost" icon={Undo2} iconSize={15} aria-label="Undo" />
       <Button disabled>Disabled</Button>
     </div>
   ),
@@ -36,12 +37,20 @@ export const Loading: Story = {
 export const Float: Story = {
   render: () => (
     <div className="flex items-center gap-1.5">
-      <Button variant="float" icon={ArrowLeft} iconSize={15} aria-label="Back to the grid" />
-      <Button variant="float" icon={Undo2} iconSize={15} aria-label="Undo" />
-      <Button variant="float" icon={Redo2} iconSize={15} aria-label="Redo" />
       <Button variant="float" icon={Camera} iconSize={15} aria-label="Snapshot the board" />
       <Button variant="float" icon={Camera} iconSize={15} loading aria-label="Snapshotting the board" />
-      <Button variant="float" icon={Undo2} iconSize={15} disabled aria-label="Nothing to undo" />
+    </div>
+  ),
+}
+
+/** The float row's chrome (FloatActions): the float chip's ghost. */
+export const Ghost: Story = {
+  render: () => (
+    <div className="flex items-center gap-1.5">
+      <Button variant="ghost" icon={ArrowLeft} iconSize={15} aria-label="Back to the grid" />
+      <Button variant="ghost" icon={Undo2} iconSize={15} aria-label="Undo" />
+      <Button variant="ghost" icon={Redo2} iconSize={15} aria-label="Redo" />
+      <Button variant="ghost" icon={Undo2} iconSize={15} disabled aria-label="Nothing to undo" />
     </div>
   ),
 }

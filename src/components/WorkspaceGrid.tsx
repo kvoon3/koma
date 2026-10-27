@@ -10,7 +10,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Camera, Image, LayoutGrid, Square, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useElementSize, useStageZoom } from '../hooks'
+import { useDockRestBand, useElementSize, useMediaQuery, useStageZoom } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
 import { viewTransform } from '../lib/canvasView'
 import { GRID_CELL_MAX } from '../lib/exporter'
@@ -23,7 +23,7 @@ import { MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
 import { DeleteZone } from './DeleteZone'
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
-import { CAPTION_GAP, CAPTION_H, DOCK_CHROME_H, RECEDE_BLUR, RECEDE_OPACITY, recedeFit, STAGE_PAD_Y, switcherMetrics } from './grid/switcherLayout'
+import { CAPTION_GAP, CAPTION_H, RECEDE_BLUR, RECEDE_OPACITY, recedeFit, STAGE_PAD_Y, stageTopPad, switcherMetrics } from './grid/switcherLayout'
 import { useBoardPager } from './grid/useBoardPager'
 import { useGridKeyboard } from './grid/useGridKeyboard'
 import { DELETE_ZONE_ID, useGridReorder } from './grid/useGridReorder'
@@ -127,13 +127,18 @@ export function WorkspaceGrid() {
 
   // ---- Geometry ------------------------------------------------------------
   const [wrapRef, wrapSize] = useElementSize<HTMLDivElement>()
-  // The dock is an overlay, so the board is sized and centered above it. The
-  // reserve holds while the switcher is open (the dock is put away there), so
-  // the receded board stays exactly where the zoom-out left it.
-  const dockReserve = DOCK_CHROME_H
+  // The dock is an overlay, so the board is sized and centered above it: the
+  // sheet's live band (measured, its height moves with the icons / row /
+  // expanded displays; the constant is the first-frame fallback), frozen for
+  // the switcher (see the hook).
+  const dockReserve = useDockRestBand(wrapSize.h, wrapSize.top, switcher)
+  // The undo/redo cluster floats over the stage's top-right, and on a phone
+  // the centred caption chips share its horizontal band: the column starts
+  // below it (`stageTopPad`) instead of under it. Desktops keep plain air.
+  const topPad = stageTopPad(wrapSize.w, useMediaQuery('(pointer: coarse)'))
   const body = {
     w: wrapSize.w,
-    h: Math.max(1, wrapSize.h - STAGE_PAD_Y * 2 - dockReserve),
+    h: Math.max(1, wrapSize.h - topPad - STAGE_PAD_Y - dockReserve),
   }
   const { cell, box } = stageCellBox(body, gridGap, cellRatioValue(gridCellRatio))
   const boardW = cell * 3 + gridGap * 2
@@ -143,8 +148,9 @@ export function WorkspaceGrid() {
   const boardH = rows * box.h + (rows - 1) * gridGap
   const { stripTop, stripH, cardW, cardH } = switcherMetrics(wrapSize.h)
   // Where the board recedes to: the same zoom-out, shifted down (and on a stage
-  // too short for it, shrunk) so the whole column clears the strip.
-  const recede = recedeFit({ stageH: wrapSize.h, boardH, stripTop, stripH })
+  // too short for it, shrunk) so the whole column clears the strip. The recede
+  // centres on the resting column, so it wears the same measured dock band.
+  const recede = recedeFit({ stageH: wrapSize.h, boardH, stripTop, stripH, topPad, dockH: dockReserve })
   const activeIdx = grids.findIndex(g => g.id === activeGridId)
   const boardRef = useRef<HTMLDivElement | null>(null)
   // The board column is the canvas here: the view zoom (from the stage margin)
@@ -263,12 +269,13 @@ export function WorkspaceGrid() {
       onDoubleClick={viewZoom.onStageDoubleClick}
     >
       {/* The board area: the stage's own air and everything the board column
-          draws, minus the dock (a sibling, so a pull on the sheet never lands
-          here). Pulled down it opens the switcher. */}
+          draws, minus the top cluster (a phone's caption chips start below it)
+          and the dock (a sibling, so a pull on the sheet never lands here).
+          Pulled down it opens the switcher. */}
       <div
         data-board-stage=""
         className="relative flex min-h-0 flex-1 items-center justify-center"
-        style={{ paddingTop: STAGE_PAD_Y, paddingBottom: STAGE_PAD_Y + dockReserve }}
+        style={{ paddingTop: topPad, paddingBottom: STAGE_PAD_Y + dockReserve }}
         onPointerDown={pull.onPullDown}
         onPointerMove={pull.onPullMove}
         onPointerUp={pull.onPullEnd}

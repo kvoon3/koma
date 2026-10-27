@@ -8,7 +8,7 @@
  * File name uses the BCP-47 script tag (zh-Hans) so a future `zh-Hant` file
  * can sit beside this one without colliding.
  */
-export const zhHans = {
+const zhHans = {
   // TopBar
   'Help': '帮助',
   'Photo': '照片',
@@ -30,6 +30,8 @@ export const zhHans = {
   'Export': '导出',
   'Switch to light theme': '切换到浅色主题',
   'Switch to dark theme': '切换到深色主题',
+  'Show grid crop preview': '显示九宫格裁切预览',
+  'Hide grid crop preview': '隐藏九宫格裁切预览',
 
   // FloatActions (back / undo / redo / reset under the top bar)
   'Undo': '撤销',
@@ -477,6 +479,11 @@ export const zhHans = {
   'Saved': '已保存',
   'Saved {n} files': '已保存 {n} 个文件',
 
+  // Export preview zoom (export-preview-zoom-minimap): the chip, the minimap and the coarse hint.
+  'Preview at {n}% · click to fit': '预览 {n}% · 点击适应窗口',
+  'Export preview minimap, drag to pan': '导出预览小地图，拖动平移',
+  'Double-tap the preview to zoom in.': '双击预览图可放大。',
+
   // WeChatGuard (the WeChat browser guard and its menu guide)
   'WeChat browser detected': '检测到微信浏览器',
   'Saving an exported image may not work in the WeChat browser. Open koma in the system browser for the full editor, or continue here.': '微信浏览器可能无法保存导出的图片。建议用系统浏览器打开，或继续使用。',
@@ -589,6 +596,7 @@ export const zhHans = {
   'Halftone': '半调网点',
   'Dither Mono': '抖动黑白',
   'Dither Color': '抖动彩色',
+  'Error Diffusion': '误差扩散',
   'Block': '块大小',
   'Levels': '色阶',
   'Speckle': '杂点',
@@ -821,6 +829,8 @@ export const zhHans = {
   'The camera could not be used.': '无法使用相机。',
   'Could not take the photo.': '拍照失败。',
 } satisfies Record<string, string>
+
+export default zhHans
 
 /** Every source string a call site may translate. */
 export type TKey = keyof typeof zhHans

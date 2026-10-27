@@ -134,6 +134,8 @@ import {
 /**
  * Curated icons a board text label can lead with. Ids are stored on the label,
  * so keep existing ids stable; unknown ids simply draw no icon.
+ *
+ * @x18n-keys
  */
 export const LABEL_ICONS: { id: string, label: TKey, node: IconNode }[] = [
   // Originals (keep first; ids are persisted)

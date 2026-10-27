@@ -5,7 +5,7 @@
  */
 import type { TKey } from './zh-Hans'
 
-export const ja: Record<TKey, string> = {
+const ja: Record<TKey, string> = {
   // TopBar
   'Help': 'ヘルプ',
   'Photo': '写真',
@@ -27,6 +27,8 @@ export const ja: Record<TKey, string> = {
   'Export': '書き出し',
   'Switch to light theme': 'ライトテーマに切り替え',
   'Switch to dark theme': 'ダークテーマに切り替え',
+  'Show grid crop preview': 'グリッド切り抜きプレビューを表示',
+  'Hide grid crop preview': 'グリッド切り抜きプレビューを非表示',
 
   // FloatActions (back / undo / redo / reset under the top bar)
   'Undo': '元に戻す',
@@ -474,6 +476,11 @@ export const ja: Record<TKey, string> = {
   'Saved': '保存しました',
   'Saved {n} files': '{n} 個のファイルを保存しました',
 
+  // Export preview zoom (export-preview-zoom-minimap): the chip, the minimap and the coarse hint.
+  'Preview at {n}% · click to fit': 'プレビュー {n}% · クリックでフィット',
+  'Export preview minimap, drag to pan': '書き出しプレビューのミニマップ、ドラッグで移動',
+  'Double-tap the preview to zoom in.': 'プレビューをダブルタップすると拡大できます。',
+
   // WeChatGuard (the WeChat browser guard and its menu guide)
   'WeChat browser detected': 'WeChat ブラウザーを検出しました',
   'Saving an exported image may not work in the WeChat browser. Open koma in the system browser for the full editor, or continue here.': 'WeChat ブラウザーでは書き出した画像を保存できない場合があります。フル機能のエディターを使うにはシステムブラウザーで koma を開くか、このまま続行してください。',
@@ -583,6 +590,7 @@ export const ja: Record<TKey, string> = {
   'Halftone': 'ハーフトーン',
   'Dither Mono': 'ディザ モノ',
   'Dither Color': 'ディザ カラー',
+  'Error Diffusion': '誤差拡散',
   'Block': 'ブロック',
   'Levels': 'レベル',
   'Speckle': 'スペックル',
@@ -815,3 +823,5 @@ export const ja: Record<TKey, string> = {
   'The camera could not be used.': 'カメラを使用できませんでした。',
   'Could not take the photo.': '写真を撮影できませんでした。',
 }
+
+export default ja

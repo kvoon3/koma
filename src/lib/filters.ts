@@ -6,9 +6,9 @@
  *
  * Two families share the pipeline: the *textures* (grain, duotones, print,
  * cyanotype, paper, bit grain) are frozen presets drawn from noise fields, and
- * the *pixel family* (mosaic, tessera, diamond, halftone, two ordered dithers)
- * is geometry drawn from a dialled grid, which is why those six take parameters
- * (`FilterParams` below).
+ * the *pixel family* (mosaic, tessera, diamond, halftone, the three dithers)
+ * is geometry drawn from a dialled grid, which is why those seven take
+ * parameters (`FilterParams` below).
  *
  * Everything here is our own recipe, measured against nothing: no palette,
  * kernel, preset or threshold is taken from any other app's filter set (the
@@ -42,8 +42,8 @@ import { hash2, lerp, smooth, valueNoise } from './noise'
 
 /**
  * Filters in dock order: the film grain pair, the three duotones, the
- * processes, then the pixel family (blocks, tiles, screens and ordered
- * dithers), which alone take parameters.
+ * processes, then the pixel family (blocks, tiles, screens and the dithers),
+ * which alone take parameters.
  */
 export const FILTER_IDS = [
   'grain',
@@ -60,6 +60,7 @@ export const FILTER_IDS = [
   'halftone',
   'bayerMono',
   'bayerColor',
+  'ditherDiffuse',
 ] as const
 
 export type FilterId = (typeof FILTER_IDS)[number]
@@ -174,6 +175,7 @@ export const FILTER_PARAMS = {
     { knob: 'block', min: 1, max: 8, step: 1, def: 2 },
     { knob: 'matrix', min: 4, max: 8, step: 4, def: 4 },
   ],
+  ditherDiffuse: [{ knob: 'block', min: 1, max: 8, step: 1, def: 2 }],
 } as const satisfies Record<FilterId, readonly FilterParamDef[]>
 
 /**
@@ -1100,6 +1102,78 @@ function bayerColor(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h
   }
 }
 
+// --- 15. Error diffusion ----------------------------------------------------
+
+/**
+ * The two screen tones the diffusion quantises against, as luma: nearest-level
+ * quantisation against the colours actually painted, so the ink fraction a
+ * region settles into reproduces its true tone rather than an idealised
+ * black-and-white one. The ordered dithers above threshold coverage at 0.5
+ * (luma 127.5) instead, which prints midtones ~2% bright against these warm
+ * inks. The levels are the definition of FS, not a dial to harmonise.
+ */
+const DIFFUSE_INK_L = 0.2126 * SCREEN_INK[0] + 0.7152 * SCREEN_INK[1] + 0.0722 * SCREEN_INK[2]
+const DIFFUSE_PAPER_L = 0.2126 * SCREEN_PAPER[0] + 0.7152 * SCREEN_PAPER[1] + 0.0722 * SCREEN_PAPER[2]
+
+/**
+ * Floyd–Steinberg error diffusion, monochrome: each site is quantised to one of
+ * the two screen inks and its quantisation error is pushed onto the
+ * not-yet-decided neighbours (7/16 right, 3/16 bottom-left, 5/16 below, 1/16
+ * bottom-right), so the ink a region settles into tracks the photo's tone
+ * locally instead of repeating a threshold screen. Contributions falling off
+ * the picture are dropped, the classic edge rule.
+ *
+ * Plain left-to-right scan, serpentine deliberately off: one fixed scan gives
+ * one fixed picture (the determinism contract), where a serpentine's row parity
+ * would flip the pattern between a 1024 preview and its 2048 export.
+ *
+ * Error is exact float: the four weights are exact binary fractions
+ * (0.4375/0.1875/0.3125/0.0625), so every spread is an IEEE-exact multiply-add
+ * and the accumulator never drifts; an integer 1/16 accumulator would have to
+ * drop sixteenths and shed tone. No seed, no randomness.
+ *
+ * The `cell` dial is the diffusion's super-pixel, the role the ordered dither's
+ * cell plays for its screen: the photo reduces to a lattice of cell-sized block
+ * means (read from `src`, which the error never touches), true 2D diffusion
+ * runs over that lattice, and each decided site paints its whole cell flat. At
+ * 1 that is the classic per-pixel FS; a larger cell coarsens the grain the same
+ * way it coarsens the Bayer screen. FS has no threshold to tile, so the dial is
+ * a granularity knob, not a period.
+ */
+function ditherDiffuse(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: number, r: number, cell: number) {
+  const p = stagePitch(cell, r)
+  const cols = Math.ceil(w / p)
+  const rows = Math.ceil(h / p)
+  // Two error rows over the cell lattice, swapped per scanline: `cur` holds
+  // this row's incoming errors (written by the row above), `nxt` collects the
+  // row below's, and is zeroed as it becomes current. Each row is padded one
+  // cell at both ends; a boundary site's off-picture neighbour lands there.
+  const stride = cols + 2
+  const err = new Float64Array(2 * stride)
+  const mid = (DIFFUSE_INK_L + DIFFUSE_PAPER_L) / 2
+  for (let by = 0; by < rows; by++) {
+    const y0 = by * p
+    const y1 = Math.min(h, y0 + p)
+    const cur = (by & 1) * stride
+    const nxt = stride - cur
+    err.fill(0, nxt, nxt + stride)
+    for (let u = 0; u < cols; u++) {
+      const x0 = u * p
+      const x1 = Math.min(w, x0 + p)
+      // Indexed from `u + 1`: the margin absorbs the out-of-range spreads, so
+      // the kernel runs without edge guards.
+      const v = blockMean(src, w, x0, y0, x1, y1) + err[cur + u + 1]!
+      const on = v < mid
+      const e = v - (on ? DIFFUSE_INK_L : DIFFUSE_PAPER_L)
+      err[cur + u + 2] += e * 0.4375
+      err[nxt + u] += e * 0.1875
+      err[nxt + u + 1] += e * 0.3125
+      err[nxt + u + 2] += e * 0.0625
+      fillBlock(dst, w, x0, y0, x1, y1, on ? SCREEN_INK : SCREEN_PAPER)
+    }
+  }
+}
+
 // --- Entry point ------------------------------------------------------------
 
 /**
@@ -1139,6 +1213,7 @@ export function applyFilter(imageData: FilterPixels, filter: FilterValue, seed: 
     halftone: () => halftone(src, data, w, h, r, knob('block'), knob('angle'), knob('ink')),
     bayerMono: () => bayerMono(src, data, w, h, r, knob('block'), knob('matrix')),
     bayerColor: () => bayerColor(src, data, w, h, r, knob('block'), knob('matrix')),
+    ditherDiffuse: () => ditherDiffuse(src, data, w, h, r, knob('block')),
   }
   recipes[spec.id]()
 }

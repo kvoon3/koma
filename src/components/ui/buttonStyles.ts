@@ -6,7 +6,7 @@
  * `Dialog.Close`, an `<a>` styled as a chip).
  */
 
-export type Variant = 'flat' | 'on' | 'strong' | 'close' | 'danger' | 'float'
+export type Variant = 'flat' | 'on' | 'strong' | 'close' | 'danger' | 'float' | 'ghost'
 
 /**
  * Border width and padding sit in the variants, not here: same-property
@@ -40,11 +40,12 @@ export const buttonVariants: Record<Variant, string> = {
   /** A destructive action: danger red filled with white text, for the delete buttons in detail panels and toolbars. */
   danger: `${textBox} bg-danger text-on-danger hover:not-disabled:bg-danger hover:not-disabled:text-on-danger`,
   /**
-   * The floating-chip idiom shared by FloatActions and the board's caption row;
-   * ViewZoomChip keeps its own component because its chip also carries text and
-   * a min width.
+   * The floating-chip idiom of the board's caption row; ViewZoomChip keeps
+   * its own component because its chip also carries text and a min width.
    */
   float: 'h-[30px] w-[30px] justify-center border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] pointer-coarse:h-[38px] pointer-coarse:w-[38px]',
+  /** The float chip's ghost, worn by the float row's chrome (FloatActions): no background, no border, chip-hover on hover, so the row sits quiet over the stage. */
+  ghost: 'h-[30px] w-[30px] justify-center border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[38px] pointer-coarse:w-[38px]',
 }
 
 /**

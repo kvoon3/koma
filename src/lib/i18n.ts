@@ -1,8 +1,8 @@
 import type { TKey } from './locales/zh-Hans'
 import { useSyncExternalStore } from 'react'
-import { ja } from './locales/ja'
-import { zhHans } from './locales/zh-Hans'
-import { zhHant } from './locales/zh-Hant'
+import ja from './locales/ja'
+import zhHans from './locales/zh-Hans'
+import zhHant from './locales/zh-Hant'
 
 export type { TKey } from './locales/zh-Hans'
 

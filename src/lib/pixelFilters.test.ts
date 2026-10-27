@@ -18,11 +18,14 @@ import {
 } from './filters'
 
 /**
- * The pixel family: blocks, tiles, screens and ordered dithers. What is worth
+ * The pixel family: blocks, tiles, screens and dithers. What is worth
  * pinning here is *geometry*: a dial of 20 must print 20-pixel tiles at the
  * base size (1024, where `r` is 1) and 40 at 2048, grout must fall on the tile
- * boundaries, a halftone dot must grow with the tone it prints, and the dither's
- * screen must be the matrix named in the source, not a similar one.
+ * boundaries, a halftone dot must grow with the tone it prints, and the ordered
+ * dither's screen must be the matrix named in the source, not a similar one.
+ * The diffusion dither has no screen to pin, so its tests pin the scan itself:
+ * a flat grey must settle into the exact ink count the Floyd–Steinberg walk
+ * produces, and a 2× render must be that picture doubled.
  *
  * Every fixture is flat or cell-constant, so an expected value is arithmetic on
  * the fixture rather than a second run of the code under test.
@@ -563,11 +566,172 @@ describe('ordered dither', () => {
   })
 })
 
+describe('error diffusion', () => {
+  /** The screen tones' luma, the levels the recipe quantises between. */
+  const INK_L = 0.2126 * 22 + 0.7152 * 21 + 0.0722 * 20
+  const PAPER_L = 0.2126 * 246 + 0.7152 * 244 + 0.0722 * 239
+
+  /**
+   * The ink count the Floyd–Steinberg walk itself must produce on a 32×32 flat
+   * field of luma 128, derived once from the algorithm's definition (plain
+   * left-to-right scan, 7/16 / 3/16 / 5/16 / 1/16, edge contributions dropped)
+   * and pinned here as a literal: this is the number that changes if the scan
+   * goes serpentine, the kernel is reordered, or the weights move. Pinned per
+   * resolution only; a cross-resolution golden would flake on last-ulp block
+   * means.
+   */
+  const GOLDEN_INK_32 = 530
+
+  it('diffuses a flat mid grey into the exact FS ink count, near half ink', () => {
+    const px = flat(32, 32, [128, 128, 128])
+    applyFilter(px, { id: 'ditherDiffuse', block: 1 }, 0)
+    let ink = 0
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        if (isInk(px, x, y))
+          ink++
+      }
+    }
+    expect(ink).toBe(GOLDEN_INK_32)
+    expect(Math.abs(ink / 1024 - 0.5) < 0.05).toBe(true)
+    // Two tones only, the same screen pair the ordered dither prints.
+    const tones = new Set<string>()
+    for (let i = 0; i < px.data.length; i += 4) tones.add(`${px.data[i]},${px.data[i + 1]},${px.data[i + 2]}`)
+    expect(tones.size).toBe(2)
+  })
+
+  it('opens the walk the kernel dictates: 128 sits under the levels midpoint', () => {
+    // Hand-derived from the same walk as GOLDEN_INK_32: 128 sits under the
+    // inks' luma midpoint, so (0,0) prints ink, its +7/16 residual tips (1,0)
+    // to paper, whose -7/16 drops (2,0) back to ink, and row 1 opens in
+    // paper. Serpentine or 1D-only spreading prints these differently.
+    const px = flat(8, 8, [128, 128, 128])
+    applyFilter(px, { id: 'ditherDiffuse', block: 1 }, 0)
+    expect(isInk(px, 0, 0)).toBe(true)
+    expect(isInk(px, 1, 0)).toBe(false)
+    expect(isInk(px, 2, 0)).toBe(true)
+    expect(isInk(px, 0, 1)).toBe(false)
+  })
+
+  it('saturates: near-black is all ink, near-white all paper', () => {
+    // Below the ink's own luma every site quantises to ink and the (negative)
+    // residual only deepens the neighbours; above the paper's, the mirror.
+    const dark = flat(16, 16, [10, 10, 10])
+    applyFilter(dark, { id: 'ditherDiffuse', block: 1 }, 0)
+    expect(dark.data.every((v, i) => i % 4 === 3 || v === [22, 21, 20][i % 4])).toBe(true)
+    const light = flat(16, 16, [250, 250, 250])
+    applyFilter(light, { id: 'ditherDiffuse', block: 1 }, 0)
+    expect(light.data.every((v, i) => i % 4 === 3 || v === [246, 244, 239][i % 4])).toBe(true)
+  })
+
+  it('is byte-identical for the same input, and ignores the seed', () => {
+    for (const block of [1, 3]) {
+      const a = flat(BASE, BASE, [128, 128, 128])
+      const b = flat(BASE, BASE, [128, 128, 128])
+      applyFilter(a, { id: 'ditherDiffuse', block }, 7)
+      applyFilter(b, { id: 'ditherDiffuse', block }, 7)
+      expect([block, a.data]).toEqual([block, b.data])
+      const other = flat(BASE, BASE, [128, 128, 128])
+      applyFilter(other, { id: 'ditherDiffuse', block }, 99)
+      expect([block, other.data]).toEqual([block, a.data])
+    }
+  })
+
+  it('keeps the tone: the ink share settles where luma is conserved', () => {
+    for (const [luma, side, block] of [[64, 48, 1], [150, 48, 1], [220, 48, 1], [150, 256, 4], [150, 1536, 1]] as const) {
+      const px = flat(side, side, [luma, luma, luma])
+      applyFilter(px, { id: 'ditherDiffuse', block }, 0)
+      // The walk spends ink until the two levels' weighted average is the
+      // source's; the target is luma conservation, not 1 − luma/255. Edge
+      // error is dropped, so a percent of slack absorbs margins. The block
+      // dial and the non-integer r at 1536 are the export regime.
+      const got = inkFraction(px, side)
+      const want = (PAPER_L - luma) / (PAPER_L - INK_L)
+      expect([luma, block, Math.abs(got - want) < 0.01]).toEqual([luma, block, true])
+    }
+  })
+
+  it('is resolution independent: a 2× render is the 1× picture doubled', () => {
+    // A flat source's cell means are count-exact (sum / n of one repeated
+    // value), so the walk over the 2048 lattice must decide exactly what the
+    // 1024 walk decided: the strongest form the contract has for a dither.
+    const size = BASE
+    const small = flat(size, size, [128, 128, 128])
+    applyFilter(small, { id: 'ditherDiffuse', block: 2 }, 0)
+    const big = flat(size * 2, size * 2, [128, 128, 128])
+    applyFilter(big, { id: 'ditherDiffuse', block: 2 }, 0)
+    let wrong = 0
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const si = (y * size + x) * 4
+        const bi = (y * 2 * size * 2 + x * 2) * 4
+        if (big.data[bi] !== small.data[si] || big.data[bi + 1] !== small.data[si + 1] || big.data[bi + 2] !== small.data[si + 2])
+          wrong++
+      }
+    }
+    expect(wrong).toBe(0)
+  })
+
+  it('prints every cell flat, coarser at a bigger dial', () => {
+    const size = BASE
+    for (const cell of [1, 4]) {
+      const px = cellSource(size, size, 16)
+      applyFilter(px, { id: 'ditherDiffuse', block: cell }, 0)
+      // Every pixel carries its block origin's tone.
+      let wrong = 0
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          if (isInk(px, x, y) !== isInk(px, x - (x % cell), y - (y % cell)))
+            wrong++
+        }
+      }
+      expect([cell, wrong]).toEqual([cell, 0])
+    }
+    // The coarser dial is a different picture (not a no-op dial).
+    const fine = cellSource(size, size, 16)
+    applyFilter(fine, { id: 'ditherDiffuse', block: 1 }, 0)
+    const coarse = cellSource(size, size, 16)
+    applyFilter(coarse, { id: 'ditherDiffuse', block: 4 }, 0)
+    expect(fine.data).not.toEqual(coarse.data)
+  })
+
+  it('spreads, not screens: runs of one and two, and the wobble breaks period 4', () => {
+    // The diffusion's signature at 128 luma: ink arrives in runs of one and
+    // two, wobbling row by row. An ordered screen at cell 1 cannot do this:
+    // Bayer4 would hold a fixed period 4 in every row, and no row could print
+    // two inks together at this tone.
+    const px = flat(64, 64, [128, 128, 128])
+    applyFilter(px, { id: 'ditherDiffuse', block: 1 }, 0)
+    const rows = Array.from({ length: 64 }, (_, y) => Array.from({ length: 64 }, (_, x) => isInk(px, x, y)))
+    let maxRun = 0
+    for (const row of rows) {
+      let run = 0
+      let prev: boolean | null = null
+      for (const ink of row) {
+        if (ink === prev) {
+          run++
+        }
+        else {
+          maxRun = Math.max(maxRun, run)
+          run = 1
+          prev = ink
+        }
+      }
+      maxRun = Math.max(maxRun, run)
+    }
+    expect(maxRun).toBe(2)
+    // Some top rows alternate (a fresh walk starts in a strict two-cycle); the
+    // wobble guarantees the grid as a whole is not a period-4 screen.
+    const periodicRows = rows.filter(row => row.every((ink, x) => ink === row[(x + 4) % 64])).length
+    expect(periodicRows < 64).toBe(true)
+  })
+})
+
 describe('the pixel family in the pipeline', () => {
   const PIXEL_IDS: FilterId[] = FILTER_IDS.filter(id => FILTER_PARAMS[id].length > 0)
 
-  it('is exactly the six filters that take parameters', () => {
-    expect(PIXEL_IDS).toEqual(['mosaic', 'tessera', 'diamond', 'halftone', 'bayerMono', 'bayerColor'])
+  it('is exactly the seven filters that take parameters', () => {
+    expect(PIXEL_IDS).toEqual(['mosaic', 'tessera', 'diamond', 'halftone', 'bayerMono', 'bayerColor', 'ditherDiffuse'])
   })
 
   it('forces every pixel opaque and keeps the dimensions', () => {

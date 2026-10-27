@@ -34,7 +34,8 @@ interface CardPreset {
  * so they hold at both 1024 and 2048 long edge. The system font is deliberate:
  * a preset must export with no network, and a missing Google face would fall
  * back to it anyway.
- */
+  * @x18n-keys
+  */
 const PRESETS: Record<CardKind, CardPreset> = {
   cover: {
     ratio: 1,

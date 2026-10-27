@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { dampOffset, dragOwner, pickSnap, rubberBand } from './dockPhysics'
+import { dampOffset, dragOwner, nearestSnapIndex, pickSnap, rubberBand } from './dockPhysics'
 
 // offsets for [icons, row, expanded] in a 228px clip
 const OFF = [200, 128, 0]
@@ -44,6 +44,26 @@ describe('pickSnap', () => {
   })
 })
 
+describe('nearestSnapIndex', () => {
+  it('is the snap nearest the position, in either offset order', () => {
+    expect(nearestSnapIndex(OFF, 0)).toBe(2)
+    expect(nearestSnapIndex(OFF, 190)).toBe(0)
+    expect(nearestSnapIndex(OFF, 130)).toBe(1)
+    expect(nearestSnapIndex([...OFF].reverse(), 130)).toBe(1)
+  })
+  it('lands exactly between two snaps on the earlier one, like dockModeAtHeight', () => {
+    // Halfway between 200 and 128: the earlier index wins, which is the
+    // larger offset, the shorter display's snap (see the docstring).
+    expect(nearestSnapIndex(OFF, 164)).toBe(0)
+    // Halfway between 128 and 0: the row (128) is the earlier of the two.
+    expect(nearestSnapIndex(OFF, 64)).toBe(1)
+  })
+  it('a single snap is always the answer', () => {
+    expect(nearestSnapIndex([72], 0)).toBe(0)
+    expect(nearestSnapIndex([72], 5000)).toBe(0)
+  })
+})
+
 const list = (scrollTop: number, clientHeight = 200, scrollHeight = 600) => ({ scrollTop, clientHeight, scrollHeight })
 
 describe('dragOwner', () => {
@@ -74,6 +94,14 @@ describe('dragOwner', () => {
   it('a list that does not scroll never owns the gesture', () => {
     expect(dragOwner({ horizontal: false, list: list(0, 200, 200) }, 0, 40)).toBe('drawer')
     expect(dragOwner({ horizontal: false, list: list(0, 200, 200) }, 0, -40)).toBe('drawer')
+  })
+
+  it('a frozen scroller never owns the press, whatever it holds', () => {
+    // Mid-band the list is locked and its scroll state describes a layout the
+    // field has replaced with transforms: every press belongs to the drawer.
+    expect(dragOwner({ horizontal: false, list: list(100), frozen: true }, 0, 40)).toBe('drawer')
+    expect(dragOwner({ horizontal: false, list: list(100), frozen: true }, 0, -40)).toBe('drawer')
+    expect(dragOwner({ horizontal: true, list: null, frozen: true }, 40, 4)).toBe('drawer')
   })
 
   it('survives nonsense scroll state', () => {

@@ -62,7 +62,7 @@ function digest(data: Uint8ClampedArray): number {
  * lays the same screen out at twice the pitch, so it is the same texture but not
  * the same pixels after a downsample.
  */
-const BINARY_IDS = new Set<(typeof FILTER_IDS)[number]>(['bitgrain', 'halftone', 'bayerMono', 'bayerColor'])
+const BINARY_IDS = new Set<(typeof FILTER_IDS)[number]>(['bitgrain', 'halftone', 'bayerMono', 'bayerColor', 'ditherDiffuse'])
 
 /**
  * The pixel family draws geometry, not a noise field: a block average, a tiled
@@ -70,7 +70,7 @@ const BINARY_IDS = new Set<(typeof FILTER_IDS)[number]>(['bitgrain', 'halftone',
  * photo, so they are seed-invariant on purpose (the mosaic's speckle is off at
  * its default, and a seed would only drive that).
  */
-const PIXEL_IDS = new Set<(typeof FILTER_IDS)[number]>(['mosaic', 'tessera', 'diamond', 'halftone', 'bayerMono', 'bayerColor'])
+const PIXEL_IDS = new Set<(typeof FILTER_IDS)[number]>(['mosaic', 'tessera', 'diamond', 'halftone', 'bayerMono', 'bayerColor', 'ditherDiffuse'])
 
 describe('filterScale', () => {
   it('is 1 at the 1024 base and doubles with the long side', () => {
@@ -93,8 +93,8 @@ describe('filterSeed', () => {
 })
 
 describe('isFilterId', () => {
-  it('accepts the fourteen ids and nothing else', () => {
-    expect(FILTER_IDS).toHaveLength(14)
+  it('accepts the fifteen ids and nothing else', () => {
+    expect(FILTER_IDS).toHaveLength(15)
     for (const id of FILTER_IDS)
       expect(isFilterId(id)).toBe(true)
     for (const bad of ['', 'none', 'grain ', 'Grain', null, undefined, 3, {}])
@@ -127,7 +127,7 @@ describe('applyFilter', () => {
     }
   })
 
-  it('produces fourteen distinct results from one input', () => {
+  it('produces fifteen distinct results from one input', () => {
     // 128px: at 64 the pixel family's stage-pixel pitches round to one pixel,
     // which collapses the tiled recipes back onto the photo they were handed.
     const seeds = new Map(FILTER_IDS.map(id => [id, 0x2F1B3C5D]))

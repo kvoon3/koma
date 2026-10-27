@@ -54,6 +54,7 @@ function labelText(label: LabelText, t: Translate): string {
 }
 
 const ICON_NONE = '__none'
+// @x18n-keys
 const LABEL_ICON_ITEMS: { value: string, label: TKey }[] = [
   { value: ICON_NONE, label: 'No icon' },
   ...LABEL_ICONS.map(i => ({ value: i.id, label: i.label })),
@@ -66,7 +67,10 @@ const LABEL_FONT_ITEMS: { value: string, label: LabelText, cat: FontMeta['cat'] 
   ...FONT_CATALOG.map(f => ({ value: f.id, label: { kind: 'text' as const, text: f.label }, cat: f.cat })),
 ]
 
-const FONT_CATS: { id: FontMeta['cat'], label: TKey }[] = [
+type FontCat = FontMeta['cat']
+
+// @x18n-keys
+const FONT_CATS: { id: FontCat, label: TKey }[] = [
   { id: 'system', label: 'System' },
   { id: 'cjk', label: 'CJK' },
   { id: 'sans', label: 'Sans' },
@@ -81,6 +85,7 @@ const THEME_ICON: Record<LabelTheme, typeof AlignLeft> = {
   dark: Moon,
   light: Sun,
 }
+// @x18n-keys
 const THEME_LABEL: Record<LabelTheme, TKey> = {
   dark: 'White on black',
   light: 'Black on white',
@@ -709,6 +714,7 @@ const ALIGN_ICON: Record<LabelAlign, typeof AlignLeft> = {
   right: AlignRight,
 }
 
+// @x18n-keys
 const ALIGN_ITEMS: { id: LabelAlign, icon: typeof AlignLeft, label: TKey }[] = [
   { id: 'left', icon: ALIGN_ICON.left, label: 'Align left' },
   { id: 'center', icon: ALIGN_ICON.center, label: 'Align center' },
