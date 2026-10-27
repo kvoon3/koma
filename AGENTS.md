@@ -53,7 +53,9 @@ Where a note conflicts with a poteto default, the note wins.
   worktree's dependencies; if it was skipped (an old branch, or a non-git creator),
   run `bun install` there.
 - Never `reset --hard` a worktree another lane owns; its uncommitted edits do not survive.
-- Branch names are `waveN/<layer>`. Preview URL: `<branch-slug>-koma.kvoon.workers.dev`.
+- Branch names are `waveN/<layer>`. The preview URL convention
+  `<branch-slug>-koma.kvoon.workers.dev` is unverified since the void switch;
+  see `docs/void.md` before promising one.
 
 ## Exceptions to poteto defaults
 
