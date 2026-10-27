@@ -76,6 +76,26 @@ function vendorRuntime(): Plugin {
 }
 
 /**
+ * void 1.3.0 rewrites index.html's inline module scripts (the react-refresh
+ * preamble) into build-style `?html-proxy` module ids and emits a script tag
+ * for them. In dev that module does not exist: the request 500s and vite's
+ * error overlay covers the app. The preamble stays inline in dev, so the
+ * extra tag is a pure duplicate; strip it there.
+ */
+function stripVoidDevProxyScripts(): Plugin {
+  return {
+    name: 'koma:strip-void-dev-proxy',
+    apply: 'serve',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        return html.replace(/<script[^>]+src="\/@id\/__x00__[^"]*html-proxy[^"]*"[^>]*>\s*<\/script>/g, '')
+      },
+    },
+  }
+}
+
+/**
  * `vite build` → regular chunked bundle for the Cloudflare deploy and the
  * mygo desktop shell. `vite build --mode single` (bun run build:single) →
  * one self-contained koma.html with the HEIC decoder and every asset
@@ -95,6 +115,7 @@ export default defineConfig(({ command, mode }) => {
       // client artifact: voidPlugin there would relocate the output to
       // dist/client and bundle a worker graph the consumer discards.
       !single && (command === 'serve' || mode === 'void') && voidPlugin(),
+      stripVoidDevProxyScripts(),
       react(),
       tailwindcss(),
       vendorRuntime(),
