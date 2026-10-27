@@ -90,7 +90,9 @@ export default defineConfig(({ mode }) => {
     // `vite build` nor `build:single` output is touched.
     devtools: { apply: 'serve' },
     plugins: [
-      voidPlugin(),
+      // The offline single-file build consumes only dist/index.html, so the
+      // routes/ worker graph it would bundle is dead output there.
+      !single && voidPlugin(),
       react(),
       tailwindcss(),
       vendorRuntime(),
