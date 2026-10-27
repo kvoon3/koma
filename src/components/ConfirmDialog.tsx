@@ -2,7 +2,13 @@ import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { useT } from '../lib/i18n'
 import { dialogButton } from './ui/buttonStyles'
 
-/** Generic destructive-or-not confirm (clear library, open workspace file, …). */
+/**
+ * The app's confirm dialog: a title, one description sentence and a
+ * cancel/confirm pair, with the destructive palette under `danger`. Every
+ * irreversible action routes through it (clear the library, open a workspace
+ * file, reset a board, delete a photo or tag), so the wording and the red
+ * confirm stay in one place.
+ */
 export function ConfirmDialog({ open, title, description, confirmLabel, danger, onClose, onConfirm }: {
   open: boolean
   title: string

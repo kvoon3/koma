@@ -1,6 +1,7 @@
 import type { Decorator } from '@storybook/react-vite'
 import type { Lang } from '../src/lib/i18n'
 import type { ThemePref } from '../src/theme'
+import addonDocs from '@storybook/addon-docs'
 import { definePreview } from '@storybook/react-vite'
 import { useLayoutEffect } from 'react'
 import { setLang } from '../src/lib/i18n'
@@ -35,6 +36,12 @@ const AppShell: Decorator = (Story, context) => {
 }
 
 export default definePreview({
+  /**
+   * A CSF4 preview factory composes only what it is handed: the `addons`
+   * list in main.ts covers the manager side, and the docs renderer (the
+   * thing a Docs page actually renders stories with) has to join here.
+   */
+  addons: [addonDocs()],
   decorators: [AppShell],
   globalTypes: {
     theme: {

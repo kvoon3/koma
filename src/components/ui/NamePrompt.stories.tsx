@@ -30,6 +30,7 @@ function PromptDemo({ initial = '', error = null }: { initial?: string, error?: 
 
 const meta = {
   title: 'UI/NamePrompt',
+  tags: ['autodocs'],
   render: () => <PromptDemo />,
 } satisfies Meta
 

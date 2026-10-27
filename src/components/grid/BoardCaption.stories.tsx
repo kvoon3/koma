@@ -6,6 +6,7 @@ const noop = () => undefined
 const meta = {
   title: 'Grid/BoardCaption',
   component: BoardCaption,
+  tags: ['autodocs'],
   args: {
     width: 360,
     height: 44,
