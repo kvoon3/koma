@@ -477,6 +477,11 @@ const zhHant: Record<TKey, string> = {
   'Saved': '已儲存',
   'Saved {n} files': '已儲存 {n} 個檔案',
 
+  // Export preview zoom (export-preview-zoom-minimap): the chip, the minimap and the coarse hint.
+  'Preview at {n}% · click to fit': '預覽 {n}% · 點擊適應視窗',
+  'Export preview minimap, drag to pan': '匯出預覽小地圖，拖曳平移',
+  'Double-tap the preview to zoom in.': '連點預覽圖兩下可放大。',
+
   // WeChatGuard (the WeChat browser guard and its menu guide)
   'WeChat browser detected': '偵測到微信瀏覽器',
   'Saving an exported image may not work in the WeChat browser. Open koma in the system browser for the full editor, or continue here.': '微信瀏覽器可能無法儲存匯出的圖片。建議用系統瀏覽器開啟以使用完整編輯器，或繼續使用。',

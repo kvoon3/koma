@@ -139,8 +139,9 @@ describe('the clamp at the edges', () => {
     expect(view.cy).toBeCloseTo(1 - exportFrame(view, IMAGE, BOX).window.h / 2, 10)
   })
 
-  it('cannot zoom below fit', () => {
+  it('cannot zoom below fit, and a broken factor is a no-op', () => {
     expect(zoomExportView(EXPORT_FIT, IMAGE, BOX, 0.5, { x: 348, y: 280 })).toEqual(EXPORT_FIT)
+    expect(zoomExportView(EXPORT_FIT, IMAGE, BOX, Number.NaN, { x: 348, y: 280 })).toEqual(EXPORT_FIT)
     expect(panExportView(EXPORT_FIT, IMAGE, BOX, 40, 40)).toEqual(EXPORT_FIT)
   })
 })

@@ -479,6 +479,11 @@ const zhHans = {
   'Saved': '已保存',
   'Saved {n} files': '已保存 {n} 个文件',
 
+  // Export preview zoom (export-preview-zoom-minimap): the chip, the minimap and the coarse hint.
+  'Preview at {n}% · click to fit': '预览 {n}% · 点击适应窗口',
+  'Export preview minimap, drag to pan': '导出预览小地图，拖动平移',
+  'Double-tap the preview to zoom in.': '双击预览图可放大。',
+
   // WeChatGuard (the WeChat browser guard and its menu guide)
   'WeChat browser detected': '检测到微信浏览器',
   'Saving an exported image may not work in the WeChat browser. Open koma in the system browser for the full editor, or continue here.': '微信浏览器可能无法保存导出的图片。建议用系统浏览器打开，或继续使用。',
