@@ -8,9 +8,9 @@ handlers, and `env.ts` declares the server values. There is no root
 
 ## Deploy
 
-Run `bun run deploy`. It is `void deploy`, which runs the repo's own build
-(`bun run check-types && vite build`), uploads the worker with the `routes/`
-handlers, and activates it on `koma.kvoon.me`.
+Run `bun run deploy`. It is `void deploy`, which runs the build step named in
+`inference.build` (the repo's `bun run build`, typecheck included), uploads
+the worker with the `routes/` handlers, and activates it on `koma.kvoon.me`.
 
 Trust four probes after any deploy, not the success banner:
 
@@ -66,9 +66,13 @@ printf 'y\n' | script -q /dev/null bunx void project rollback <deployId> --platf
 ```
 
 The `printf` answers the confirmation prompt; the CLI refuses to run it
-without a terminal. If `void` itself is wedged, the worker is still a normal
-Cloudflare worker: `void connect` regenerates `.void-wrangler.jsonc`, and
-`wrangler deploy --config .void-wrangler.jsonc` deploys it without void.
+without a terminal. There is no wrangler fallback for the native shape: the
+generated `.void-wrangler.jsonc` carries no `main` or `assets`, and no
+wrangler-deployable worker entry exists outside void's build. If `void` itself
+is broken, check out a pre-void tree from git history (any commit before
+`build(void): adopt the void config and CLI`) and run its own
+`bun run build && wrangler deploy`; that pipeline is self-contained and
+deploys the old proxy worker with the SPA.
 
 Two errors you may hit on the way:
 

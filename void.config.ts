@@ -6,6 +6,11 @@
 import { defineConfig } from 'void/config'
 
 export default defineConfig({
+  // void's default build step is a bare `vite build`; point it at the repo
+  // script so a deploy is gated on the typecheck like `bun run build` is.
+  inference: {
+    build: 'bun run build',
+  },
   routing: {
     // The client owns routing; unmatched paths fall back to index.html.
     notFound: 'single-page-application',
@@ -13,7 +18,8 @@ export default defineConfig({
   cloudflare: {
     name: 'koma',
     compatibility_date: '2026-10-11',
-    // Branch Previews (wrangler preview / Workers Builds preview builds)
+    // Mirrors the dashboard-managed preview settings; declared so void does
+    // not flip them.
     preview_urls: true,
     previews: {},
     // The dashboard had the workers.dev subdomain disabled (it 404s); declared
