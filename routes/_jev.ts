@@ -12,7 +12,7 @@
 /** A label icon request is a few KB of JSON; the cap bounds an abusive client. */
 export const MAX_BODY_BYTES = 64 * 1024
 
-export const UPSTREAM_TIMEOUT_MS = 20_000
+const UPSTREAM_TIMEOUT_MS = 20_000
 
 type BodyRead
   = | { ok: true, body: ArrayBuffer }
