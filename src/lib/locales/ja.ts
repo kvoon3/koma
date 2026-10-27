@@ -476,6 +476,11 @@ const ja: Record<TKey, string> = {
   'Saved': '保存しました',
   'Saved {n} files': '{n} 個のファイルを保存しました',
 
+  // Export preview zoom (export-preview-zoom-minimap): the chip, the minimap and the coarse hint.
+  'Preview at {n}% · click to fit': 'プレビュー {n}% · クリックでフィット',
+  'Export preview minimap, drag to pan': '書き出しプレビューのミニマップ、ドラッグで移動',
+  'Double-tap the preview to zoom in.': 'プレビューをダブルタップすると拡大できます。',
+
   // WeChatGuard (the WeChat browser guard and its menu guide)
   'WeChat browser detected': 'WeChat ブラウザーを検出しました',
   'Saving an exported image may not work in the WeChat browser. Open koma in the system browser for the full editor, or continue here.': 'WeChat ブラウザーでは書き出した画像を保存できない場合があります。フル機能のエディターを使うにはシステムブラウザーで koma を開くか、このまま続行してください。',
