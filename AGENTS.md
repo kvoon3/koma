@@ -30,8 +30,10 @@ Where a note conflicts with a poteto default, the note wins.
   on file order.
 - `bun run test:shuffle` catches tests that lean on another file's leftovers.
 - Deploy is manual (`bun run deploy`, which is `void deploy`). `void.config.ts`
-  owns the Cloudflare config; never check in a root `wrangler*.jsonc`. Deploy,
-  secrets and rollback steps live in `docs/void.md`.
+  owns the Cloudflare config; never check in a root `wrangler.jsonc` or
+  `wrangler.json` (void refuses those two exact names; the storybook worker's
+  `wrangler.storybook.jsonc` is fine). Deploy, secrets and rollback steps
+  live in `docs/void.md`.
 
 ## UI
 
