@@ -13,6 +13,7 @@ function DialDemo({ initial = 0, disabled = false }: { initial?: number, disable
 
 const meta = {
   title: 'UI/RotationControl',
+  tags: ['autodocs'],
   render: () => <DialDemo />,
 } satisfies Meta
 

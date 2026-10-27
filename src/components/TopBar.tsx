@@ -4,7 +4,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, LoaderCircle, Moon, Save, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
@@ -24,6 +24,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
 import { buttonBase, buttonVariants } from './ui/buttonStyles'
+import { Spinner } from './ui/spinner'
 import { Tip } from './ui/tip'
 
 const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:gap-0 max-sm:px-2.5 hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent data-popup-open:bg-chip-hover data-popup-open:text-txt'
@@ -157,15 +158,12 @@ function TopBarActions({
         trigger={(
           <Button
             onClick={onExport}
+            icon={Download}
+            iconSize={15}
+            loading={busy}
             disabled={busy || (grid ? !anyFilled : !filled)}
             aria-label={t('Export image')}
           >
-            <MorphIcon
-              icon={busy ? LoaderCircle : Download}
-              size={15}
-              strokeWidth={1.75}
-              className={busy ? 'animate-spin [animation-duration:900ms]' : undefined}
-            />
             <span className="pointer-coarse:hidden max-sm:hidden">{busy ? t('Rendering') : t('Export')}</span>
           </Button>
         )}
@@ -268,7 +266,7 @@ function TopBarMenus({
           in both views and covers the grid + library, not just photos. */}
       <CatMenu label={t('Workspace')} icon={LayoutDashboard} hop={hop} {...menuAt('workspace')}>
         <Menu.Item className={itemCls} onClick={onSaveFile} disabled={saving || !anyFilled}>
-          <MorphIcon icon={saving ? LoaderCircle : Save} size={13} strokeWidth={1.75} className={`flex text-dim ${saving ? ' animate-spin [animation-duration:900ms]' : ''}`} />
+          {saving ? <Spinner size={13} className="flex text-dim" /> : <MorphIcon icon={Save} size={13} strokeWidth={1.75} className="flex text-dim" />}
           {t('Save workspace file…')}
         </Menu.Item>
         <Menu.Item className={itemCls} onClick={onOpenWorkspaceFile}>

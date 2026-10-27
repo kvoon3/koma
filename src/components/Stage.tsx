@@ -13,7 +13,7 @@ import { Popover } from '@base-ui/react/popover'
 import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useElementSize, useMediaQuery, usePreview, useStageZoom } from '../hooks'
+import { useElementSize, useMediaQuery, usePreview, useStageZoom, useToolsSheetTop } from '../hooks'
 import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { collectBoard, CROP_MASK_DIM, dividerBandStyle, dividerGripStyle, gridCropMask, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
@@ -276,12 +276,16 @@ function useDividerDrag({
  * control the right-edge rail is not: the rail scales the canvas as a whole,
  * this one reshapes it. It rides the canvas, so a canvas scaled past the fit
  * takes its corner (and this handle) off the stage: the rail is what stays.
+ *
+ * The dragged corner becomes a fill against the same fit box the stage lays
+ * out with (handed in as `fitBox`), so the size a drag lands on is the size
+ * the next render draws.
  */
 function useCanvasResize(
-  wrapRef: React.RefObject<HTMLDivElement | null>,
   canvasRef: React.RefObject<HTMLDivElement | null>,
   focus: (paneId: string) => void,
   setCanvasSize: (ratio: number, fill: number) => void,
+  fitBox: { w: number, h: number },
 ) {
   const [sizing, setSizing] = useState(false)
   const sizeRef = useRef<{
@@ -299,14 +303,13 @@ function useCanvasResize(
       e.preventDefault()
       e.stopPropagation()
       const canvas = canvasRef.current?.getBoundingClientRect()
-      const wrap = wrapRef.current?.getBoundingClientRect()
-      if (!canvas || !wrap)
+      if (!canvas)
         return
       sizeRef.current = {
         cx: canvas.left + canvas.width / 2,
         cy: canvas.top + canvas.height / 2,
-        availW: Math.max(160, wrap.width - 48),
-        availH: Math.max(160, wrap.height - 48),
+        availW: fitBox.w,
+        availH: fitBox.h,
         // Measured from the canvas corner, not from the handle's own centre:
         // the handle can be lifted clear of the tools sheet, and a grab that
         // used the lifted point would read as a shorter canvas and shrink it.
@@ -316,7 +319,7 @@ function useCanvasResize(
       setSizing(true)
       focus('')
     },
-    [wrapRef, canvasRef, focus],
+    [canvasRef, focus, fitBox.w, fitBox.h],
   )
 
   useEffect(() => {
@@ -410,7 +413,17 @@ export function Stage() {
   const [geometryCache] = useState<GeometryCache>(emptyGeometryCache)
   const [seamsCache] = useState<SeamsCache>(emptySeamsCache)
   const availW = Math.max(160, wrapSize.w - 48)
-  const availH = Math.max(160, wrapSize.h - 48)
+  // The tools sheet is a fixed overlay over the stage's lower band, so the fit
+  // box ends at the sheet's top edge, not at the wrap's bottom: a canvas seated
+  // on the wrap's bottom leaves its corner resize handle under the sheet.
+  const sheetTop = useToolsSheetTop()
+  const stripH = sheetTop == null ? wrapSize.h : Math.min(wrapSize.h, sheetTop - wrapSize.top)
+  const availH = Math.max(160, stripH - 48)
+  // The centering column runs the full wrap, so the fit box alone does not seat
+  // the canvas above the sheet. This padding ends the flex centre's box at the
+  // strip; the checkerboard still paints the band, and absolute chrome pins to
+  // the padding box.
+  const padBottom = Math.max(0, wrapSize.h - stripH)
 
   // Layout is cached on the board's SHAPE: panning, zooming, turning or
   // filtering a photo moves pixels inside a rect, so a drag keeps the same
@@ -457,7 +470,7 @@ export function Stage() {
     paintBoard(board, draws, geo.dividers, HIT_MIN)
   }, [root, canvasRatio, canvasFill, availW, availH, gapValue, radiusValue, fadeValue, seams, blendCrossfade, fadeStrength])
   const { dragId, setHotId, isLit, beginDrag } = useDividerDrag({ stageRef, onPaint: paintRatio, resizeSplit })
-  const { sizing, beginResize, resetRatio } = useCanvasResize(wrapRef, stageRef, focus, setCanvasSize)
+  const { sizing, beginResize, resetRatio } = useCanvasResize(stageRef, focus, setCanvasSize, { w: availW, h: availH })
   const { tools, toolsHidden: paneToolsHidden } = usePaneTools(focusId, view, photoById)
   // The label dock's location action follows the focused pane's photo, not the
   // selected label: it inserts a new label for that photo's EXIF fix.
@@ -467,6 +480,7 @@ export function Stage() {
     <div
       ref={wrapRef}
       className={`stage-checker absolute inset-0 flex touch-none flex-col items-center justify-center overflow-hidden ${dragId ? ' cursor-col-resize! [&_*]:cursor-col-resize!' : ''}${sizing ? ' cursor-nwse-resize! [&_*]:cursor-nwse-resize!' : ''}`}
+      style={{ paddingBottom: padBottom }}
       // A press on the stage's own surface (the margin, the canvas between
       // panes) is the deselect gesture: panes, inserts, handles and dividers
       // stop their own pointerdowns, so whatever reaches here is empty space.
@@ -962,11 +976,11 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
  * it reshapes the canvas and double-clicking follows the first photo again.
  *
  * It is pinned to that corner, always: it is board chrome, so it rides the
- * canvas and the view zoom and nothing else. The tools sheet may cover it (the
- * sheet is an overlay with no put-away state, and a tall canvas runs under it),
- * which is exactly the job the right-edge rail exists for: this one reshapes the
- * canvas, that one scales it. Scaled past the fit the canvas's corner itself
- * leaves the stage, and the handle goes with the corner it marks.
+ * canvas and the view zoom and nothing else. The stage's fit box ends at the
+ * tools sheet's top edge (see `Stage`), so at the fit the corner sits above
+ * the sheet with the handle on it. Scaled past the fit the canvas's corner
+ * itself leaves the stage, and the handle goes with the corner it marks; the
+ * rail is what stays reachable then.
  */
 function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
   sizing: boolean

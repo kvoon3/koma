@@ -9,6 +9,7 @@ import { Switch } from '@base-ui/react/switch'
 import { AlignCenter, AlignLeft, AlignRight, Ban, Baseline, Blend, Check, ChevronDown, Contrast, MapPin, Moon, PaintBucket, RefreshCw, RotateCcw, Smile, Sparkles, Sun, Trash2, Type as TypeIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useEffect, useRef, useState } from 'react'
+import { removeChipCls } from '@/components/ui/buttonStyles'
 import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/components/ui/field'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
 import { useT } from '../lib/i18n'
@@ -478,7 +479,7 @@ function LabelChrome({
         onReset={() => setLabel(labelId, { rot: 0 })}
       />
       <button
-        className={`${hover} absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${shown ? ' opacity-100' : ''}`}
+        className={`${hover} ${removeChipCls} ${shown ? 'opacity-100' : ''}`}
         title={t('Remove label')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {

@@ -117,7 +117,9 @@ function PanePhotoContent({
       )
     : photoId
       ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">{t('Loading...')}</div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12.5px] font-semibold text-pane-hint">
+            <span className="max-w-full truncate px-2">{t('Loading...')}</span>
+          </div>
         )
       : (
           // An empty pane is all picker: this transparent button covers the
@@ -126,7 +128,8 @@ function PanePhotoContent({
           // stays in the neutral gray. Pointerdown bubbles: the pane still
           // focuses on the click.
           <button
-            className="absolute inset-0 grid cursor-pointer place-items-center border-0 bg-transparent p-0 transition-colors duration-(--dur-fast) active:bg-chip-hover focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent"
+            data-pane-hint=""
+            className="@container absolute inset-0 grid cursor-pointer place-items-center border-0 bg-transparent p-0 transition-colors duration-(--dur-fast) active:bg-chip-hover focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-accent"
             title={t('Choose a photo')}
             aria-label={t('Choose a photo')}
             onClick={(e) => {
@@ -135,9 +138,12 @@ function PanePhotoContent({
                 onPick()
             }}
           >
+            {/* The hint adapts to the pane, not the viewport (a big screen
+                splits just as small): the label truncates, then hides under
+                7rem and the glyph carries the affordance alone. */}
             <span className="pointer-events-none flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
               <MorphIcon icon={ImagePlus} size={22} strokeWidth={1.75} />
-              {t('Choose a photo')}
+              <span className="max-w-full truncate @max-[7rem]:hidden">{t('Choose a photo')}</span>
             </span>
           </button>
         )

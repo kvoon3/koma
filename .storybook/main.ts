@@ -25,6 +25,7 @@ function withoutAppDevPlugins(plugins: PluginOption[] | undefined): PluginOption
 
 export default defineMain({
   framework: '@storybook/react-vite',
+  addons: ['@storybook/addon-docs'],
   stories: ['../src/**/*.stories.@(ts|tsx)'],
   viteFinal(config) {
     config.plugins = withoutAppDevPlugins(config.plugins)

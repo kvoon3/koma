@@ -50,6 +50,7 @@ function ColorDemo() {
 
 const meta = {
   title: 'UI/Fields',
+  tags: ['autodocs'],
 } satisfies Meta
 
 export default meta

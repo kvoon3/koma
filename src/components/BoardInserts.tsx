@@ -10,6 +10,7 @@ import { useT } from '../lib/i18n'
 import { boardStickerRect, rotateOffset, rotationCss, rotationOf } from '../lib/panes'
 import { useStore } from '../store'
 import { BoardLabel, ResetRotationButton, RotationHandle } from './BoardLabel'
+import { removeChipCls } from './ui/buttonStyles'
 
 function BoardStickerView({
   st,
@@ -143,7 +144,7 @@ function BoardStickerView({
         onReset={() => rotateSticker(st.id, 0)}
       />
       <button
-        className={`group-hover/sticker:opacity-100 absolute -top-[9px] -right-[9px] grid h-[18px] w-[18px] cursor-pointer place-items-center rounded-none border border-float-bg-2 bg-danger p-0 text-on-accent opacity-0 transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] ${hot || selected ? ' opacity-100' : ''}`}
+        className={`group-hover/sticker:opacity-100 ${removeChipCls} ${hot || selected ? 'opacity-100' : ''}`}
         title={t('Remove sticker')}
         onPointerDown={e => e.stopPropagation()}
         onClick={(e) => {

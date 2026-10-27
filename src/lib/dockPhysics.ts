@@ -37,6 +37,12 @@ export interface DragSurface {
   horizontal: boolean
   /** The press landed in the expanded list; its scroll state, when it scrolls at all. */
   list: { scrollTop: number, clientHeight: number, scrollHeight: number } | null
+  /**
+   * The list is frozen: a display band is in flight, its scroll is locked and
+   * the field's transforms own the pixels, so nothing the scroller holds is
+   * honest to hand a gesture to.
+   */
+  frozen?: boolean
 }
 
 /**
@@ -45,6 +51,9 @@ export interface DragSurface {
  * drag surface, so tool buttons are as good a grab as the handle; only a
  * scroller that can still move in the drag's direction keeps the gesture.
  *
+ * - A frozen scroller never owns the gesture, whatever its scroll state says
+ *   (see `DragSurface.frozen`): mid-band the list is locked and the tools sit
+ *   on transform positions its scroll metrics know nothing about.
  * - A horizontal gesture in the tools row scrolls the row (the drawer has no
  *   horizontal snap).
  * - A vertical gesture in the expanded list scrolls the list while the list
@@ -54,6 +63,8 @@ export interface DragSurface {
  *   drawer takes the gesture.
  */
 export function dragOwner(surface: DragSurface, dx: number, dy: number): 'drawer' | 'scroller' {
+  if (surface.frozen)
+    return 'drawer'
   if (surface.horizontal && Math.abs(dx) > Math.abs(dy))
     return 'scroller'
   const list = surface.list
@@ -73,6 +84,23 @@ export function dragOwner(surface: DragSurface, dx: number, dy: number): 'drawer
 }
 
 /**
+ * The index of the snap nearest `pos`: `pickSnap`'s inner search, extracted so
+ * the drag's start snap and the release's pick cannot drift apart. A position
+ * exactly between two snaps keeps the earlier index (the strict `<`), which is
+ * the shorter display's snap in the dock's descending `pickSnap` offsets: the
+ * same tie-break `dockModeAtHeight` makes. An empty list has no nearest; the
+ * callers all have at least one snap.
+ */
+export function nearestSnapIndex(offsets: readonly number[], pos: number): number {
+  let best = 0
+  for (let i = 1; i < offsets.length; i++) {
+    if (Math.abs(offsets[i]! - pos) < Math.abs(offsets[best]! - pos))
+      best = i
+  }
+  return best
+}
+
+/**
  * Snap to land on after release: the snap nearest the position projected by
  * the release velocity (position + velocity). A fast flick moves at least
  * one snap in its direction from where the drag started.
@@ -80,11 +108,7 @@ export function dragOwner(surface: DragSurface, dx: number, dy: number): 'drawer
  */
 export function pickSnap(offsets: readonly number[], pos: number, velocity: number, from: number): number {
   const projected = pos + velocity * PROJECT_S
-  let best = 0
-  for (let i = 1; i < offsets.length; i++) {
-    if (Math.abs(offsets[i]! - projected) < Math.abs(offsets[best]! - projected))
-      best = i
-  }
+  let best = nearestSnapIndex(offsets, projected)
   if (Math.abs(velocity) >= FLICK_VELOCITY && offsets[best] === offsets[from]) {
     const dir = Math.sign(velocity)
     let next = -1

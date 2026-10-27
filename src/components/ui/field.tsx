@@ -98,7 +98,10 @@ export function RangeField({ label, text, value, min = 0, max, step, onChange }:
   )
 }
 
-/** A labelled color swatch sized like the other form controls. */
+/**
+ * A labelled color swatch sized like the other form controls. The sticker
+ * maker's text and outline colours mount it.
+ */
 export function ColorField({ label, value, onChange }: {
   label: string
   value: string
