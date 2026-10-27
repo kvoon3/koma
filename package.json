@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "bun run check-types && vite build",
     "build:single": "bun run check-types && vite build --mode single && cp dist/index.html koma.html",
-    "deploy": "bun run build && wrangler deploy",
+    "deploy": "bun run build && void connect --platform cloudflare && wrangler deploy --config .void-wrangler.jsonc",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",

@@ -6,6 +6,10 @@
 import { defineConfig } from 'void/config'
 
 export default defineConfig({
+  // void deploy builds a Static SPA and drops `main` (verified twice on
+  // production), so it stays out of the pipeline. `void connect` regenerates
+  // .void-wrangler.jsonc from this file and wrangler deploys that emission
+  // until the proxy becomes a void-native route.
   cloudflare: {
     $schema: 'node_modules/wrangler/config-schema.json',
     name: 'koma',
@@ -13,6 +17,9 @@ export default defineConfig({
     // Branch Previews (wrangler preview / Workers Builds preview builds)
     preview_urls: true,
     previews: {},
+    // The dashboard had the workers.dev subdomain disabled (it 404s); declared
+    // so void does not silently flip dashboard-managed visibility.
+    workers_dev: false,
     // The Worker holds the Jev key and serves the SPA assets through ASSETS.
     main: 'worker/index.ts',
     assets: {
