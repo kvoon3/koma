@@ -81,7 +81,7 @@ function vendorRuntime(): Plugin {
  * one self-contained koma.html with the HEIC decoder and every asset
  * inlined so it works fully offline, opened directly via file://.
  */
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const single = mode === 'single'
   return {
     base: './',
@@ -90,9 +90,11 @@ export default defineConfig(({ mode }) => {
     // `vite build` nor `build:single` output is touched.
     devtools: { apply: 'serve' },
     plugins: [
-      // The offline single-file build consumes only dist/index.html, so the
-      // routes/ worker graph it would bundle is dead output there.
-      !single && voidPlugin(),
+      // The dev server and the `--mode void` build run routes/ on Cloudflare's
+      // runtime. Every other build (plain chunked, single-file koma.html) is a
+      // client artifact: voidPlugin there would relocate the output to
+      // dist/client and bundle a worker graph the consumer discards.
+      !single && (command === 'serve' || mode === 'void') && voidPlugin(),
       react(),
       tailwindcss(),
       vendorRuntime(),
