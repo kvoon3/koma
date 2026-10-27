@@ -9,7 +9,10 @@ export default defineConfig({
   // void's default build step is a bare `vite build`; point it at the repo
   // script so a deploy is gated on the typecheck like `bun run build` is.
   inference: {
-    build: 'bun run build',
+    // A void deploy builds with `vite build --mode void` (the only build whose
+    // output shape voidPlugin emits), gated on the same typecheck as the repo
+    // build; plain `vite build` stays client-shaped for the mygo desktop shell.
+    build: 'bun run build:void',
   },
   routing: {
     // The client owns routing; unmatched paths fall back to index.html.

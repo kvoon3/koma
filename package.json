@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "bun run check-types && vite build",
     "build:single": "bun run check-types && vite build --mode single && cp dist/index.html koma.html",
+    "build:void": "bun run check-types && vite build --mode void",
     "deploy": "void deploy",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
