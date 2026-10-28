@@ -26,6 +26,21 @@ uploads the worker with the `routes/` handlers, and activates it on
 mygo desktop shell and `scripts/jev-e2e.mjs` consume that layout; only the
 `--mode void` build runs `voidPlugin()`.
 
+### Watch a deploy
+
+- Auto path: the repo's GitHub Actions tab, workflow "Deploy to Cloudflare"
+  (one run per push to main). The same status rides each commit as the
+  "Deploy to Cloudflare" check. Green means the worker activated; red means
+  traffic is unchanged.
+- Manual path: the `bun run deploy` output in your terminal.
+- Source of truth for what is live: Cloudflare dashboard → Workers & Pages →
+  koma → Deployments (version list, live percentage, `void:{...}` metadata).
+  The dashboard's Builds section is gone with the disconnected integration.
+  CLI equivalents: `npx wrangler deployments list --config
+  .void-wrangler.jsonc`, `bunx void project status`.
+- Whichever path ran, finish with the four probes below; a green banner is
+  not evidence.
+
 Trust four probes after any deploy, not the success banner:
 
 ```sh
