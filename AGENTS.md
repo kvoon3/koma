@@ -68,4 +68,7 @@ Where a note conflicts with a poteto default, the note wins.
 
 - Stacks are base-branch chains via `gh pr create --base`, one concern per layer.
   Do not use `gh stack`; poteto's Shipping and Babysit own stack topology.
+- PRs land as squash merges (`gh pr merge --squash`): one commit per PR on
+  main, never merge commits. Update a lane branch from main or its base with
+  rebase, not merge.
 - Local `bun run ci` is the feedback loop. Push when a lane is review-ready.
