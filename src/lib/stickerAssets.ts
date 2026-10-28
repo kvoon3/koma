@@ -20,7 +20,7 @@ import { dataUrlToFile } from './workspaceFile'
  *   onto the board at the pane's center, one undo step, as it always was.
  * - `library`: the sticker page's New sticker. The PNG enters the library in
  *   the picked folder and nothing is placed: a library action, so it pushes no
- *   board-history entry (see lib/stickerLibrary and DESIGN.md).
+ *   board-history entry (see lib/stickerLibrary and docs/design/library.md).
  */
 export type StickerTarget
   = | { kind: 'pane', paneId: string }

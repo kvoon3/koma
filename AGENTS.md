@@ -21,6 +21,14 @@ Where a note conflicts with a poteto default, the note wins.
   `Record<string, string>` table's entries lose existence checking entirely. `as TKey`
   casts bypass both gates; do not write one.
 
+## Design docs
+
+`docs/design/` holds the why-notes: decisions, measurements, and invariants
+the code cannot state. One file per domain (`panes.md`, `stage.md`,
+`history.md`, `library.md`, `export.md`, `app.md`). Behavior truth is the
+code and its tests; read only the domain you touch. The former DESIGN.md was
+split into these; do not recreate a monolith.
+
 ## Gates
 
 - `bun run ci` must exit 0 on the committed tree. Never pipe a gate into `tail`
