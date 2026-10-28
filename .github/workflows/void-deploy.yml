@@ -28,4 +28,9 @@ jobs:
           # Required only when Cloudflare Access protects Worker readiness.
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-        run: bunx void deploy --platform cloudflare --debug
+        run: |
+          bunx void deploy --platform cloudflare --debug || {
+            echo "=== void deploy JSONL ==="
+            cat /home/runner/.void/logs/deploy-*.jsonl || true
+            exit 1
+          }
