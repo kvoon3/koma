@@ -1050,6 +1050,15 @@ function useDockToolList({
     let prevHtml = el.innerHTML
     /** The whole scroller before this batch: classes and inline fade mask included. */
     let prevScroller = scrollerOf()?.innerHTML ?? ''
+    /**
+     * The list children, marked `data-dock-tool`. While one of the row's
+     * popovers is open, Base UI parks focus guards beside its trigger, and
+     * their arriving and leaving are no list change. The label tools mount as
+     * one unmarked wrapper child, so a lane swap is the marked tools leaving
+     * and arriving: the list is compared, never the batch's own nodes.
+     */
+    const listChildren = () => [...el.children].filter(n => n.hasAttribute('data-dock-tool'))
+    let prevList = listChildren()
     let swapAt = Number.NEGATIVE_INFINITY
     let swapRun = 0
     let swapAnim: ReturnType<typeof animate> | null = null
@@ -1109,21 +1118,24 @@ function useDockToolList({
     }
 
     /**
-     * Only the container's own children are the tool list: a button's internals
-     * (icon morphs, captions) must not read as a swap.
+     * Only a change in the list children is a swap: a button's internals (icon
+     * morphs, captions) must not read as one.
      */
     const maybeSwap = (records: MutationRecord[]) => {
-      const swapped = records.some(r => r.type === 'childList' && r.target === el
-        && [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === Node.ELEMENT_NODE))
-      if (swapped) {
-        const plan = planDockSwap({
-          hadContent: prevHtml !== '',
-          midSwap: performance.now() - swapAt < DOCK_SWAP_PAIR_MS,
-          reduce: !!reduceRef.current,
-        })
-        if (plan.ghost || plan.enter) {
-          swapAt = performance.now()
-          playSwap(plan)
+      if (records.some(r => r.type === 'childList' && r.target === el)) {
+        const list = listChildren()
+        const swapped = list.length !== prevList.length || list.some((n, i) => n !== prevList[i])
+        prevList = list
+        if (swapped) {
+          const plan = planDockSwap({
+            hadContent: prevHtml !== '',
+            midSwap: performance.now() - swapAt < DOCK_SWAP_PAIR_MS,
+            reduce: !!reduceRef.current,
+          })
+          if (plan.ghost || plan.enter) {
+            swapAt = performance.now()
+            playSwap(plan)
+          }
         }
       }
       prevHtml = el.innerHTML
