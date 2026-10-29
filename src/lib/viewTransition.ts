@@ -21,6 +21,24 @@ export function prefersReducedMotion() {
   return matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
+/**
+ * Run a synchronous DOM change as a View Transition with no choreography of
+ * its own. Elements it moves must already carry the same view-transition-name
+ * in both snapshots, as the grid cells' persistent `ws-<id>` does. Reduced
+ * motion or a missing API applies the change synchronously.
+ */
+export function runViewTransition(apply: () => void) {
+  if (!document.startViewTransition || prefersReducedMotion()) {
+    apply()
+    return
+  }
+  const vt = document.startViewTransition(() => {
+    // eslint-disable-next-line react/dom-no-flush-sync -- DOM must match the store before the new snapshot is captured
+    flushSync(apply)
+  })
+  void vt.finished.catch(() => {})
+}
+
 /* The newest runPaneMorph owns the cleanup: a rapid second call skips the
    first transition, and letting the first one's cleanup run would strip the
    names the second has just tagged on the same panes. */

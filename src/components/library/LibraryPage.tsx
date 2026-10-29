@@ -47,8 +47,9 @@ export function LibraryPage() {
   const [folderPick, setFolderPick] = useState<GroupPick>(null)
   const [making, setMaking] = useState<{ seq: number } | null>(null)
 
+  // The router default would animate a page-level view transition on a filter change.
   const setFilter = (next: LibraryFilter) => {
-    void navigate({ to: LIBRARY_PATH, search: next === 'all' ? {} : { type: next }, replace: true })
+    void navigate({ to: LIBRARY_PATH, search: next === 'all' ? {} : { type: next }, replace: true, viewTransition: false })
   }
 
   const wiring: Record<LibraryType, { groups: string[], pick: GroupPick, onPick: (pick: GroupPick) => void }> = {

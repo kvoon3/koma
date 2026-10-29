@@ -269,7 +269,7 @@ function WorkspaceRoute() {
       useStore.getState().clearSelection()
     }
     else {
-      void navigate({ to: OVERVIEW_PATH, replace: true })
+      void navigate({ to: OVERVIEW_PATH, replace: true, viewTransition: false })
     }
   }, [wsId, exists, navigate])
 
@@ -331,6 +331,24 @@ const routeTree = rootRoute.addChildren([overviewRoute, legacyIndexRoute, worksp
 export const router = createRouter({
   routeTree,
   history: createHashHistory(),
+})
+
+/**
+ * Browser Back/Forward and history.back() reach no navigate() call, so they
+ * morph only through the router default. Enable that default after the first
+ * load has already read the unset option, so the first paint never animates,
+ * then follow the OS motion setting live.
+ */
+function enableRouteMorphs() {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)')
+  const sync = () => router.update({ defaultViewTransition: viewTransitionOption() })
+  sync()
+  reduced.addEventListener('change', sync)
+}
+
+const stopFirstLoad = router.subscribe('onLoad', () => {
+  stopFirstLoad()
+  enableRouteMorphs()
 })
 
 declare module '@tanstack/react-router' {
