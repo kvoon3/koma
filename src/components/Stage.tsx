@@ -34,6 +34,7 @@ import { CanvasMenu } from './CanvasMenu'
 import { CollageBgLayer } from './CollageBgLayer'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteZone } from './DeleteZone'
+import { useDockPopover } from './DockMarks'
 import { MinimapHostContext } from './minimapHost'
 import { Pane } from './Pane'
 import { PaneFilterTool } from './PaneFilterTools'
@@ -106,12 +107,14 @@ const toolDisabledCls = 'disabled:cursor-default disabled:opacity-35 disabled:ac
 const toolPopupCls = `${menuSurfaceCls} ${dockPopupMotionCls} min-w-[170px]`
 
 /** A dock tool with options: a Base UI Popover anchored above the icon. */
-function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> & { options: ToolOption[] }) {
-  const [open, setOpen] = useState(false)
+function ToolPopoverButton({ icon, label, hint, options, toolKey }: Omit<ToolDef, 'key'> & { options: ToolOption[], toolKey: string }) {
   const allDisabled = options.every(o => !o.onClick)
+  const dock = useDockPopover(!allDisabled, toolKey)
   return (
-    <Popover.Root open={open && !allDisabled} onOpenChange={setOpen}>
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
       <Popover.Trigger
+        ref={dock.triggerRef}
+        {...dock.triggerProps}
         disabled={allDisabled}
         className={`${toolsBtnCls} ${dockBtnStateCls} ${toolDisabledCls}`}
         title={hint}
@@ -123,7 +126,7 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
-          <Popover.Popup className={toolPopupCls}>
+          <Popover.Popup className={toolPopupCls} {...dock.popupProps}>
             {options.map(o => (
               <button
                 key={o.key}
@@ -133,7 +136,7 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
                 aria-pressed={o.active ?? false}
                 title={o.reason}
                 onClick={() => {
-                  setOpen(false)
+                  dock.close()
                   o.onClick?.()
                 }}
               >
@@ -153,9 +156,9 @@ function ToolPopoverButton({ icon, label, hint, options }: Omit<ToolDef, 'key'> 
   )
 }
 
-function ToolButton({ icon, label, hint, onClick, options }: Omit<ToolDef, 'key'>) {
+function ToolButton({ icon, label, hint, onClick, options, toolKey }: Omit<ToolDef, 'key'> & { toolKey: string }) {
   if (options)
-    return <ToolPopoverButton icon={icon} label={label} hint={hint} options={options} />
+    return <ToolPopoverButton icon={icon} label={label} hint={hint} options={options} toolKey={toolKey} />
   return (
     <button
       className={`${toolsBtnCls} ${dockBtnStateCls} ${toolDisabledCls}`}
@@ -736,7 +739,7 @@ function StageToolsDockImpl({ tools, paneToolsHidden, focusHasGps, focusId }: {
               onInsertLocation={focusHasGps && focusId ? () => insertLocationLabel(focusId) : undefined}
             />
           )
-        : tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+        : tools.map(({ key, ...tool }) => <ToolButton key={key} toolKey={key} {...tool} />)}
       {/* The detent rotation dial + flips: a sibling of the pane tools, so
           their fixed order and list stay untouched. */}
       <PaneRotateTool hidden={!!dockLabel} />
@@ -1037,7 +1040,7 @@ function GridBoardTools({ route }: { route: DockRoute }) {
   ]
   return (
     <>
-      {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+      {tools.map(({ key, ...tool }) => <ToolButton key={key} toolKey={key} {...tool} />)}
       <ConfirmDialog
         open={askClear}
         title={t('Clear all cells?')}
@@ -1066,7 +1069,7 @@ export function DockToolset({ route }: { route: DockRoute }) {
       <AppearanceDockTools />
       <GridDockTool disabled={!canRun('grid', { pane: null, route })} />
       <GridBoardTools route={route} />
-      {tools.map(({ key, ...tool }) => <ToolButton key={key} {...tool} />)}
+      {tools.map(({ key, ...tool }) => <ToolButton key={key} toolKey={key} {...tool} />)}
     </>
   )
 }

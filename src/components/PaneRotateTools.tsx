@@ -5,6 +5,7 @@ import { degToRad, radToDeg, wrapDeg } from '../lib/detent'
 import { useT } from '../lib/i18n'
 import { findLeaf, rotationOf } from '../lib/panes'
 import { activeWs, useStore } from '../store'
+import { useDockPopover } from './DockMarks'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
 import { RotationControl } from './ui/RotationControl'
@@ -38,16 +39,23 @@ export function PaneRotateTool({ hidden = false }: { hidden?: boolean }) {
   const flipPane = useStore(s => s.flipPane)
   const resetPaneRotation = useStore(s => s.resetPaneRotation)
 
-  // Same rule as the pane tools: no focused pane holding a photo, no tool.
-  if (hidden || !photoId)
+  // Same rule as the pane tools: no focused pane holding a photo, no tool. The
+  // gate is the hook's `enabled`, so the open state dies with the unmounting
+  // trigger instead of being mirrored here (issue #76).
+  const enabled = !hidden && !!photoId
+  const dock = useDockPopover(enabled, 'rotate')
+
+  if (!enabled)
     return null
   const flipped = { x: flipX, y: flipY }
 
   const rotateBy = (delta: number) => rotatePane(paneId, degToRad(deg + delta))
 
   return (
-    <Popover.Root>
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
       <Popover.Trigger
+        ref={dock.triggerRef}
+        {...dock.triggerProps}
         className={`${toolsBtnCls} ${dockBtnStateCls}`}
         title={t('Rotate or flip this photo')}
         aria-label={t('Rotate or flip this photo')}
@@ -70,7 +78,7 @@ export function PaneRotateTool({ hidden = false }: { hidden?: boolean }) {
          * viewport edge, so the popup needs to be shifted back into view.
          */}
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={8} sticky className="z-[260] select-none outline-0">
-          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[272px] p-2 text-txt`}>
+          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[272px] p-2 text-txt`} {...dock.popupProps}>
             <RotationControl
               label={t('Rotation')}
               value={degToRad(deg)}

@@ -13,6 +13,7 @@ import { useT } from '../lib/i18n'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
 import { isTransparentBg, useStore } from '../store'
+import { useDockPopover } from './DockMarks'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
 
@@ -287,13 +288,15 @@ function AppearanceFields() {
  * Grid gap is enabled on the grid route only (see GridDockTool).
  */
 export function AppearanceDockTools() {
-  const [open, setOpen] = useState(false)
+  const dock = useDockPopover(true, 'border')
   const resetSettings = useStore(s => s.resetSettings)
   const t = useT()
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
       <Popover.Trigger
+        ref={dock.triggerRef}
+        {...dock.triggerProps}
         className={`${toolsBtnCls} ${dockBtnStateCls}`}
         title={t('Border')}
         aria-label={t('Border')}
@@ -304,7 +307,7 @@ export function AppearanceDockTools() {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
-          <Popover.Popup className={popup}>
+          <Popover.Popup className={popup} {...dock.popupProps}>
             <div className="mb-2.5 flex items-center gap-2">
               <p className={heading}>{t('Border')}</p>
               <span className="flex-1" />
@@ -332,14 +335,16 @@ export function AppearanceDockTools() {
  * dock layout) and disabled off the grid via `requires: 'grid'`.
  */
 export function GridDockTool({ disabled = false }: { disabled?: boolean }) {
-  const [open, setOpen] = useState(false)
+  const dock = useDockPopover(!disabled, 'grid')
   const gridGap = useStore(s => s.gridGap)
   const patch = useStore(s => s.patch)
   const t = useT()
 
   return (
-    <Popover.Root open={open && !disabled} onOpenChange={setOpen}>
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
       <Popover.Trigger
+        ref={dock.triggerRef}
+        {...dock.triggerProps}
         disabled={disabled}
         className={`${toolsBtnCls} ${dockBtnStateCls} disabled:cursor-default disabled:opacity-35 disabled:active:scale-100 disabled:hover:bg-transparent`}
         title={t('Grid')}
@@ -351,7 +356,7 @@ export function GridDockTool({ disabled = false }: { disabled?: boolean }) {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
-          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[min(280px,calc(100vw-24px))] p-3`}>
+          <Popover.Popup className={`${menuSurfaceCls} ${dockPopupMotionCls} w-[min(280px,calc(100vw-24px))] p-3`} {...dock.popupProps}>
             <RangeField label={t('Grid gap')} text={`${gridGap}px`} max={40} value={gridGap} onChange={v => patch({ gridGap: v })} />
           </Popover.Popup>
         </Popover.Positioner>
