@@ -520,7 +520,6 @@ function useDockMeasure({
         captureFlipFrom()
       setFitsOneRow(nextFits)
     }
-    // The layout is final and the scroll restored: a placement now is safe.
     onMeasured()
   }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow, bandActiveRef, onMeasured])
 
@@ -1153,8 +1152,8 @@ function useDockToolList({
     }
 
     const mo = new MutationObserver((records) => {
-      // Opening or closing a dock popover parks two fixed, 1×1 focus guards
-      // beside its trigger. That is not a list change, so it costs no swap, no
+      // Opening or closing a dock popover parks fixed, 1×1 focus guards beside
+      // its trigger. That is not a list change, so it costs no swap, no
       // snapshot and no forced restyle (which also clamps the row's scroll).
       // Any other record still takes the full path.
       const isGuard = (node: unknown) => node instanceof Element && node.hasAttribute('data-base-ui-focus-guard')

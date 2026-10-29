@@ -6,7 +6,7 @@
  * Two coordinate spaces share `DockBox` and must never be mixed: the content
  * box (`boxIn` + offset size) is scroll- and transform-free, while the visual
  * box (`getBoundingClientRect`) carries scroll, FLIP transforms and band
- * translate. Every function here takes visual boxes; the box element stores
+ * translate. Every box function here takes visual boxes; the box element stores
  * its resting `left/top` in content space.
  */
 
@@ -70,7 +70,7 @@ export interface DockMutationBatchRecord {
 
 /**
  * Is a mutation batch nothing but Base UI focus-guard churn? A non-modal dock
- * popover parks two fixed, 1×1, out-of-flow spans beside its trigger, and their
+ * popover parks fixed, 1×1, out-of-flow spans beside its trigger, and their
  * arriving and leaving are not layout changes. Strict on purpose: an empty
  * batch, another record type (an attribute or character change), or any node
  * that is not a guard falls through to the full measure.

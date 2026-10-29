@@ -1,12 +1,6 @@
 /**
  * Browser evidence for the dock's hover/press box and popover hand-over.
  *
- * Everything here is a pixel measurement or a DOM fact: the box lands on the
- * button, a mid-glide sample lies between the two buttons, the hovered button
- * has no background of its own, a hand-over leaves exactly one panel mounted
- * with its trigger open and the row unscrolled, the box follows scroll, touch
- * never hands over, and reduced motion places the box in one frame.
- *
  * Playwright-core and the cached Chromium are local tools, not dependencies, so
  * this runs by hand. It spawns the dev server unless KOMA_DEV_URL is set:
  *   bun scripts/check-dock-glide.mjs
@@ -200,7 +194,6 @@ async function panelKeys(page) {
 const browser = await chromium.launch({ executablePath: CHROMIUM, headless: true })
 
 try {
-  // ---------------------------------------------------------------- first checks
   {
     const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 375, height: 812 } })).newPage()
     await gotoWithRetry(page)
@@ -312,13 +305,11 @@ try {
     await page.close()
   }
 
-  // ------------------------------------------------------- 1/2/4/5/6/7: stage 1280
   {
     const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 900 } })).newPage()
     await gotoWithRetry(page)
     await openStage(page)
 
-    // 1. Hover glide across two tools.
     await page.evaluate(() => {
       document.querySelector('[data-dock-fade]').scrollLeft = 0
     })
@@ -343,7 +334,6 @@ try {
     assert(between.length > 0, 'a mid-glide sample lies strictly between the two tools')
     assert(near(last.left, atSplit.box.left) && near(last.top, atSplit.box.top), 'the glide finishes on the target')
 
-    // 2. First appearance: hidden, then on the target in the first visible frame.
     await page.mouse.move(640, 300)
     await sleep(300)
     const hidden = await page.evaluate(() => Number(getComputedStyle(document.querySelector('[data-dock-highlight]')).opacity))
@@ -360,7 +350,6 @@ try {
     assert(firstVisible.opacity < 1, 'the first appearance fades in')
     assert(appear.at(-1).opacity === 1, 'the fade reaches full opacity')
 
-    // 4. Retention: click Split open, leave the dock, hover a plain action.
     await page.mouse.click(split.x, split.y)
     await sleep(300)
     assert((await panelKeys(page)).includes('split'), 'the Split panel is open after its click')
@@ -376,7 +365,6 @@ try {
     assertAt(atSticker, 'the box moves to the plain action')
     console.log('4: retention ok, box on Sticker', JSON.stringify(atSticker.box))
 
-    // 5. Nothing open: hover across popover triggers, then stick.
     await page.keyboard.press('Escape')
     await sleep(350)
     assert((await panelKeys(page)).length === 0, 'Escape closes the retained panel')
@@ -405,7 +393,6 @@ try {
     assert(modeBefore === modeAfter, 'Escape and the clicks never collapse the dock display')
     console.log('5: nothing-open, stick and Escape ok; mode', modeAfter)
 
-    // 6. Scroll: the box rides the content by the same delta.
     await page.mouse.move(border.x, border.y)
     await sleep(200)
     const scroll = await page.evaluate(() => {
@@ -426,7 +413,6 @@ try {
     assert(near(scroll.before.box - scroll.after.box, scroll.before.btn - scroll.after.btn, 0.5), 'the box and the button shift by the same scroll delta')
     assert(scroll.before.box !== scroll.after.box, 'the scroll actually moved the box')
 
-    // 7. Issue #76: open Filter, deselect the pane, refocus.
     await page.evaluate(() => {
       document.querySelector('[data-dock-fade]').scrollLeft = 0
     })
@@ -448,8 +434,8 @@ try {
     assert((await panelKeys(page)).length === 0, 'no panel resurrects on refocus (issue #76)')
     console.log('7: issue #76 ok')
 
-    // 7b. A hand-over to Filter recomputes its bounds: the open count follows
-    // the state, not Base UI's own onOpenChange.
+    // A hand-over to Filter recomputes its bounds: the memo keys on the dock's
+    // open state, not Base UI's onOpenChange.
     const borderAgain = await centerOf(page, 'button[data-dock-popover="border"]')
     await page.mouse.click(borderAgain.x, borderAgain.y)
     await sleep(250)
@@ -478,7 +464,6 @@ try {
     await page.close()
   }
 
-  // ----------------------------------------------------- 3: hand-over on the grid
   {
     const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 900 } })).newPage()
     await gotoWithRetry(page)
@@ -569,7 +554,6 @@ try {
     await page.close()
   }
 
-  // ------------------------------------------------- 6 (vertical) and 8: 375x812
   {
     const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 375, height: 812 } })).newPage()
     await gotoWithRetry(page)
@@ -601,7 +585,6 @@ try {
     await page.close()
   }
 
-  // ------------------------------------------------------------ 8: touch 375x812
   {
     const context = await browser.newContext({ ignoreHTTPSErrors: true, hasTouch: true, isMobile: true, viewport: { width: 375, height: 812 } })
     const page = await context.newPage()
@@ -626,7 +609,6 @@ try {
     assert(near(pressed.box[0], pressed.trigger[0]) && near(pressed.box[1], pressed.trigger[1]) && near(pressed.box[2], pressed.trigger[2]), 'the touch box sits on the pressed tool')
     await sleep(400)
     assert((await panelKeys(page)).includes('border'), 'the touch tap opens the Border panel')
-    // A touch pointerover on another trigger must not hand over.
     const handOver = await page.evaluate(() => {
       const filter = document.querySelector('button[data-dock-filter]')
       filter.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'touch' }))
@@ -651,7 +633,6 @@ try {
     await page.close()
   }
 
-  // ------------------------------------------------------------- 9: reduced motion
   {
     const page = await (await browser.newContext({ ignoreHTTPSErrors: true, reducedMotion: 'reduce', viewport: { width: 1280, height: 900 } })).newPage()
     await gotoWithRetry(page)
@@ -674,7 +655,6 @@ try {
     await page.close()
   }
 
-  // ------------------------------------------------------------------ 10: screenshots
   for (const [width, height] of [[375, 812], [1280, 900], [1280, 600], [915, 412]]) {
     const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width, height } })).newPage()
     await gotoWithRetry(page)

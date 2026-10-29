@@ -216,7 +216,11 @@ export function useDockMarkStore(): DockMarkStore {
   return store
 }
 
-/** The popover hook's returned wiring; every field is identity-stable per seat. */
+/**
+ * The popover hook's wiring. The trigger id, ref and handlers stay stable per
+ * seat; the prop objects are rebuilt per render so each carries that render's
+ * open status.
+ */
 export interface DockPopoverWiring {
   readonly open: boolean
   readonly triggerRef: RefCallback<HTMLButtonElement>

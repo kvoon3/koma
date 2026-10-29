@@ -46,7 +46,7 @@ export const dockPopupMotionCls = 'origin-[var(--transform-origin)] transition-[
  */
 export const dockBtnStateCls = 'outline-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent data-popup-open:bg-chip-on data-popup-open:text-chip-on-txt data-popup-open:shadow-[inset_0_-2px_0_var(--accent)] data-popup-open:hover:bg-chip-on data-popup-open:hover:text-chip-on-txt data-checked:bg-chip-on data-checked:text-chip-on-txt data-checked:shadow-[inset_0_-2px_0_var(--accent)] data-checked:hover:bg-chip-on data-checked:hover:text-chip-on-txt'
 
-/** The dock tool button's resting surface: flat, square, press scale, hover text. */
+/** The dock tool button's base: flat, square, press scale. */
 const dockBtnBase = 'cursor-pointer rounded-none border-0 bg-transparent text-float-icon transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97]'
 /** The dock tool button's resting surface with its own hover fill. */
 export const dockBtnSurfaceCls = `${dockBtnBase} hover:bg-chip-hover hover:text-txt`

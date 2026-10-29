@@ -20,7 +20,6 @@ export function boxIn(container: HTMLElement, child: HTMLElement): { x: number, 
   return { x: child.offsetLeft - container.offsetLeft, y: child.offsetTop - container.offsetTop }
 }
 
-/** Every direct child's layout box, keyed by element (see `boxIn`). */
 export function captureChildBoxes(container: HTMLElement): Map<HTMLElement, { x: number, y: number }> {
   const boxes = new Map<HTMLElement, { x: number, y: number }>()
   for (const child of container.children)
