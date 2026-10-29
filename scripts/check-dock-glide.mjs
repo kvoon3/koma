@@ -447,6 +447,34 @@ try {
     assert(await page.locator('button[data-dock-filter]').getAttribute('aria-expanded') !== 'true', 'the refocused Filter reads collapsed')
     assert((await panelKeys(page)).length === 0, 'no panel resurrects on refocus (issue #76)')
     console.log('7: issue #76 ok')
+
+    // 7b. A hand-over to Filter recomputes its bounds: the open count follows
+    // the state, not Base UI's own onOpenChange.
+    const borderAgain = await centerOf(page, 'button[data-dock-popover="border"]')
+    await page.mouse.click(borderAgain.x, borderAgain.y)
+    await sleep(250)
+    assert((await panelKeys(page)).includes('border'), 'Border opens before the Filter hand-over')
+    const filterAgain = await centerOf(page, 'button[data-dock-filter]')
+    await page.mouse.move(filterAgain.x, filterAgain.y)
+    await sleep(350)
+    const filterBounds = await page.evaluate(() => {
+      const popup = document.querySelector('[data-dock-popover-panel="filter"]')
+      const sheet = document.querySelector('[data-dock-mode]')
+      if (!popup || !sheet)
+        return null
+      const p = popup.getBoundingClientRect()
+      const s = sheet.getBoundingClientRect()
+      return {
+        panels: [...document.querySelectorAll('[data-dock-popover-panel]')].map(n => n.getAttribute('data-dock-popover-panel')),
+        maxH: popup.style.maxHeight,
+        popupBottom: p.bottom,
+        sheetTop: s.top,
+      }
+    })
+    console.log('7b: filter hand-over bounds', JSON.stringify(filterBounds))
+    assert(filterBounds && filterBounds.panels.join() === 'filter', 'the hover hands the panel over to Filter')
+    assert(filterBounds.maxH !== '', 'the hand-over recomputes the Filter bounds')
+    assert(filterBounds.popupBottom <= filterBounds.sheetTop + 1, 'the Filter panel sits above the sheet on a hand-over')
     await page.close()
   }
 

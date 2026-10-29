@@ -1,4 +1,3 @@
-import type { PopoverRootChangeEventDetails } from '@base-ui/react/popover'
 import type { FilterId, FilterKnob, FilterSpec, FilterValue } from '../lib/filters'
 import type { Photo } from '../lib/imageStore'
 import type { TKey } from '../lib/locales/zh-Hans'
@@ -240,17 +239,13 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   const setPaneFilter = useStore(s => s.setPaneFilter)
   /** The gate that unmounts the trigger, stated once and handed to the hook. */
   const enabled = !hidden && !!photoId && !!photo
+  // The open state lives in the dock's store below this gate (issue #76): a
+  // stage press can deselect mid-dispatch, so the claim is released by the
+  // trigger's own unmount and a remount cannot match it.
   const dock = useDockPopover(enabled, 'filter')
-  /**
-   * Openings counted, not mirrored. The popover's open state lives in the dock's
-   * store below this gate (issue #76): a stage press can deselect mid-dispatch
-   * and no close event arrives, so the claim is released by the trigger's own
-   * unmount and a remount cannot match it. A bump always re-measures.
-   */
-  const [openCount, bumpOpenCount] = useState(0)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const viewport = useSyncExternalStore(subscribeViewport, viewportKey, () => '0x0')
-  const { triggerRef: dockTriggerRef, onOpenChange: dockOnOpenChange } = dock
+  const { triggerRef: dockTriggerRef } = dock
 
   // The hook owns the trigger ref; this mirrors it for the bounds memo.
   const setTrigger = useCallback((el: HTMLButtonElement | null) => {
@@ -258,21 +253,18 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
     dockTriggerRef(el)
   }, [dockTriggerRef])
 
-  const onOpenChange = useCallback((next: boolean, details: PopoverRootChangeEventDetails) => {
-    dockOnOpenChange(next, details)
-    if (next)
-      bumpOpenCount(n => n + 1)
-  }, [dockOnOpenChange])
-
   /**
    * The dock is a bottom sheet overlaying the stage, so "above the trigger" is
    * not "above the dock": at a short window the palette's lower rows land under
    * the sheet's chrome. Anchor the popup above the sheet's top edge instead, and
-   * cap its height to the room over that edge. Measured at every opening, and
-   * again whenever the window resizes (the sheet only changes size when the
-   * dock's mode does, and that tap closes the popover first).
+   * cap its height to the room over that edge. Keyed on the open state, so a
+   * hover hand-over measures like a click, and again whenever the window
+   * resizes (the sheet only changes size when the dock's mode does, and that tap
+   * closes the popover first).
    */
   const bounds = useMemo(() => {
+    if (!dock.open)
+      return null
     const trigger = triggerRef.current
     if (!trigger)
       return null
@@ -286,7 +278,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
       offset: Math.max(6, Math.round(t.top - sheetTop) + 6),
       maxH: Math.max(180, Math.min(560, Math.round(sheetTop) - 16, room - 16)),
     }
-  }, [openCount, viewport])
+  }, [dock.open, viewport])
 
   // Same rule as the pane tools: no focused pane holding a photo, no tool.
   if (!enabled)
@@ -302,7 +294,7 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   }
 
   return (
-    <Popover.Root open={dock.open} onOpenChange={onOpenChange} {...dock.rootProps}>
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
       <Popover.Trigger
         ref={setTrigger}
         {...dock.triggerProps}
