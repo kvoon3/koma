@@ -494,7 +494,7 @@ focus move. Each popover's open claim is its own trigger element and is released
 when the trigger unmounts or its hide gate shuts, so a deselected pane can never
 resurrect a panel (issue #76).
 
-Opening or closing a dock popover parks two fixed 1×1 focus guards beside its
+Opening or closing a dock popover parks fixed 1×1 focus guards beside its
 trigger, a mutation the tool-list observer used to answer with a full measure
 pass, whose forced restyle clamped the row's scroll and slid the anchor out from
 under the panel. A batch made only of those guards now skips the pass (no swap,
