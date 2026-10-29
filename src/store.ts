@@ -70,7 +70,7 @@ import {
   withFolder,
 } from './lib/stickerLibrary'
 import { normalizePhotoRecipes } from './lib/stickerRecipe'
-import { runPaneMorph } from './lib/viewTransition'
+import { runPaneMorph, runViewTransition } from './lib/viewTransition'
 import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
 
 // The transparent-fill test describes the collage background, so it lives with
@@ -648,7 +648,8 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (workspaces.filter(w => leafList(w.root).some(l => l.photoId)).length < 2)
       return
     commit('shuffleWorkspaces')
-    set({ workspaces: shuffleFilled(workspaces, w => leafList(w.root).some(l => l.photoId), rng) })
+    runViewTransition(() =>
+      set({ workspaces: shuffleFilled(workspaces, w => leafList(w.root).some(l => l.photoId), rng) }))
   },
 
   /** Grid Clear: drop every photo (panes and board stickers) from all workspaces; layouts stay. */
