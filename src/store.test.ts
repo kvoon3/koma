@@ -513,54 +513,42 @@ describe('pane rotation and flips', () => {
   })
 })
 
-describe('grid groups (boards switched from the workspace switcher)', () => {
+describe('board groups (the boards paged across the overview)', () => {
   const state = () => useStore.getState()
   /** How many steps undo can walk back through in this group's board. */
   const stepsOf = () => Math.max(0, historyPath(state().history).length - 1)
+  const noPhotos = () => state().workspaces.every(w => leafList(w.root).every(l => !l.photoId))
 
-  test('a new group copies the open board: same photos, fresh ids, one undo step', () => {
+  test('a new board is blank, opens, parks the old one: one undo step', () => {
     const firstId = state().activeGridId
-    state().split(ws().focusId, 'row')
-    state().assign(ws().focusId, 'photo-a')
-    const before = ws()
-    const beforeLeaves = leaves()
-    beforeLeaves[0]!.stickers.push({ id: 'st1', photoId: 'photo-a', x: 0.5, y: 0.5, s: 0.2 })
-    beforeLeaves[1]!.label = { id: 'lab1', text: 'L', font: '', theme: 'dark', x: 0.5, y: 0.5, size: 42, rot: 0 }
-
+    const before = state().workspaces
     const added = state().addGrid()
     expect(added).not.toBeNull()
     expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
     expect(state().activeGridId).toBe(added!)
-    // split + assign + the copy-carrying add: one step each.
-    expect(stepsOf()).toBe(3)
+    expect(stepsOf()).toBe(1)
 
-    // The copy mirrors the board cell for cell, but nothing the store
-    // addresses by id is shared.
-    const copy = state().workspaces
-    expect(copy).toHaveLength(state().parkedBoards[firstId]!.workspaces.length)
-    const copyLeaves = leafList(copy[0]!.root)
-    expect(copyLeaves).toHaveLength(beforeLeaves.length)
-    expect(copyLeaves.map(l => l.photoId)).toEqual(beforeLeaves.map(l => l.photoId))
-    const copyIds = new Set(copy.map(w => w.id))
-    for (const w of state().parkedBoards[firstId]!.workspaces)
-      expect(copyIds.has(w.id)).toBe(false)
-    expect(copyLeaves.map(l => l.id)).not.toEqual(beforeLeaves.map(l => l.id))
-    expect(copyLeaves[0]!.stickers.map(s => s.id)).not.toEqual(['st1'])
-    expect(copyLeaves[1]!.label!.id).not.toBe('lab1')
-    // The open board moved to the copy; the original parked whole.
-    expect(state().parkedBoards[firstId]!.workspaces[0]!.root).toBe(before.root)
+    const fresh = state().workspaces
+    expect(fresh).toHaveLength(before.length)
+    expect(noPhotos()).toBe(true)
+    const freshIds = new Set(fresh.map(w => w.id))
+    for (const w of before)
+      expect(freshIds.has(w.id)).toBe(false)
+    // The old board parked whole, not copied.
+    expect(state().parkedBoards[firstId]!.workspaces).toBe(before)
 
-    // One undo removes the copied group and reopens the board it copied.
     state().undo()
     expect(state().grids).toHaveLength(1)
     expect(state().activeGridId).toBe(firstId)
+    expect(state().workspaces).toBe(before)
     expect(state().parkedBoards).toEqual({})
     state().redo()
     expect(state().grids).toHaveLength(2)
     expect(state().activeGridId).toBe(added!)
+    expect(noPhotos()).toBe(true)
   })
 
-  test('switching groups is navigation: it pushes no undo entry', () => {
+  test('switching boards is navigation: it pushes no undo entry', () => {
     const firstId = state().activeGridId
     const added = state().addGrid()!
     const steps = stepsOf()
@@ -569,58 +557,88 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(stepsOf()).toBe(steps)
   })
 
-  test('adding and renaming a group are one undo step each', () => {
+  test('a batch delete is one step, prunes the parked map, and undo restores every board', () => {
     const firstId = state().activeGridId
-    const added = state().addGrid()!
-    expect(stepsOf()).toBe(1)
-    state().renameGrid(added, 'Variant 2')
-    expect(state().grids.map(g => g.name)).toEqual(['1', 'Variant 2'])
-    expect(stepsOf()).toBe(2)
-
-    state().undo()
-    expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
-    // Undoing the add takes the group and its board away, and the view with it.
-    state().undo()
-    expect(state().grids).toHaveLength(1)
-    expect(state().activeGridId).toBe(firstId)
-    expect(state().parkedBoards).toEqual({})
-    state().redo()
-    expect(state().grids).toHaveLength(2)
-  })
-
-  test('a deleted group comes back with its board on undo', () => {
-    const firstId = state().activeGridId
-    const added = state().addGrid()!
+    const second = state().addGrid()!
+    const third = state().addGrid()!
     state().assign(ws().focusId, 'photo-b')
-    const boardB = state().workspaces
+    const thirdBoard = state().workspaces
+    const steps = stepsOf()
 
-    state().removeGrid(added)
+    state().removeGrids([second, third])
+    expect(stepsOf()).toBe(steps + 1)
     expect(state().grids.map(g => g.id)).toEqual([firstId])
     expect(state().activeGridId).toBe(firstId)
-    expect(state().parkedBoards[added]).toBeUndefined()
+    expect(state().parkedBoards).toEqual({})
 
     state().undo()
-    expect(state().grids.map(g => g.id)).toEqual([firstId, added])
-    // Undo reopens the group it removed, board and all (the snapshot was taken
-    // while it was the open one), so its cells are back in view.
-    expect(state().activeGridId).toBe(added)
-    expect(boardOf(state(), added)).toBe(boardB)
-    expect(leafList(boardOf(state(), added)[0]!.root).some(l => l.photoId)).toBe(true)
+    expect(state().grids.map(g => g.id)).toEqual([firstId, second, third])
+    // The snapshot was taken while the third board was open, so undo reopens it.
+    expect(state().activeGridId).toBe(third)
+    expect(state().workspaces).toBe(thirdBoard)
+    expect(state().parkedBoards[second]).toBeDefined()
+    expect(Object.keys(state().parkedBoards).sort()).toEqual([firstId, second].sort())
+    state().redo()
+    expect(state().grids.map(g => g.id)).toEqual([firstId])
   })
 
-  test('a no-op group action pushes nothing', () => {
+  test('deleting the open board opens the survivor that closes into its slot', () => {
+    const firstId = state().activeGridId
+    const second = state().addGrid()!
+    const third = state().addGrid()!
+    const secondBoard = state().parkedBoards[second]!.workspaces
+    state().switchGrid(second)
+    expect(state().activeGridId).toBe(second)
+
+    state().removeGrids([second])
+    expect(state().grids.map(g => g.id)).toEqual([firstId, third])
+    expect(state().activeGridId).toBe(third)
+    expect(state().parkedBoards[second]).toBeUndefined()
+    // The surviving neighbour's parked board is now the live board.
+    expect(state().parkedBoards[firstId]).toBeDefined()
+    expect(state().parkedBoards[third]).toBeUndefined()
+    // And the board it replaced is the one it will park on a switch back.
+    state().switchGrid(firstId)
+    expect(state().parkedBoards[firstId]).toBeUndefined()
+    expect(boardOf(state(), third)).toBeDefined()
+
+    state().undo()
+    expect(state().activeGridId).toBe(second)
+    expect(state().workspaces).toBe(secondBoard)
+  })
+
+  test('a no-op board action pushes nothing', () => {
     const steps = stepsOf()
-    // One group: it can't be deleted, and an unknown id changes nothing.
-    state().removeGrid(state().activeGridId)
-    state().removeGrid('nope')
-    state().renameGrid('nope', 'X')
-    state().switchGrid(state().activeGridId)
-    // A blank rename never counts.
-    state().renameGrid(state().activeGridId, '  ')
+    const active = state().activeGridId
+    state().removeGrids([])
+    state().removeGrids(['nope'])
+    state().removeGrids(state().grids.map(g => g.id))
+    state().moveGrid('nope', 0)
+    state().moveGrid(active, 0)
+    state().switchGrid(active)
     expect(stepsOf()).toBe(steps)
   })
 
-  test('four groups is the cap', () => {
+  test('reordering a board is one step and keeps the open board open', () => {
+    const firstId = state().activeGridId
+    const second = state().addGrid()!
+    const third = state().addGrid()!
+    const steps = stepsOf()
+    state().switchGrid(firstId)
+
+    state().moveGrid(third, 0)
+    expect(state().grids.map(g => g.id)).toEqual([third, firstId, second])
+    expect(state().activeGridId).toBe(firstId)
+    expect(stepsOf()).toBe(steps + 1)
+
+    state().undo()
+    expect(state().grids.map(g => g.id)).toEqual([firstId, second, third])
+    expect(state().activeGridId).toBe(firstId)
+    state().redo()
+    expect(state().grids.map(g => g.id)).toEqual([third, firstId, second])
+  })
+
+  test('four boards is the cap', () => {
     for (let i = 0; i < MAX_GRIDS + 2; i++) {
       const added = state().addGrid()
       if (i < MAX_GRIDS - 1)

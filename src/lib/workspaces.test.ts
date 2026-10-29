@@ -1,6 +1,7 @@
 /// <reference types="bun" />
+import type { GridsState } from './workspaces'
 import { describe, expect, it } from 'bun:test'
-import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, gridStep, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './workspaces'
+import { activeAfterRemove, addGroup, addSlot, canRemoveGroups, DEFAULT_WORKSPACES, gridStep, MAX_GRIDS, MAX_WORKSPACES, moveGroup, nextGridName, normalizeGrids, normalizeSlots, removeGridSlice, removeSlot, resetSlot } from './workspaces'
 
 let n = 0
 const fresh = () => ({ id: `new${++n}`, v: 0 })
@@ -91,38 +92,107 @@ describe('gridStep', () => {
   })
 })
 
-/** Groups of the group bar, as the store holds them. */
 const groups = (...names: string[]) => names.map((name, i) => ({ id: `g${i}`, name }))
 
-describe('the group bar', () => {
-  it('numbers a new group with the first free number', () => {
+describe('the board list', () => {
+  it('numbers a new board with the first free number', () => {
     expect(nextGridName([])).toBe('1')
     expect(nextGridName(groups('1', '2'))).toBe('3')
-    // A renamed group frees its number for the next one.
+    // A renamed board frees its number for the next one.
     expect(nextGridName(groups('Cover', '2'))).toBe('1')
   })
 
   it('appends up to the cap and no further', () => {
-    let bar = groups('1')
+    let list = groups('1')
     for (let i = 0; i < MAX_GRIDS + 2; i++)
-      bar = addGroup(bar, () => ({ id: `new${i}`, name: nextGridName(bar) }))
-    expect(bar).toHaveLength(MAX_GRIDS)
-    expect(bar.map(g => g.name)).toEqual(['1', '2', '3', '4'])
+      list = addGroup(list, () => ({ id: `new${i}`, name: nextGridName(list) }))
+    expect(list).toHaveLength(MAX_GRIDS)
+    expect(list.map(g => g.name)).toEqual(['1', '2', '3', '4'])
   })
 
-  it('removes a group but never the last one', () => {
-    expect(removeGroup(groups('1', '2', '3'), 'g1').map(g => g.name)).toEqual(['1', '3'])
-    const only = groups('1')
-    expect(removeGroup(only, 'g0')).toBe(only)
-    const pair = groups('1', '2')
-    expect(removeGroup(pair, 'nope')).toBe(pair)
+  it('moves a board insert-shift and refuses no-ops', () => {
+    const list = groups('1', '2', '3')
+    expect(moveGroup(list, 'g0', 2).map(g => g.id)).toEqual(['g1', 'g2', 'g0'])
+    expect(moveGroup(list, 'g2', 0).map(g => g.id)).toEqual(['g2', 'g0', 'g1'])
+    // The same array for anything that changes nothing.
+    expect(moveGroup(list, 'g1', 1)).toBe(list)
+    expect(moveGroup(list, 'nope', 0)).toBe(list)
+    expect(moveGroup(list, 'g0', 3)).toBe(list)
+    expect(moveGroup(list, 'g0', -1)).toBe(list)
   })
 
-  it('renames a group, refusing blank names', () => {
-    expect(renameGroup(groups('1', '2'), 'g1', ' Variant 2 ')).toEqual([{ id: 'g0', name: '1' }, { id: 'g1', name: 'Variant 2' }])
-    const bar = groups('1', '2')
-    expect(renameGroup(bar, 'g1', '   ')).toBe(bar)
-    expect(renameGroup(bar, 'g1', '2')).toBe(bar)
+  it('allows a batch that leaves a board behind, and never the last one', () => {
+    const list = groups('1', '2', '3')
+    expect(canRemoveGroups(list, ['g1'])).toBe(true)
+    expect(canRemoveGroups(list, ['g1', 'g2'])).toBe(true)
+    expect(canRemoveGroups(list, ['g0', 'g1', 'g2'])).toBe(false)
+    expect(canRemoveGroups(list, [])).toBe(false)
+    expect(canRemoveGroups(list, ['nope'])).toBe(false)
+    expect(canRemoveGroups(list, ['g1', 'g1'])).toBe(true)
+    expect(canRemoveGroups(groups('1'), ['g0'])).toBe(false)
+  })
+})
+
+describe('removeGridSlice', () => {
+  const cell = (id: string) => ({ id })
+  const board = (...ids: string[]) => ({ workspaces: ids.map(cell), activeId: ids[0] ?? '' })
+  const makeState = (gridIds: string[], activeGridId: string, open: string[], parkedIds: Record<string, string[]>): GridsState<{ id: string }> => ({
+    grids: gridIds.map(id => ({ id, name: id })),
+    activeGridId,
+    workspaces: open.map(cell),
+    activeId: open[0] ?? '',
+    parked: Object.fromEntries(Object.entries(parkedIds).map(([id, ids]) => [id, board(...ids)])),
+  })
+  let freshSeq = 0
+  const fresh = () => cell(`fresh${++freshSeq}`)
+
+  it('drops parked boards and leaves the open one alone', () => {
+    const state = makeState(['g0', 'g1', 'g2'], 'g0', ['a', 'b'], { g1: ['c'], g2: ['d'] })
+    const next = removeGridSlice(state, ['g1'], fresh)!
+    expect(next.grids.map(g => g.id)).toEqual(['g0', 'g2'])
+    expect(next.activeGridId).toBe('g0')
+    expect(next.workspaces).toBe(state.workspaces)
+    expect(next.activeId).toBe('a')
+    expect(Object.keys(next.parked)).toEqual(['g2'])
+    expect(next.parked.g2!.workspaces.map(w => w.id)).toEqual(['d'])
+  })
+
+  it('opens the survivor that closes into the deleted board slot', () => {
+    const state = makeState(['g0', 'g1', 'g2'], 'g1', ['a'], { g0: ['b'], g2: ['c'] })
+    const next = removeGridSlice(state, ['g1'], fresh)!
+    expect(next.grids.map(g => g.id)).toEqual(['g0', 'g2'])
+    expect(next.activeGridId).toBe('g2')
+    expect(next.workspaces.map(w => w.id)).toEqual(['c'])
+    expect(Object.keys(next.parked)).toEqual(['g0'])
+  })
+
+  it('opens the new last board when the deleted one was last', () => {
+    const state = makeState(['g0', 'g1'], 'g1', ['a'], { g0: ['b'] })
+    const next = removeGridSlice(state, ['g1'], fresh)!
+    expect(next.activeGridId).toBe('g0')
+    expect(next.workspaces.map(w => w.id)).toEqual(['b'])
+  })
+
+  it('gives a missing survivor board a fresh default instead of an empty one', () => {
+    const state = makeState(['g0', 'g1'], 'g1', ['a'], {})
+    const next = removeGridSlice(state, ['g1'], fresh)!
+    expect(next.activeGridId).toBe('g0')
+    expect(next.workspaces).toHaveLength(DEFAULT_WORKSPACES)
+    expect(next.activeId).toBe(next.workspaces[0]!.id)
+  })
+
+  it('refuses an empty, unknown or all-board batch', () => {
+    const state = makeState(['g0', 'g1'], 'g0', ['a'], { g1: ['b'] })
+    expect(removeGridSlice(state, [], fresh)).toBeNull()
+    expect(removeGridSlice(state, ['nope'], fresh)).toBeNull()
+    expect(removeGridSlice(state, ['g0', 'g1'], fresh)).toBeNull()
+  })
+
+  it('is generic over a bare id and prunes every doomed parked entry', () => {
+    const state = makeState(['g0', 'g1', 'g2', 'g3'], 'g0', ['a'], { g1: ['b'], g2: ['c'], g3: ['d'] })
+    const next = removeGridSlice(state, ['g1', 'g2'], fresh)!
+    expect(next.grids.map(g => g.id)).toEqual(['g0', 'g3'])
+    expect(Object.keys(next.parked)).toEqual(['g3'])
   })
 })
 

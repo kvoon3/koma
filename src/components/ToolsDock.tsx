@@ -177,7 +177,7 @@ function flipTool(h: HTMLElement, input: {
   }
 }
 
-interface DockSlot { hidden: boolean, contextKey: string }
+interface DockSlot { hidden: boolean, contextKey: string, collapsed: boolean }
 interface DockCtx {
   target: HTMLDivElement | null
   setSlot: Dispatch<SetStateAction<DockSlot | null>>
@@ -194,8 +194,10 @@ const ToolsDockContext = createContext<DockCtx | null>(null)
  * it is a property of the sheet, and it is offered whenever the route reports
  * the canvas context (stage with no pane to act on) and nothing is focused.
  */
-export function ToolsDock({ hidden, contextKey, children }: {
+export function ToolsDock({ hidden, collapsed = false, contextKey, children }: {
   hidden: boolean
+  /** The overview's page gesture holds the dock away: sheet and footer slide out and back. */
+  collapsed?: boolean
   contextKey: string
   children: ReactNode
 }) {
@@ -203,8 +205,8 @@ export function ToolsDock({ hidden, contextKey, children }: {
   const setSlot = ctx?.setSlot
   const noPaneFocus = useStore(s => !activeWs(s).focusId)
   useLayoutEffect(() => {
-    setSlot?.({ hidden, contextKey })
-  }, [setSlot, hidden, contextKey])
+    setSlot?.({ hidden, contextKey, collapsed })
+  }, [setSlot, hidden, collapsed, contextKey])
   useLayoutEffect(() => () => setSlot?.(null), [setSlot])
   if (!ctx?.target)
     return null
@@ -287,7 +289,7 @@ export function ToolsDockHost({ children }: { children: ReactNode }) {
   return (
     <ToolsDockContext value={ctx}>
       {children}
-      <DockSheet hidden={slot == null || slot.hidden} contextKey={slot?.contextKey ?? ''} innerRef={setTarget} />
+      <DockSheet hidden={slot == null || slot.hidden} collapsed={slot?.collapsed ?? false} contextKey={slot?.contextKey ?? ''} innerRef={setTarget} />
     </ToolsDockContext>
   )
 }
@@ -1358,8 +1360,9 @@ function useDockGesture({
   return { onPointerDown, onPointerMove, endDrag, suppressClickRef }
 }
 
-function DockSheet({ hidden, contextKey, innerRef: setInner }: {
+function DockSheet({ hidden, collapsed, contextKey, innerRef: setInner }: {
   hidden: boolean
+  collapsed: boolean
   contextKey: string
   innerRef: (el: HTMLDivElement | null) => void
 }) {
@@ -1628,7 +1631,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const liquidOn = dockBg === 'liquid'
   const popupRef = useDockPopupTransform({ y, liquidOn, geomRef })
   const { onPointerDown, onPointerMove, endDrag, suppressClickRef } = useDockGesture({
-    hidden,
+    hidden: hidden || collapsed,
     wrap,
     y,
     dragRef,
@@ -1680,10 +1683,10 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
 
   return (
     <div
-      className={`tools-dock fixed inset-0 z-(--z-dock) flex items-end pointer-events-none transition-opacity duration-(--dur-fast) ease-(--ease-out) ${
+      className={`tools-dock fixed inset-0 z-(--z-dock) flex items-end pointer-events-none transition-[opacity,transform,translate] duration-(--dur-surface) ease-(--ease-out) ${
         hidden ? 'opacity-0' : 'opacity-100'
-      }`}
-      inert={hidden || undefined}
+      } ${collapsed ? 'translate-y-full' : ''}`}
+      inert={hidden || collapsed || undefined}
     >
       {/*
         Full-width sheet: tools snap inside a max-height clip above a pinned

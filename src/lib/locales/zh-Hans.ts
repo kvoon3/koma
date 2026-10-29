@@ -570,10 +570,21 @@ const zhHans = {
   // Dual grid (two 9-grid groups, compared side by side)
   // Dual grid (two 9-grid groups, compared side by side or stacked)
   // First / second, not left / right: on a phone the two boards stack.
-  // Workspaces (the board groups, switched from the Mission Control-style switcher)
-  'Add a group': '新增分组',
-  'Open group {name}': '打开分组 {name}',
-  'Delete group?': '删除分组？',
+  // Boards (wave20/board-pager: the grid groups paged across the overview, and the board manager)
+  'Boards': '九宫格',
+  'Add a board': '新建九宫格',
+  'Add board': '新建九宫格',
+  'Delete boards': '删除九宫格',
+  'Reorder boards': '重排九宫格',
+  'Board {n}': '九宫格 {n}',
+  'Open board {n}': '打开九宫格 {n}',
+  'Select board {n}': '选择九宫格 {n}',
+  'Select all boards': '全选九宫格',
+  'Selected {n}': '已选 {n}',
+  'Delete selected ({n})': '删除所选（{n}）',
+  'Keep at least one board': '至少保留一个九宫格',
+  'Drag board {n} to reorder': '拖动九宫格 {n} 重新排序',
+  'Manage boards ({n} of {m})': '管理九宫格（第 {n}/{m} 个）',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': '滤镜',
@@ -752,12 +763,9 @@ const zhHans = {
   'Move workspace': '移动工作区',
   'Shuffle workspaces': '随机排列工作区',
   'Clear photos': '清空照片',
-  'New workspace': '新建工作区',
-  'Rename workspace': '重命名工作区',
   'Board look': '版面外观',
   'Photo corners': '照片圆角',
   'Blend': '混合',
-  'Workspace list': '工作区列表',
   'Board': '版面',
   // Pane minimap (the chip the old zoom pair shared)
   'Photo minimap, drag to pan': '照片小地图，拖动平移',

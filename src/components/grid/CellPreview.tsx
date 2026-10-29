@@ -1,7 +1,7 @@
 /**
  * The grid's read-only cell previews: a workspace drawn as the editor draws it
  * (photos, stickers, labels through the same placement math), the cell body the
- * overview, the drag overlay and the switcher's pager all share, and the dashed
+ * overview, the drag overlay and the neighbour pages all share, and the dashed
  * add-slot frame. Pure rendering: no board state lives here.
  */
 import type { Photo } from '../../lib/imageStore'
@@ -250,12 +250,10 @@ export function CellPreview({ root, canvasRatio, box, photoById, stickers = [], 
 
 /**
  * The cell's visible body, shared by the in-grid cell, the drag overlay and the
- * switcher's boards. `quiet` draws an empty cell as a plain square: behind the
- * switcher the board is receded and blurred, where a per-cell glyph and caption
- * stack up into placeholder noise (the full overview keeps both). The quiet
- * square keeps a 2px `--dim` hairline: it is the only thing that survives the
- * recede on an all-empty board (a fresh session has nothing else to draw), and
- * a 1px `--line` hairline washed out to 1/255 at the old 45% + 3px blur.
+ * neighbour board pages. `quiet` draws an empty cell as a plain square: on a
+ * neighbour page the per-cell glyph and caption stack up into placeholder noise
+ * (the live page keeps both). The quiet square keeps a 2px `--dim` hairline, so
+ * an all-empty page still reads as a 3x3 while it slides past the seam.
  */
 export function CellBody({ ws, box, photoById, transparent, dimmed, quiet = false }: {
   ws: { root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }
@@ -263,7 +261,7 @@ export function CellBody({ ws, box, photoById, transparent, dimmed, quiet = fals
   photoById: Map<string, Photo>
   transparent: boolean
   dimmed: boolean
-  /** Empty cell as a bare square: no glyph, no caption (the receded board). */
+  /** Empty cell as a bare square: no glyph, no caption (a neighbour page). */
   quiet?: boolean
 }) {
   const t = useT()

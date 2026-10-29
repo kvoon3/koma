@@ -33,10 +33,12 @@ rows.
 |---|---|
 | Back button floating at the top left (edit view) | Back to the 3×3 grid |
 | Reset button floating at the top right | Reset to blank canvases (confirm first): the active workspace in the editor, all nine workspaces from the grid overview; photos fall back to the library, so only the arrangement is lost |
-| Workspace chip on the board's caption row (grid view), or a pull down on the board | Open the Mission Control-style switcher over the receding board: one card per group (the open one ringed and enlarged, nothing written under it), + copies the open board into a new group, × deletes a group (never the last). Drag the receded board sideways to switch, click a card to pick its group; a pull up on it, Esc or the backdrop leaves. The strip browses only (it scrolls and snaps, it never switches). Adding and deleting are undoable; switching is navigation |
+| Drag sideways on the overview: on the air (6px slop) or on a cell (14px, above dnd-kit's 8px tolerance, so a 250ms hold still wins the cell) | Page boards like a home screen: the track follows the finger 1:1, the release snaps to the page it is nearest or heading for (a flick carries at least one page, and a fast one can cross several), and the ends rubber-band. The settle is interruptible. Landing is navigation (`switchGrid`, no undo step). The dock slides away for the gesture and returns when the page lands |
+| Tap the page-dots pill at the bottom centre | Open the board manager: a full-screen dialog with every board fitted to the viewport, its measured 3x3 thumbnail, a checkbox, an active ring, a preview that opens the board and a drag handle. The footer batch-deletes (one commit) and adds a blank board |
+| 500ms hold on empty air (grid view) | Jiggle mode: cell faces jiggle and each shows an X; each X tap deletes one cell (one undo step each, so repeated taps are the batch UI); Done, Esc or an air tap leaves. Paging and cell drag-reorder still work |
 | Camera chip on the board's caption row (grid view) | Snapshot the whole board as one image and open it in the export preview: the nine previews as the grid draws them (cover-fit square cells, panes flush), the grid gap scaled with the board, empty cells left blank. Disabled while every workspace is empty, and while another export is rendering |
 | Split chip: faded in at the top center of a pane you hover (focused or not), plus in the page row between back and reset for the focused pane below lg | Split it top/bottom or left/right. Both chips act on the pane they name; from lg up the page-row copy is dropped because the pane's own chip is within reach, and below the sm breakpoint the hover copy is dropped instead, a touch screen having no hover to fade it in, so the page-row chip is what a phone keeps |
-| Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools, and it is always on screen: there is no put-away state, the smallest display is the icon-only row. Three displays, in tap order: one row of icons, one row of icon + label (the default), and the wrapped multi-row, which only exists while the tools do not fit one row. The whole sheet is a grab surface, handle or tool button alike, and it snaps to the nearest display with a flick (lists inside it keep their own scroll, and hold still while the sheet itself is being dragged); a tap on the handle walks the same three. Replace / Sticker / Make / Text act on the focused pane, so they only enable while a pane is focused and holds a photo; with nothing focused the sheet carries the canvas ratio instead (square, follow the first photo, flip), the same commands the workspace menu runs. While a text label is selected (below lg) the sheet swaps the row's tools for the label's own (font, text and background color, opacity, icon, invert, delete), drawn as the same tool buttons so the two sets read as one row. Buttons keep their 80px width (54px in the icon row) and the row scrolls sideways when the screen is too narrow to hold them, the end that still hides tools fading out as it goes: nothing fades while the row fits its panel or sits flush against an end |
+| Tools panel above the footer | An overlay, so it never takes layout space, sized to its tools, and it is always on screen: there is no put-away state, the smallest display is the icon-only row. Three displays, in tap order: one row of icons, one row of icon + label (the default), and the wrapped multi-row, which only exists while the tools do not fit one row. The whole sheet is a grab surface, handle or tool button alike, and it snaps to the nearest display with a flick (lists inside it keep their own scroll, and hold still while the sheet itself is being dragged); a tap on the handle walks the same three. On the grid overview the whole dock (sheet and footer) slides down out of view while a page gesture or its settle is in flight and is inert while away; it returns when the page lands. Replace / Sticker / Make / Text act on the focused pane, so they only enable while a pane is focused and holds a photo; with nothing focused the sheet carries the canvas ratio instead (square, follow the first photo, flip), the same commands the workspace menu runs. While a text label is selected (below lg) the sheet swaps the row's tools for the label's own (font, text and background color, opacity, icon, invert, delete), drawn as the same tool buttons so the two sets read as one row. Buttons keep their 80px width (54px in the icon row) and the row scrolls sideways when the screen is too narrow to hold them, the end that still hides tools fading out as it goes: nothing fades while the row fits its panel or sits flush against an end |
 | **Handle at canvas bottom-right** | **Change the whole canvas aspect ratio** (double-click to follow the first photo again) |
 | **Rail on the right edge** | **Resize the whole canvas, width and height together** (double-click to fit it again) |
 | Drag a divider | Redistribute the ratio between that split's two sides |
@@ -262,10 +264,10 @@ the editor the transform rides the canvas box (`Stage.tsx`'s `stageRef`); in the
 overview, which has no canvas of its own to size, the plain wheel keeps the view
 (the board column, caption row included). That view is session working state
 only: not part of a workspace, not in the undo history, not persisted, and it
-resets to fit on a route change. The switcher owns the stage while it is open, so
-the overview renders the view at fit and ignores the wheel there (the recede and
-the pager keep the geometry they were written against); the scale it had comes
-back on close.
+resets to fit on a route change. The pager, jiggle mode and the board manager
+own the stage while they are live, so the overview ignores the wheel then (the
+frozen scale and travel keep the gesture's geometry honest); the scale it had
+comes back when they are done.
 
 Why the canvas and not the layout: the air is outside the canvas, so the object
 under the gesture is the canvas, and `canvasFill` is exactly what "the canvas's
@@ -472,12 +474,10 @@ same `stickerRect()`/label math as the editor) into the cell, an empty one wears
 the same near-canvas fill as an empty pane, its content a collage-layout glyph
 over “New collage” in the neutral gray, with no button of its own (the whole
 cell is the click target). `Grid gap` (Appearance tab) spaces the nine cells.
-The board carries a caption row of its own: the workspace and snapshot chips,
-centred over the board (groups render nameless, so there is nothing to name on
-the left, and the pair would have been shoved off-centre by a name). The two
-board chips thus sit on the board they act on instead of floating over it. The
-workspace chip opens the
-switcher (below); the snapshot chip renders the whole
+The board carries a caption row of its own above the page viewport: one
+snapshot chip, centred (boards render nameless, so there is nothing to name on
+the left). In jiggle mode the same 30px row swaps the chip for **Done**, so the
+geometry does not move when the mode opens. The snapshot chip renders the whole
 board as **one image** (`renderGridSnapshot`) and opens it in the export preview:
 the same cover-fit cells at export scale, the grid gap scaled with the board,
 empty cells left blank.
@@ -488,85 +488,90 @@ caption row, and the tools dock's sheet
 bounded by width on a wide screen and by that budget on a short one; the budget
 is what keeps the third row of cells off the dock instead of under it.
 
-## Grid groups (workspaces, switched Mission Control-style)
+## Boards (grid groups, paged like a home screen)
 
-A board is a group of nine, and the app keeps up to four of them (`MAX_GRIDS`)
-as alternate arrangements of the same shoot. The **Workspace chip** on the
-board's caption row opens a Mission Control-style switcher over the overview:
-a frosted, full-width strip near the top of the stage (~13% of its height,
-`backdrop-blur` over a translucent panel fill) holds one card per group: a
-16:10 thumbnail of its board (every cell the grid's own preview at thumbnail
-size, empty slots quiet squares), nothing written under it (the cards are
-nameless, and the numbers they used to carry said no more than the pictures
-did). The open group's card wears the 2px blue selection ring (the `--sel`
-token; the app's own accent is monochrome) and stands slightly larger than its
-siblings; the strip's air is sized to hold that larger card's ring, because the
-card row is an `overflow-x` scroll box (it clips on both axes) and a ring with
-no room for its top and bottom edges reads as two vertical rails.
-The board behind recedes: it scales to 65%, dims to 60% and blurs
-2px, an app-shrinking feel, and its empty cells drop their glyph and caption
-there (quiet squares: at 65% and blurred, nine "New collage" hints are
-placeholder noise), while the full overview keeps both. Those quiet squares
-keep a 2px `--dim` hairline: on a fresh session's all-empty board they are the
-only thing drawn, and the hairline has to survive the dim and the blur for the
-board to still read as a board.
+A board is a `GridGroup` of up to nine cells; a cell is a `Workspace`. The app
+keeps up to four boards (`MAX_GRIDS`) as alternate arrangements of the same
+shoot. The overview is a home screen of them: every board is a page in one
+horizontal track, the open board's page in the viewport, the pages either side
+read-only previews drawn by the same cell previews at the same size. The
+viewport is exactly one board wide, the pages sit `pagerTravel(boardW)` apart
+(the board width plus a seam), and the track's transform is written straight
+to the DOM, never through React, so a drag costs no render per frame.
 
-Entry and exit are navigation, not a route: the flip rides a view transition
-(the board column carries the `ws-board` transition name from before the open
-snapshot until the close one has painted, so the browser morphs the full board
-into the receded one and back; the strip drops in and lifts out as its own
-`ws-strip` pair). Entry has a second door beside the chip: a downward pull
-anywhere on the board area (a vertical axis lock past a small slop, then 70px,
-so a tap, a short drag and a sideways drag all stay put). A card click zooms
-back into that workspace (a neighbour first switches the open group,
-navigation, no undo step), and the backdrop, a tap on the receded board, Esc or
-a pull up on it returns to the overview as it was. The strip is **browsing only**: it
-scrolls sideways (scroll-snap on the cards, free scroll, on open the open
-group's card is centred) and never switches the group, so the ring always
-marks the open one and the board pager is the one way to change it.
-The bare `+` at the strip's right edge (a 44px lane on a coarse pointer)
-adds a group that **copies the open board** (photos shared through the library,
-every pane / sticker / label id fresh, see `cloneNode`) and opens it; the × on
-a card's corner deletes that group (never the last one), no confirm. Adding and
-deleting ride the undo stack; one undo removes a copied or restored group
-again. A group's name stays in the model (and in the session file) for
-compatibility, but nothing renders or edits it any more.
+**The finger path.** Press anywhere on the stage's air (6px slop) or on a cell
+(14px, above dnd-kit's 8px pointer tolerance, so a 250ms hold still wins the
+cell) and drag sideways: the board goes with the finger 1:1. A quick
+horizontal drag from a cell pages for every pointer type; a 250ms hold starts
+the cell reorder instead. A quick drag from the air pages too. The
+pan is screen px and the write divides by the view's scale, so paging is 1:1
+at any zoom; the scale and travel freeze for the gesture and are taken live at
+rest. Letting go snaps to the page the release is nearest (past half a page)
+or is heading for (a flick over `FLICK_VELOCITY` carries at least one page,
+and a fast flick can cross several). The ends rubber-band at 0.3x instead of
+tearing off, and the settle is interruptible: a press during it stops it, and
+a drag resumes from where it was caught with no jump. `lib/boardPager` owns
+the physics, reusing `lib/dockPhysics`'s fling threshold and rubber band.
 
-**The receded board is the finger path.** Press it and drag sideways and the
-board goes with the finger 1:1 (a ~6px slop keeps a click a click, and the
-axis is locked once past it: sideways is the pager, upward is the exit); the neighbouring
-group's board slides in from the far edge, in the same clip, drawn by the same
-cell previews at the same size, so the two boards pass as one plane. Letting go
-snaps to the board the release is nearest (past half a page of travel) or is
-heading for (a flick over the dock's `FLICK_VELOCITY` always carries one page),
-which is `lib/boardPager`'s rules reusing `lib/dockPhysics`: the same fling
-threshold, the same snap picker, and the dock's rubber band at 0.3x for the
-first and last group, whose edges have no board behind them, so the board leans
-and springs back. A release that lands on a neighbour switches the open group
-through `switchGrid` (navigation, no undo step, the row above), and the strip's
-ring leans onto that card as soon as the drag passes the halfway point (the one
-thing the strip and the board still do together). The
-settle is 200ms of `--ease-out`; `prefers-reduced-motion` makes it instant,
-while the drag itself stays 1:1, because user-driven motion is not decoration.
-A drag that is upward instead of sideways is the way out: 70px up and the
-switcher closes, the mirror of the pull down that opened it, on the same axis
-lock so neither gesture steals the other early. A tap on the board (under the
-slop) is the way out, the same exit the backdrop gives: the surface covers the
-biggest target on screen and must not swallow it, while a drag too close to the
-diagonal to lock an axis decides nothing. Esc or the backdrop put the board
-home again mid-gesture.
+**The landing frame.** A page lands by animating the pan to its rest, moving
+the track's base to the target page, switching the open board through
+`flushSync(switchGrid)` and jumping the pan to zero in the same tick. The old
+and new base agree by arithmetic, so the page the finger let go of does not
+move a pixel across the swap. The target page stops being a preview and
+becomes the live board there, offscreen and in the same commit. External
+board changes (the manager, undo, a hydrate) reset the pan and the phase in a
+layout effect before paint; the landing marks the board list and index it has
+already seen, so its own switch is never mistaken for an external change.
 
-The store keeps the open group's cells in `workspaces`, so every pane and board
-action, and every reader of "the board", still works on the board in view, and
-keeps the other groups' boards in `parkedBoards` (by group id); opening a group
-swaps the two. Adding and deleting a group (and renaming it, when something
-calls `renameGrid`) are board mutations and ride the undo stack
-(`lib/history`), exactly like an added workspace; switching
-is navigation and pushes nothing, like `patch({ activeId })`. The session saves
-one entry per group (`grids`: id, name, cells, its last active cell) beside the
-open board's `workspaces`, so a session written before groups loads as group 1
-with every cell intact, and a build from before groups still reads the board it
-saved.
+**The page dots.** One dot per board, the active one elongated, in a 28px pill
+at the bottom centre, above the dock band and outside the zoomed column. The
+pill is the only entry to board management, so it is present with one board
+too. Its row is reserved out of the board's height (`grid/overviewLayout`),
+and a pseudo-element widens its tap target to 44px. Tapping it opens the
+manager; a settle in flight is reset first.
+
+**The dock gets out of the way.** On the pager's claim the whole dock (sheet
+and footer) slides down out of view over 160ms and becomes inert, and it
+returns when the page lands. The slide is a translate on the dock's fixed
+root, not on the measured `[data-dock-mode]` node, while `useDockRestBand`'s
+busy freeze holds the seated band. The board's cell size and centre are
+therefore identical before, during and after a swipe. Reduced motion collapses
+the slide to one frame; the drag itself stays 1:1.
+
+**Jiggle mode.** A 500ms hold on empty air (10px slop) enters it: every cell
+face jiggles out of phase (CSS, auto-suppressed by the reduced-motion block),
+and each shows a sibling X badge at its top-left, a 24px danger circle in a
+36px hit box (44px coarse, kept at 36px on a short stage whose cells are near
+that size so it does not cover the whole face), hidden when only one cell remains. A tap on an X
+is one `removeWorkspace` commit, so repeated taps are the batch affordance and
+the undo stack stays discrete. The cell face is inert in jiggle, dragging
+still reorders, and paging stays live. Done in the caption row, Esc, or a tap
+on the air leaves. The X is never nested inside the cell face, so a press on it
+can never arm a reorder.
+
+**The board manager.** The dots open a full-screen Base UI Dialog portalled to
+body (`100dvh`, safe-area insets), which fits one to four boards to the
+viewport without scrolling (`grid/managerLayout` picks the arrangement and the
+card size from the measured content area). Each card carries a measured 3x3
+thumbnail, a bottom bar with a 44px checkbox and "Board n", an active ring, a
+preview button that opens the board, and a drag handle. Selection is local
+`ReadonlySet` state, pruned to the live `grids` every render. The footer shows
+"Selected n", "Delete selected (n)" (one commit, one undo step, disabled when
+nothing or every board is selected, with the min-one hint via
+`aria-describedby`), and "+ Add a board" (a blank board, opened, the dialog
+stays, disabled at the cap). A drag on the handle reorders through `moveGrid`
+in one commit; a card click opens that board (navigation) and closes.
+
+**The store.** `workspaces` / `activeId` describe `activeGridId`; every other
+board has exactly one `parkedBoards[id]` entry and `boardOf` resolves every
+id. `grids` order is page order and session order. `switchGrid` is navigation
+and pushes no undo step; `addGrid` (a blank board, opened), `removeGrids` (a
+batch, whole-slice, never the last board, and deleting the open board opens
+the survivor at its slot) and `moveGrid` each commit once. `removeGrid`,
+`renameGrid` and the old copy-on-add are gone. The session saves one entry per
+board (`grids`: id, name, cells, its last active cell) beside the open board's
+`workspaces`, so a session written before boards loads as board 1 with every
+cell intact.
 
 ## Undo / redo: a step tree (`lib/history.ts`)
 
@@ -1005,8 +1010,8 @@ library page.
 Each card carries the surface's icon, one line about it, how much is in there
 (workspaces filled, photos, stickers) and when it was last opened (a
 localStorage timestamp per destination, `lib/hubSeen`, recorded on every route
-change, so a board visit counts as grid making). The cards follow the workspace
-switcher's card idiom (hairline `line` border, `pane-bg` fill, `shadow-pop`, an
+change, so a board visit counts as grid making). The cards follow the board
+manager's card idiom (hairline `line` border, `pane-bg` fill, `shadow-pop`, an
 outline ring on hover/focus) rather than inventing a launcher style, and a
 `Retained draft` chip says what the page is.
 

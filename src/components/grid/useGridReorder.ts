@@ -1,42 +1,48 @@
 /**
  * The overview's drag-to-reorder (dnd-kit, insert-shift).
  *
- * A distance threshold keeps plain clicks for entering a workspace; once a drag
- * activates, the dragged cell rides a `DragOverlay` that tracks the pointer 1:1
- * while the rest make room live (`rectSortingStrategy`), and the drop commits
- * through `moveWorkspace` (or removes the cell when it lands on the delete
- * strip). Nothing here renders: the overview draws the cells and the overlay.
+ * A long press (250ms, 8px tolerance) starts a reorder for every pointer
+ * type: mouse, touch and pen. Once a drag activates, the dragged cell rides a
+ * `DragOverlay` that tracks the pointer 1:1 while the rest make room live
+ * (`rectSortingStrategy`), and the drop commits through `moveWorkspace` (or
+ * removes the cell when it lands on the delete strip). The constants live in
+ * `lib/overviewGesture`, because the pager's cell slop has to stay above the
+ * sensor's tolerance. Nothing here renders: the overview draws the cells.
  */
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { Workspace } from '../../store'
+import type { ClickGate } from './useClickGate'
 import {
-  MouseSensor,
-  TouchSensor,
+  PointerSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
 import { useMemo, useRef, useState } from 'react'
+import { DND_POINTER_DELAY_MS, DND_POINTER_TOLERANCE_PX } from '../../lib/overviewGesture'
 import { useStore } from '../../store'
 
 /** The delete strip's droppable id (it sits outside the grid). */
 export const DELETE_ZONE_ID = '__delete__'
 
-export function useGridReorder({ workspaces, moveWorkspace }: {
+/** No sensors at all: the manager owns the stage, so nothing may arm. */
+const NO_SENSORS: [] = []
+
+export function useGridReorder({ workspaces, moveWorkspace, gate, enabled = true }: {
   workspaces: Workspace[]
   /** Commit a reorder: the moved cell's id and its new index. */
   moveWorkspace: (id: string, to: number) => void
+  /** Marks the click that follows a drag, so it cannot enter a cell. */
+  gate: ClickGate
+  /** False while the board manager owns the screen. */
+  enabled?: boolean
 }) {
   const [dragId, setDragId] = useState<string | null>(null)
-  // Mouse drags after 5px; touch is a long press, like the stage carry. The
-  // TouchSensor adds the non-passive touchmove iOS Safari needs, so the
-  // browser can't claim the touch (pointercancel) before the drag arms.
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: { delay: DND_POINTER_DELAY_MS, tolerance: DND_POINTER_TOLERANCE_PX },
+    }),
   )
-  // Suppress the click that follows a finished drag; it must not enter.
-  const dragEndedAtRef = useRef(0)
-  /** Set while dnd-kit owns a cell drag: the overview's pull-down must not fight it. */
+  /** Set while dnd-kit owns a cell drag: the pager must not fight it. */
   const dragIdRef = useRef<string | null>(null)
 
   const ids = useMemo(() => workspaces.map(w => w.id), [workspaces])
@@ -50,7 +56,7 @@ export function useGridReorder({ workspaces, moveWorkspace }: {
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     dragIdRef.current = null
     setDragId(null)
-    dragEndedAtRef.current = Date.now()
+    gate.mark()
     if (over?.id === DELETE_ZONE_ID) {
       navigator.vibrate?.(10)
       useStore.getState().removeWorkspace(String(active.id))
@@ -68,8 +74,17 @@ export function useGridReorder({ workspaces, moveWorkspace }: {
   const onDragCancel = () => {
     dragIdRef.current = null
     setDragId(null)
-    dragEndedAtRef.current = Date.now()
+    gate.mark()
   }
 
-  return { dragId, ids, draggedWs, sensors, dragEndedAtRef, dragIdRef, onDragStart, onDragEnd, onDragCancel }
+  return {
+    dragId,
+    ids,
+    draggedWs,
+    sensors: enabled ? sensors : NO_SENSORS,
+    dragIdRef,
+    onDragStart,
+    onDragEnd,
+    onDragCancel,
+  }
 }

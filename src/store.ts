@@ -28,7 +28,6 @@ import { clearImageCaches } from './lib/imageStore'
 import { computeLayout, migrateWorkspaceInserts } from './lib/layout'
 import { CARD_SIZE as MUSIC_CARD_SIZE } from './lib/musicCard'
 import {
-  cloneNode,
   deletePane,
   findLeaf,
   layoutTree,
@@ -71,7 +70,7 @@ import {
 } from './lib/stickerLibrary'
 import { normalizePhotoRecipes } from './lib/stickerRecipe'
 import { runPaneMorph, runViewTransition } from './lib/viewTransition'
-import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
+import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, moveGroup, nextGridName, normalizeGrids, normalizeSlots, removeGridSlice, removeSlot, resetSlot } from './lib/workspaces'
 
 // The transparent-fill test describes the collage background, so it lives with
 // it in lib/collageBg; re-exported so the app's call sites keep one import site.
@@ -151,8 +150,8 @@ interface State extends PersistedSettings {
   workspaces: Workspace[]
   activeId: string
   /**
-   * The board groups, in switcher order (see `lib/workspaces`): the overview
-   * holds a handful of arrangements, switched from the workspace switcher.
+   * The board groups, in page order (see `lib/workspaces`): the overview
+   * holds a handful of arrangements, paged sideways like a home screen.
    * The open group's cells are `workspaces`; the other
    * groups' boards sit in `parkedBoards`, so nothing but the group actions has
    * to know groups exist.
@@ -267,24 +266,6 @@ function newWorkspace(kind?: CardKind): Workspace {
   return { id: uid('w'), root, focusId: root.id, canvasRatio: null, canvasFill: 1, stickers: [], labels: [] }
 }
 
-/**
- * A deep copy of one workspace with a fresh id on everything the store
- * addresses (workspace, panes, board stickers, labels); photos are shared
- * through the library, so `photoId` copies as-is. Used when a new grid group
- * copies the open board.
- */
-function cloneWorkspace(ws: Workspace): Workspace {
-  const root = cloneNode(ws.root)
-  return {
-    ...ws,
-    id: uid('w'),
-    root,
-    focusId: leafList(root)[0]!.id,
-    stickers: (ws.stickers ?? []).map(st => ({ ...st, id: uid('s') })),
-    labels: (ws.labels ?? []).map(lab => ({ ...lab, id: uid('l') })),
-  }
-}
-
 /** Bring a loaded board within the grid's 1–9 cells (see normalizeSlots). */
 export function normalizeWorkspaces(list: Workspace[] | null | undefined): Workspace[] {
   return normalizeSlots(list, newWorkspace)
@@ -307,8 +288,8 @@ export function activeWs(s: State): Workspace {
 const NO_BOARD: Workspace[] = []
 
 /**
- * A group's board, open or parked. The workspace switcher reads every card
- * through this, so it never has to know which one the editor is pointed at.
+ * A group's board, open or parked. The page track and the manager read every
+ * board through this, so neither has to know which one the editor is pointed at.
  */
 export function boardOf(s: State, gridId: string): Workspace[] {
   return gridId === s.activeGridId ? s.workspaces : s.parkedBoards[gridId]?.workspaces ?? NO_BOARD
@@ -550,13 +531,10 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set({ workspaces: next, activeId: activeAfterRemove(s.workspaces, next, s.activeId), ...clearedSelection })
   },
 
-  // ---- grid groups (boards switched from the workspace switcher) ----------
-
   /**
-   * Add a board group and open it (the switcher's +): the new board is a deep
-   * copy of the open group's board. Photos are shared through the library
-   * (`photoId` copies as-is) while every pane, sticker and label gets a fresh
-   * id (see `cloneNode`). The open board parks. Null at the cap.
+   * Append a blank board at the end of page order and open it; the open board
+   * parks. Not a copy: a new board starts from the default cells. Null at the
+   * cap. One commit.
    */
   addGrid: (name) => {
     const s = get()
@@ -566,7 +544,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const next = addGroup(s.grids, () => group)
     if (next === s.grids)
       return null
-    const workspaces = s.workspaces.map(cloneWorkspace)
+    const workspaces = initialWorkspaces()
     commit('addGrid')
     set({
       grids: next,
@@ -580,38 +558,39 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   },
 
   /**
-   * Delete a group and its board; the last group stays. Deleting the open one
-   * opens its left-hand neighbour (else its right), so the editor is never left
-   * pointing at a board that no longer exists.
+   * Delete a batch of boards in one step. Refuses an empty, unknown or
+   * all-board set before committing, so a no-op pushes no history. Deleting
+   * the open board opens the survivor that closes into its slot.
    */
-  removeGrid: (id) => {
+  removeGrids: (ids) => {
     const s = get()
-    const next = removeGroup(s.grids, id)
-    if (next === s.grids)
+    const next = removeGridSlice({
+      grids: s.grids,
+      activeGridId: s.activeGridId,
+      workspaces: s.workspaces,
+      activeId: s.activeId,
+      parked: s.parkedBoards,
+    }, ids, newWorkspace)
+    if (!next)
       return
-    const parkedBoards = { ...s.parkedBoards }
-    let { workspaces, activeId, activeGridId } = s
-    if (id === s.activeGridId) {
-      const left = next[Math.max(0, s.grids.findIndex(g => g.id === id) - 1)]
-      const parked = parkedBoards[left.id] ?? { workspaces: initialWorkspaces(), activeId: '' }
-      delete parkedBoards[left.id]
-      workspaces = parked.workspaces
-      activeId = workspaces.some(w => w.id === parked.activeId) ? parked.activeId : workspaces[0].id
-      activeGridId = left.id
-    }
-    else {
-      delete parkedBoards[id]
-    }
-    commit('removeGrid')
-    set({ grids: next, parkedBoards, activeGridId, workspaces, activeId, ...clearedSelection })
+    commit('removeGrids')
+    set({
+      grids: next.grids,
+      parkedBoards: next.parked,
+      activeGridId: next.activeGridId,
+      workspaces: next.workspaces,
+      activeId: next.activeId,
+      ...clearedSelection,
+    })
   },
 
-  /** Rename a group (undoable, like any other change to the board). */
-  renameGrid: (id, name) => {
-    const next = renameGroup(get().grids, id, name)
-    if (next === get().grids)
+  /** Move a board to an index in page order (page order and session order). One commit; the open board stays open. */
+  moveGrid: (id, to) => {
+    const s = get()
+    const next = moveGroup(s.grids, id, to)
+    if (next === s.grids)
       return
-    commit('renameGrid')
+    commit('moveGrid')
     set({ grids: next })
   },
 
@@ -1605,11 +1584,13 @@ interface Actions {
   /** Returns the new workspace's id, or null when the board is full. */
   addWorkspace: (kind?: CardKind) => string | null
   removeWorkspace: (id: string) => void
-  /** Returns the new group's id, or null at the group cap. */
+  /** Append a blank board, open it and park the current one; null at the cap. */
   addGrid: (name?: string) => string | null
-  removeGrid: (id: string) => void
-  renameGrid: (id: string, name: string) => void
-  /** Open a group's board (navigation: pushes no undo entry). */
+  /** Delete a batch of boards in one step; refuses empty, unknown or all-board sets. */
+  removeGrids: (ids: readonly string[]) => void
+  /** Move one board to an index in page order. One step; the open board stays. */
+  moveGrid: (id: string, to: number) => void
+  /** Open a board (navigation: pushes no undo entry). */
   switchGrid: (id: string) => void
   shuffleWorkspaces: (rng?: () => number) => void
   clearGridPhotos: () => void

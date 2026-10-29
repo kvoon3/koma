@@ -1,9 +1,13 @@
 /**
  * Pure rules for the workspace grid (the overview): how many cells each board
  * holds, how adding, removing and restoring them behave, and how the boards
- * themselves (grid groups, switched from the workspace switcher) are added,
- * renamed and removed. Generic over the workspace shape so they test without
- * the store.
+ * themselves (grid groups, paged sideways on the overview) are added, moved
+ * and removed. Generic over the workspace shape so they test without the
+ * store.
+ *
+ * Vocabulary: a board is a `GridGroup`; a cell is a `Workspace`. The store and
+ * the session keep the `grid` identifier (`grids`, `activeGridId`, `MAX_GRIDS`)
+ * for compatibility; the UI says board.
  */
 
 /** A board never drops below one cell: the editor always needs a workspace. */
@@ -65,17 +69,16 @@ export function activeAfterRemove<T extends { id: string }>(before: T[], after: 
 }
 
 /**
- * A board is one group of nine cells. The overview keeps a handful of them,
- * switched from the workspace switcher; past four the switcher strip stops
- * earning its row.
+ * A board is one group of nine cells. The overview keeps a handful of them as
+ * pages; four keeps the dot row compact and the manager a 2×2 grid.
  */
 export const MAX_GRIDS = 4
 /** One board always stays: the app needs somewhere to edit. */
 export const MIN_GRIDS = 1
-/** Default group names, in add order (the user renames them). */
+/** Default group names, in add order (the UI numbers boards by position). */
 export const GRID_NAMES = ['1', '2', '3', '4'] as const
 
-/** A board's identity in the group bar: its id and the name the chip shows. */
+/** A board's identity in the board list: its id and the name the session keeps. */
 export interface GridGroup {
   id: string
   name: string
@@ -127,25 +130,74 @@ export function nextGridName(groups: readonly GridGroup[]): string {
   return GRID_NAMES.find(name => !used.has(name)) ?? String(groups.length + 1)
 }
 
-/** Append a group; a full bar is returned untouched. */
 export function addGroup(groups: GridGroup[], fresh: () => GridGroup): GridGroup[] {
   return groups.length >= MAX_GRIDS ? groups : [...groups, fresh()]
 }
 
-/** Drop a group; the last one stays, so there is always a board to edit. */
-export function removeGroup(groups: GridGroup[], id: string): GridGroup[] {
-  if (groups.length <= MIN_GRIDS)
+/**
+ * Move one board to an index in page order (insert-shift). The same array
+ * comes back for an unknown id, an out-of-range index or a move onto itself,
+ * so the store can skip the undo step.
+ */
+export function moveGroup<T extends GridGroup>(groups: T[], id: string, to: number): T[] {
+  const from = groups.findIndex(g => g.id === id)
+  const target = Math.trunc(to)
+  if (from === -1 || target < 0 || target >= groups.length || from === target)
     return groups
-  const next = groups.filter(g => g.id !== id)
-  return next.length === groups.length ? groups : next
+  const next = [...groups]
+  const [group] = next.splice(from, 1)
+  next.splice(target, 0, group!)
+  return next
 }
 
-/** Rename a group; a blank name, or the one it already has, changes nothing. */
-export function renameGroup(groups: GridGroup[], id: string, name: string): GridGroup[] {
-  const clean = name.trim()
-  if (!clean || !groups.some(g => g.id === id && g.name !== clean))
-    return groups
-  return groups.map(g => (g.id === id ? { ...g, name: clean } : g))
+/**
+ * Whether a batch removal would leave a board behind. Unknown ids are ignored
+ * and duplicates count once, so the manager's selection and the store's guard
+ * read the same rule: at least one listed board goes and at least one stays.
+ */
+export function canRemoveGroups<T extends { id: string }>(groups: readonly T[], ids: readonly string[]): boolean {
+  const known = new Set(groups.map(g => g.id))
+  const doomed = new Set(ids.filter(id => known.has(id)))
+  return doomed.size > 0 && doomed.size < groups.length
+}
+
+/**
+ * The whole board-slice transition for a batch delete: the list, the open
+ * board and the parked map in one value. Null when the batch is refused, so a
+ * caller that checks the result never writes a no-op. Deleting the open board
+ * opens the survivor that closes into its slot (else the new last one) and
+ * swaps its parked board into the live slots; every other doomed board is
+ * removed from `parked`. A doomed open board never leaves an empty board: a
+ * missing or empty survivor board is replaced with a fresh default.
+ */
+export function removeGridSlice<T extends { id: string }>(
+  state: GridsState<T>,
+  ids: readonly string[],
+  fresh: () => T,
+): GridsState<T> | null {
+  if (!canRemoveGroups(state.grids, ids))
+    return null
+  const doomed = new Set(state.grids.filter(g => ids.includes(g.id)).map(g => g.id))
+  const grids = state.grids.filter(g => !doomed.has(g.id))
+  const parked = { ...state.parked }
+  let activeGridId = state.activeGridId
+  let workspaces = state.workspaces
+  let activeId = state.activeId
+  if (doomed.has(activeGridId)) {
+    const survivorId = activeAfterRemove(state.grids, grids, activeGridId)
+    activeGridId = survivorId
+    const board = parked[survivorId]
+    delete parked[survivorId]
+    workspaces = board?.workspaces ?? []
+    activeId = board && workspaces.some(w => w.id === board.activeId) ? board.activeId : workspaces[0]?.id ?? ''
+    if (!workspaces.length) {
+      workspaces = normalizeSlots(null, fresh)
+      activeId = workspaces[0]!.id
+    }
+  }
+  for (const id of doomed)
+    delete parked[id]
+  return { grids, activeGridId, workspaces, activeId, parked }
 }
 
 /** One group as a session wrote it, before the ids and names are checked. */

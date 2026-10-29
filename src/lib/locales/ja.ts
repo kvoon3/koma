@@ -564,10 +564,21 @@ const ja: Record<TKey, string> = {
   'Icon': 'アイコン',
   'Invert': '反転',
   'Square (1:1)': '正方形（1:1）',
-  // Workspaces (the board groups, switched from the Mission Control-style switcher)
-  'Add a group': 'グループを追加',
-  'Open group {name}': 'グループ {name} を開く',
-  'Delete group?': 'グループを削除しますか？',
+  // Boards (wave20/board-pager: the grid groups paged across the overview, and the board manager)
+  'Boards': 'ボード',
+  'Add a board': 'ボードを追加',
+  'Add board': 'ボードを追加',
+  'Delete boards': 'ボードを削除',
+  'Reorder boards': 'ボードを並べ替え',
+  'Board {n}': 'ボード {n}',
+  'Open board {n}': 'ボード {n} を開く',
+  'Select board {n}': 'ボード {n} を選択',
+  'Select all boards': 'すべてのボードを選択',
+  'Selected {n}': '{n} 件選択中',
+  'Delete selected ({n})': '選択を削除（{n}）',
+  'Keep at least one board': 'ボードは最低 1 つ必要です',
+  'Drag board {n} to reorder': 'ボード {n} をドラッグして並べ替え',
+  'Manage boards ({n} of {m})': 'ボードを管理（{n}/{m}）',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': 'フィルター',
@@ -746,12 +757,9 @@ const ja: Record<TKey, string> = {
   'Move workspace': 'ワークスペースを移動',
   'Shuffle workspaces': 'ワークスペースをシャッフル',
   'Clear photos': '写真を消去',
-  'New workspace': '新しいワークスペース',
-  'Rename workspace': 'ワークスペース名を変更',
   'Board look': 'ボードの外観',
   'Photo corners': '写真の角丸',
   'Blend': 'ブレンド',
-  'Workspace list': 'ワークスペース一覧',
   'Board': 'ボード',
   // Pane minimap
   'Photo minimap, drag to pan': '写真ミニマップ、ドラッグで移動',

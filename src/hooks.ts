@@ -191,15 +191,18 @@ export function useElementSize<T extends HTMLElement>() {
  * had: a wheel over a photo is that pane's photo zoom, and a plain wheel over the
  * rail steps whatever the rail is sizing (`onWheelResize` leaves the rail's own
  * wheel alone: the rail marks it, and the guard here honours that).
- * `enabled` lets a surface hand the stage back (the overview's switcher owns it
- * while it is open), and a stage with no canvas to size (the overview's column)
- * passes no `onWheelResize` and keeps the wheel on the view.
+ * `enabled` lets a surface hand the stage back (the overview's pager and jiggle
+ * mode own it while a gesture or a mode is live). A function form is read per
+ * event, so the owner can flip it in the same tick as the gesture that needs
+ * the freeze, without waiting for a re-render. A stage with no canvas to size
+ * (the overview's column) passes no `onWheelResize` and keeps the wheel on the
+ * view.
  */
 export function useStageZoom(
   stageRef: React.RefObject<HTMLElement | null>,
   canvasRef: React.RefObject<HTMLElement | null>,
   { enabled = true, onWheelResize, fitCanvas }: {
-    enabled?: boolean
+    enabled?: boolean | (() => boolean)
     /** A plain wheel on the air, in notches (up is positive). */
     onWheelResize?: (notches: number) => void
     /** A double-click on the air puts the canvas back to the fit as well. */
@@ -214,12 +217,15 @@ export function useStageZoom(
     setScale(next)
   }, [])
   const fit = useCallback(() => apply(1), [apply])
+  const isEnabled = useCallback(() => (typeof enabled === 'function' ? enabled() : enabled), [enabled])
 
   useEffect(() => {
     const stage = stageRef.current
-    if (!stage || !enabled)
+    if (!stage)
       return
     const onWheel = (e: WheelEvent) => {
+      if (!isEnabled())
+        return
       if (e.defaultPrevented || canvasRef.current?.contains(e.target as Node))
         return
       const pinch = e.ctrlKey || e.metaKey
@@ -236,15 +242,15 @@ export function useStageZoom(
     }
     stage.addEventListener('wheel', onWheel, { passive: false })
     return () => stage.removeEventListener('wheel', onWheel)
-  }, [stageRef, canvasRef, enabled, apply, onWheelResize])
+  }, [stageRef, canvasRef, isEnabled, apply, onWheelResize])
 
   /** A double-click on the air (never on the canvas itself) puts the stage back. */
   const onStageDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (canvasRef.current?.contains(e.target as Node))
+    if (!isEnabled() || canvasRef.current?.contains(e.target as Node))
       return
     fit()
     fitCanvas?.()
-  }, [canvasRef, fit, fitCanvas])
+  }, [canvasRef, fit, fitCanvas, isEnabled])
 
   return { scale, fit, onStageDoubleClick }
 }
@@ -358,10 +364,12 @@ const DOCK_CHROME_FALLBACK = 144
  * covers (its bottom is the viewport floor), measured from the stage's own
  * top edge. The board is sized and centred above this band.
  *
- * While the switcher holds the overview's stage the dock is put away and its
- * sheet rests lower than its seated height, so the band freezes at its last
- * resting value: the receded board stays where the zoom-out left it, and the
- * close morph never sees the board chase a moving floor.
+ * While the overview's pager owns a gesture the dock slides away, so the band
+ * freezes at its last resting value: the board's cell size and centre never
+ * move under the finger, and the return never sees the board chase a moving
+ * floor. The slide is written on the dock's fixed root, not on the observed
+ * `[data-dock-mode]` node, so the sheet's own style stays the one the observer
+ * reads (see ToolsDock).
  *
  * `docked` is the condition to freeze on. Held as one piece of state (the
  * frozen band, null while live) rather than a frozen flag plus a value, so a

@@ -406,9 +406,9 @@ const LABELS: Record<string, TKey> = {
   moveWorkspace: 'Move workspace',
   shuffleWorkspaces: 'Shuffle workspaces',
   clearGridPhotos: 'Clear photos',
-  addGrid: 'New workspace',
-  removeGrid: 'Delete workspace',
-  renameGrid: 'Rename workspace',
+  addGrid: 'Add board',
+  removeGrids: 'Delete boards',
+  moveGrid: 'Reorder boards',
   // generic
   patch: 'Board look',
   edit: 'Edit',
@@ -425,8 +425,8 @@ const PATCH_LABELS: Record<string, TKey> = {
   edgeFade: 'Blend',
   edgeFadeStrength: 'Blend',
   gridGap: 'Grid gap',
-  grids: 'Workspace list',
-  parkedBoards: 'Workspace list',
+  grids: 'Boards',
+  parkedBoards: 'Boards',
   workspaces: 'Board',
 }
 

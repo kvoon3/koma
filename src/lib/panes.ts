@@ -298,24 +298,6 @@ export function newLeaf(): Leaf {
   }
 }
 
-/**
- * A deep copy of a pane tree with a fresh id on every node, sticker and
- * label: photos are library-wide (`photoId` copies as-is), everything the
- * store addresses by id must not collide with the original. Used when a new
- * grid group copies the open board (store.addGrid).
- */
-export function cloneNode(node: Node): Node {
-  if (node.type === 'leaf') {
-    return {
-      ...node,
-      id: uid('p'),
-      stickers: node.stickers.map(st => ({ ...st, id: uid('s') })),
-      label: node.label ? { ...node.label, id: uid('l') } : null,
-    }
-  }
-  return { ...node, id: uid('s'), a: cloneNode(node.a), b: cloneNode(node.b) }
-}
-
 /** The label size bounds, in canvas units (`DEFAULT_LABEL_SIZE` sits inside). */
 export const MIN_LABEL_SIZE = 12
 export const MAX_LABEL_SIZE = 160

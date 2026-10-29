@@ -326,7 +326,7 @@ describe('labels', () => {
 
   /** The English label (i18n key) each tag must resolve to. */
   const EXPECTED: Record<string, TKey> = {
-    addGrid: 'New workspace',
+    addGrid: 'Add board',
     addLabel: 'Add text',
     addSticker: 'Add sticker',
     addWorkspace: 'Add workspace',
@@ -340,16 +340,16 @@ describe('labels', () => {
     deletePane: 'Delete pane',
     duplicatePane: 'Duplicate pane',
     flipPane: 'Flip photo',
+    moveGrid: 'Reorder boards',
     moveSticker: 'Move sticker',
     moveWorkspace: 'Move workspace',
     pastePane: 'Paste pane',
     patch: 'Board look',
-    removeGrid: 'Delete workspace',
+    removeGrids: 'Delete boards',
     removeLabel: 'Remove text',
     removePhoto: 'Remove photo',
     removeSticker: 'Remove sticker',
     removeWorkspace: 'Delete workspace',
-    renameGrid: 'Rename workspace',
     resetAllWorkspaces: 'Reset every workspace',
     resetPane: 'Reset pane',
     resetPaneRotation: 'Straighten photo',

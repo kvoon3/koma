@@ -1,123 +1,126 @@
 /**
- * Physics for the board pager: the receded board in the workspace switcher,
- * dragged sideways so the neighbouring group's board slides in (macOS Spaces).
+ * Physics for the overview's board pager: all boards laid out as pages in one
+ * track, dragged sideways 1:1, released into a velocity snap, rubber-banded at
+ * the row's ends and allowed to cross several pages in one flick.
  *
- * The rules are the tools dock's (`lib/dockPhysics`), not new ones: a
- * release snaps to the page nearest the position the release velocity
- * projects, a flick above `FLICK_VELOCITY` always moves one page, and the
- * ends of the group row rubber-band instead of stopping dead.
- *
- * Offsets are screen px of the board's own travel: 0 = the open group's board
- * home. Dragging right (+x) pulls the *previous* group's board in from the
- * left edge, dragging left brings the next one in from the right edge.
+ * The rules are still the tools dock's (`lib/dockPhysics`): a release lands on
+ * the page its position and velocity project, a flick above `FLICK_VELOCITY`
+ * carries at least one page, and an end leans asymptotically instead of
+ * tearing off. Offsets are screen px (`travel * viewScale`); the page count is
+ * the caller's.
  */
 
-import { FLICK_VELOCITY, pickSnap, rubberBand } from './dockPhysics'
+import { FLICK_VELOCITY, rubberBand } from './dockPhysics'
 
-/** Pointer travel (px) before a press becomes a drag: below it, a click. */
-export const PAGER_SLOP = 6
-
-/** How long the release takes to settle onto a board, in ms. */
+/** How long one page takes to settle, before multi-page scaling. */
 export const PAGER_SNAP_MS = 200
 
-/** Resistance at an edge with no board behind it: macOS's gentle 0.3×. */
+/** Seconds of release velocity projected forward when choosing the page. */
+const PROJECT_S = 0.2
+
+/** Release samples older than this carry no momentum: a held release has stopped. */
+export const SAMPLE_STALE_MS = 80
+
+/** Resistance at an end with no page behind it: macOS's gentle 0.3x. */
 const EDGE_SLOPE = 0.3
 
-/**
- * How far an edge can be pulled, as a fraction of one page. The rubber band is
- * asymptotic, so this is the most the board ever leans past home (the first px
- * still moves 0.3 px, see EDGE_SLOPE).
- */
+/** How far an end can be pulled, as a fraction of one page. */
 const EDGE_REACH = 0.35
 
 /**
- * One page of travel: the board's visible width plus a gap, so the board
- * arriving from the far edge clears the one leaving by a visible seam.
+ * Pages available either side of the open board: the row's ends. `before` is
+ * the number of pages at lower indices, `after` at higher ones.
+ */
+export interface PagerBounds {
+  readonly before: number
+  readonly after: number
+}
+
+/**
+ * One page of travel: the board's visible width plus a seam, so the board
+ * arriving from the far edge clears the one leaving by a visible gap.
  */
 export function pagerTravel(boardW: number): number {
   return Math.round(boardW + Math.max(16, boardW * 0.06))
 }
 
 /**
- * Raw pointer travel → the board's shown offset. Inside the row the pager is
- * hard-stopped one page over (a group is either here or one page away, never
- * two); past an end (`hasPrev` / `hasNext` false) the offset rubber-bands, so
- * the board leans and springs back rather than tearing off the edge.
+ * Raw pointer travel → the track's shown offset. Inside the row a multi-page
+ * drag is 1:1 all the way to the last page available; past an end the offset
+ * rubber-bands, so the track leans and springs back rather than tearing off.
  */
-export function pagerOffset(raw: number, travel: number, hasPrev: boolean, hasNext: boolean): number {
-  if (raw > 0)
-    return hasPrev ? Math.min(raw, travel) : rubberBand(raw, travel * EDGE_REACH, EDGE_SLOPE)
-  if (raw < 0)
-    return hasNext ? Math.max(raw, -travel) : -rubberBand(-raw, travel * EDGE_REACH, EDGE_SLOPE)
-  return 0
+export function pagerOffset(raw: number, travel: number, bounds: PagerBounds): number {
+  const max = bounds.before * travel
+  const min = -bounds.after * travel
+  if (raw > max)
+    return max + rubberBand(raw - max, travel * EDGE_REACH, EDGE_SLOPE)
+  if (raw < min)
+    return min - rubberBand(min - raw, travel * EDGE_REACH, EDGE_SLOPE)
+  return raw
 }
 
 /**
- * Which board the release lands on, as a step over the group list: 0 stays,
- * +1 is the next group (dragged left), −1 the previous one (dragged right).
- *
- * A slow release lands on the page it is nearest (`pickSnap`, no velocity):
- * past half a travel it goes where it leans. A flick (`FLICK_VELOCITY`, the
- * dock's threshold) decides on its own instead: with the lean it carries the
- * page over, so a short quick flick still switches; against it (flicking the
- * board back the way it came) it settles home rather than sailing through to
- * the far page. An end of the row has nowhere to go and settles home too.
+ * Round to the nearest integer, with a tie settling home: 0.5 → 0, 1.5 → 1.
+ * Used by the page projection and by the dots' page read, so a half-page
+ * release and a half-page dot tell the same story.
  */
-export function pagerStep(pos: number, velocity: number, travel: number, hasPrev: boolean, hasNext: boolean): -1 | 0 | 1 {
-  const offsets = [-travel, 0, travel]
-  const dir = Math.sign(pos)
-  const offset = Math.abs(velocity) >= FLICK_VELOCITY
-    ? (Math.sign(velocity) === dir ? dir * travel : 0)
-    : offsets[pickSnap(offsets, pos, 0, 1)]!
-  if (offset < 0)
-    return hasNext ? 1 : 0
-  if (offset > 0)
-    return hasPrev ? -1 : 0
-  return 0
+function halfTowardZero(v: number): number {
+  const sign = Math.sign(v)
+  const rounded = sign * Math.ceil(Math.abs(v) - 0.5)
+  // `-0` would leak into equality checks (Object.is(-0, 0) is false).
+  return rounded === 0 ? 0 : rounded
 }
 
-/** Where a settled step comes to rest: home, or one page over. */
-export function pagerRestOffset(step: -1 | 0 | 1, travel: number): number {
-  return step === 0 ? 0 : step > 0 ? -travel : travel
+function clampPages(pages: number, bounds: PagerBounds): number {
+  const clamped = Math.max(-bounds.before, Math.min(bounds.after, pages))
+  return clamped === 0 ? 0 : clamped
 }
 
 /**
- * What letting go of the receded board means: `tap` leaves the switcher (back
- * to the overview), `page` settles onto a board, `stay` does nothing.
+ * Which page the release lands on, as a signed delta from the open board:
+ * negative is toward lower indices (the drag right, which reveals the page to
+ * the left), positive toward higher ones. A slow release lands on the page it
+ * is nearest; a flick carries at least one page when it points with the lean,
+ * while a return flick only gets the position's nearest page. A multi-page
+ * flick is allowed; the row's ends clamp.
  */
-export type PagerRelease = 'tap' | 'page' | 'stay'
+export function pagerPages(pos: number, velocity: number, travel: number, bounds: PagerBounds): number {
+  const withLean = Math.sign(velocity) === Math.sign(pos) || pos === 0
+  const projected = (withLean ? pos + velocity * PROJECT_S : pos) / travel
+  let pages = halfTowardZero(-projected)
+  if (Math.abs(velocity) >= FLICK_VELOCITY && withLean) {
+    const dir = pages === 0 ? -Math.sign(velocity) : Math.sign(pages)
+    pages = dir * Math.max(1, Math.abs(pages))
+  }
+  return clampPages(pages, bounds)
+}
 
 /**
- * The release rule, decided in one place.
- *
- * A press that never locked an axis and never left the slop is a tap: the
- * receded board is the biggest target on screen, so a tap on it is the way back
- * to the overview (the same exit the dim gives), where it used to be swallowed
- * by the gesture surface. A sideways gesture settles a page (a held or
- * cancelled one included: it lands where it is). A vertical one either already
- * committed the pull-up exit, or was too short to be anything, so the board
- * stays put.
- *
- * The `Math.max` is the diagonal: the axis lock fires on either axis alone
- * (`lockedAxis`), so a gesture too close to the diagonal to lock a side can be
- * past the slop and still have `axis === null`: that is a drag that decided
- * nothing, not a tap.
- *
- * A cancelled pointer is never a tap: the OS or the element took the gesture,
- * and a click is something the user completed.
+ * The page under the viewport mid-drag, as a signed delta from the open
+ * board: the page the dots mark and a release home would land on.
  */
-export function pagerRelease({ axis, dx, dy, cancelled }: {
-  /** The axis the gesture locked, once past `PAGER_SLOP` (null = it never did). */
-  axis: 'x' | 'y' | null
-  /** Total travel since the press, in screen px. */
-  dx: number
-  dy: number
-  /** The release was a `pointercancel` (or the capture went away). */
-  cancelled: boolean
-}): PagerRelease {
-  if (axis === 'x')
-    return 'page'
-  if (cancelled || axis === 'y')
-    return 'stay'
-  return Math.max(Math.abs(dx), Math.abs(dy)) < PAGER_SLOP ? 'tap' : 'stay'
+export function pagerPageAt(pos: number, travel: number, bounds: PagerBounds): number {
+  return clampPages(halfTowardZero(-pos / travel), bounds)
+}
+
+/**
+ * Where a landing step comes to rest, in screen px from the old page's home.
+ * The base moves by `-pages * travel` in the same frame, so the two cancel.
+ */
+export function pagerRest(pages: number, travel: number): number {
+  const rest = -pages * travel
+  return rest === 0 ? 0 : rest
+}
+
+export function pagerSnapMs(pages: number): number {
+  return Math.min(PAGER_SNAP_MS * 3, PAGER_SNAP_MS + Math.max(0, Math.abs(pages) - 1) * 80)
+}
+
+/**
+ * The release's momentum. A cancelled pointer never had any, and a release
+ * whose last sample is stale (a held press) has already stopped: both are 0,
+ * so the snap decides on position alone.
+ */
+export function releaseVelocity(v: number, sampleAgeMs: number, cancelled: boolean): number {
+  return cancelled || sampleAgeMs > SAMPLE_STALE_MS ? 0 : v
 }

@@ -1,9 +1,8 @@
-import type { Workspace } from '../../store'
 /**
  * The overview's keyboard navigation: arrows / hjkl / Tab walk a highlight over
- * the nine cells, Enter enters the highlighted one. The switcher owns the
- * keyboard while it is open, and a dialog owns it while one is up, so the
- * listener only exists in between.
+ * the nine cells, Enter enters the highlighted one. The manager owns the
+ * keyboard while it is open (browse is the only mode with the listener), and a
+ * dialog owns it while one is up, so the listener only exists in between.
  */
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { gridStep } from '../../lib/workspaces'
@@ -24,12 +23,12 @@ function dirForKey(k: string): NavDir | null {
   return null
 }
 
-export function useGridKeyboard({ workspaces, activeId, switcherOpen, enter }: {
-  workspaces: Workspace[]
+export function useGridKeyboard({ workspaces, activeId, enabled, enter }: {
+  workspaces: { id: string }[]
   /** The cell the highlight starts on. */
   activeId: string
-  /** The switcher owns the keyboard while it is open (Esc leaves it). */
-  switcherOpen: boolean
+  /** The listener exists only in browse; jiggle and the manager own their keys. */
+  enabled: boolean
   /** Enter a workspace (its cell's id). */
   enter: (id: string) => void
 }) {
@@ -48,6 +47,9 @@ export function useGridKeyboard({ workspaces, activeId, switcherOpen, enter }: {
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     const t = e.target as HTMLElement
     if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+      return
+    // The page dots own their own keys (Enter opens the manager).
+    if (t.closest('[data-board-dots]'))
       return
     const k = e.key
     // An open menu or dialog owns every key while it is up.
@@ -77,11 +79,11 @@ export function useGridKeyboard({ workspaces, activeId, switcherOpen, enter }: {
   })
 
   useEffect(() => {
-    if (switcherOpen)
+    if (!enabled)
       return
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [switcherOpen])
+  }, [enabled])
 
   return hl
 }
