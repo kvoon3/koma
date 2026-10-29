@@ -121,6 +121,26 @@ Two errors you may hit on the way:
   `bun run deploy`; the new upload becomes the latest and is activated, which
   clears the check.
 
+## PR previews
+
+`.github/workflows/preview.yml` deploys every push to a pull request as its
+own static Worker, `koma-pr-<number>` at
+`https://koma-pr-<number>.kvoon.workers.dev`, and updates one sticky comment
+on the PR with that URL and the commit. Closing the PR deletes the Worker.
+
+The config is `wrangler.preview.jsonc`, an assets-only Worker over `dist/`.
+It never touches `koma`, its domain, or its secrets. The client build is the
+real bundle, but `routes/` is not deployed, so `/api/jev` answers 404 there.
+Fork PRs are skipped because Actions does not expose the secret to them.
+
+The deploy uses the `CLOUDFLARE_API_TOKEN` secret, which needs Workers Scripts
+edit for the account. A manual deploy of the same shape:
+
+```sh
+bun run build
+bunx wrangler deploy --config wrangler.preview.jsonc --name koma-pr-<number>
+```
+
 ## Gotchas
 
 - Never reintroduce `cloudflare.main` or `cloudflare.assets` in
@@ -155,6 +175,6 @@ Two errors you may hit on the way:
   `bun run deploy` becomes the only deploy path. Either accept that or
   reconnect the integration with `bun run deploy` as its build command; do
   not let both pipelines run.
-- Branch preview URLs (`<branch-slug>-koma.kvoon.workers.dev`) predate the
-  Void switch and their minting mechanism is unconfirmed. Verify before
-  promising one in a PR.
+- Branch preview URLs were unverified after the Void switch. PR previews now
+  have their own Worker per PR (`koma-pr-<number>.kvoon.workers.dev`), owned
+  by `.github/workflows/preview.yml`; see PR previews.

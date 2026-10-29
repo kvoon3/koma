@@ -1,0 +1,94 @@
+# PR previews: every push to a pull request deploys the static client build to
+# its own Worker (`koma-pr-<number>`) and comments the URL on the PR. Closing
+# the PR deletes that Worker. A preview never touches `koma`, its domain, or
+# its secrets.
+#
+# The preview is the client build only. The `/api/jev` route is not deployed
+# there, so the Jev-backed label icon answers 404 in a preview.
+
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# One run per PR: a new push cancels the deploy it supersedes, and closing the
+# PR cancels an in-flight deploy before the cleanup job runs.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # Actions does not expose repository secrets to fork PRs, so a fork cannot
+    # deploy a preview. Skip it instead of failing the check.
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile
+
+      # Same typecheck-gated client build the desktop shell consumes; the
+      # void-built worker is deliberately not deployed here.
+      - run: bun run build
+
+      - name: Deploy the preview Worker
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          NAME="koma-pr-${{ github.event.pull_request.number }}"
+          OUT="$(bunx wrangler deploy --config wrangler.preview.jsonc --name "$NAME" 2>&1)"
+          printf '%s\n' "$OUT"
+          URL="$(printf '%s\n' "$OUT" | grep -oE 'https://[^[:space:]]+\.workers\.dev' | tail -n 1 || true)"
+          if [ -z "$URL" ]; then
+            echo "no preview URL in the deploy output" >&2
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the preview URL
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const marker = '<!-- koma-preview -->'
+            const body = `${marker}\n**Preview:** ${process.env.PREVIEW_URL}\n\nStatic client build of \`${process.env.PREVIEW_SHA.slice(0, 7)}\`. Server routes are not deployed here.`
+            const { owner, repo } = context.repo
+            const issue_number = context.issue.number
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 })
+            const existing = comments.find(comment => comment.body?.startsWith(marker))
+            if (existing)
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body })
+            else
+              await github.rest.issues.createComment({ owner, repo, issue_number, body })
+
+  cleanup:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile
+
+      # A PR closed before its first deploy has no Worker to delete.
+      - name: Delete the preview Worker
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: bunx wrangler delete "koma-pr-${{ github.event.pull_request.number }}" --force --config wrangler.preview.jsonc
