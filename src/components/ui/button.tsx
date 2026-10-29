@@ -6,11 +6,11 @@ import { buttonBase, buttonVariants } from './buttonStyles'
 import { Spinner } from './spinner'
 
 /**
- * The app's plain button: one base metric with seven palettes (`flat`, `on`,
- * `strong`, `close`, `danger`, `float`, `ghost`). The top bar, the dialogs, the library
- * sections and the floating chrome render it, so a new surface inherits the
- * shared padding, press scale and focus ring instead of restyling a bare
- * `<button>`.
+ * The app's plain button: one base metric with eight palettes (`flat`, `bar`,
+ * `on`, `strong`, `close`, `danger`, `float`, `ghost`). The top bar, the dialogs,
+ * the library sections and the floating chrome render it, so a new surface
+ * inherits the shared padding, press scale and focus ring instead of restyling a
+ * bare `<button>`.
  */
 export function Button({ variant = 'flat', icon, iconSize = 13, loading = false, className = '', type = 'button', disabled, children, onClick, ...props }:
   ButtonHTMLAttributes<HTMLButtonElement> & {

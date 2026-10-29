@@ -481,6 +481,15 @@ under the finger (there is no hover to mark), a cancelled pan clears it, and the
 box never follows a horizontal swipe, because the native row scroll owns that
 gesture.
 
+The top bar wears the same box. Its flat chips (the category menus, settings,
+export, language and theme) drop their per-chip hover tint for the text shift,
+and one chip-hover square glides between them from its painted rect; the open
+menu's trigger keeps its own fill above the box, as the dock's open tool does.
+The bar is one row, so there is no row-band gate, and its existing window
+pointer hit-test (the one the open menu's modal backdrop already needs) drives
+the box through that backdrop. A resize or a chip that changes size under a
+still pointer re-places the box without a glide.
+
 The dock's popovers hand over like the top bar's menus, with retention: a click
 opens a tool's panel and moving off the dock leaves it open, while a mouse
 crossing another popover trigger in the same row hands the panel over without a
