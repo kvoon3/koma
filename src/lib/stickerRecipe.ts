@@ -41,7 +41,7 @@ import { STICKER_TEXTURES } from './stickerTexture'
 /**
  * Longest edge the stored original keeps. The bake works at `INSERT_MAX`
  * (960px), so a 960px original would reopen the maker with a pre-shrunk
- * subject; the value here is chosen by measurement (see DESIGN.md): the fresh
+ * subject; the value here is chosen by measurement (see docs/design/library.md): the fresh
  * file, a 960px original and a 1600px original are re-cut and re-baked, and the
  * smallest size whose output is indistinguishable from the fresh decode wins.
  * The cap exists because this is bytes in the session record: a phone photo is
@@ -253,7 +253,7 @@ export async function captureOriginal(file: File, maxEdge: number = ORIGINAL_MAX
   context.imageSmoothingQuality = 'high'
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
   // A source that may carry alpha keeps PNG; a photo keeps its own character as
-  // JPEG, which is several times smaller for the same picture (DESIGN.md).
+  // JPEG, which is several times smaller for the same picture (docs/design/library.md).
   const keepsAlpha = /^image\/(?:png|webp|avif|gif)/.test(file.type)
   const dataUrl = keepsAlpha ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', JPEG_QUALITY)
   canvas.width = 0

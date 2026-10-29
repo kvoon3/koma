@@ -22,8 +22,8 @@ Requires [mise](https://mise.jdx.dev) (provides Bun); `mise.toml` pins
 `typescript-go`, needs 1.4.3 or newer), not `tsc`; TypeScript stays installed
 only for the editor and typescript-eslint.
 
-Design notes: pane tree model, interaction reference, implementation details
-live in [DESIGN.md](DESIGN.md).
+Design decisions and measurements live in [docs/design/](docs/design/), one
+file per domain.
 
 Jev picks a leading icon when a text label is committed, and posts to a Worker
 proxy in production. The two secrets and the local check live in
