@@ -17,6 +17,7 @@ import { dockDragFade, dockSurface } from '../lib/dockBackground'
 import { bandProgress, bandPush, bandSchedule, bandTapSeconds } from '../lib/dockBand'
 import { captureChildBoxes } from '../lib/dockBox'
 import { DOCK_FLIP_EASE_CSS, DOCK_FLIP_S, isBoxVisible, parseTranslate, planFlipItem, shiftFlipBox } from '../lib/dockFlip'
+import { guardsOnly } from '../lib/dockHighlight'
 import { dampOffset, dragOwner, nearestSnapIndex, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
@@ -26,8 +27,9 @@ import { paneAssetsOf } from '../lib/stickerLibrary'
 import { clampDockMode, dockDisplayAt, dockHandleIntent, dockModeAtHeight, dockModes, dockTransition, isBandTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, useStore } from '../store'
+import { DockMarksProvider, useDockHighlight, useDockPopover } from './DockMarks'
 import { Footer } from './Footer'
-import { dockBtnStateCls, dockBtnSurfaceCls, dockPopupMotionCls, menuItemCls, menuSurfaceCls } from './ui/menu'
+import { dockBtnStateCls, dockPopupMotionCls, dockToolSurfaceCls, menuItemCls, menuSurfaceCls } from './ui/menu'
 
 /**
  * The dock's tool button and its caption. Both follow the sheet's display mode
@@ -37,7 +39,7 @@ import { dockBtnStateCls, dockBtnSurfaceCls, dockPopupMotionCls, menuItemCls, me
  * a display flip during a drag (DockSheet switches live, see
  * lib/toolsDockMode) reads as a morph; reduced motion swaps it in one frame.
  */
-export const toolsBtnCls = `${dockBtnSurfaceCls} disabled:order-1 data-disabled:order-1 flex w-[80px] shrink-0 flex-col items-center justify-center gap-1.5 whitespace-nowrap px-2 py-3 group-data-[dock-mode=icons]/dock:w-[54px] group-data-[dock-mode=icons]/dock:gap-0 group-data-[dock-mode=icons]/dock:py-2.5`
+export const toolsBtnCls = `${dockToolSurfaceCls} disabled:order-1 data-disabled:order-1 flex w-[80px] shrink-0 flex-col items-center justify-center gap-1.5 whitespace-nowrap px-2 py-3 group-data-[dock-mode=icons]/dock:w-[54px] group-data-[dock-mode=icons]/dock:gap-0 group-data-[dock-mode=icons]/dock:py-2.5`
 export const toolsLabelCls = 'max-h-[2em] overflow-hidden text-[11.5px] font-semibold text-txt transition-[opacity,max-height] duration-(--dur-fast) ease-(--ease-out) group-data-[dock-mode=icons]/dock:max-h-0 group-data-[dock-mode=icons]/dock:opacity-0 motion-reduce:duration-0'
 
 /** Handle chrome height. Keep in sync with `handleCls` h-[]. */
@@ -227,7 +229,7 @@ export function ToolsDock({ hidden, contextKey, children }: {
  */
 function CanvasRatioDockTool() {
   const t = useT()
-  const [open, setOpen] = useState(false)
+  const dock = useDockPopover(true, 'canvas-ratio')
   const ratio = useStore(s => activeWs(s).canvasRatio)
   const hasPhoto = useStore(s => paneAssetsOf(s.photos).some(p => p.trueW > 0 && p.trueH > 0))
 
@@ -238,8 +240,10 @@ function CanvasRatioDockTool() {
   ]
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
       <Popover.Trigger
+        ref={dock.triggerRef}
+        {...dock.triggerProps}
         className={`${toolsBtnCls} ${dockBtnStateCls}`}
         title={t('Canvas ratio')}
         aria-label={t('Canvas ratio')}
@@ -251,7 +255,7 @@ function CanvasRatioDockTool() {
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={6} collisionPadding={6} className="z-[260] select-none outline-0">
-          <Popover.Popup className={ratioPopupCls}>
+          <Popover.Popup className={ratioPopupCls} {...dock.popupProps}>
             {options.map(o => (
               <button
                 key={o.key}
@@ -260,7 +264,7 @@ function CanvasRatioDockTool() {
                 disabled={o.disabled}
                 onClick={() => {
                   o.run()
-                  setOpen(false)
+                  dock.close()
                 }}
               >
                 <MorphIcon icon={o.icon} size={15} strokeWidth={1.75} />
@@ -287,8 +291,12 @@ export function ToolsDockHost({ children }: { children: ReactNode }) {
   const ctx = useMemo(() => ({ target, setSlot }), [target])
   return (
     <ToolsDockContext value={ctx}>
-      {children}
-      <DockSheet hidden={slot == null || slot.hidden} contextKey={slot?.contextKey ?? ''} innerRef={setTarget} />
+      {/* The provider must be above both: the sheet is a sibling of the route
+          tree, and route tools portal into the sheet's DOM. */}
+      <DockMarksProvider>
+        {children}
+        <DockSheet hidden={slot == null || slot.hidden} contextKey={slot?.contextKey ?? ''} innerRef={setTarget} />
+      </DockMarksProvider>
     </ToolsDockContext>
   )
 }
@@ -360,6 +368,7 @@ function useDockMeasure({
   setFitsOneRow,
   captureFlipFrom,
   bandActiveRef,
+  onMeasured,
 }: {
   innerRef: React.RefObject<HTMLDivElement | null>
   contextKey: string
@@ -370,6 +379,8 @@ function useDockMeasure({
   captureFlipFrom: () => void
   /** The display band owns the list: its restyle pass would tear the field apart. */
   bandActiveRef: React.RefObject<boolean>
+  /** Styles and scroll are restored: re-place the highlight against the new layout. */
+  onMeasured: () => void
 }) {
   const [rowH, setRowH] = useState(FALLBACK_ROW)
   const [iconH, setIconH] = useState(FALLBACK_ICON_ROW)
@@ -509,7 +520,9 @@ function useDockMeasure({
         captureFlipFrom()
       setFitsOneRow(nextFits)
     }
-  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow, bandActiveRef])
+    // The layout is final and the scroll restored: a placement now is safe.
+    onMeasured()
+  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow, bandActiveRef, onMeasured])
 
   // Not on `mode`: the pass forces both display modes itself, so its reads do
   // not depend on the one on screen, and re-running it on a flip would resolve
@@ -786,6 +799,7 @@ function useDockBand({
   activeRef,
   measureDirtyRef,
   measure,
+  onProject,
 }: {
   y: MotionValue<number>
   innerRef: React.RefObject<HTMLDivElement | null>
@@ -800,6 +814,8 @@ function useDockBand({
   activeRef: React.RefObject<boolean>
   measureDirtyRef: React.RefObject<boolean>
   measure: () => void
+  /** After a write pass or an exit: the hover box mirrors the marked button. */
+  onProject: () => void
 }) {
   const [active, setActive] = useState(false)
   const fieldRef = useRef<BandField | null>(null)
@@ -897,7 +913,10 @@ function useDockBand({
       measureDirtyRef.current = false
       measureRef.current()
     }
-  }, [activeRef, measureDirtyRef])
+    // The buttons are back at their layout boxes: the box's mirrored translate
+    // must go with them.
+    onProject()
+  }, [activeRef, measureDirtyRef, onProject])
 
   const enter = useCallback((): boolean => {
     // An entry over the row base reads its live scroll. An entry over the
@@ -938,7 +957,9 @@ function useDockBand({
       return
     for (const item of field.items)
       writeBandItem(item, field.base, bandPush(item.slot, p))
-  }, [activeRef, enter, exit, geomRef, modeRef, reduceRef, y])
+    // One string copy: the box follows the marked button without a layout read.
+    onProject()
+  }, [activeRef, enter, exit, geomRef, modeRef, onProject, reduceRef, y])
 
   /**
    * Re-project after a display commit (band pairs only), before paint. The
@@ -998,11 +1019,17 @@ function useDockToolList({
   measure,
   settleFlip,
   reduceRef,
+  onMutated,
+  onReorder,
 }: {
   innerRef: React.RefObject<HTMLDivElement | null>
   measure: () => void
   settleFlip: () => void
   reduceRef: React.RefObject<boolean | null>
+  /** After the batch's swap/reorder work: reconcile dead marks, re-place the box. */
+  onMutated: () => void
+  /** The buttons moved under the pointer: forget the mark. */
+  onReorder: () => void
 }) {
   useEffect(() => {
     const el = innerRef.current
@@ -1076,6 +1103,9 @@ function useDockToolList({
         // The snapshot repeats the live list's ids (popover anchors,
         // aria-controls): drop them so the real buttons keep them.
         for (const n of ghost.querySelectorAll<HTMLElement>('[id]')) n.removeAttribute('id')
+        // The hover box is a scroller sibling, so it clones in too; the ghost
+        // must not paint a second box over its own faded row.
+        for (const n of ghost.querySelectorAll('[data-dock-highlight]')) n.remove()
         Object.assign(ghost.style, {
           position: 'absolute',
           inset: '0',
@@ -1123,6 +1153,13 @@ function useDockToolList({
     }
 
     const mo = new MutationObserver((records) => {
+      // Opening or closing a dock popover parks two fixed, 1×1 focus guards
+      // beside its trigger. That is not a list change, so it costs no swap, no
+      // snapshot and no forced restyle (which also clamps the row's scroll).
+      // Any other record still takes the full path.
+      const isGuard = (node: unknown) => node instanceof Element && node.hasAttribute('data-base-ui-focus-guard')
+      if (guardsOnly(records.map(r => ({ type: r.type, added: [...r.addedNodes], removed: [...r.removedNodes] })), isGuard))
+        return
       const reorder = records.some(r => r.type === 'attributes' && r.target.parentElement === el)
       if (reorder && !reduceRef.current) {
         for (const c of el.children) {
@@ -1134,8 +1171,13 @@ function useDockToolList({
             animate(h, { x: [dx, 0], y: [dy, 0] }, SPRING)
         }
       }
+      // Reduced motion skips the spring, but the layout still moves the tools
+      // out from under a stationary pointer either way.
+      if (reorder)
+        onReorder()
       maybeSwap(records)
       snapshot()
+      onMutated()
       measure()
     })
     mo.observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'data-disabled'] })
@@ -1157,7 +1199,7 @@ function useDockToolList({
       settleSwap()
       settleFlip()
     }
-  }, [innerRef, measure, reduceRef, settleFlip])
+  }, [innerRef, measure, onMutated, onReorder, reduceRef, settleFlip])
 }
 
 /**
@@ -1357,6 +1399,10 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     reduceRef.current = reduce
   })
 
+  // The hover/press box and its listeners (components/DockMarks). Constructed
+  // before the measure pass so its completion can re-place the box.
+  const highlight = useDockHighlight({ containerRef: innerRef, reduceRef })
+
   const [fitsOneRow, setFitsOneRow] = useState(true)
   const cap = useMemo<DockCapacity>(() => ({ fitsOneRow }), [fitsOneRow])
   const mode = clampDockMode(storedMode, cap)
@@ -1380,6 +1426,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     setFitsOneRow,
     captureFlipFrom,
     bandActiveRef,
+    onMeasured: highlight.rebase,
   })
   useLayoutEffect(() => {
     modeRef.current = mode
@@ -1402,7 +1449,14 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const snapPoint = snapPoints[order.indexOf(mode)] ?? snapPoints.at(-1)!
   const toolsMaxH = Math.max(...snapPoints)
 
-  useDockToolList({ innerRef, measure, settleFlip, reduceRef })
+  useDockToolList({
+    innerRef,
+    measure,
+    settleFlip,
+    reduceRef,
+    onMutated: highlight.reconcile,
+    onReorder: highlight.dropMark,
+  })
 
   const attachInner = useCallback((el: HTMLDivElement | null) => {
     innerRef.current = el
@@ -1480,6 +1534,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     activeRef: bandActiveRef,
     measureDirtyRef,
     measure,
+    onProject: highlight.frame,
   })
   /**
    * The commit left a band pair behind: the layout effect below re-projects
@@ -1535,11 +1590,13 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     pendingBandRef.current = false
     if (wasBand) {
       bandRef.current.sync()
+      highlight.afterCommit(true)
       return
     }
     restoreRowAnchor()
     playFlip(carry)
-  }, [mode, detachFlip, restoreRowAnchor, playFlip])
+    highlight.afterCommit(false)
+  }, [mode, detachFlip, restoreRowAnchor, playFlip, highlight])
 
   // The band's exit restores the raw row scroll once, before paint: a rollback
   // clears the transforms while the scroller still holds the wrapped width, and
@@ -1552,6 +1609,27 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     if (scroller && scroller.scrollLeft !== rowScrollRef.current)
       scroller.scrollLeft = rowScrollRef.current
   }, [band.active, mode, rowScroller])
+
+  // The band's exit clears every button's inline translate; the box re-places
+  // against the layout in the same frame, so both cross together.
+  useLayoutEffect(() => {
+    if (!band.active)
+      highlight.rebase()
+  }, [band.active, highlight])
+
+  // The sheet is always mounted (hidden is opacity 0 + inert), so a hide must
+  // close the panel that portals out of it and hide the box.
+  useLayoutEffect(() => {
+    if (hidden)
+      highlight.suspend()
+  }, [hidden, highlight])
+
+  // The label lane hides the pane lane with CSS `display: none` without
+  // unmounting it, so no ref cleanup fires; close any claim whose trigger no
+  // longer renders.
+  useLayoutEffect(() => {
+    highlight.reconcile()
+  }, [contextKey, highlight])
 
   /**
    * The band's interruption exit: commit the display the live height is
@@ -1715,12 +1793,26 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
                    advertise an affordance the lock has taken away. */
                 style={band.active ? undefined : (wrap ? scrollFadeStyle : scrollFadeStyleX)}
                 data-dock-fade=""
-                className={`min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${scrollLockCls}`}
+                className={`relative isolate min-h-0 flex-1 ${wrap ? scrollExpCls : scrollRowCls} ${scrollLockCls}`}
               >
                 <div
                   ref={attachInner}
                   data-dock-context={contextKey}
                   className={wrap ? wrapCls : rowCls}
+                />
+                {/*
+                  The hover/press fill: a scroller sibling after the tool
+                  container, so no child walk sees it (measure, FLIP, band,
+                  reorder, anchors, swap) while it still inherits the row's
+                  scroll, clip and fade mask. A negative z-index inside the
+                  isolated scroller paints it above the sheet glass and below
+                  the glyphs.
+                */}
+                <div
+                  ref={highlight.boxRef}
+                  data-dock-highlight=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-0 left-0 z-[-1] rounded-none bg-chip-hover opacity-0 transition-opacity duration-(--dur-fast) ease-(--ease-out)"
                 />
               </div>
             </div>
