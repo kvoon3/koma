@@ -72,3 +72,12 @@ Where a note conflicts with a poteto default, the note wins.
   main, never merge commits. Update a lane branch from main or its base with
   rebase, not merge.
 - Local `bun run ci` is the feedback loop. Push when a lane is review-ready.
+
+## Cursor Cloud specific instructions
+
+- Dev server: `bun run dev` serves https://localhost:5173 (vite-plugin-mkcert). After the first boot the local CA is in the trust store, so `curl https://127.0.0.1:5173/` works without `-k`.
+- `POST /api/jev` answers `503` `{"error":"unconfigured"}` until a root `.env` has `JEV_API_URL` and `JEV_API_KEY`. The editor does not need them. See `docs/jev-proxy.md`.
+- The toolchain is Bun 1.4.3 (`package.json` `packageManager`, repeated in `mise.toml`). Login shells skip `~/.bashrc`, so `bun` and `bunx` have to sit on the default PATH (`/usr/local/bin`). Git hooks call `bunx`.
+- Starting the dev server rewrites `void.lock.json` to record `account_id` from `void.config.ts`. That sync is not an app change; leave it unstaged unless the Void config itself changed.
+- Dev logs `No matching HTML proxy module` for `index.html?html-proxy`. That is the void 1.3.0 preamble defect in `docs/void.md`. The editor still loads; the minimized Vite overlay is that warning.
+- `bun run ci` is the local gate (lint, test, i18n, build). Storybook (`bun run storybook`, port 6006) and the MyGo desktop shell are not started on boot.
