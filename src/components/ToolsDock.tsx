@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom'
 import { flipCanvasRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO } from '../lib/canvasCommands'
 import { dockDragFade, dockSurface } from '../lib/dockBackground'
 import { bandProgress, bandPush, bandSchedule, bandTapSeconds } from '../lib/dockBand'
+import { captureChildBoxes } from '../lib/dockBox'
 import { DOCK_FLIP_EASE_CSS, DOCK_FLIP_S, isBoxVisible, parseTranslate, planFlipItem, shiftFlipBox } from '../lib/dockFlip'
 import { dampOffset, dragOwner, nearestSnapIndex, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
@@ -323,27 +324,6 @@ interface DockGeometry {
 }
 
 type DockEndpoints = ReadonlyMap<HTMLElement, DockToolBoxes>
-
-/**
- * A child's layout box relative to its container, px. `offsetLeft/Top` are
- * relative to the nearest positioned ancestor rather than to the parent node,
- * and the tools container is deliberately unpositioned, so its own offsets are
- * what makes a child's box container-relative. `offsetParent` is checked
- * rather than assumed: a container that gains `position` must not silently
- * shift every endpoint.
- */
-function boxIn(container: HTMLElement, child: HTMLElement): { x: number, y: number } {
-  if (child.offsetParent === container)
-    return { x: child.offsetLeft, y: child.offsetTop }
-  return { x: child.offsetLeft - container.offsetLeft, y: child.offsetTop - container.offsetTop }
-}
-
-function captureChildBoxes(container: HTMLElement): Map<HTMLElement, { x: number, y: number }> {
-  const boxes = new Map<HTMLElement, { x: number, y: number }>()
-  for (const child of container.children)
-    boxes.set(child as HTMLElement, boxIn(container, child as HTMLElement))
-  return boxes
-}
 
 /**
  * The width the expanded display wraps at: the scroller's client width with
