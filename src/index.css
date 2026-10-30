@@ -15,7 +15,7 @@
 }
 
 /*
- * The wordmark's face: Zen Old Mincho, subset to the four glyphs "koma" (1.4 KB,
+ * The wordmark's face: Zen Old Mincho, subset to the four glyphs "koma" (1.1 KB,
  * see assets/fonts/SOURCE.md), so it rides the bundle like any other asset and
  * never swaps in from a CDN after paint. `block`, not `swap`: the file is local,
  * so there is no window for a fallback face to fill.

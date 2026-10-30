@@ -325,7 +325,7 @@ function TopBarActions({
 /**
  * The brand lockup, left of the menus: the mark rides the wordmark's baseline,
  * and the wordmark stays the one piece of chrome that speaks in a face of its
- * own. The face is a 1.4 KB subset that ships with the bundle (see
+ * own. The face is a 1.1 KB subset that ships with the bundle (see
  * assets/fonts/SOURCE.md), so it is painted in the first frame, offline, with
  * no CDN face to swap in later. The 1px lift puts it on the menus' baseline: a
  * centered line box drops the mincho's baseline 1px below the 11.5px system

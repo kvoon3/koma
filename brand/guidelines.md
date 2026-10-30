@@ -125,7 +125,7 @@ check contrast on both themes. Print values are starting points; proof before pr
 - Masters are SVG, fills only, no live text, no rasters, no filters, no masks. The wordmark is
   outlined. The only `<style>` block is the theme-aware favicon (a deliberate exception).
 - PNGs are transparent outside the rounded tile; the square icons are opaque full-bleed.
-- The app ships the wordmark as live text (1.4 KB subset, OFL); that is the in-app asset; the kit’s
+- The app ships the wordmark as live text (1.1 KB subset, OFL); that is the in-app asset; the kit’s
   wordmark files are for print, decks and contexts without the app’s font pipeline.
 - Trademark clearance was not performed. Before public launch, run a trademark search for “koma” in
   your classes and a reverse image search for the mark.
