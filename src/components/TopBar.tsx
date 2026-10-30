@@ -8,6 +8,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import wordmark from '../assets/fonts/wordmark.json'
 import { useMediaQuery } from '../hooks'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { boxIn } from '../lib/dockBox'
@@ -325,7 +326,7 @@ function TopBarActions({
 /**
  * The brand lockup, left of the menus: the mark rides the wordmark's baseline,
  * and the wordmark stays the one piece of chrome that speaks in a face of its
- * own. The face is a 1.4 KB subset that ships with the bundle (see
+ * own. The face is a small subset that ships with the bundle (see
  * assets/fonts/SOURCE.md), so it is painted in the first frame, offline, with
  * no CDN face to swap in later. The 1px lift puts it on the menus' baseline: a
  * centered line box drops the mincho's baseline 1px below the 11.5px system
@@ -344,7 +345,7 @@ function Wordmark() {
     >
       <span className="flex items-baseline gap-2">
         <BrandMark className="h-4 w-4 flex-none" />
-        <span className="max-sm:hidden">koma</span>
+        <span className="max-sm:hidden">{wordmark.text}</span>
       </span>
     </span>
   )

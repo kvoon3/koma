@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/*
+ * Skills are prose, not UI sources. Keep them out of Tailwind's automatic
+ * content detection so a word in a skill cannot add a utility to the bundle.
+ */
+@source not "../.claude";
+@source not "../.agents";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
@@ -15,10 +22,11 @@
 }
 
 /*
- * The wordmark's face: Zen Old Mincho, subset to the four glyphs "koma" (1.4 KB,
- * see assets/fonts/SOURCE.md), so it rides the bundle like any other asset and
- * never swaps in from a CDN after paint. `block`, not `swap`: the file is local,
- * so there is no window for a fallback face to fill.
+ * The wordmark's face: Zen Old Mincho, subset to the text in
+ * assets/fonts/wordmark.json (see assets/fonts/SOURCE.md), so it rides the
+ * bundle like any other asset and never swaps in from a CDN after paint.
+ * `block`, not `swap`: the file is local, so there is no window for a fallback
+ * face to fill.
  */
 @font-face {
   font-family: 'Zen Old Mincho';
