@@ -441,7 +441,7 @@ the left: `koma` in Zen Old Mincho, set larger than the chrome type so it reads
 as a brand rather than another menu item, and lifted onto the menus' baseline,
 which is what makes the two read as one line (a centered line box drops the
 mincho's baseline a pixel below the system text's). Its face ships with the
-bundle as a four-glyph subset (`assets/fonts/`, 1.1 KB, OFL), so it paints in
+bundle as a small subset (`assets/fonts/`, OFL), so it paints in
 the first frame, offline, with no CDN face to swap in behind it, and stays live
 text: the same letters as an inline SVG path are 2.1 KB raw (1.0 KB gzipped) and
 as a PNG 1.1 KB per ink colour, and either one trades a font edit for an asset

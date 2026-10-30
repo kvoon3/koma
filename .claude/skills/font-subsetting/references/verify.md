@@ -60,12 +60,13 @@ python3 -m http.server 4181 --bind 127.0.0.1 --directory /tmp/font-work/dist-bef
 python3 -m http.server 4182 --bind 127.0.0.1 --directory /tmp/font-work/dist-after &
 ```
 
-Playwright-core lives in the worktree's `node_modules`. Use a cached Chromium from `~/Library/Caches/ms-playwright`.
+Playwright-core lives in the worktree's `node_modules`. Use a cached Chromium from `~/Library/Caches/ms-playwright`. The repo already has the dist server and MIME map in `scripts/verify-resize-handle.mjs`, and the cached-Chromium lookup and canvas seed in `scripts/check-filter-popup.mjs` and `scripts/jev-e2e.mjs`. Reuse them instead of adding a seventh copy.
 
 ```js
 import { chromium } from 'playwright-core'
 
-const browser = await chromium.launch({ headless: true })
+// findChromium() is copied from scripts/check-filter-popup.mjs.
+const browser = await chromium.launch({ headless: true, executablePath: findChromium() })
 for (const sc of scenarios) {
   const ctx = await browser.newContext({
     viewport: { width: sc.w, height: sc.h },
@@ -78,17 +79,12 @@ for (const sc of scenarios) {
   await page.clock.install({ time: new Date('2026-10-30T10:00:00') })
   await page.goto(base, { waitUntil: 'networkidle' })
   await page.waitForFunction(() => window.__collage?.store)
-  // Seed deterministic photos and labels, then navigate by location.hash.
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
     const s = window.__collage.store()
-    s.addPhotos(await deterministicFiles(), true)
     s.addLabel(0.5, 0.5, { text: 'café \u2014 “curly” … naïve 中文', font: '', theme: 'dark', size: 34, rot: 0 })
     location.hash = `#/w/${s.activeId}`
   })
-  await page.waitForFunction(() => {
-    const s = window.__collage.store()
-    return s.photos.length === 3 && s.photos.every(p => p.trueW > 0)
-  })
+  await page.waitForSelector('[data-label-id]')
   await page.evaluate(async () => {
     await document.fonts.ready
     await Promise.all([...document.images].map(i => i.complete ? null : new Promise(r => { i.onload = i.onerror = r })))
@@ -101,9 +97,13 @@ for (const sc of scenarios) {
 await browser.close()
 ```
 
-Make the seed deterministic. Draw photos on a canvas from fixed colors and sizes. Do not use timestamps or random ids in anything visible. Freeze the clock so the legacy launcher's "last opened" text cannot tick between the two runs. Block Google Fonts so a network timeout cannot change the fallback. Capture the baseline twice and diff it against itself before trusting a before/after result.
+Add photos with the fixed canvas seed from `scripts/check-filter-popup.mjs` when a scenario needs them. Keep timestamps and random ids out of anything visible. Capture the baseline twice and diff it against itself before trusting a before/after result.
 
-Compare every PNG. Zero differing pixels is the pass.
+Compare every PNG. Zero differing pixels is the pass. Run the diff with:
+
+```bash
+uv run --with pillow --with numpy python /tmp/font-diff.py
+```
 
 ```python
 from PIL import Image
@@ -137,13 +137,15 @@ Measured 2026-10-30. Re-measure before relying on them.
 
 | Item | Value |
 | --- | ---: |
-| Wordmark font | 1,128 B |
-| Base64 payload | 1,504 chars |
-| Shared CSS raw | 90,409 B |
-| Shared CSS gzip -9 | 17,542 B |
-| Shared CSS brotli 11 | 14,265 B |
+| Wordmark font | 1,112 B |
+| Base64 payload | 1,484 chars |
+| Shared CSS raw | 89,909 B |
+| Shared CSS gzip -9 | 17,405 B |
+| Shared CSS brotli 11 | 14,104 B |
 | Font requests and preloads per route | 0 and 0 |
 
 The font is inlined because it is under Vite's 4 KB `assetsInlineLimit`. Mobile hides the wordmark and leaves the face unloaded, but the base64 bytes still ride the shared CSS.
+
+The CSS delta is larger than the font delta because the build used to pick up utilities from skill prose in `.claude` and `.agents`. `src/index.css` now excludes both, so compare font bytes from the base64 payload, not from the whole CSS.
 
 One sampled CJK label (`Noto Serif SC`, `中文 日本語`) fetched 145,396 B of woff2 and 230,407 B of CSS, including the mirror fallback after the 3-second timeout. That path is content-dependent and was not changed.
