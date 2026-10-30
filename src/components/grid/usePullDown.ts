@@ -9,8 +9,7 @@
  */
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useRef } from 'react'
-import { PAGER_SLOP } from '../../lib/boardPager'
-import { lockedAxis, PULL_COMMIT, releaseCapture } from './switcherLayout'
+import { lockedAxis, PAGER_SLOP, PULL_COMMIT, releaseCapture } from '../../lib/gestureAxis'
 
 export function usePullDown({ enabled, onOpen, isSuppressed }: {
   /** Only the overview pulls down (the switcher has its own pull up). */

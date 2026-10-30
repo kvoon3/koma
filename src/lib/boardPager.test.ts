@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { PAGER_SLOP, pagerOffset, pagerRelease, pagerRestOffset, pagerStep, pagerTravel } from './boardPager'
+import { pagerOffset, pagerRelease, pagerRestOffset, pagerStep, pagerTravel } from './boardPager'
+import { PAGER_SLOP } from './gestureAxis'
 
 const T = 400
 

@@ -4,6 +4,7 @@
  * components). The overview sizes the stage with these too.
  */
 import type { Node, PaneLabel, Sticker } from '../../lib/panes'
+import { CAPTION_GAP, CAPTION_H, STAGE_PAD_Y } from './boardLayout'
 
 /**
  * How far the board recedes behind the switcher (an app shrinking down). This
@@ -41,64 +42,11 @@ export const CARD_SCALE = 1.08
 export const CARD_RING = 3
 
 /**
- * The board column's caption row (the workspace and snapshot chips). It is
- * part of the column the recede transforms, so its height is part of the fit.
- */
-export const CAPTION_H = 30
-
-/** Air under a caption row, over its board. */
-export const CAPTION_GAP = 8
-
-/** Air the stage keeps above and below a board. */
-export const STAGE_PAD_Y = 12
-
-/**
  * The chrome the dock keeps at the bottom of the stage on the overview route.
  * A first-frame fallback only: the component measures the sheet's real top
- * edge (the sheet height moves with its icons / row / expanded displays), and
- * hands the measured band to `boardColumn` and `recedeFit` as `dockH`.
+ * edge, and hands the measured band to `boardColumn` and `recedeFit`.
  */
 export const DOCK_CHROME_H = 144
-
-/**
- * The floating action cluster (undo / redo / history / reset) pinned over the
- * stage's top-right corner (FloatActions). The caption chips over the 3×3 are
- * centred, so on a stage narrow enough the two share a horizontal band: every
- * phone, never a desktop or a tablet. There the column has to start below the
- * buttons instead of running under them. Kept here as numbers (not a live
- * measurement) so the stage's geometry stays pure: FloatActions and
- * BoardCaption own the classes; these mirror them and drift if they change.
- */
-export const FLOAT_ACTIONS = {
-  /** The cluster's `top-2.5` / `right-2.5` offset. */
-  offset: 10,
-  /** One button's edge, per pointer type: the same `pointer-coarse` step the
-   * buttons take, and the caption chips are the same square. */
-  btn: { fine: 30, coarse: 38 } as const,
-  /** Buttons in the row, and the `gap-1.5` between them. */
-  count: 4,
-  gap: 6,
-} as const
-
-/**
- * The top padding the board stage keeps so the caption chips clear the
- * floating action cluster: the plain stage air where the two never share a
- * horizontal band, and the cluster's whole row plus the caption's own air
- * where they do. Paid out of the board's slot (like the dock's chrome at the
- * bottom), not painted over. A height-limited column would otherwise ride up
- * under the buttons, which is how a phone's snapshot chip landed under undo.
- */
-export function stageTopPad(stageW: number, coarse: boolean): number {
-  const btn = coarse ? FLOAT_ACTIONS.btn.coarse : FLOAT_ACTIONS.btn.fine
-  const clusterLeft = stageW - FLOAT_ACTIONS.offset - (FLOAT_ACTIONS.count * btn + (FLOAT_ACTIONS.count - 1) * FLOAT_ACTIONS.gap)
-  // The chips are centred, so their half-span is one chip and half the gap.
-  const chipsRight = stageW / 2 + btn + FLOAT_ACTIONS.gap / 2
-  if (chipsRight <= clusterLeft)
-    return STAGE_PAD_Y
-  // On a coarse pointer the chips stand taller than the caption row itself;
-  // the half that overflows the row's top has to clear the cluster too.
-  return FLOAT_ACTIONS.offset + btn + CAPTION_GAP + Math.max(0, (btn - CAPTION_H) / 2)
-}
 
 /** A board's cells, as the pager and the cards read them. */
 export type BoardCells = { id: string, root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }[]
@@ -230,40 +178,4 @@ export function recedeFit({ stageH, boardH, stripTop, stripH, topPad = STAGE_PAD
   const boardTop = columnTop + (CAPTION_H + CAPTION_GAP) * scale
   const bottom = boardTop + boardH * scale
   return { scale, translateY, top: boardTop, bottom, columnTop, fits: columnTop >= fitTop && bottom <= stageH }
-}
-
-/**
- * How far a pull travels before it commits: down on the board to open the
- * switcher, up on the receded board to leave it. Below it the press is still a
- * click, and a mostly-horizontal drag is never a pull (see `lockedAxis`).
- */
-export const PULL_COMMIT = 70
-
-/**
- * Axis lock: a pull counts only when its own travel outweighs the other axis's
- * by this factor, so the horizontal pager and the vertical enter / exit never
- * argue over the same gesture.
- */
-export const PULL_DOMINANCE = 1.2
-
-/**
- * Which axis a gesture past the slop belongs to, decided once: sideways is the
- * pager, vertical is the switcher's enter / exit. A drag too close to the
- * diagonal has not committed to either yet (null), so nothing is hijacked.
- */
-export function lockedAxis(dx: number, dy: number): 'x' | 'y' | null {
-  if (Math.abs(dx) > Math.abs(dy) * PULL_DOMINANCE)
-    return 'x'
-  if (Math.abs(dy) > Math.abs(dx) * PULL_DOMINANCE)
-    return 'y'
-  return null
-}
-
-/**
- * Hand a captured pointer back, if this element still has it. The gesture
- * layers (pager, pull) both end a drag this way.
- */
-export function releaseCapture(el: HTMLElement, pointerId: number) {
-  if (el.hasPointerCapture(pointerId))
-    el.releasePointerCapture(pointerId)
 }

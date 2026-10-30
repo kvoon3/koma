@@ -13,9 +13,7 @@
  */
 
 import { FLICK_VELOCITY, pickSnap, rubberBand } from './dockPhysics'
-
-/** Pointer travel (px) before a press becomes a drag: below it, a click. */
-export const PAGER_SLOP = 6
+import { PAGER_SLOP } from './gestureAxis'
 
 /** How long the release takes to settle onto a board, in ms. */
 export const PAGER_SNAP_MS = 200

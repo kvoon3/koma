@@ -20,11 +20,11 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import { animate, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { PAGER_SLOP, PAGER_SNAP_MS, pagerOffset, pagerRelease, pagerRestOffset, pagerStep, pagerTravel } from '../../lib/boardPager'
+import { PAGER_SNAP_MS, pagerOffset, pagerRelease, pagerRestOffset, pagerStep, pagerTravel } from '../../lib/boardPager'
+import { lockedAxis, PAGER_SLOP, PULL_COMMIT, releaseCapture } from '../../lib/gestureAxis'
 import { EASE_OUT } from '../../lib/motionTokens'
 import { prefersReducedMotion } from '../../lib/viewTransition'
 import { useStore } from '../../store'
-import { lockedAxis, PULL_COMMIT, releaseCapture } from './switcherLayout'
 
 export function useBoardPager({ open, stageRef, boardRef, stageW, stageH, recedeScale, cell, boxH, gap, cellCount, gridIds, activeIdx, onExit }: {
   /** The switcher is open: the surface is measured, and a close resets the pan. */
