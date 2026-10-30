@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { isEditorPath, isGridPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH } from './routes'
+import { GROUPS_PATH, isEditorPath, isGridPath, isGroupsPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH } from './routes'
 
 describe('the route predicates the chrome keys off', () => {
   test('the board overview is the root', () => {
@@ -41,5 +41,15 @@ describe('the route predicates the chrome keys off', () => {
     expect(isEditorPath('/photos')).toBe(false)
     expect(isEditorPath('/stickers')).toBe(false)
     expect(isEditorPath(LEGACY_INDEX_PATH)).toBe(false)
+  })
+
+  test('the groups page is its own route, not the overview and not a hub', () => {
+    expect(GROUPS_PATH).toBe('/groups')
+    expect(isGroupsPath('/groups')).toBe(true)
+    expect(isGroupsPath('/groups/')).toBe(false)
+    expect(isGroupsPath(OVERVIEW_PATH)).toBe(false)
+    expect(isGroupsPath('/w/w-1')).toBe(false)
+    expect(isGridPath(GROUPS_PATH)).toBe(false)
+    expect(isHubPath(GROUPS_PATH)).toBe(false)
   })
 })

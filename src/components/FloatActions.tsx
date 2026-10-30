@@ -90,7 +90,7 @@ export function FloatActions() {
 
       {/* Right cluster: undo / redo of the board, then reset last at the corner.
           `data-float-actions` is what the size rail measures to start below it,
-          and `grid/switcherLayout` (FLOAT_ACTIONS) mirrors this row so the
+          and `grid/boardLayout` (FLOAT_ACTIONS) mirrors this row so the
           overview's caption chips start below it too. Resize the row and the
           mirror moves with it. */}
       <div data-float-actions="" className="pointer-events-none absolute right-2.5 top-2.5 flex gap-1.5">

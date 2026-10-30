@@ -10,6 +10,7 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
 import { ExportDialog } from './components/ExportDialog'
 import { FloatActions } from './components/FloatActions'
+import { GroupsPage } from './components/groups/GroupsPage'
 import { HelpOverlay } from './components/HelpOverlay'
 import { LegacyIndex } from './components/LegacyIndex'
 import { LibraryPage } from './components/library/LibraryPage'
@@ -28,7 +29,7 @@ import { armRun, releaseRun } from './lib/exportRun'
 import { hubKeyForPath, markHubSeen } from './lib/hubSeen'
 import { t } from './lib/i18n'
 import { parseLibraryType } from './lib/library'
-import { EDITOR_PATH, isGridPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
+import { EDITOR_PATH, GROUPS_PATH, isGridPath, isGroupsPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
 import { say } from './lib/toast'
 import { viewTransitionOption } from './lib/viewTransition'
 import { useStore } from './store'
@@ -41,8 +42,10 @@ function RootLayout() {
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
   // A library route (or the retained launcher) is not a board: it draws its own
-  // chrome and none of the board's floating actions belong over it.
+  // chrome and none of the board's floating actions belong over it. The groups
+  // page is also chrome of its own: the page owns its Done pill and keys.
   const hub = useRouterState({ select: s => isHubPath(s.location.pathname) })
+  const groups = useRouterState({ select: s => isGroupsPath(s.location.pathname) })
   const pathname = useRouterState({ select: s => s.location.pathname })
 
   const [busy, setBusy] = useState(false)
@@ -148,6 +151,7 @@ function RootLayout() {
   useRouteKeys({
     grid,
     hub,
+    groups,
     exportOpen: exportItems != null,
     onExport: doExport,
     chrome: { helpOpen, libOpen, settingsOpen, report, doCrops, setHelpOpen, setLibOpen, setSettingsOpen, setReport },
@@ -215,7 +219,7 @@ function RootLayout() {
             <AppCommandsContext value={commands}>
               <Outlet />
               {/* Floating page actions (back / reset) hover over the active view. */}
-              {!hub && <FloatActions />}
+              {!hub && !groups && <FloatActions />}
             </AppCommandsContext>
           </main>
         </ToolsDockHost>
@@ -285,6 +289,13 @@ const overviewRoute = createRoute({
   component: WorkspaceGrid,
 })
 
+/** `/groups`: one page card per board group, with the open group one Done away. */
+const groupsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: GROUPS_PATH,
+  component: GroupsPage,
+})
+
 /**
  * `#/legacy-index`: the launcher drafted while the hub root was under review,
  * kept routable and working but linked from nowhere (see `components/LegacyIndex`).
@@ -326,7 +337,7 @@ const stickerRoute = createRoute({
   },
 })
 
-const routeTree = rootRoute.addChildren([overviewRoute, legacyIndexRoute, workspaceRoute, libraryRoute, photoRoute, stickerRoute])
+const routeTree = rootRoute.addChildren([overviewRoute, groupsRoute, legacyIndexRoute, workspaceRoute, libraryRoute, photoRoute, stickerRoute])
 
 export const router = createRouter({
   routeTree,

@@ -493,11 +493,11 @@ html.dark {
  * (one frame, final state).
  */
 /*
- * Grid ⇄ editor zoom: the 3×3 cell and the stage canvas share
- * view-transition-name ws-<id>, so the browser morphs one into the other
- * (the router wraps the grid ⇄ editor navigation in
- * document.startViewTransition). Reduced
- * motion is handled in JS; the swap falls back to instant.
+ * Board zoom: the 3x3 cell and the stage canvas share view-transition-name
+ * ws-<id>, so the browser morphs one into the other (the router wraps the
+ * navigation in document.startViewTransition). The groups page's active card
+ * carries the same names, so the overview's cells morph into its board and
+ * back. Reduced motion is handled in JS; the swap falls back to instant.
  */
 ::view-transition-group(*) {
   animation-duration: var(--dur-morph);
@@ -546,29 +546,38 @@ html.dark {
 }
 
 /*
- * Workspace switcher (WorkspaceGrid): the frosted strip drops in from above
- * on entry and lifts back out on exit, while the board morphs between its
- * full and receded boxes through its own group (ws-board): the element's own
- * scale becomes the group's animated transform, so no keyframes are needed
- * there. Same duration and curve as every other morph (the * group rule).
+ * The groups page card: a raised page over the blurred wallpaper. The light
+ * theme keeps the shadow soft; the dark theme needs a ring to separate the
+ * face from the wallpaper at all.
  */
-::view-transition-new(ws-strip) {
-  animation: ws-strip-in var(--dur-morph) var(--ease-out) both;
+.page-card {
+  box-shadow:
+    0 1px 2px rgba(23, 23, 23, 0.08),
+    0 18px 44px -12px rgba(23, 23, 23, 0.35);
 }
-::view-transition-old(ws-strip) {
-  animation: ws-strip-out var(--dur-morph) var(--ease-out) both;
+
+.dark .page-card {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 24px 60px -16px rgba(0, 0, 0, 0.8);
 }
-@keyframes ws-strip-in {
-  from {
-    transform: translateY(-16%);
-    opacity: 0;
-  }
+
+/*
+ * Groups page entrances: the wallpaper fades up when the page mounts, and the
+ * header name fades on every group change so the swap at the settle does not
+ * read as a hard cut while the cards re-base.
+ */
+@keyframes wallpaper-in {
+  from { opacity: 0; }
 }
-@keyframes ws-strip-out {
-  to {
-    transform: translateY(-16%);
-    opacity: 0;
-  }
+.wallpaper-in {
+  animation: wallpaper-in var(--dur-morph) var(--ease-out);
+}
+@keyframes groups-name-in {
+  from { opacity: 0; }
+}
+.groups-name-in {
+  animation: groups-name-in var(--dur-surface) var(--ease-out);
 }
 
 /*

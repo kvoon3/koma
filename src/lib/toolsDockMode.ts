@@ -1,7 +1,11 @@
 import type { ToolsDockMode } from '../store'
 
-/** Measured-content capacity: does every dock item fit on a single row? */
-export interface DockCapacity { fitsOneRow: boolean }
+/** Measured-content capacity, plus the route's forced icon-only display. */
+export interface DockCapacity {
+  fitsOneRow: boolean
+  /** A host that folds the dock to one icon row for its whole route. */
+  compact?: boolean
+}
 
 export type DockEvent
   = | { type: 'tap' }
@@ -9,17 +13,21 @@ export type DockEvent
     | { type: 'dismiss' }
 
 /**
- * Modes reachable for the given capacity, in tap-cycle order: the icon-only
- * row, the labelled row, then the wrapped multi-row (only while the tools do
- * not fit one row). There is no put-away mode: the drawer is always open, the
- * cycle just walks the three displays.
+ * Modes reachable for the given capacity, in tap-cycle order: the compact
+ * host's icon-only row alone, else the icon-only row, the labelled row, and
+ * the wrapped multi-row (only while the tools do not fit one row). There is no
+ * put-away mode: the drawer is always open, the cycle just walks the displays.
  */
 export function dockModes(cap: DockCapacity): readonly ToolsDockMode[] {
+  if (cap.compact)
+    return ['icons']
   return cap.fitsOneRow ? ['icons', 'row'] : ['icons', 'row', 'expanded']
 }
 
-/** Clamp a mode into what the capacity allows (expanded → row when one row fits). */
+/** Clamp a mode into what the capacity allows (compact → icons, expanded → row when one row fits). */
 export function clampDockMode(mode: ToolsDockMode, cap: DockCapacity): ToolsDockMode {
+  if (cap.compact)
+    return 'icons'
   return mode === 'expanded' && cap.fitsOneRow ? 'row' : mode
 }
 

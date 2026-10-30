@@ -355,33 +355,31 @@ const DOCK_CHROME_FALLBACK = 144
 
 /**
  * The tools sheet's band over a full-height stage: the stage height the sheet
- * covers (its bottom is the viewport floor), measured from the stage's own
- * top edge. The board is sized and centred above this band.
+ * covers, measured from the stage's own top edge. The board is sized and
+ * centred above this band.
  *
- * While the switcher holds the overview's stage the dock is put away and its
- * sheet rests lower than its seated height, so the band freezes at its last
- * resting value: the receded board stays where the zoom-out left it, and the
- * close morph never sees the board chase a moving floor.
- *
- * `docked` is the condition to freeze on. Held as one piece of state (the
- * frozen band, null while live) rather than a frozen flag plus a value, so a
- * flip of the condition is a single update.
+ * `initialBand` is the band the stored display would occupy, computed from the
+ * dock's measured metrics. The hook mounts frozen at it and stays there until
+ * the live sheet measurement agrees within half a pixel, so a route that
+ * restores the dock (the groups page on its way out) lays the board out for the
+ * final dock before the sheet has finished folding. Once the live measurement
+ * has caught up, the band follows it as usual, and a later display change does
+ * not re-freeze.
  */
-export function useDockRestBand(stageH: number, stageTop: number, docked: boolean): number {
+export function useDockRestBand(stageH: number, stageTop: number, initialBand?: number): number {
   const sheetTop = useToolsSheetTop()
   const measured = sheetTop == null
     ? null
     : Math.max(0, Math.min(stageH, stageH - (sheetTop - stageTop)))
-  const [frozen, setFrozen] = useState<number | null>(null)
-  // Capture at the flip into the docked state, while the measured band still
-  // holds the seated value (the put-away translate lands after, per frame
-  // through the observer). Release once the sheet has sprung back to the
-  // frozen band; until then the reserve holds and the floor never moves.
-  if (docked && frozen == null)
-    setFrozen(measured ?? DOCK_CHROME_FALLBACK)
-  else if (!docked && frozen != null && measured != null && measured >= frozen - 0.5)
-    setFrozen(null)
-  return frozen ?? measured ?? DOCK_CHROME_FALLBACK
+  const [frozen, setFrozen] = useState<number | null>(() => initialBand ?? null)
+  if (frozen != null) {
+    if (measured != null && Math.abs(measured - frozen) < 0.5)
+      setFrozen(null)
+    else if (initialBand != null && Math.abs(initialBand - frozen) >= 0.5)
+      // The fallback metrics resolved after mount: track the real restored band.
+      setFrozen(initialBand)
+  }
+  return frozen ?? measured ?? initialBand ?? DOCK_CHROME_FALLBACK
 }
 
 /**

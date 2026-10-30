@@ -4,7 +4,7 @@ import { MorphIcon } from 'morphicons/react'
 import { siGithub, siVite } from 'simple-icons'
 import { outputSizeFor } from '../lib/exporter'
 import { useT } from '../lib/i18n'
-import { isGridPath } from '../lib/routes'
+import { isGridPath, isGroupsPath } from '../lib/routes'
 import { activeWs, useStore } from '../store'
 
 /**
@@ -13,7 +13,9 @@ import { activeWs, useStore } from '../store'
  * it rides with the dock instead of sitting under it.
  */
 export function Footer({ className }: { className?: string } = {}) {
-  const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
+  // The groups page browses boards, not one canvas, so the ratio line belongs
+  // to the editor family only.
+  const grid = useRouterState({ select: s => isGridPath(s.location.pathname) || isGroupsPath(s.location.pathname) })
   const t = useT()
   const longSide = useStore(s => s.longSide)
   const canvasRatio = useStore(s => activeWs(s).canvasRatio)
@@ -26,6 +28,7 @@ export function Footer({ className }: { className?: string } = {}) {
 
   return (
     <footer
+      data-dock-footer=""
       className={`flex h-[calc(var(--statusH)+env(safe-area-inset-bottom))] flex-none items-center justify-center gap-3 whitespace-nowrap border-t border-line bg-statusbar px-1.5 pb-[env(safe-area-inset-bottom)] text-[11.5px] tabular-nums text-dim pointer-coarse:text-xs max-sm:text-xs ${className ?? ''}`}
     >
       {!grid && (

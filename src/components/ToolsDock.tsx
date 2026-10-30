@@ -2,15 +2,17 @@ import type { MotionValue } from 'motion/react'
 import type { CSSProperties, Dispatch, ReactNode, PointerEvent as ReactPointerEvent, SetStateAction } from 'react'
 import type { BandSlot, DockToolBoxes } from '../lib/dockBand'
 import type { FlipBox } from '../lib/dockFlip'
+import type { DockMetrics } from '../lib/dockMetrics'
 import type { DockSwapPlan } from '../lib/dockSwap'
 import type { TKey } from '../lib/locales/zh-Hans'
 import type { DockCapacity } from '../lib/toolsDockMode'
 import type { ToolsDockMode } from '../store'
+import type { DockSlot } from './dockContext'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, ChevronUp, Ratio, RotateCw, Square } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { animate, useMotionValue, useReducedMotion } from 'motion/react'
-import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { flipCanvasRatio, matchCanvasToFirstPhoto, setCanvasRatio, SQUARE_RATIO } from '../lib/canvasCommands'
 import { dockDragFade, dockSurface } from '../lib/dockBackground'
@@ -18,6 +20,7 @@ import { bandProgress, bandPush, bandSchedule, bandTapSeconds } from '../lib/doc
 import { captureChildBoxes } from '../lib/dockBox'
 import { DOCK_FLIP_EASE_CSS, DOCK_FLIP_S, isBoxVisible, parseTranslate, planFlipItem, shiftFlipBox } from '../lib/dockFlip'
 import { guardsOnly } from '../lib/dockHighlight'
+import { DOCK_METRICS_FALLBACK } from '../lib/dockMetrics'
 import { dampOffset, dragOwner, nearestSnapIndex, pickSnap } from '../lib/dockPhysics'
 import { DOCK_SWAP_EASE, DOCK_SWAP_PAIR_MS, DOCK_SWAP_PX, DOCK_SWAP_S, planDockSwap } from '../lib/dockSwap'
 import { useT } from '../lib/i18n'
@@ -27,6 +30,7 @@ import { paneAssetsOf } from '../lib/stickerLibrary'
 import { clampDockMode, dockDisplayAt, dockHandleIntent, dockModeAtHeight, dockModes, dockTransition, isBandTransition } from '../lib/toolsDockMode'
 import { scrollFadeStyle, scrollFadeStyleX, useScrollFade } from '../lib/useScrollFade'
 import { activeWs, useStore } from '../store'
+import { ToolsDockContext } from './dockContext'
 import { DockMarksProvider, useDockHighlight, useDockPopover } from './DockMarks'
 import { Footer } from './Footer'
 import { dockBtnStateCls, dockPopupMotionCls, dockToolSurfaceCls, menuItemCls, menuSurfaceCls } from './ui/menu'
@@ -180,13 +184,6 @@ function flipTool(h: HTMLElement, input: {
   }
 }
 
-interface DockSlot { hidden: boolean, contextKey: string }
-interface DockCtx {
-  target: HTMLDivElement | null
-  setSlot: Dispatch<SetStateAction<DockSlot | null>>
-}
-const ToolsDockContext = createContext<DockCtx | null>(null)
-
 /**
  * Route-level dock content. Portals `children` into the single persistent
  * dock owned by `ToolsDockHost`, so switching routes (grid ⇄ stage) swaps
@@ -197,17 +194,19 @@ const ToolsDockContext = createContext<DockCtx | null>(null)
  * it is a property of the sheet, and it is offered whenever the route reports
  * the canvas context (stage with no pane to act on) and nothing is focused.
  */
-export function ToolsDock({ hidden, contextKey, children }: {
+export function ToolsDock({ hidden, contextKey, compact = false, children }: {
   hidden: boolean
   contextKey: string
+  /** Force the icon-only display for this route without writing the stored mode. */
+  compact?: boolean
   children: ReactNode
 }) {
   const ctx = use(ToolsDockContext)
   const setSlot = ctx?.setSlot
   const noPaneFocus = useStore(s => !activeWs(s).focusId)
   useLayoutEffect(() => {
-    setSlot?.({ hidden, contextKey })
-  }, [setSlot, hidden, contextKey])
+    setSlot?.({ hidden, contextKey, compact })
+  }, [setSlot, hidden, contextKey, compact])
   useLayoutEffect(() => () => setSlot?.(null), [setSlot])
   if (!ctx?.target)
     return null
@@ -288,14 +287,26 @@ function CanvasRatioDockTool() {
 export function ToolsDockHost({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
   const [slot, setSlot] = useState<DockSlot | null>(null)
-  const ctx = useMemo(() => ({ target, setSlot }), [target])
+  const [metrics, setMetrics] = useState<DockMetrics>(DOCK_METRICS_FALLBACK)
+  const [capacity, setCapacity] = useState<DockCapacity>({ fitsOneRow: true })
+  const ctx = useMemo(
+    () => ({ target, setSlot, metrics, setMetrics, capacity, setCapacity }),
+    [target, metrics, capacity],
+  )
   return (
     <ToolsDockContext value={ctx}>
       {/* The provider must be above both: the sheet is a sibling of the route
           tree, and route tools portal into the sheet's DOM. */}
       <DockMarksProvider>
         {children}
-        <DockSheet hidden={slot == null || slot.hidden} contextKey={slot?.contextKey ?? ''} innerRef={setTarget} />
+        <DockSheet
+          hidden={slot == null || slot.hidden}
+          contextKey={slot?.contextKey ?? ''}
+          compact={slot?.compact ?? false}
+          innerRef={setTarget}
+          onMetrics={setMetrics}
+          onCapacity={setCapacity}
+        />
       </DockMarksProvider>
     </ToolsDockContext>
   )
@@ -364,6 +375,7 @@ function useDockMeasure({
   contextKey,
   storedMode,
   modeRef,
+  compact,
   fitsOneRow,
   setFitsOneRow,
   captureFlipFrom,
@@ -374,6 +386,7 @@ function useDockMeasure({
   contextKey: string
   storedMode: ToolsDockMode
   modeRef: React.RefObject<ToolsDockMode>
+  compact: boolean
   fitsOneRow: boolean
   setFitsOneRow: (fits: boolean) => void
   captureFlipFrom: () => void
@@ -516,12 +529,12 @@ function useDockMeasure({
       // A capacity change can clamp the display (expanded → row once the tools
       // fit one row). That is not a gesture, so the boxes are captured here,
       // before the state lands, and the commit gets the same FLIP a flip does.
-      if (nextFits !== fitsRef.current && clampDockMode(storedModeRef.current, { fitsOneRow: nextFits }) !== modeRef.current)
+      if (nextFits !== fitsRef.current && clampDockMode(storedModeRef.current, { fitsOneRow: nextFits, compact }) !== modeRef.current)
         captureFlipFrom()
       setFitsOneRow(nextFits)
     }
     onMeasured()
-  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow, bandActiveRef, onMeasured])
+  }, [innerRef, modeRef, captureFlipFrom, setFitsOneRow, bandActiveRef, onMeasured, compact])
 
   // Not on `mode`: the pass forces both display modes itself, so its reads do
   // not depend on the one on screen, and re-running it on a flip would resolve
@@ -1248,6 +1261,7 @@ function useDockPopupTransform({
 /** The whole-sheet drag: press, slop, scroller hand-off, mode crossing, snap. */
 function useDockGesture({
   hidden,
+  compact,
   wrap,
   y,
   dragRef,
@@ -1264,6 +1278,8 @@ function useDockGesture({
   bandActiveRef,
 }: {
   hidden: boolean
+  /** The page forced the icon row: the sheet is inert to drags and taps. */
+  compact: boolean
   wrap: boolean
   y: MotionValue<number>
   dragRef: React.RefObject<DockDrag | null>
@@ -1283,7 +1299,7 @@ function useDockGesture({
   const suppressClickRef = useRef(false)
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || hidden)
+    if (e.button !== 0 || hidden || compact)
       return
     // The whole sheet is a grab surface; only a scroller that can still move
     // in the drag's direction keeps the gesture (see lib/dockPhysics).
@@ -1379,10 +1395,13 @@ function useDockGesture({
   return { onPointerDown, onPointerMove, endDrag, suppressClickRef }
 }
 
-function DockSheet({ hidden, contextKey, innerRef: setInner }: {
+function DockSheet({ hidden, contextKey, compact, innerRef: setInner, onMetrics, onCapacity }: {
   hidden: boolean
   contextKey: string
+  compact: boolean
   innerRef: (el: HTMLDivElement | null) => void
+  onMetrics: Dispatch<SetStateAction<DockMetrics>>
+  onCapacity: Dispatch<SetStateAction<DockCapacity>>
 }) {
   const t = useT()
   const storedMode = useStore(s => s.toolsDockMode)
@@ -1403,11 +1422,13 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   const highlight = useDockHighlight({ containerRef: innerRef, reduceRef })
 
   const [fitsOneRow, setFitsOneRow] = useState(true)
-  const cap = useMemo<DockCapacity>(() => ({ fitsOneRow }), [fitsOneRow])
+  const cap = useMemo<DockCapacity>(() => ({ fitsOneRow, compact }), [fitsOneRow, compact])
   const mode = clampDockMode(storedMode, cap)
   const order = dockModes(cap)
   /** The display on screen, readable from a pointer handler mid-gesture. */
   const modeRef = useRef(mode)
+  /** Compact hosts lock the display writer, the handle and the drag. */
+  const compactRef = useRef(compact)
   const { rowScroller, captureFlipFrom, detachFlip, settleFlip, playFlip } = useDockFlipAnimation({ innerRef, reduceRef })
   /**
    * The display band owns the list's transforms: the measure pass may not
@@ -1421,6 +1442,7 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     contextKey,
     storedMode,
     modeRef,
+    compact,
     fitsOneRow,
     setFitsOneRow,
     captureFlipFrom,
@@ -1429,7 +1451,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
   })
   useLayoutEffect(() => {
     modeRef.current = mode
-  }, [mode])
+    compactRef.current = compact
+  }, [mode, compact])
 
   // Reduced motion: a flip is instant, and a glide still in flight when it is
   // switched on stops where it is (the commit is the final layout).
@@ -1564,7 +1587,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
    * before `setMode`, whose class swap clamps it.
    */
   const commitDisplay = useCallback((next: ToolsDockMode) => {
-    if (next === modeRef.current)
+    // A compact host owns the display: never write the stored mode from here.
+    if (compactRef.current || next === modeRef.current)
       return
     const from = modeRef.current
     const bandPair = isBandTransition(from, next) && order.includes('expanded')
@@ -1658,12 +1682,44 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
 
   const surface = dockSurface(dockBg, dockOpacity)
 
+  // The footer is pinned under the sheet, so its height is part of every band.
+  const [footerH, setFooterH] = useState(DOCK_METRICS_FALLBACK.footerH)
+  const footerRef = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    const el = footerRef.current
+    if (!el)
+      return
+    const update = () => setFooterH(el.offsetHeight || DOCK_METRICS_FALLBACK.footerH)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Publish the measured heights so a route seats its stage on the real band.
+  // The compact flag stays local: the overview's stored-mode band must not see
+  // the groups page's forced display.
+  useLayoutEffect(() => {
+    onMetrics({ iconH, rowH, expH, footerH })
+    onCapacity({ fitsOneRow })
+  }, [iconH, rowH, expH, footerH, fitsOneRow, onMetrics, onCapacity])
+
   // Settle on mode / geometry change. Content-driven geometry (route switch,
-  // wrap change) jumps: the user's mode didn't change, so nothing slides.
-  const lastGeomRef = useRef({ toolsMaxH, mode })
+  // wrap change) jumps: the user's mode didn't change, so nothing slides. A
+  // compact flip is a route change too, and must land before the snapshot.
+  const lastGeomRef = useRef({ toolsMaxH, mode, compact })
   useLayoutEffect(() => {
     const prev = lastGeomRef.current
-    lastGeomRef.current = { toolsMaxH, mode }
+    lastGeomRef.current = { toolsMaxH, mode, compact }
+    if (prev.compact !== compact) {
+      // The page folds or restores the dock in this commit: snap, never spring.
+      dragRef.current = null
+      draggingRef.current = false
+      bandRef.current.exit()
+      y.stop()
+      y.jump(offset)
+      return
+    }
     // A band tap's duration tween started before this render and reaches the
     // `offset` below by construction: leave it running.
     if (bandTweenRef.current) {
@@ -1680,12 +1736,13 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
     }
     const anim = animate(y, offset, { ...SPRING, velocity })
     return () => anim.stop()
-  }, [offset, toolsMaxH, mode, reduce, y])
+  }, [compact, offset, toolsMaxH, mode, reduce, y, bandRef, draggingRef])
 
   const liquidOn = dockBg === 'liquid'
   const popupRef = useDockPopupTransform({ y, liquidOn, geomRef })
   const { onPointerDown, onPointerMove, endDrag, suppressClickRef } = useDockGesture({
     hidden,
+    compact,
     wrap,
     y,
     dragRef,
@@ -1710,6 +1767,8 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
    * a couple of frames. Reduced motion swaps in one frame, as always.
    */
   const goTo = useCallback((next: ToolsDockMode) => {
+    if (compactRef.current)
+      return
     const target = clampDockMode(next, cap)
     if (target === modeRef.current)
       return
@@ -1769,17 +1828,18 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Escape')
+              if (!compact && e.key === 'Escape')
                 goTo(dockTransition(mode, { type: 'dismiss' }, cap))
             }}
             className={`dock-surface group/dock relative box-border flex w-full flex-col ${surface.className} pointer-events-auto overflow-hidden rounded-none border-0 border-t border-solid outline-0 transition-[background-color,border-color,box-shadow,backdrop-filter,--glass-fade] duration-(--dur-drawer) ease-(--ease-drawer) data-swiping:will-change-transform`}
           >
             <button
               type="button"
-              className={`${handleCls} pointer-events-auto`}
+              className={`${handleCls} pointer-events-auto disabled:cursor-default disabled:active:scale-100`}
               title={handleLabel}
               aria-label={handleLabel}
-              aria-expanded={mode !== 'icons'}
+              aria-expanded={!compact && mode !== 'icons'}
+              disabled={compact}
               onClick={() => goTo(dockTransition(mode, { type: 'tap' }, cap))}
             >
               <MorphIcon icon={handleIcon} size={16} strokeWidth={1.75} />
@@ -1817,7 +1877,9 @@ function DockSheet({ hidden, contextKey, innerRef: setInner }: {
             </div>
           </section>
         </div>
-        <Footer className="pointer-events-auto" />
+        <div ref={footerRef} className="flex-none">
+          <Footer className="pointer-events-auto" />
+        </div>
       </div>
     </div>
   )

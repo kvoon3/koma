@@ -564,10 +564,15 @@ const ja: Record<TKey, string> = {
   'Icon': 'アイコン',
   'Invert': '反転',
   'Square (1:1)': '正方形（1:1）',
-  // Workspaces (the board groups, switched from the Mission Control-style switcher)
+  // Groups (the board groups, browsed on the groups page)
   'Add a group': 'グループを追加',
   'Open group {name}': 'グループ {name} を開く',
   'Delete group?': 'グループを削除しますか？',
+
+  // Groups page
+  'Groups': 'グループ',
+  'Group {name}': 'グループ {name}',
+  'Group {n} of {total}': 'グループ {n} / {total}',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': 'フィルター',

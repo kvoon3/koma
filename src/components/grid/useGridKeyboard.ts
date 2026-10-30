@@ -1,9 +1,8 @@
 import type { Workspace } from '../../store'
 /**
  * The overview's keyboard navigation: arrows / hjkl / Tab walk a highlight over
- * the nine cells, Enter enters the highlighted one. The switcher owns the
- * keyboard while it is open, and a dialog owns it while one is up, so the
- * listener only exists in between.
+ * the nine cells, Enter enters the highlighted one. A dialog owns the keyboard
+ * while one is up, so the listener only exists in between.
  */
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { gridStep } from '../../lib/workspaces'
@@ -24,12 +23,10 @@ function dirForKey(k: string): NavDir | null {
   return null
 }
 
-export function useGridKeyboard({ workspaces, activeId, switcherOpen, enter }: {
+export function useGridKeyboard({ workspaces, activeId, enter }: {
   workspaces: Workspace[]
   /** The cell the highlight starts on. */
   activeId: string
-  /** The switcher owns the keyboard while it is open (Esc leaves it). */
-  switcherOpen: boolean
   /** Enter a workspace (its cell's id). */
   enter: (id: string) => void
 }) {
@@ -77,11 +74,9 @@ export function useGridKeyboard({ workspaces, activeId, switcherOpen, enter }: {
   })
 
   useEffect(() => {
-    if (switcherOpen)
-      return
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [switcherOpen])
+  }, [])
 
   return hl
 }

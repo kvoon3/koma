@@ -4,6 +4,7 @@ import { clampDockMode, DOCK_DISPLAY_EPS, dockDisplayAt, dockHandleIntent, dockM
 
 const multi = { fitsOneRow: false }
 const single = { fitsOneRow: true }
+const compact = { fitsOneRow: false, compact: true }
 
 describe('dockModes', () => {
   test('three displays when the tools wrap, two when they fit one row', () => {
@@ -53,6 +54,31 @@ describe('clampDockMode', () => {
     expect(clampDockMode('expanded', multi)).toBe('expanded')
     expect(clampDockMode('icons', single)).toBe('icons')
     expect(clampDockMode('row', multi)).toBe('row')
+  })
+})
+
+describe('the compact capacity', () => {
+  test('a compact capacity reaches only the icon-only display', () => {
+    expect(dockModes(compact)).toEqual(['icons'])
+    for (const stored of ['icons', 'row', 'expanded'] as const)
+      expect(clampDockMode(stored, compact)).toBe('icons')
+  })
+
+  test('every transition settles on the compact display', () => {
+    for (const mode of ['icons', 'row', 'expanded'] as const) {
+      expect(dockTransition(mode, { type: 'tap' }, compact)).toBe('icons')
+      expect(dockTransition(mode, { type: 'snap', mode: 'expanded' }, compact)).toBe('icons')
+      expect(dockTransition(mode, { type: 'dismiss' }, compact)).toBe('icons')
+      expect(dockHandleIntent(mode, compact)).toBe('collapse')
+    }
+  })
+
+  test('the stored mode and the capacity input are never mutated', () => {
+    const cap = { fitsOneRow: false, compact: true }
+    const stored = 'expanded' as const
+    expect(clampDockMode(stored, cap)).toBe('icons')
+    expect(stored).toBe('expanded')
+    expect(cap).toEqual({ fitsOneRow: false, compact: true })
   })
 })
 
