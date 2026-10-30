@@ -29,7 +29,11 @@ Where a note conflicts with a poteto default, the note wins.
   leak a seeded photo into the next file's boot snapshot, and the result depends
   on file order.
 - `bun run test:shuffle` catches tests that lean on another file's leftovers.
-- Deploy is manual (`bun run deploy`, which is `void deploy`). `void.config.ts`
+- Deploy: every push to main auto-deploys through
+  `.github/workflows/void-deploy.yml` (builds the void shape, then
+  `wrangler deploy --config dist/ssr/wrangler.json`; needs the
+  `CLOUDFLARE_API_TOKEN` repo secret). `bun run deploy` (`void deploy`) is the
+  manual path from a logged-in machine. `void.config.ts`
   owns the Cloudflare config; never check in a root `wrangler.jsonc` or
   `wrangler.json` (void refuses those two exact names; the storybook worker's
   `wrangler.storybook.jsonc` is fine). Deploy, secrets and rollback steps
@@ -41,13 +45,8 @@ Where a note conflicts with a poteto default, the note wins.
   the worktree's `node_modules` plus the cached Chromium; seed state via `window.__collage`.
 - Screenshot at 375×812 and 1280×900 before push, plus 1280×600 and 915×412 when
   geometry changes. A vision-capable agent (Herdr `judge` when available) reviews the PNGs.
-- Once the void stack lands, every push to main auto-deploys through
-  `.github/workflows/void-deploy.yml` (void; needs the
-  `CLOUDFLARE_API_TOKEN` repo secret). `bun run deploy` is the manual path
-  (see `docs/void.md`). Before it lands, a Cloudflare Workers Builds
-  integration deploys every main merge bare and its builds fail once the
-  root wrangler.jsonc is gone; disconnect it when convenient. Merging
-  is irreversible: only on an explicit ask.
+- Every push to main auto-deploys through `.github/workflows/void-deploy.yml`
+  (see Gates). Merging is irreversible: only on an explicit ask.
 
 ## Worktrees and branches
 
@@ -60,9 +59,9 @@ Where a note conflicts with a poteto default, the note wins.
   worktree's dependencies; if it was skipped (an old branch, or a non-git creator),
   run `bun install` there.
 - Never `reset --hard` a worktree another lane owns; its uncommitted edits do not survive.
-- Branch names are `waveN/<layer>`. The preview URL convention
-  `<branch-slug>-koma.kvoon.workers.dev` is unverified since the void switch;
-  see `docs/void.md` before promising one.
+- Branch names are `waveN/<layer>`. PR previews are per-PR Workers at
+  `koma-pr-<number>.kvoon.workers.dev`, deployed and deleted by
+  `.github/workflows/preview.yml`; see `docs/void.md`.
 
 ## Exceptions to poteto defaults
 
