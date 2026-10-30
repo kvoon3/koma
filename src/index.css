@@ -453,6 +453,25 @@ html.dark {
 }
 
 /*
+ * Dock popover hand-over (components/DockMarks): the panel that takes over
+ * slides in from the trigger it left, both axes because the wrapped display
+ * stacks rows. The outgoing panel ends at once (`data-dock-hop-out`), so the
+ * two chips read as one panel travelling along the row rather than a
+ * crossfade between two anchors. Unlayered, so these beat Tailwind's
+ * transition utilities; the reduced-motion block below collapses the hop.
+ */
+@keyframes dock-hop {
+  from { translate: var(--dock-hop-x, 0px) var(--dock-hop-y, 0px); }
+}
+[data-dock-hop] {
+  animation: dock-hop var(--dur-fast) var(--ease-out);
+  transition: none;
+}
+[data-dock-hop-out] {
+  transition: none;
+}
+
+/*
  * Reduced motion, app-wide (single global block, per the animate skill:
  * "fewer and gentler", not zero). transition-property is narrowed instead of
  * zeroing durations, so opacity/color feedback (fades, hovers) still reads

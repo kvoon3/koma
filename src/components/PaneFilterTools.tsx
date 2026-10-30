@@ -4,12 +4,13 @@ import type { TKey } from '../lib/locales/zh-Hans'
 import { Popover } from '@base-ui/react/popover'
 import { Blend, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { getFilterSwatch, peekFilterSwatch } from '../lib/filterCache'
 import { defaultFilter, FILTER_IDS, FILTER_PARAMS, filterKey, resolveFilter } from '../lib/filters'
 import { useT } from '../lib/i18n'
 import { findLeaf } from '../lib/panes'
 import { activeWs, useStore } from '../store'
+import { useDockPopover } from './DockMarks'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
 import { AppSlider } from './ui/field'
 import { dockBtnStateCls, dockPopupMotionCls, menuSurfaceCls } from './ui/menu'
@@ -236,26 +237,34 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   const filter = useStore(s => focusedLeaf(s)?.filter)
   const photo = useStore(s => (photoId ? s.photos.find(p => p.id === photoId) ?? null : null))
   const setPaneFilter = useStore(s => s.setPaneFilter)
-  /**
-   * Openings counted, not mirrored. The popover is uncontrolled like the
-   * rotate dial's, so its open state dies with the subtree the hide gate
-   * unmounts. A stage press deselects mid-dispatch and no close event
-   * arrives (issue #76), so no popup-lifetime value may live above that
-   * gate. A bump always re-measures.
-   */
-  const [openCount, bumpOpenCount] = useState(0)
+  /** The gate that unmounts the trigger, stated once and handed to the hook. */
+  const enabled = !hidden && !!photoId && !!photo
+  // The open state lives in the dock's store below this gate (issue #76): a
+  // stage press can deselect mid-dispatch, so the claim is released by the
+  // trigger's own unmount and a remount cannot match it.
+  const dock = useDockPopover(enabled, 'filter')
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const viewport = useSyncExternalStore(subscribeViewport, viewportKey, () => '0x0')
+  const { triggerRef: dockTriggerRef } = dock
+
+  // The hook owns the trigger ref; this mirrors it for the bounds memo.
+  const setTrigger = useCallback((el: HTMLButtonElement | null) => {
+    triggerRef.current = el
+    dockTriggerRef(el)
+  }, [dockTriggerRef])
 
   /**
    * The dock is a bottom sheet overlaying the stage, so "above the trigger" is
    * not "above the dock": at a short window the palette's lower rows land under
    * the sheet's chrome. Anchor the popup above the sheet's top edge instead, and
-   * cap its height to the room over that edge. Measured at every opening, and
-   * again whenever the window resizes (the sheet only changes size when the
-   * dock's mode does, and that tap closes the popover first).
+   * cap its height to the room over that edge. Keyed on the open state, so a
+   * hover hand-over measures like a click, and again whenever the window
+   * resizes (the sheet only changes size when the dock's mode does, and that tap
+   * closes the popover first).
    */
   const bounds = useMemo(() => {
+    if (!dock.open)
+      return null
     const trigger = triggerRef.current
     if (!trigger)
       return null
@@ -269,10 +278,10 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
       offset: Math.max(6, Math.round(t.top - sheetTop) + 6),
       maxH: Math.max(180, Math.min(560, Math.round(sheetTop) - 16, room - 16)),
     }
-  }, [openCount, viewport])
+  }, [dock.open, viewport])
 
   // Same rule as the pane tools: no focused pane holding a photo, no tool.
-  if (hidden || !photoId || !photo)
+  if (!enabled)
     return null
 
   const spec = resolveFilter(filter)
@@ -285,13 +294,10 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
   }
 
   return (
-    <Popover.Root onOpenChange={(next) => {
-      if (next)
-        bumpOpenCount(n => n + 1)
-    }}
-    >
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
       <Popover.Trigger
-        ref={triggerRef}
+        ref={setTrigger}
+        {...dock.triggerProps}
         className={`${toolsBtnCls} ${dockBtnStateCls}`}
         title={t('Texture the photo')}
         aria-label={t('Texture the photo')}
@@ -323,7 +329,8 @@ export function PaneFilterTool({ hidden = false }: { hidden?: boolean }) {
            * the last row still sits above the sheet, never behind it. */}
           <Popover.Popup
             className={`${menuSurfaceCls} ${dockPopupMotionCls} flex w-[326px] flex-col p-2 text-txt`}
-            style={bounds ? { maxHeight: bounds.maxH } : undefined}
+            {...dock.popupProps}
+            style={{ maxHeight: bounds?.maxH, ...dock.popupProps.style }}
           >
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-[11px] font-semibold text-dim">{t('Texture')}</span>

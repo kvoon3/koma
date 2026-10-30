@@ -18,6 +18,7 @@ import { LABEL_ICON_EM, LABEL_ICON_GAP_EM, LABEL_ICONS, labelIconNode } from '..
 import { DEFAULT_LABEL_THEME, LABEL_THEME_IDS, labelAlign, labelBgAlpha, labelPaint, labelTextShadow, normalizeLabelText, rotationCss, rotationOf, snapRotation } from '../lib/panes'
 import { scrollFadeStyle, useScrollFade } from '../lib/useScrollFade'
 import { useStore } from '../store'
+import { useDockPopover } from './DockMarks'
 import { toolsBtnCls, toolsLabelCls } from './ToolsDock'
 import { dockBtnStateCls, dockPopupMotionCls } from './ui/menu'
 
@@ -851,12 +852,12 @@ type DockTool = 'font' | 'theme' | 'fg' | 'bg' | 'alpha' | 'icon' | 'align'
 /**
  * One dock tool that opens its control in a small popover just above it. The
  * trigger is the dock's own tool button (`toolsBtnCls`): icon plus the caption
- * the display mode shows, exactly like the tools it stands in for.
+ * the display mode shows, exactly like the tools it stands in for. The open
+ * state is the dock's (components/DockMarks), so a label popover hands over and
+ * retains like every other dock popover.
  */
-function DockPopover({ id, openTool, setOpenTool, label, caption, trigger, children }: {
+function DockPopover({ id, label, caption, trigger, children }: {
   id: DockTool
-  openTool: DockTool | null
-  setOpenTool: (tool: DockTool | null) => void
   /** Title: the full name of the control. */
   label: string
   /** Caption: the short name the dock row shows under the icon. */
@@ -864,18 +865,22 @@ function DockPopover({ id, openTool, setOpenTool, label, caption, trigger, child
   trigger: React.ReactNode
   children: React.ReactNode
 }) {
+  const dock = useDockPopover(true, `label-${id}`)
   return (
-    <Popover.Root
-      open={openTool === id}
-      onOpenChange={open => setOpenTool(open ? id : (openTool === id ? null : openTool))}
-    >
-      <Popover.Trigger className={dockToolCls} title={label} aria-label={caption}>
+    <Popover.Root open={dock.open} onOpenChange={dock.onOpenChange} {...dock.rootProps}>
+      <Popover.Trigger
+        ref={dock.triggerRef}
+        {...dock.triggerProps}
+        className={dockToolCls}
+        title={label}
+        aria-label={caption}
+      >
         {trigger}
         <span className={toolsLabelCls}>{caption}</span>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[260] select-none outline-0">
-          <Popover.Popup className={`${dockPopupCls} ${dockPopupMotionCls}`} data-label-popover={id}>
+          <Popover.Popup className={`${dockPopupCls} ${dockPopupMotionCls}`} {...dock.popupProps} data-label-popover={id}>
             {children}
           </Popover.Popup>
         </Popover.Positioner>
@@ -936,14 +941,12 @@ function SwatchGrid({ value, label, onChange }: { value: string, label: string, 
 export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocation }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void, onInsertLocation?: () => void }) {
   const iconFadeRef = useScrollFade<HTMLDivElement>()
   const t = useT()
-  const [openTool, setOpenTool] = useState<DockTool | null>(null)
   const opacityPct = Math.round(labelBgAlpha(lab) * 100)
   const paint = labelPaint(lab)
   const icon = labelIconNode(lab.icon)
-  const pop = { openTool, setOpenTool }
   return (
     <div className="contents" data-label-dock="">
-      <DockPopover id="font" {...pop} label={t('Label font')} caption={t('Font')} trigger={<MorphIcon icon={TypeIcon} size={22} strokeWidth={1.5} />}>
+      <DockPopover id="font" label={t('Label font')} caption={t('Font')} trigger={<MorphIcon icon={TypeIcon} size={22} strokeWidth={1.5} />}>
         <div className="-mx-2 -my-2 max-h-[min(30dvh,240px)] w-[200px] overflow-y-auto py-1">
           {FONT_CATS.map((cat) => {
             const items = LABEL_FONT_ITEMS.filter(i => i.cat === cat.id)
@@ -971,7 +974,6 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
       </DockPopover>
       <DockPopover
         id="theme"
-        {...pop}
         label={t('Label theme')}
         caption={t('Theme')}
         trigger={<MorphIcon icon={lab.glow ? Sparkles : THEME_ICON[lab.theme ?? DEFAULT_LABEL_THEME] ?? Contrast} size={22} strokeWidth={1.5} />}
@@ -999,7 +1001,6 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
       </DockPopover>
       <DockPopover
         id="align"
-        {...pop}
         label={t('Label alignment')}
         caption={t('Align')}
         trigger={<MorphIcon icon={ALIGN_ICON[labelAlign(lab)]} size={22} strokeWidth={1.5} />}
@@ -1013,13 +1014,13 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
           iconSize={18}
         />
       </DockPopover>
-      <DockPopover id="fg" {...pop} label={t('Text color')} caption={t('Text color')} trigger={<ColorGlyph icon={Baseline} color={paint.fg} />}>
+      <DockPopover id="fg" label={t('Text color')} caption={t('Text color')} trigger={<ColorGlyph icon={Baseline} color={paint.fg} />}>
         <SwatchGrid value={paint.fg} label={t('Text color')} onChange={fg => setLabel(labelId, { fg })} />
       </DockPopover>
-      <DockPopover id="bg" {...pop} label={t('Background color')} caption={t('Background')} trigger={<ColorGlyph icon={PaintBucket} color={paint.bg} />}>
+      <DockPopover id="bg" label={t('Background color')} caption={t('Background')} trigger={<ColorGlyph icon={PaintBucket} color={paint.bg} />}>
         <SwatchGrid value={paint.bg} label={t('Background color')} onChange={bg => setLabel(labelId, { bg })} />
       </DockPopover>
-      <DockPopover id="alpha" {...pop} label={t('Background opacity')} caption={t('Opacity')} trigger={<MorphIcon icon={Blend} size={22} strokeWidth={1.5} />}>
+      <DockPopover id="alpha" label={t('Background opacity')} caption={t('Opacity')} trigger={<MorphIcon icon={Blend} size={22} strokeWidth={1.5} />}>
         <div className="w-[min(260px,calc(100vw-40px))]">
           <RangeField
             label={t('Background opacity')}
@@ -1034,7 +1035,6 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
       </DockPopover>
       <DockPopover
         id="icon"
-        {...pop}
         label={t('Label icon')}
         caption={t('Icon')}
         trigger={icon ? <LabelIconGlyph node={icon} size="22" /> : <MorphIcon icon={Smile} size={22} strokeWidth={1.5} />}

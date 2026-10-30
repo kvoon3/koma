@@ -6,7 +6,7 @@
  * `Dialog.Close`, an `<a>` styled as a chip).
  */
 
-export type Variant = 'flat' | 'on' | 'strong' | 'close' | 'danger' | 'float' | 'ghost'
+export type Variant = 'flat' | 'bar' | 'on' | 'strong' | 'close' | 'danger' | 'float' | 'ghost'
 
 /**
  * Border width and padding sit in the variants, not here: same-property
@@ -16,7 +16,7 @@ export type Variant = 'flat' | 'on' | 'strong' | 'close' | 'danger' | 'float' | 
 export const buttonBase = [
   'inline-flex cursor-pointer items-center gap-[5px] whitespace-nowrap rounded-none',
   'text-[11.5px] text-dim',
-  'hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt',
+  'hover:not-disabled:text-txt',
   'transition-[background-color,border-color,color,scale] duration-(--dur-fast)',
   'active:scale-[0.97]',
   'focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-1',
@@ -32,29 +32,39 @@ export const buttonVariants: Record<Variant, string> = {
    * after `bg-accent` / `bg-chip-strong` in the output and would silently win
    * the background for the filled variants.
    */
-  flat: `bg-transparent ${textBox}`,
-  /** Selected chip. `chipOn` is a #f5f5f5 tint on a #ffffff panel, invisible in light; the accent fill reads in both themes. */
-  on: `${textBox} bg-accent text-on-accent hover:not-disabled:bg-accent hover:not-disabled:text-on-accent`,
-  strong: `${textBox} bg-chip-strong text-txt hover:not-disabled:bg-accent hover:not-disabled:text-on-accent`,
-  close: 'h-[26px] w-[26px] justify-center border-0 p-0 text-faint hover:not-disabled:text-txt',
+  flat: `bg-transparent ${textBox} hover:not-disabled:bg-chip-hover`,
+  /**
+   * The top bar's chip: no fill of its own, because the bar's shared glide box
+   * (components/TopBar) paints the hover surface under whichever chip the
+   * pointer marks. Hover keeps only the text shift, as in the dock's row.
+   */
+  bar: `bg-transparent ${textBox}`,
+  /**
+   * Selected chip. `chipOn` is a #f5f5f5 tint on a #ffffff panel, invisible in
+   * light; the accent fill reads in both themes. Hover drops to the chip tint
+   * (the base used to supply it; the bar's chips now opt out instead).
+   */
+  on: `${textBox} bg-accent text-on-accent hover:not-disabled:bg-chip-hover`,
+  /** A filled chip; hover drops it to the same chip tint the flat palette uses. */
+  strong: `${textBox} bg-chip-strong text-txt hover:not-disabled:bg-chip-hover`,
+  close: 'h-[26px] w-[26px] justify-center border-0 p-0 text-faint hover:not-disabled:text-txt hover:not-disabled:bg-chip-hover',
   /** A destructive action: danger red filled with white text, for the delete buttons in detail panels and toolbars. */
   danger: `${textBox} bg-danger text-on-danger hover:not-disabled:bg-danger hover:not-disabled:text-on-danger`,
   /**
    * The floating-chip idiom of the board's caption row; ViewZoomChip keeps
    * its own component because its chip also carries text and a min width.
    */
-  float: 'h-[30px] w-[30px] justify-center border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] pointer-coarse:h-[38px] pointer-coarse:w-[38px]',
+  float: 'h-[30px] w-[30px] justify-center border border-float-line bg-float-bg p-0 text-float-icon backdrop-blur-[7px] pointer-coarse:h-[38px] pointer-coarse:w-[38px] hover:not-disabled:bg-chip-hover',
   /** The float chip's ghost, worn by the float row's chrome (FloatActions): no background, no border, chip-hover on hover, so the row sits quiet over the stage. */
-  ghost: 'h-[30px] w-[30px] justify-center border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[38px] pointer-coarse:w-[38px]',
+  ghost: 'h-[30px] w-[30px] justify-center border-0 bg-transparent p-0 text-float-icon pointer-coarse:h-[38px] pointer-coarse:w-[38px] hover:not-disabled:bg-chip-hover',
 }
 
 /**
  * A dialog footer button (ConfirmDialog, WeChatGuard): the metrics every
  * dialog in the app shares, with the palette left to the caller. A danger
- * confirm must stay red on hover, and `buttonBase`'s
- * `hover:not-disabled:bg-chip-hover` outranks a plain override, which is why
- * these are written out rather than derived from it; a dialog button is also
- * a size up from a chip button.
+ * confirm must stay red on hover, so the palettes are spelled out rather than
+ * derived from a chip variant; a dialog button is also a size up from a chip
+ * button.
  */
 export const dialogButton = [
   'inline-flex cursor-pointer items-center rounded-none border',

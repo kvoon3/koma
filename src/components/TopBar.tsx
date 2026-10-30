@@ -1,4 +1,5 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+import type { DockBox } from '../lib/dockHighlight'
 import type { Lang } from '../lib/i18n'
 import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
@@ -7,10 +8,14 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useMediaQuery } from '../hooks'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
+import { boxIn } from '../lib/dockBox'
+import { glideDelta, isStill } from '../lib/dockHighlight'
 import { clearFilterCaches } from '../lib/filterCache'
 import { isTKey, setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
+import { EASE_OUT_CSS } from '../lib/motionTokens'
 import { leafList } from '../lib/panes'
 import { isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
@@ -27,7 +32,135 @@ import { buttonBase, buttonVariants } from './ui/buttonStyles'
 import { Spinner } from './ui/spinner'
 import { Tip } from './ui/tip'
 
-const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:gap-0 max-sm:px-2.5 hover:not-disabled:bg-chip-hover hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent data-popup-open:bg-chip-hover data-popup-open:text-txt'
+const triggerCls = 'inline-flex cursor-pointer items-center gap-1 rounded-none border-0 bg-transparent px-2.5 text-[11.5px] text-dim transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:px-3 pointer-coarse:text-xs max-sm:gap-0 max-sm:px-2.5 hover:not-disabled:text-txt focus-visible:outline-1 focus-visible:outline-accent aria-expanded:bg-chip-hover aria-expanded:text-txt'
+
+/** The pitch a pointer-to-pointer glide covers; the dock row's GLIDE_S. */
+const BAR_GLIDE_S = 0.12
+
+function rectOf(el: Element): DockBox {
+  const r = el.getBoundingClientRect()
+  return { left: r.left, top: r.top, width: r.width, height: r.height }
+}
+
+/** The chip a pointer event started on, if it is one of the bar's own. */
+function chipOf(target: EventTarget | null): HTMLElement | null {
+  return target instanceof Element ? target.closest<HTMLElement>('[data-bar-chip]') : null
+}
+
+/**
+ * The bar's shared hover fill, the dock row's idiom (components/DockMarks): one
+ * `bg-chip-hover` box glides under the chip the pointer marks, so the bar lights
+ * as one surface instead of every chip tinting itself. The box is placed in the
+ * header's content box, glides from its own painted rect, and snaps its size, so
+ * a label change cannot smear it. The open menu's trigger keeps its own fill on
+ * top, exactly as the dock's open tool does.
+ *
+ * Listeners are pointer handlers on the bar (components/TopBar); while a menu's
+ * modal backdrop covers the bar, the window pointer hit-test below drives the
+ * same placement, because that backdrop swallows `pointerover`.
+ */
+function useBarHighlight() {
+  const barRef = useRef<HTMLElement | null>(null)
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const markRef = useRef<HTMLElement | null>(null)
+  const shownRef = useRef(false)
+  const animRef = useRef<Animation | null>(null)
+  const observeRef = useRef<ResizeObserver | null>(null)
+  const reduce = useMediaQuery('(prefers-reduced-motion: reduce)')
+
+  const clear = useCallback(() => {
+    markRef.current = null
+    shownRef.current = false
+    animRef.current?.cancel()
+    animRef.current = null
+    observeRef.current?.disconnect()
+    const box = boxRef.current
+    if (!box)
+      return
+    box.style.transform = ''
+    box.style.opacity = '0'
+  }, [])
+
+  const place = useCallback((el: HTMLElement, mode: 'instant' | 'glide' = 'glide') => {
+    const box = boxRef.current
+    const bar = barRef.current
+    if (!box || !bar)
+      return
+    if (!el.isConnected || el.getClientRects().length === 0 || (el as HTMLButtonElement).disabled) {
+      clear()
+      return
+    }
+    const { x, y } = boxIn(bar, el)
+    const width = el.offsetWidth
+    const height = el.offsetHeight
+    if (width < 1 || height < 1) {
+      clear()
+      return
+    }
+    const origin = bar.getBoundingClientRect()
+    const target: DockBox = { left: origin.left + x, top: origin.top + y, width, height }
+    const painted = rectOf(box)
+    const wasShown = shownRef.current
+    animRef.current?.cancel()
+    animRef.current = null
+    markRef.current = el
+    // A label or display change resizes the chip under a still pointer; watch
+    // the marked chip itself so the box follows without waiting for a move.
+    observeRef.current?.disconnect()
+    observeRef.current?.observe(el)
+    box.style.left = `${x}px`
+    box.style.top = `${y}px`
+    box.style.width = `${width}px`
+    box.style.height = `${height}px`
+    box.style.opacity = '1'
+    shownRef.current = true
+    if (!wasShown || mode === 'instant' || reduce) {
+      box.style.transform = ''
+      return
+    }
+    if (isStill(painted, target)) {
+      box.style.transform = ''
+      return
+    }
+    const delta = glideDelta(painted, target)
+    animRef.current = box.animate(
+      [{ transform: `translate(${delta.x}px, ${delta.y}px)` }, { transform: 'translate(0px, 0px)' }],
+      { duration: BAR_GLIDE_S * 1000, easing: EASE_OUT_CSS, fill: 'none' },
+    )
+  }, [clear, reduce])
+
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      const el = markRef.current
+      const box = boxRef.current
+      // Observation reports the current size once on every mark; only a real
+      // change may re-place, or that first report would cancel the glide.
+      if (!el || !box || (el.offsetWidth === box.offsetWidth && el.offsetHeight === box.offsetHeight))
+        return
+      place(el, 'instant')
+    })
+    observeRef.current = observer
+    return () => {
+      observer.disconnect()
+      observeRef.current = null
+      animRef.current?.cancel()
+    }
+  }, [place])
+
+  // A viewport change moves the chips without resizing the marked one (a
+  // breakpoint hides a label elsewhere); re-place under the new layout.
+  useEffect(() => {
+    const onResize = () => {
+      const el = markRef.current
+      if (el)
+        place(el, 'instant')
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [place])
+
+  return { barRef, boxRef, place, clear }
+}
 
 const itemCls = 'flex w-full cursor-pointer items-center gap-2 whitespace-nowrap rounded-none border-0 bg-transparent px-2.5 py-1.5 text-xs text-txt outline-0 data-highlighted:bg-chip-hover active:bg-chip-on active:text-chip-on-txt data-disabled:cursor-default data-disabled:opacity-35'
 
@@ -54,7 +187,7 @@ function CatMenu({ label, icon, hop, open, onOpenChange, onTriggerEnter, childre
       <Tip
         label={label}
         trigger={(
-          <Menu.Trigger className={triggerCls} aria-label={label} onMouseEnter={onTriggerEnter}>
+          <Menu.Trigger className={triggerCls} aria-label={label} data-bar-chip="" onMouseEnter={onTriggerEnter}>
             <MorphIcon icon={icon} size={15} strokeWidth={1.75} className="hidden max-sm:inline-flex" />
             <span className="max-sm:hidden">{label}</span>
             <MorphIcon icon={ChevronDown} size={12} strokeWidth={1.75} className="max-sm:hidden" />
@@ -92,9 +225,10 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
         label={t('Language')}
         trigger={(
           <Menu.Trigger
-            className={`${buttonBase} ${buttonVariants.flat} data-popup-open:bg-chip-hover data-popup-open:text-txt`}
+            className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt`}
             aria-label={t('Language')}
             data-bar-trigger="lang"
+            data-bar-chip=""
             onMouseEnter={onTriggerEnter}
           >
             <MorphIcon icon={Languages} size={15} strokeWidth={1.75} />
@@ -157,12 +291,14 @@ function TopBarActions({
         label={grid ? t('Export every non-empty workspace · ⌘E') : t('Export image · ⌘E')}
         trigger={(
           <Button
+            variant="bar"
             onClick={onExport}
             icon={Download}
             iconSize={15}
             loading={busy}
             disabled={busy || (grid ? !anyFilled : !filled)}
             aria-label={t('Export image')}
+            data-bar-chip=""
           >
             <span className="pointer-coarse:hidden max-sm:hidden">{busy ? t('Rendering') : t('Export')}</span>
           </Button>
@@ -173,8 +309,10 @@ function TopBarActions({
         label={dark ? t('Switch to light theme') : t('Switch to dark theme')}
         trigger={(
           <Button
+            variant="bar"
             onClick={toggleDark}
             aria-label={dark ? t('Switch to light theme') : t('Switch to dark theme')}
+            data-bar-chip=""
           >
             <MorphIcon icon={dark ? Sun : Moon} size={15} strokeWidth={1.75} />
           </Button>
@@ -383,6 +521,7 @@ export function TopBar({
   const [hop, setHop] = useState(0)
   /** The header dropdown holding the open panel; the settings panel keeps its own state. */
   const [openMenu, setOpenMenu] = useState<HeaderMenuId | null>(null)
+  const bar = useBarHighlight()
 
   // The panel can be opened without a pointer on the bar (the `,` shortcut,
   // the canvas menu), so a menu left open gives way to it here, at render
@@ -438,20 +577,24 @@ export function TopBar({
    * menubar's own element is its only cutout), so the pointer reaching the
    * settings and language triggers never fires their mouseenter and the panel
    * could not be picked up from a menu. While any dropdown is open, watch the
-   * window's pointer instead and hit-test the triggers marked `data-bar-trigger`
-   * through that backdrop, so the hand-over runs in both directions.
+   * window's pointer instead and hit-test the chips marked `data-bar-chip`
+   * through that backdrop, so the hand-over and the shared fill both run in
+   * both directions.
    */
   // The handler only has to *use* the latest hand-over; re-subscribing the
   // window listener whenever `handOver` changes identity (it closes over the
   // open menu) buys nothing.
   const onBarPointerMove = useEffectEvent((e: globalThis.MouseEvent) => {
-    for (const el of document.querySelectorAll<HTMLElement>('[data-bar-trigger]')) {
+    for (const el of document.querySelectorAll<HTMLElement>('[data-bar-chip]')) {
       const r = el.getBoundingClientRect()
       if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-        handOver(el.dataset.barTrigger as HeaderMenuId | 'settings')
+        if (el.dataset.barTrigger)
+          handOver(el.dataset.barTrigger as HeaderMenuId | 'settings')
+        bar.place(el)
         return
       }
     }
+    bar.clear()
   })
 
   useEffect(() => {
@@ -532,7 +675,43 @@ export function TopBar({
   }
 
   return (
-    <header className="app-titlebar relative z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar">
+    <header
+      ref={bar.barRef}
+      onPointerOver={(e) => {
+        // Touch fires a synthetic hover before its tap; the tap itself paints.
+        if (e.pointerType !== 'mouse')
+          return
+        const el = chipOf(e.target)
+        if (el)
+          bar.place(el)
+        else
+          bar.clear()
+      }}
+      onPointerDown={(e) => {
+        const el = chipOf(e.target)
+        if (el)
+          bar.place(el, 'instant')
+      }}
+      onPointerUp={(e) => {
+        // A tap's fill has no hover to fall back on; a mouse keeps its mark.
+        if (e.pointerType !== 'mouse')
+          bar.clear()
+      }}
+      onPointerLeave={bar.clear}
+      className="app-titlebar relative isolate z-40 flex h-[var(--statusH)] flex-none items-stretch border-b border-line bg-statusbar"
+    >
+      {/*
+        The hover fill: one chip-hover box under every bar chip, a sibling of
+        their layout so it never shifts the row. A negative z-index inside the
+        header's stacking context paints it above the bar surface and below the
+        labels.
+      */}
+      <div
+        ref={bar.boxRef}
+        aria-hidden="true"
+        data-bar-highlight=""
+        className="pointer-events-none absolute top-0 left-0 z-[-1] rounded-none bg-chip-hover opacity-0 transition-opacity duration-(--dur-fast) ease-(--ease-out)"
+      />
       <Wordmark />
       {/* The menubar is what makes a click-opened menu hand over to the next
           trigger on hover: the panel follows the open trigger. */}

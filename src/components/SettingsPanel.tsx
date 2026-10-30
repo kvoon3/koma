@@ -35,7 +35,7 @@ export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: bo
           <Popover.Trigger
             onMouseEnter={onTriggerEnter}
             render={(
-              <Button variant={open ? 'on' : 'flat'} aria-label={t('Settings · Shortcut: ,')} data-bar-trigger="settings">
+              <Button variant={open ? 'on' : 'bar'} aria-label={t('Settings · Shortcut: ,')} data-bar-trigger="settings" data-bar-chip="">
                 <MorphIcon icon={Settings} size={15} strokeWidth={1.75} />
                 <span className="pointer-coarse:hidden max-sm:hidden">{t('Settings')}</span>
               </Button>

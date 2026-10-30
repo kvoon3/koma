@@ -466,6 +466,51 @@ reached the panel's trigger; `TopBar` therefore watches the window's pointer
 and hit-tests the triggers marked `data-bar-trigger` through that backdrop, so
 the hand-over runs in both directions.
 
+The tools dock's hover chrome is one shared box, not a per-button tint: a single
+square in the row's chip color glides under the tool the pointer marks (a press
+wins over a hover), and the marked button keeps only its text color, so the fill
+crosses the row as one surface instead of two buttons tinting at once. The open
+tool's own chip-on fill and bottom accent stay on the trigger, above the box, so
+a panel and the hover mark can point at different tools. The box is a sibling of
+the portalled tool container inside the scrolling row, so it inherits the row's
+scroll, clip and fade mask and stays invisible to the dock's measure, FLIP, band,
+reorder and swap walks. It is placed in content coordinates, glides with a raw
+WAAPI transform from its own painted rect, and a display commit snaps its size
+while its position glides with the button FLIP. A touch press paints the box
+under the finger (there is no hover to mark), a cancelled pan clears it, and the
+box never follows a horizontal swipe, because the native row scroll owns that
+gesture.
+
+The top bar wears the same box. Its flat chips (the category menus, settings,
+export, language and theme) drop their per-chip hover tint for the text shift,
+and one chip-hover square glides between them from its painted rect; the open
+menu's trigger keeps its own fill above the box, as the dock's open tool does.
+The bar is one row, so there is no row-band gate, and its existing window
+pointer hit-test (the one the open menu's modal backdrop already needs) drives
+the box through that backdrop. A resize or a chip that changes size under a
+still pointer re-places the box without a glide.
+
+The dock's popovers hand over like the top bar's menus, with retention: a click
+opens a tool's panel and moving off the dock leaves it open, while a mouse
+crossing another popover trigger in the same row hands the panel over without a
+second click. Hover alone never opens anything; only mouse pointers hand over,
+because a touch's synthetic hover would let its own tap close the panel it just
+opened; and in the wrapped display only a trigger in the same row band may take
+the panel, which sits over the rows above its trigger. The incoming panel slides
+in from the trigger it left over `--dur-fast` on both axes and the outgoing one
+ends at once; a hover open takes no focus, while a press open keeps Base UI's
+focus move. Each popover's open claim is its own trigger element and is released
+when the trigger unmounts or its hide gate shuts, so a deselected pane can never
+resurrect a panel (issue #76).
+
+Opening or closing a dock popover parks fixed 1×1 focus guards beside its
+trigger, a mutation the tool-list observer used to answer with a full measure
+pass, whose forced restyle clamped the row's scroll and slid the anchor out from
+under the panel. A batch made only of those guards now skips the pass (no swap,
+no snapshot, no measure); any other child, attribute or character change still
+takes it, so hand-over crosses triggers without moving the row and route swaps
+still ghost and slide.
+
 The 3×3 overview draws every workspace as a square mini canvas: a filled cell
 cover-fits its collage (photos, stickers and labels, all placed through the
 same `stickerRect()`/label math as the editor) into the cell, an empty one wears
