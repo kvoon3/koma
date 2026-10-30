@@ -8,17 +8,24 @@ handlers, and `env.ts` declares the server values. There is no root
 
 ## Deploy
 
-The auto path is quarantined. `.github/workflows/void-deploy.yml` (void's
-Actions template) ran once on 2026-10-27 and its trigger synchronization
-failed; the recovery left an empty, binding-less version active, which
-wiped both worker secrets and broke the routes until a local deploy
-repaired them (see Gotchas). void's upload patch also sets `keep_vars`
-but never `keep_secrets` (deploy-hRPvw8ci.mjs in its dist), so treat every
-CI-shaped deploy as secret-hostile until void fixes this. Keep the
-workflow disabled and deploy by hand:
+`.github/workflows/void-deploy.yml` runs on every push to main (and on
+demand): it builds the void shape with `bun run build:void`, then runs
+`wrangler deploy --config dist/ssr/wrangler.json`. That generated config is
+the deployable artifact: the Worker entry (`main`), the `ASSETS` binding, the
+`koma` name, the account and the `koma.kvoon.me` route. Wrangler consumes
+`CLOUDFLARE_API_TOKEN` directly and deploys with `keepSecrets: true`, so a CI
+deploy inherits the Worker's `JEV_API_URL` / `JEV_API_KEY` secrets.
 
-`bun run deploy` is the manual path. It is `void deploy`, which runs the
-build step named in `inference.build` (the repo's `bun run build:void`,
+The workflow deliberately does not call `void deploy`. void 1.3.0's
+version-aware uploader borrows its bearer from wrangler's `auth.token`, and on
+a headless GitHub runner that borrow returns nothing, so the upload fails with
+`Cloudflare session has no bearer for version-aware upload`
+(voidzero-dev/void#627). An earlier CI-shaped void deploy also lost the Worker
+secrets during its trigger-sync recovery; see Gotchas.
+
+`bun run deploy` is the manual path for a logged-in machine. It is
+`void deploy`, which runs the same build step named in `inference.build`
+(the repo's `bun run build:void`,
 typecheck included, whose output lands in `dist/client` + `dist/ssr`),
 uploads the worker with the `routes/` handlers, and activates it on
 `koma.kvoon.me`. The plain
@@ -34,10 +41,9 @@ mygo desktop shell and `scripts/jev-e2e.mjs` consume that layout; only the
   traffic is unchanged.
 - Manual path: the `bun run deploy` output in your terminal.
 - Source of truth for what is live: Cloudflare dashboard → Workers & Pages →
-  koma → Deployments (version list, live percentage, `void:{...}` metadata).
-  The dashboard's Builds section is gone with the disconnected integration.
-  CLI equivalents: `npx wrangler deployments list --config
-  .void-wrangler.jsonc`, `bunx void project status`.
+  koma → Deployments (version list and live percentage; CI deploys carry no
+  `void:{...}` metadata). CLI equivalents: `npx wrangler deployments list
+  --name koma`, `bunx void project status`.
 - Whichever path ran, finish with the four probes below; a green banner is
   not evidence.
 
@@ -103,9 +109,12 @@ printf 'y\n' | script -q /dev/null bunx void project rollback <deployId> --platf
 ```
 
 The `printf` answers the confirmation prompt; the CLI refuses to run it
-without a terminal. There is no wrangler fallback for the native shape: the
-generated `.void-wrangler.jsonc` carries no `main` or `assets`, and no
-wrangler-deployable worker entry exists outside void's build. If `void` itself
+without a terminal. CI deploys are wrangler deploys and carry no `void:{...}`
+metadata, so `void project status` lists them without attribution:
+`npx wrangler deployments list --name koma` reads them, and
+`npx wrangler rollback <version-id> --config dist/ssr/wrangler.json` rolls one
+back. Only the generated `dist/ssr/wrangler.json` is wrangler-deployable; the
+root `.void-wrangler.jsonc` carries no `main` or `assets`. If `void` itself
 is broken, check out a pre-void tree from git history (any commit before
 `build(void): adopt the void config and CLI`) and run its own
 `bun run build && wrangler deploy`; that pipeline is self-contained and
