@@ -5,11 +5,8 @@ import { animate, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { lockedAxis, PAGER_SLOP, releaseCapture } from '../../lib/gestureAxis'
-import { PAGE_JUMP_MS, pageAtX, pageFalloff, pageJumpOffset, pageOffset, pageRelease, pageRestOffset, pageStep, pageTargetIndex } from '../../lib/groupPage'
+import { PAGE_JUMP_MS, PAGE_SPRING, pageAtX, pageFalloff, pageJumpOffset, pageOffset, pageRelease, pageRestOffset, pageStep, pageTargetIndex } from '../../lib/groupPage'
 import { EASE_OUT } from '../../lib/motionTokens'
-
-/** Release spring: quick and near-critical, so a flick lands without a bounce. */
-const PAGE_SPRING = { type: 'spring', stiffness: 380, damping: 40, mass: 1 } as const
 
 export interface PagePager {
   surfaceRef: RefObject<HTMLDivElement | null>

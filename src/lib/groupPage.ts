@@ -39,6 +39,9 @@ export interface PageLayout {
 /** The dot jump's duration per page, in ms. */
 export const PAGE_JUMP_MS = 200
 
+/** Release spring: quick and near-critical, so a flick lands without a bounce. */
+export const PAGE_SPRING = { type: 'spring', stiffness: 380, damping: 40, mass: 1 } as const
+
 /** A card's dot growth at rest, and the active pill's width. */
 const DOT_SIZE = 6
 const DOT_ACTIVE = 18

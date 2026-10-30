@@ -2,6 +2,7 @@ import type { CollisionDetection } from '@dnd-kit/core'
 import type { CardKind } from '../lib/cards'
 import type { Photo } from '../lib/imageStore'
 import type { Node } from '../lib/panes'
+import type { Workspace } from '../store'
 import { Menu } from '@base-ui/react/menu'
 import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, pointerWithin, useDroppable } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
@@ -9,13 +10,14 @@ import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
 import { Camera, Image, LayoutGrid, Square, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useDockRestBand, useElementSize, useMediaQuery, useStageZoom } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
 import { viewTransform } from '../lib/canvasView'
 import { dockBand } from '../lib/dockMetrics'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { cellRatioValue, gridCellBox } from '../lib/gridTools'
+import { pageTravel } from '../lib/groupPage'
 import { useT } from '../lib/i18n'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
 import { leafList } from '../lib/panes'
@@ -29,7 +31,7 @@ import { CAPTION_GAP, CAPTION_H, STAGE_PAD_Y, stageTopPad } from './grid/boardLa
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
 import { useGridKeyboard } from './grid/useGridKeyboard'
 import { DELETE_ZONE_ID, useGridReorder } from './grid/useGridReorder'
-import { usePullDown } from './grid/usePullDown'
+import { useStageGestures } from './grid/useStageGestures'
 import { useGroupsNav } from './groups/useGroupsNav'
 import { DockToolset } from './Stage'
 import { ToolsDock } from './ToolsDock'
@@ -91,9 +93,12 @@ const deleteFirst: CollisionDetection = (args) => {
  * pointer as an overlay while the rest make room live), arrows/hjkl/Tab
  * + Enter to navigate by keyboard. Pure navigation view, no photo tools.
  *
- * The board groups live on the groups page (`/groups`): the Workspace chip or
- * a pull down on the board opens it, and a page card's cell names morph from
- * the same `ws-<id>` names this overview wears.
+ * The board groups swipe in place: dragging the board sideways slides the
+ * neighbouring group's board in from the screen edge and a release past half
+ * (or a flick) opens it (`grid/useStageGestures` owns the gesture). The
+ * groups page (`/groups`) is reached through the Workspace capsule, a pull
+ * down, or a long press on blank stage; a tile's cell names morph from the
+ * same `ws-<id>` names this overview wears.
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
@@ -104,6 +109,10 @@ export function WorkspaceGrid() {
   const gridCellRatio = useStore(s => s.gridCellRatio)
   const moveWorkspace = useStore(s => s.moveWorkspace)
   const storedMode = useStore(s => s.toolsDockMode)
+  const grids = useStore(s => s.grids)
+  const activeGridId = useStore(s => s.activeGridId)
+  const parkedBoards = useStore(s => s.parkedBoards)
+  const switchGrid = useStore(s => s.switchGrid)
   const navigate = useNavigate()
   const t = useT()
   const { exportGridCells, busy } = useAppCommands()
@@ -136,10 +145,43 @@ export function WorkspaceGrid() {
   }
   const { cell, box } = stageCellBox(body, gridGap, cellRatioValue(gridCellRatio))
   const boardW = cell * 3 + gridGap * 2
+  // The 3×3's row count: every cell is the same box, and the + cell counts as
+  // one more slot until the board is full. Fewer rows lift the board (the
+  // column is centred), so the pager's measured base follows it.
+  const boardRows = Math.max(1, Math.ceil((workspaces.length + (workspaces.length < MAX_WORKSPACES ? 1 : 0)) / 3))
   // The board column is the canvas here: the view zoom (from the stage margin)
   // scales it about its centre, and the wheel there never touches the cells.
+  // The pan of a pager drag lands on the board itself, inside that scale.
+  const stageRef = useRef<HTMLDivElement | null>(null)
   const columnRef = useRef<HTMLDivElement | null>(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
+  const trackRef = useRef<HTMLDivElement | null>(null)
   const viewZoom = useStageZoom(wrapRef, columnRef)
+
+  const activeIndex = Math.max(0, grids.findIndex(g => g.id === activeGridId))
+  const hasPrev = activeIndex > 0
+  const hasNext = activeIndex >= 0 && activeIndex < grids.length - 1
+  /** The cells of the group at `index` in the row (the live board included). */
+  const boardOf = useCallback((index: number) => {
+    const id = grids[index]?.id
+    if (!id)
+      return []
+    return id === activeGridId ? workspaces : parkedBoards[id]?.workspaces ?? []
+  }, [grids, activeGridId, workspaces, parkedBoards])
+
+  // ---- Group pager (swipe sideways to switch groups) -----------------------
+  // The board's screen box, measured the way the old board switcher measured
+  // its surface: the previews sit at it, one page off each side. A landing
+  // re-measures mid re-base, so the pan comes back out of the read.
+  const [boardBase, setBoardBase] = useState<{ x: number, y: number } | null>(null)
+  const boardScreenW = boardW * viewZoom.scale
+  // Half the stage's leftover width at the board's screen size. The neighbour
+  // rests one page off, flush with the far screen edge, so it enters from the
+  // edge, and the mask that fades it never reaches the resting board.
+  const sideAir = Math.max(0, (wrapSize.w - boardScreenW) / 2)
+  const travel = pageTravel(boardScreenW, sideAir)
+  const fade = Math.min(16, Math.max(8, sideAir - 4))
+  const mask = `linear-gradient(to right, transparent 0, black ${fade}px, black calc(100% - ${fade}px), transparent 100%)`
 
   // Enter a workspace: set activeId before navigating so the stage renders the
   // right workspace inside the same view-transition commit (the route wrapper
@@ -161,12 +203,30 @@ export function WorkspaceGrid() {
       enter(id)
   }
 
-  // ---- Pull-down (the overview's way into the groups page) -----------------
-  const pull = usePullDown({
+  // ---- Stage gestures (the pager, the pull-down, the long press) -----------
+  const gestures = useStageGestures({
     enabled: true,
-    onOpen: openGroups,
+    gridIds: grids.map(g => g.id),
+    activeIndex,
+    travel,
+    viewScale: viewZoom.scale,
+    boardRef,
+    trackRef,
+    onSwitch: switchGrid,
+    onOpenGroups: openGroups,
     isSuppressed: () => reorder.dragIdRef.current !== null,
   })
+  const { registerPreview, offset } = gestures
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current
+    const board = boardRef.current
+    if (!stage || !board)
+      return
+    const s = stage.getBoundingClientRect()
+    const b = board.getBoundingClientRect()
+    setBoardBase({ x: b.left - s.left - offset(), y: b.top - s.top })
+  }, [wrapSize.w, wrapSize.h, cell, box.h, gridGap, boardRows, viewZoom.scale, topPad, dockReserve, activeIndex, grids.length, offset])
 
   return (
     <div
@@ -176,18 +236,15 @@ export function WorkspaceGrid() {
       // it belongs to the board.
       onDoubleClick={viewZoom.onStageDoubleClick}
     >
-      {/* The board area: the stage's own air and everything the board column
-          draws, minus the top cluster (a phone's caption chips start below it)
-          and the dock (a sibling, so a pull on the sheet never lands here).
-          Pulled down it opens the groups page. */}
+      {/* The board area: every press here belongs to the stage gestures (a
+          swipe between groups, a pull down or a long press into the groups
+          page). The dock is a sibling, so a pull on the sheet never lands
+          here. */}
       <div
+        ref={stageRef}
         data-board-stage=""
-        className="relative flex min-h-0 flex-1 items-center justify-center"
-        style={{ paddingTop: topPad, paddingBottom: STAGE_PAD_Y + dockReserve }}
-        onPointerDown={pull.onPullDown}
-        onPointerMove={pull.onPullMove}
-        onPointerUp={pull.onPullEnd}
-        onPointerCancel={pull.onPullEnd}
+        className="relative min-h-0 flex-1"
+        {...gestures.stageProps}
       >
         <DndContext
           sensors={reorder.sensors}
@@ -198,73 +255,135 @@ export function WorkspaceGrid() {
           onDragCancel={reorder.onDragCancel}
         >
           <GridDeleteZone active={!!reorder.dragId} label={t('Drop here to delete')} />
-          <SortableContext items={reorder.ids} strategy={rectSortingStrategy}>
-            {/* The board's caption row (the workspace and snapshot chips,
-                centred: groups render nameless) and the grid below it, one
-                column of the board's width. The view zoom scales the column. */}
-            <div
-              ref={columnRef}
-              data-canvas-view={viewZoom.scale}
-              className="flex flex-col items-center"
-              style={{
-                width: boardW,
-                gap: CAPTION_GAP,
-                transform: viewTransform(viewZoom.scale) || undefined,
-              }}
-            >
-              <div className="flex items-center justify-center gap-1.5" style={{ width: boardW, height: CAPTION_H }}>
-                <Tip
-                  label={t('Workspace')}
-                  trigger={(
-                    <Button
-                      variant="float"
-                      icon={LayoutGrid}
-                      iconSize={15}
-                      aria-label={t('Workspace')}
-                      onClick={openGroups}
-                    />
-                  )}
-                />
-                <Tip
-                  label={t('Snapshot: each cell plus the whole grid')}
-                  trigger={(
-                    <Button
-                      variant="float"
-                      icon={Camera}
-                      iconSize={15}
-                      loading={snapBusy}
-                      disabled={!anyFilled || busy || snapBusy}
-                      aria-label={t('Snapshot: each cell plus the whole grid')}
-                      onClick={() => {
-                        setSnapBusy(true)
-                        void exportGridCells().finally(() => setSnapBusy(false))
-                      }}
-                    />
-                  )}
-                />
-              </div>
+          {/* The sliding row: the live column and the neighbour previews, one
+              masked plane. The mask fades only at the stage's edges and never
+              reaches the resting board, whose side air is wider. The delete
+              strip and the drag ghost stay outside it. */}
+          <div
+            data-stage-row=""
+            className="absolute inset-0 flex items-center justify-center"
+            style={{
+              paddingTop: topPad,
+              paddingBottom: STAGE_PAD_Y + dockReserve,
+              maskImage: mask,
+              WebkitMaskImage: mask,
+            }}
+          >
+            <SortableContext items={reorder.ids} strategy={rectSortingStrategy}>
+              {/* The board's caption row (the workspace capsule and the
+                  snapshot chip, centred: groups render nameless) and the grid
+                  below it, one column of the board's width. The view zoom
+                  scales the column; while a pager drag is live the column
+                  ignores the pointer, so no cell grabs the gesture. */}
               <div
-                data-board=""
-                className="grid grid-cols-3"
-                style={{ gap: gridGap, width: boardW }}
+                ref={columnRef}
+                data-canvas-view={viewZoom.scale}
+                className="flex flex-col items-center"
+                style={{
+                  width: boardW,
+                  gap: CAPTION_GAP,
+                  transform: viewTransform(viewZoom.scale) || undefined,
+                  pointerEvents: gestures.panning ? 'none' : undefined,
+                }}
               >
-                {workspaces.map((ws, i) => (
-                  <SortableCell
-                    key={ws.id}
-                    ws={ws}
-                    cell={cell}
-                    box={box}
-                    photoById={photoById}
-                    transparent={transparent}
-                    highlighted={hl === i}
-                    viewScale={viewZoom.scale}
-                    onEnter={enterAfterDrag}
+                <div className="flex items-center justify-center gap-1.5" style={{ width: boardW, height: CAPTION_H }}>
+                  <Tip
+                    label={t('Workspace')}
+                    trigger={(
+                      <button
+                        type="button"
+                        data-workspace-capsule=""
+                        className="inline-flex h-[30px] cursor-pointer items-center justify-center gap-1.5 rounded-full border border-float-line bg-float-bg px-2.5 text-[11px] font-semibold text-float-icon tabular-nums backdrop-blur-[7px] outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent active:scale-[0.97] pointer-coarse:h-[38px] pointer-coarse:px-3"
+                        aria-label={t('Workspace')}
+                        onClick={openGroups}
+                      >
+                        <MorphIcon icon={LayoutGrid} size={15} strokeWidth={1.75} />
+                        {/* The group position; a drag under way leans it to the
+                            group a release there would land on. */}
+                        {`${gestures.targetIndex + 1}/${grids.length}`}
+                      </button>
+                    )}
                   />
-                ))}
-                {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
+                  <Tip
+                    label={t('Snapshot: each cell plus the whole grid')}
+                    trigger={(
+                      <Button
+                        variant="float"
+                        icon={Camera}
+                        iconSize={15}
+                        loading={snapBusy}
+                        disabled={!anyFilled || busy || snapBusy}
+                        aria-label={t('Snapshot: each cell plus the whole grid')}
+                        onClick={() => {
+                          setSnapBusy(true)
+                          void exportGridCells().finally(() => setSnapBusy(false))
+                        }}
+                      />
+                    )}
+                  />
+                </div>
+                <div
+                  ref={boardRef}
+                  data-board=""
+                  className="grid grid-cols-3"
+                  style={{ gap: gridGap, width: boardW }}
+                >
+                  {workspaces.map((ws, i) => (
+                    <SortableCell
+                      key={ws.id}
+                      ws={ws}
+                      cell={cell}
+                      box={box}
+                      photoById={photoById}
+                      transparent={transparent}
+                      highlighted={hl === i}
+                      viewScale={viewZoom.scale}
+                      onEnter={enterAfterDrag}
+                    />
+                  ))}
+                  {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
+                </div>
               </div>
+            </SortableContext>
+
+            {/* The neighbouring groups as full-size quiet board previews, one
+                page of travel either side of the live board's measured box.
+                They slide with the row (the track pans) and are inert. */}
+            <div ref={trackRef} data-pager-track="" aria-hidden className="pointer-events-none absolute inset-0">
+              {boardBase && hasPrev && (
+                <PagerBoard
+                  side="prev"
+                  board={boardOf(activeIndex - 1)}
+                  base={boardBase}
+                  cell={cell}
+                  box={box}
+                  gap={gridGap}
+                  boardW={boardW}
+                  travel={travel}
+                  viewScale={viewZoom.scale}
+                  photoById={photoById}
+                  transparent={transparent}
+                  onRef={registerPreview}
+                />
+              )}
+              {boardBase && hasNext && (
+                <PagerBoard
+                  side="next"
+                  board={boardOf(activeIndex + 1)}
+                  base={boardBase}
+                  cell={cell}
+                  box={box}
+                  gap={gridGap}
+                  boardW={boardW}
+                  travel={travel}
+                  viewScale={viewZoom.scale}
+                  photoById={photoById}
+                  transparent={transparent}
+                  onRef={registerPreview}
+                />
+              )}
             </div>
-          </SortableContext>
+          </div>
 
           <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: EASE_OUT_CSS }}>
             {reorder.draggedWs
@@ -379,5 +498,58 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, view
     >
       <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={isDragging} />
     </button>
+  )
+}
+
+/**
+ * A neighbouring group's board on the pager: the same 3×3 the overview draws
+ * (the grid's own cell previews at the same cell size and gap, empty cells
+ * quiet), laid out at canvas size over the live board's measured box and
+ * offset one page of travel either side, scaled by the view zoom so the two
+ * boards slide past each other as one plane. Inert: the stage owns the
+ * gesture, and only its opacity and scale move (the falloff).
+ */
+function PagerBoard({ side, board, base, cell, box, gap, boardW, travel, viewScale, photoById, transparent, onRef }: {
+  side: 'prev' | 'next'
+  board: readonly Workspace[]
+  /** The live board's measured top-left corner in the stage. */
+  base: { x: number, y: number }
+  cell: number
+  box: { w: number, h: number }
+  gap: number
+  boardW: number
+  travel: number
+  viewScale: number
+  photoById: Map<string, Photo>
+  transparent: boolean
+  onRef: (side: 'prev' | 'next', el: HTMLElement | null) => void
+}) {
+  return (
+    <div
+      ref={el => onRef(side, el)}
+      data-pager-board={side}
+      className="pointer-events-none absolute origin-top-left"
+      style={{
+        left: base.x,
+        top: base.y,
+        width: boardW,
+        // The translate is outermost, so it counts in screen pixels while the
+        // scale keeps the board at the live board's on-screen size.
+        transform: `translateX(${side === 'prev' ? -travel : travel}px) scale(${viewScale})`,
+      }}
+    >
+      <div className="grid grid-cols-3" style={{ gap, width: boardW }}>
+        {board.map(ws => (
+          <div key={ws.id} className="relative overflow-hidden bg-panel-2" style={{ width: cell, height: box.h }}>
+            <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={false} quiet />
+          </div>
+        ))}
+        {board.length < MAX_WORKSPACES && (
+          <span className="relative grid place-items-center text-dim" style={{ width: cell, height: box.h }}>
+            <AddSlotFrame cell={cell} cellH={box.h} />
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
