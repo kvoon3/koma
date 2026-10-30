@@ -578,7 +578,6 @@ const zhHans = {
   // Groups page
   'Groups': '分组',
   'Group {name}': '分组 {name}',
-  'Group {n} of {total}': '第 {n} 组，共 {total} 组',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': '滤镜',

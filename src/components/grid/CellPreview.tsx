@@ -1,8 +1,9 @@
 /**
  * The grid's read-only cell previews: a workspace drawn as the editor draws it
  * (photos, stickers, labels through the same placement math), the cell body the
- * overview, the drag overlay and the switcher's pager all share, and the dashed
- * add-slot frame. Pure rendering: no board state lives here.
+ * overview, the drag overlay and the overview pager's neighbour boards all
+ * share, and the dashed add-slot frame. Pure rendering: no board state lives
+ * here.
  */
 import type { Photo } from '../../lib/imageStore'
 import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../../lib/panes'
@@ -249,13 +250,13 @@ export function CellPreview({ root, canvasRatio, box, photoById, stickers = [], 
 }
 
 /**
- * The cell's visible body, shared by the in-grid cell, the drag overlay and the
- * switcher's boards. `quiet` draws an empty cell as a plain square: behind the
- * switcher the board is receded and blurred, where a per-cell glyph and caption
- * stack up into placeholder noise (the full overview keeps both). The quiet
- * square keeps a 2px `--dim` hairline: it is the only thing that survives the
- * recede on an all-empty board (a fresh session has nothing else to draw), and
- * a 1px `--line` hairline washed out to 1/255 at the old 45% + 3px blur.
+ * The cell's visible body, shared by the in-grid cell, the drag overlay, the
+ * pager's neighbour boards and the groups tiles. `quiet` draws an empty cell as
+ * a plain square: beside the live board a pager preview is a stand-in for the
+ * real thing, where a per-cell glyph and caption stack up into placeholder
+ * noise (the full overview keeps both). The quiet square keeps a 2px `--dim`
+ * hairline: it is the only thing an all-empty board draws besides the frame,
+ * and a 1px `--line` hairline washed out to 1/255 at the old 45% + 3px blur.
  */
 export function CellBody({ ws, box, photoById, transparent, dimmed, quiet = false }: {
   ws: { root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }

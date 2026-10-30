@@ -576,7 +576,6 @@ const zhHant: Record<TKey, string> = {
   // Groups page
   'Groups': '群組',
   'Group {name}': '群組 {name}',
-  'Group {n} of {total}': '第 {n} 個群組，共 {total} 個',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': '濾鏡',

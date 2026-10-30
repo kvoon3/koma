@@ -1,32 +1,32 @@
 import type { RefObject } from 'react'
-import type { PageLayout } from '../../lib/groupPage'
-import type { PagePager } from './usePagePager'
-import { Check, Plus } from 'lucide'
+import type { TilesLayout } from '../../lib/groupPage'
+import { useNavigate } from '@tanstack/react-router'
+import { Check } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useReducedMotion } from 'motion/react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import { useElementSize, useMediaQuery } from '../../hooks'
 import { compactDockBand } from '../../lib/dockMetrics'
 import { cellRatioValue } from '../../lib/gridTools'
-import { pageCardLeft, pageLayout } from '../../lib/groupPage'
+import { tilesLayout } from '../../lib/groupPage'
 import { useT } from '../../lib/i18n'
-import { MAX_GRIDS } from '../../lib/workspaces'
+import { OVERVIEW_PATH } from '../../lib/routes'
+import { viewTransitionOption } from '../../lib/viewTransition'
 import { isTransparentBg, useStore } from '../../store'
 import { useDockMetrics } from '../dockContext'
 import { DockToolset } from '../Stage'
 import { ToolsDock } from '../ToolsDock'
 import { GroupWallpaper } from './GroupWallpaper'
-import { PageCard } from './PageCard'
-import { PageDots } from './PageDots'
+import { AddTile, PageTile } from './PageCard'
 import { useGroupsKeys } from './useGroupsKeys'
 import { useGroupsNav } from './useGroupsNav'
-import { usePagePager } from './usePagePager'
 
 /**
- * The groups page: one full-stage page card per board group, opened from the
- * overview's Workspace chip or a pull-down. Swiping switches the open group,
- * tapping the live card opens its overview, and Done, Escape or Back leaves.
- * The tools dock rides along in its compact icon row.
+ * The groups page: every board group as a tile of one flat grid, opened from
+ * the overview's Workspace capsule, a pull down or a long press. Tapping a
+ * tile opens that group's overview through the `ws-<id>` morph, the dashed
+ * tile adds a group (the page stays), and Done, Escape or Back leaves. The
+ * tools dock rides along in its compact icon row.
  */
 export function GroupsPage() {
   const t = useT()
@@ -41,30 +41,29 @@ export function GroupsPage() {
   const switchGrid = useStore(s => s.switchGrid)
   const addGrid = useStore(s => s.addGrid)
   const removeGrid = useStore(s => s.removeGrid)
+  const navigate = useNavigate()
   const { close: closeGroups } = useGroupsNav()
 
   const [stageRef, stage] = useElementSize<HTMLDivElement>()
   const metrics = useDockMetrics()
   const coarse = useMediaQuery('(pointer: coarse)')
-  const reduce = !!useReducedMotion()
   const headingRef = useRef<HTMLHeadingElement | null>(null)
-  const pagerRef = useRef<PagePager | null>(null)
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
   const layout = useMemo(
-    () => pageLayout({
+    () => tilesLayout({
       stageW: stage.w,
       stageH: stage.h,
-      dockH: compactDockBand(metrics),
+      count: grids.length,
+      dockBand: compactDockBand(metrics),
+      coarse,
       ratio: cellRatioValue(gridCellRatio),
       gridGap,
-      coarse,
     }),
-    [stage.w, stage.h, metrics, gridCellRatio, gridGap, coarse],
+    [stage.w, stage.h, grids.length, metrics, coarse, gridCellRatio, gridGap],
   )
   const activeIndex = Math.max(0, grids.findIndex(g => g.id === activeGridId))
-  const gridIds = useMemo(() => grids.map(g => g.id), [grids])
   const activeBoard = useMemo(
     () => (grids[activeIndex]?.id === activeGridId ? workspaces : parked[activeGridId]?.workspaces ?? workspaces),
     [grids, activeIndex, activeGridId, workspaces, parked],
@@ -76,44 +75,45 @@ export function GroupsPage() {
     return id === activeGridId ? workspaces : parked[id]?.workspaces ?? []
   }, [grids, activeGridId, workspaces, parked])
 
-  const leave = useCallback(() => {
-    pagerRef.current?.reset()
-    closeGroups()
-  }, [closeGroups])
+  // Tap a tile: swap the store first, in its own flush, so the navigation's
+  // old snapshot already carries the tapped tile's `ws-<id>` names; then leave
+  // for the overview, where the same names morph its cells into place. The
+  // open group's tile skips the switch (it already wears the names).
+  const openGroup = useCallback((id: string) => {
+    if (id !== activeGridId) {
+      // eslint-disable-next-line react/dom-no-flush-sync -- the switch must land before the transition takes its old snapshot
+      flushSync(() => {
+        switchGrid(id)
+      })
+    }
+    void navigate({ to: OVERVIEW_PATH, replace: true, viewTransition: viewTransitionOption() })
+  }, [activeGridId, navigate, switchGrid])
 
-  const pager = usePagePager({ layout, gridIds, activeIndex, onSwitch: switchGrid, onOpen: leave, reduce })
-  useLayoutEffect(() => {
-    pagerRef.current = pager
-  }, [pager])
-  const keys = useGroupsKeys({ activeIndex, count: grids.length, goTo: pager.goTo, onOpen: leave })
+  const keys = useGroupsKeys({ onLeave: closeGroups })
 
   const addGroup = useCallback(() => {
-    pagerRef.current?.reset()
     addGrid()
   }, [addGrid])
   const deleteGroup = useCallback((id: string) => {
-    pagerRef.current?.reset()
     removeGrid(id)
   }, [removeGrid])
 
-  // The heading takes focus on entry, so the page's own arrow map is live and a
+  // The heading takes focus on entry, so the page's Escape exit is live and a
   // screen reader announces the fresh page.
   useEffect(() => {
     headingRef.current?.focus()
   }, [])
 
   const activeName = grids[activeIndex]?.name ?? ''
-  const live = `${t('Group {n} of {total}', { n: activeIndex + 1, total: grids.length })} · ${activeName}`
-  const sideAir = (layout.stageW - layout.card.w) / 2
-  const fade = Math.min(16, Math.max(8, sideAir - 4))
-  const mask = `linear-gradient(to right, transparent 0, black ${fade}px, black calc(100% - ${fade}px), transparent 100%)`
+  const live = t('Group {name}', { name: activeName })
+  const groupTiles = layout.tiles.slice(0, grids.length)
+  const addBox = layout.tiles[grids.length] ?? null
 
   return (
     <div
       ref={stageRef}
       data-groups-page=""
       data-groups-active={activeGridId}
-      data-groups-band={layout.band}
       role="region"
       aria-label={t('Groups')}
       className="absolute inset-0 touch-none select-none overflow-hidden bg-panel-2"
@@ -129,62 +129,29 @@ export function GroupsPage() {
     >
       <GroupWallpaper board={activeBoard} photoById={photoById} />
 
-      {/* The carousel viewport is the only masked layer: the wallpaper, header
-          and dots stay outside it, and the active card's margin is wider than
-          the fade, so only cards crossing the stage edge reach zero alpha. */}
-      <div
-        data-page-viewport=""
-        className="absolute inset-0 z-[5]"
-        style={{ maskImage: mask, WebkitMaskImage: mask }}
-      >
-        <div
-          ref={pager.surfaceRef}
-          {...pager.surfaceProps}
-          data-page-surface=""
-          className="absolute cursor-grab touch-pan-y select-none overflow-hidden overscroll-x-contain active:cursor-grabbing"
-          style={pager.surfaceStyle}
-        />
-        <div
-          ref={pager.trackRef}
-          data-page-track=""
-          className="pointer-events-none absolute inset-0 z-10"
-        >
-          {grids.map((group, i) => (
-            <PageCard
-              key={group.id}
-              index={i}
-              group={group}
-              board={boardOf(i)}
-              left={pageCardLeft(i, activeIndex, layout, 0)}
-              layout={layout}
-              active={i === activeIndex}
-              named={i === activeIndex}
-              photoById={photoById}
-              transparent={transparent}
-              canDelete={grids.length > 1}
-              onRef={pager.registerCard}
-              onDelete={deleteGroup}
-            />
-          ))}
-        </div>
+      {/* The tiles: every group at once, plus the dashed add slot while there
+          is room. Each is a button, so Tab and Enter reach them natively. */}
+      <div data-groups-tiles="" className="absolute inset-0 z-[5]">
+        {groupTiles.map((box, i) => (
+          <PageTile
+            key={grids[i].id}
+            group={grids[i]}
+            board={boardOf(i)}
+            box={box}
+            layout={layout}
+            open={i === activeIndex}
+            named={i === activeIndex}
+            photoById={photoById}
+            transparent={transparent}
+            canDelete={grids.length > 1}
+            onOpen={openGroup}
+            onDelete={deleteGroup}
+          />
+        ))}
+        {addBox && <AddTile box={addBox} radius={layout.radius} onAdd={addGroup} />}
       </div>
 
-      <GroupsHeader
-        name={activeName}
-        layout={layout}
-        onDone={leave}
-        onAdd={addGroup}
-        canAdd={grids.length < MAX_GRIDS}
-        headingRef={headingRef}
-      />
-      <PageDots
-        count={grids.length}
-        active={activeIndex}
-        target={pager.targetIndex}
-        layout={layout}
-        names={grids.map(g => g.name)}
-        onPick={pager.goTo}
-      />
+      <GroupsHeader layout={layout} onDone={closeGroups} headingRef={headingRef} />
       <p aria-live="polite" aria-atomic="true" className="sr-only">{live}</p>
 
       <ToolsDock hidden={false} compact contextKey="groups">
@@ -194,33 +161,20 @@ export function GroupsPage() {
   )
 }
 
-/** The page chrome: the group title, the check-mark Done pill and the add button. */
-function GroupsHeader({ name, layout, onDone, onAdd, canAdd, headingRef }: {
-  name: string
-  layout: PageLayout
+/** The page chrome: the check-mark Done pill. The title stays for screen readers. */
+function GroupsHeader({ layout, onDone, headingRef }: {
+  layout: TilesLayout
   onDone: () => void
-  onAdd: () => void
-  canAdd: boolean
   headingRef: RefObject<HTMLHeadingElement | null>
 }) {
   const t = useT()
-  const tight = layout.band === 'tight'
   return (
     <header
       data-groups-header=""
       className="pointer-events-none absolute inset-x-0 top-0 z-20"
       style={{ height: layout.headerH }}
     >
-      <h1
-        ref={headingRef}
-        tabIndex={-1}
-        className={`m-0 truncate text-center text-[15px] font-semibold text-txt outline-0 ${
-          tight ? 'sr-only' : 'absolute inset-x-0 flex items-center justify-center px-24'
-        }`}
-        style={tight ? undefined : { height: layout.headerH }}
-      >
-        <span key={name} className="groups-name-in inline-block">{name}</span>
-      </h1>
+      <h1 ref={headingRef} tabIndex={-1} className="sr-only m-0 outline-0">{t('Groups')}</h1>
       <button
         type="button"
         data-groups-done=""
@@ -230,18 +184,6 @@ function GroupsHeader({ name, layout, onDone, onAdd, canAdd, headingRef }: {
       >
         <MorphIcon icon={Check} size={13} strokeWidth={2.25} />
         {t('Done')}
-      </button>
-      <button
-        type="button"
-        data-groups-add=""
-        className="pointer-events-auto absolute grid cursor-pointer place-items-center rounded-full border border-float-line bg-float-bg text-dim shadow-pop outline-0 backdrop-blur-[7px] transition-[background-color,color,scale] duration-(--dur-fast) hover:text-txt focus-visible:outline-1 focus-visible:outline-accent active:scale-[0.97] disabled:cursor-default disabled:opacity-35"
-        style={{ top: layout.add.top, right: layout.add.right, width: layout.add.size, height: layout.add.size }}
-        disabled={!canAdd}
-        aria-label={t('Add a group')}
-        title={t('Add a group')}
-        onClick={onAdd}
-      >
-        <MorphIcon icon={Plus} size={18} strokeWidth={1.75} />
       </button>
     </header>
   )

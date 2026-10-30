@@ -563,21 +563,13 @@ html.dark {
 }
 
 /*
- * Groups page entrances: the wallpaper fades up when the page mounts, and the
- * header name fades on every group change so the swap at the settle does not
- * read as a hard cut while the cards re-base.
+ * The groups page entrance: the wallpaper fades up when the page mounts.
  */
 @keyframes wallpaper-in {
   from { opacity: 0; }
 }
 .wallpaper-in {
   animation: wallpaper-in var(--dur-morph) var(--ease-out);
-}
-@keyframes groups-name-in {
-  from { opacity: 0; }
-}
-.groups-name-in {
-  animation: groups-name-in var(--dur-surface) var(--ease-out);
 }
 
 /*

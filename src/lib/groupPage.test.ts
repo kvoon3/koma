@@ -1,154 +1,135 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { pageAtX, pageCardLeft, pageFalloff, pageJumpOffset, pageLayout, pageOffset, pageRelease, pageRestOffset, pageStep, pageTargetIndex, pageTravel } from './groupPage'
+import { pageFalloff, pageOffset, pageRestOffset, pageStep, pageTargetIndex, pageTravel, tilesLayout } from './groupPage'
 
-const PHONE = { stageW: 375, stageH: 781, dockH: 107, ratio: 1, gridGap: 10, coarse: true }
-const DESKTOP = { stageW: 1280, stageH: 869, dockH: 107, ratio: 1, gridGap: 10, coarse: false }
-const SHORT = { stageW: 1280, stageH: 569, dockH: 107, ratio: 1, gridGap: 10, coarse: false }
-const LANDSCAPE = { stageW: 915, stageH: 381, dockH: 107, ratio: 1, gridGap: 10, coarse: true }
+const PHONE = { stageW: 375, stageH: 812, dockBand: 107, coarse: true, ratio: 1, gridGap: 10 }
+const DESKTOP = { stageW: 1280, stageH: 900, dockBand: 107, coarse: false, ratio: 1, gridGap: 10 }
+const SHORT = { stageW: 1280, stageH: 600, dockBand: 107, coarse: false, ratio: 1, gridGap: 10 }
+const LANDSCAPE = { stageW: 915, stageH: 412, dockBand: 107, coarse: true, ratio: 1, gridGap: 10 }
 
-describe('pageLayout at the four sizes', () => {
-  test('375x812 keeps the 343 card and the 305 board', () => {
-    const l = pageLayout(PHONE)
-    expect(l.band).toBe('roomy')
-    expect(l.floor).toBe(674)
+describe('tilesLayout at the four sizes (three groups, plus the add tile)', () => {
+  test('375x812 is two columns of 159', () => {
+    const l = tilesLayout({ ...PHONE, count: 3 })
+    expect(l.floor).toBe(705)
     expect(l.headerH).toBe(56)
-    expect(l.card).toEqual({ x: 16, y: 132, w: 343, h: 343 })
-    expect(l.board).toEqual({ w: 305, h: 305 })
-    expect(l.cell).toEqual({ w: 95, h: 95 })
+    expect(l.columns).toBe(2)
+    expect(l.rows).toBe(2)
+    expect(l.slots).toBe(4)
+    expect(l.tile).toBe(159)
+    expect(l.gap).toBe(24)
+    expect(l.tiles).toEqual([
+      { x: 17, y: 210, w: 159, h: 159 },
+      { x: 200, y: 210, w: 159, h: 159 },
+      { x: 17, y: 393, w: 159, h: 159 },
+      { x: 200, y: 393, w: 159, h: 159 },
+    ])
+    expect(l.matte).toBe(16)
+    expect(l.board).toEqual({ w: 127, h: 127 })
+    expect(l.cell).toEqual({ w: 35, h: 35 })
     expect(l.boardGap).toBe(10)
-    expect(l.cardGap).toBe(24)
-    expect(l.travel).toBe(367)
-    expect(l.check).toEqual({ size: 44, gap: 12, inside: false })
-    expect(l.dots).toEqual({ y: 555, row: 36, slot: 24, size: 6, active: 18 })
-    expect(l.done).toEqual({ top: 10, right: 16, w: 80, h: 36 })
-    expect(l.add).toEqual({ top: 10, right: 108, size: 44 })
-    expect(l.matte).toBe(19)
-    expect(l.radius).toBe(27)
-  })
-
-  test('1280x900 height-limits the card at 560', () => {
-    const l = pageLayout(DESKTOP)
-    expect(l.band).toBe('roomy')
-    expect(l.floor).toBe(762)
-    expect(l.headerH).toBe(64)
-    expect(l.card).toEqual({ x: 360, y: 77, w: 560, h: 560 })
-    expect(l.board).toEqual({ w: 498, h: 498 })
-    expect(l.cell).toEqual({ w: 159, h: 159 })
-    expect(l.cardGap).toBe(32)
-    expect(l.travel).toBe(592)
-    expect(l.dots.y).toBe(717)
-    expect(l.dots.row).toBe(24)
-    expect(l.dots.slot).toBe(16)
-    expect(l.done).toEqual({ top: 10, right: 64, w: 80, h: 36 })
-    expect(l.add).toEqual({ top: 10, right: 156, size: 44 })
-    expect(l.matte).toBe(31)
-    expect(l.radius).toBe(32)
-  })
-
-  test('1280x600 shows three full 270 cards', () => {
-    const l = pageLayout(SHORT)
-    expect(l.band).toBe('roomy')
-    expect(l.floor).toBe(462)
-    expect(l.card).toEqual({ x: 505, y: 72, w: 270, h: 270 })
-    expect(l.board).toEqual({ w: 238, h: 238 })
-    expect(l.cell).toEqual({ w: 72, h: 72 })
-    expect(l.travel).toBe(302)
-    expect(l.matte).toBe(16)
-    expect(l.radius).toBe(22)
-    expect(l.dots.y).toBe(422)
-  })
-
-  test('915x412 is tight: the check rides inside the card', () => {
-    const l = pageLayout(LANDSCAPE)
-    expect(l.band).toBe('tight')
-    expect(l.floor).toBe(274)
-    expect(l.headerH).toBe(0)
-    expect(l.card).toEqual({ x: 349, y: 48, w: 218, h: 218 })
-    expect(l.board).toEqual({ w: 186, h: 186 })
-    expect(l.cell).toEqual({ w: 55, h: 55 })
-    expect(l.cardGap).toBe(32)
-    expect(l.travel).toBe(250)
-    expect(l.check).toEqual({ size: 36, gap: 0, inside: true })
-    expect(l.dots).toEqual({ y: 8, row: 36, slot: 24, size: 6, active: 18 })
-    expect(l.done).toEqual({ top: 8, right: 16, w: 80, h: 36 })
-    expect(l.add).toEqual({ top: 8, right: 108, size: 44 })
-    expect(l.matte).toBe(16)
     expect(l.radius).toBe(20)
+    expect(l.check).toBe(25)
+    expect(l.done).toEqual({ top: 10, right: 16, w: 80, h: 36 })
+  })
+
+  test('1280x900 is one row of four 264 tiles', () => {
+    const l = tilesLayout({ ...DESKTOP, count: 3 })
+    expect(l.columns).toBe(4)
+    expect(l.rows).toBe(1)
+    expect(l.slots).toBe(4)
+    expect(l.tile).toBe(264)
+    expect(l.tiles).toEqual([
+      { x: 64, y: 297, w: 264, h: 264 },
+      { x: 360, y: 297, w: 264, h: 264 },
+      { x: 656, y: 297, w: 264, h: 264 },
+      { x: 952, y: 297, w: 264, h: 264 },
+    ])
+    expect(l.matte).toBe(16)
+    expect(l.board).toEqual({ w: 232, h: 232 })
+    expect(l.cell).toEqual({ w: 70, h: 70 })
+    expect(l.radius).toBe(21)
+    expect(l.check).toBe(36)
+    expect(l.done).toEqual({ top: 10, right: 64, w: 80, h: 36 })
+  })
+
+  test('1280x600 keeps the 264 row, higher up', () => {
+    const l = tilesLayout({ ...SHORT, count: 3 })
+    expect(l.tile).toBe(264)
+    expect(l.tiles).toEqual([
+      { x: 64, y: 147, w: 264, h: 264 },
+      { x: 360, y: 147, w: 264, h: 264 },
+      { x: 656, y: 147, w: 264, h: 264 },
+      { x: 952, y: 147, w: 264, h: 264 },
+    ])
+  })
+
+  test('915x412 fits two rows at the 96px floor', () => {
+    const l = tilesLayout({ ...LANDSCAPE, count: 3 })
+    expect(l.columns).toBe(3)
+    expect(l.rows).toBe(2)
+    expect(l.tile).toBe(96)
+    expect(l.tiles).toEqual([
+      { x: 282, y: 73, w: 96, h: 96 },
+      { x: 410, y: 73, w: 96, h: 96 },
+      { x: 538, y: 73, w: 96, h: 96 },
+      { x: 282, y: 201, w: 96, h: 96 },
+    ])
+    expect(l.matte).toBe(16)
+    expect(l.board).toEqual({ w: 64, h: 64 })
+    expect(l.cell).toEqual({ w: 14, h: 14 })
+    expect(l.radius).toBe(20)
+    expect(l.check).toBe(24)
+  })
+
+  test('a full bar drops the add tile', () => {
+    const l = tilesLayout({ ...PHONE, count: 4 })
+    expect(l.slots).toBe(4)
+    expect(l.tiles).toHaveLength(4)
+    const desktop = tilesLayout({ ...DESKTOP, count: 4 })
+    expect(desktop.slots).toBe(4)
+    expect(desktop.tiles).toHaveLength(4)
+  })
+
+  test('an empty or unmeasured stage lays out no tiles', () => {
+    expect(tilesLayout({ ...PHONE, count: 3, stageW: 0, stageH: 0 }).tiles).toEqual([])
+    expect(tilesLayout({ ...PHONE, count: 3, stageW: 0, stageH: 0 }).tile).toBe(0)
   })
 })
 
-describe('pageLayout invariants', () => {
-  const cases = [PHONE, DESKTOP, SHORT, LANDSCAPE]
+describe('tilesLayout invariants', () => {
+  const sizes = [PHONE, DESKTOP, SHORT, LANDSCAPE, { stageW: 320, stageH: 537, dockBand: 107, coarse: true, ratio: 1, gridGap: 10 }, { stageW: 360, stageH: 609, dockBand: 107, coarse: true, ratio: 1, gridGap: 10 }]
 
-  test('the card and its board stay inside the stage and above the floor', () => {
-    for (const input of cases) {
-      const l = pageLayout(input)
-      expect(l.card.h).toBe(l.card.w)
-      expect(l.card.x).toBeGreaterThanOrEqual(0)
-      expect(l.card.x + l.card.w).toBeLessThanOrEqual(l.stageW)
-      expect(l.card.y).toBeGreaterThanOrEqual(0)
-      expect(l.card.y + l.card.h).toBeLessThanOrEqual(l.floor)
-      expect(l.board.w).toBe(l.card.w - 2 * l.matte)
-      expect(l.board.h).toBe(l.card.w - 2 * l.matte)
-      expect(3 * l.cell.w + 2 * l.boardGap).toBeLessThanOrEqual(l.board.w)
-      expect(3 * l.cell.h + 2 * l.boardGap).toBeLessThanOrEqual(l.board.h)
+  test('tiles clear the header and the dock, stay in the stage, and hold every group plus the add slot', () => {
+    for (const size of sizes) {
+      for (let count = 1; count <= 4; count++) {
+        for (const ratio of [1, 1.5]) {
+          const l = tilesLayout({ ...size, ratio, count })
+          expect(l.slots).toBe(count + (count < 4 ? 1 : 0))
+          expect(l.tiles).toHaveLength(l.slots)
+          expect(l.tile).toBeGreaterThanOrEqual(96)
+          for (const tile of l.tiles) {
+            expect(tile.w).toBe(l.tile)
+            expect(tile.h).toBe(l.tile)
+            expect(tile.x).toBeGreaterThanOrEqual(0)
+            expect(tile.x + tile.w).toBeLessThanOrEqual(l.stageW)
+            expect(tile.y).toBeGreaterThanOrEqual(l.headerH)
+            expect(tile.y + tile.h).toBeLessThanOrEqual(l.floor)
+          }
+          expect(3 * l.cell.w + 2 * l.boardGap).toBeLessThanOrEqual(l.board.w)
+          expect(3 * l.cell.h + 2 * l.boardGap).toBeLessThanOrEqual(l.board.h)
+        }
+      }
     }
   })
 
-  test('roomy puts the check and dots in a column under the card', () => {
-    for (const input of [PHONE, DESKTOP, SHORT]) {
-      const l = pageLayout(input)
-      expect(l.card.y).toBeGreaterThanOrEqual(l.headerH)
-      expect(l.card.y + l.card.h).toBeLessThanOrEqual(l.dots.y)
-      expect(l.dots.y - (l.card.y + l.card.h)).toBe(l.check.gap + l.check.size + 24)
-      expect(l.dots.y + l.dots.row).toBeLessThanOrEqual(l.floor)
-      expect(l.check.inside).toBe(false)
+  test('the grid is centred as one block', () => {
+    for (const size of sizes) {
+      const l = tilesLayout({ ...size, count: 2 })
+      const left = l.tiles[0].x
+      const right = Math.max(...l.tiles.map(tile => tile.x + tile.w))
+      expect(Math.abs(left - (l.stageW - right))).toBeLessThanOrEqual(1)
+      expect(l.tiles[1].x - (left + l.tile)).toBe(l.gap)
     }
-  })
-
-  test('tight keeps the check inside the card and the dots at the top', () => {
-    const l = pageLayout(LANDSCAPE)
-    expect(l.check.inside).toBe(true)
-    expect(l.dots.y).toBe(8)
-    expect(l.dots.y + l.dots.row).toBeLessThanOrEqual(l.card.y)
-  })
-
-  test('the header buttons stay inside the stage', () => {
-    for (const input of cases) {
-      const l = pageLayout(input)
-      expect(l.done.right + l.done.w).toBeLessThanOrEqual(l.stageW)
-      expect(l.add.right + l.add.size).toBeLessThanOrEqual(l.stageW)
-      expect(l.add.right).toBeGreaterThan(l.done.right + l.done.w)
-    }
-  })
-
-  test('the phone guards hold', () => {
-    const roomy = pageLayout({ stageW: 360, stageH: 609, dockH: 107, ratio: 1, gridGap: 10, coarse: true })
-    expect(roomy.band).toBe('roomy')
-    expect(roomy.card.w).toBe(306)
-    expect(roomy.board.w).toBe(272)
-    expect(roomy.cell.w).toBe(84)
-
-    const tight = pageLayout({ stageW: 320, stageH: 537, dockH: 107, ratio: 1, gridGap: 10, coarse: true })
-    expect(tight.band).toBe('tight')
-    expect(tight.card.w).toBe(272)
-    expect(tight.board.w).toBe(240)
-    expect(tight.cell.w).toBe(73)
-  })
-
-  test('a tall card board fits a 3:2 cell ratio too', () => {
-    const l = pageLayout({ ...PHONE, ratio: 1.5 })
-    expect(l.cell.w).toBe(95)
-    expect(l.cell.h).toBe(63)
-    expect(3 * l.cell.h + 2 * l.boardGap).toBeLessThanOrEqual(l.board.h)
-  })
-
-  test('the phone margin and the card gap are the design numbers', () => {
-    const l = pageLayout(PHONE)
-    expect(l.card.x).toBe(16)
-    expect(l.cardGap).toBe(24)
-    expect(l.travel).toBe(pageTravel(l.card.w, l.cardGap))
   })
 })
 
@@ -186,17 +167,10 @@ describe('pageFalloff', () => {
 
 const T = 400
 
-describe('pageTravel / pageCardLeft', () => {
-  test('a page is the card plus its gap', () => {
+describe('pageTravel', () => {
+  test('a page is the board plus its air', () => {
     expect(pageTravel(300, 24)).toBe(324)
-  })
-
-  test('cards sit a travel apart around the active card', () => {
-    const l = pageLayout(PHONE)
-    expect(pageCardLeft(0, 1, l, 0)).toBe(l.card.x - l.travel)
-    expect(pageCardLeft(1, 1, l, 0)).toBe(l.card.x)
-    expect(pageCardLeft(2, 1, l, 0)).toBe(l.card.x + l.travel)
-    expect(pageCardLeft(1, 1, l, -37)).toBe(l.card.x - 37)
+    expect(pageTravel(327, 24)).toBe(351)
   })
 })
 
@@ -247,33 +221,8 @@ describe('pageStep / pageRestOffset', () => {
   })
 })
 
-describe('pageRelease', () => {
-  const tap = { axis: null, dx: 0, dy: 0, cancelled: false } as const
-
-  test('a press that never left the slop is a tap', () => {
-    expect(pageRelease({ ...tap })).toBe('tap')
-    expect(pageRelease({ ...tap, dx: 5, dy: -5 })).toBe('tap')
-    expect(pageRelease({ ...tap, dx: -5.9, dy: 5.9 })).toBe('tap')
-  })
-
-  test('a sideways gesture settles a page, held or cancelled', () => {
-    expect(pageRelease({ ...tap, axis: 'x', dx: -120 })).toBe('page')
-    expect(pageRelease({ ...tap, axis: 'x', dx: 40, cancelled: true })).toBe('page')
-  })
-
-  test('a vertical gesture and a cancelled pointer stay', () => {
-    expect(pageRelease({ ...tap, axis: 'y', dy: -20 })).toBe('stay')
-    expect(pageRelease({ ...tap, cancelled: true })).toBe('stay')
-  })
-
-  test('a past-slop gesture with no axis decided nothing', () => {
-    expect(pageRelease({ ...tap, dx: 6, dy: 6 })).toBe('stay')
-    expect(pageRelease({ ...tap, dx: -7, dy: 0 })).toBe('stay')
-  })
-})
-
 describe('pageTargetIndex', () => {
-  test('is the active card at rest and follows the drag', () => {
+  test('is the active board at rest and follows the drag', () => {
     expect(pageTargetIndex(0, T, 1, 3)).toBe(1)
     expect(pageTargetIndex(-0.6 * T, T, 1, 3)).toBe(2)
     expect(pageTargetIndex(0.6 * T, T, 1, 3)).toBe(0)
@@ -283,42 +232,5 @@ describe('pageTargetIndex', () => {
     expect(pageTargetIndex(-5000, T, 1, 3)).toBe(2)
     expect(pageTargetIndex(5000, T, 1, 3)).toBe(0)
     expect(pageTargetIndex(0, 0, 2, 0)).toBe(0)
-  })
-})
-
-describe('pageAtX', () => {
-  test('a phone margin and an offscreen peep are not tappable', () => {
-    const l = pageLayout(PHONE)
-    expect(pageAtX(200, l, 0, 3, 0)).toBe(0)
-    expect(pageAtX(5, l, 0, 3, 0)).toBe(null)
-    expect(pageAtX(370, l, 0, 3, 0)).toBe(null)
-    // The next card rests a travel past the active one, off the stage.
-    expect(pageAtX(380, l, 0, 3, 0)).toBe(null)
-    // Mid-drag the peep comes in and is tappable once it shows 48px.
-    expect(pageAtX(370, l, 0, 3, -183.5)).toBe(1)
-  })
-
-  test('a desktop peep maps to its card, and the gap maps to none', () => {
-    const l = pageLayout(DESKTOP)
-    expect(pageAtX(500, l, 0, 3, 0)).toBe(0)
-    expect(pageAtX(1000, l, 0, 3, 0)).toBe(1)
-    expect(pageAtX(940, l, 0, 3, 0)).toBe(null)
-    expect(pageAtX(63, l, 0, 3, 0)).toBe(null)
-  })
-
-  test('a card showing less than 48px is not tappable', () => {
-    const l = pageLayout(DESKTOP)
-    // Push the neighbour so only 40px of it sits inside the stage.
-    const clipped = { ...l, travel: l.stageW - l.card.x - 40 }
-    expect(pageAtX(l.stageW - 10, clipped, 0, 3, 0)).toBe(null)
-  })
-})
-
-describe('pageJumpOffset', () => {
-  test('is the raw multi-page travel for a dot jump', () => {
-    expect(pageJumpOffset(0, 1, T)).toBe(-T)
-    expect(pageJumpOffset(1, 0, T)).toBe(T)
-    expect(pageJumpOffset(0, 3, T)).toBe(-3 * T)
-    expect(pageJumpOffset(3, 0, T)).toBe(3 * T)
   })
 })

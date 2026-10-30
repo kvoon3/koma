@@ -68,7 +68,7 @@ interface PressState {
   axis: 'x' | 'y' | null
 }
 
-export function useStageGestures({ enabled, gridIds, activeIndex, travel, viewScale, boardRef, trackRef, onSwitch, onOpenGroups, isSuppressed }: {
+export function useStageGestures({ enabled, gridIds, activeIndex, travel, viewScale, boardRef, falloffRef, trackRef, onSwitch, onOpenGroups, isSuppressed }: {
   /** The overview owns the stage; other routes keep their presses. */
   enabled: boolean
   /** The group row, in strip order. */
@@ -79,8 +79,11 @@ export function useStageGestures({ enabled, gridIds, activeIndex, travel, viewSc
   travel: number
   /** The view zoom: the board's pan divides by it to stay 1:1 on screen. */
   viewScale: number
-  /** The live board (`[data-board]`): the pan and its falloff land on it. */
+  /** The live board (`[data-board]`): the pan lands on it. */
   boardRef: RefObject<HTMLDivElement | null>
+  /** The board's inner grid: the falloff's opacity and scale land on it, so
+   *  the shrink keeps its default centre origin and never rescales the pan. */
+  falloffRef: RefObject<HTMLDivElement | null>
   /** The previews' track: it pans raw, in screen pixels. */
   trackRef: RefObject<HTMLDivElement | null>
   /** Commit the landing group, in the same flush as the row's re-base. */
@@ -125,9 +128,12 @@ export function useStageGestures({ enabled, gridIds, activeIndex, travel, viewSc
         // The board is laid out in canvas pixels and scaled by the view zoom,
         // so its pan divides by the scale to move v screen pixels.
         board.style.transform = v ? `translateX(${v / viewScale}px)` : ''
-        const live = pageFalloff(t > 0 ? Math.abs(v) / t : 0, reduce)
-        board.style.opacity = String(live.opacity)
-        board.style.scale = String(live.scale)
+      }
+      const live = pageFalloff(t > 0 ? Math.abs(v) / t : 0, reduce)
+      const boardContent = falloffRef.current
+      if (boardContent) {
+        boardContent.style.opacity = String(live.opacity)
+        boardContent.style.scale = String(live.scale)
       }
       const track = trackRef.current
       if (track)
@@ -143,7 +149,7 @@ export function useStageGestures({ enabled, gridIds, activeIndex, travel, viewSc
     apply(x.get())
     const off = x.on('change', apply)
     return () => off()
-  }, [x, boardRef, trackRef, viewScale, reduce])
+  }, [x, boardRef, falloffRef, trackRef, viewScale, reduce])
 
   const registerPreview = useCallback((side: 'prev' | 'next', el: HTMLElement | null) => {
     if (!el) {

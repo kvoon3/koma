@@ -289,7 +289,7 @@ const overviewRoute = createRoute({
   component: WorkspaceGrid,
 })
 
-/** `/groups`: one page card per board group, with the open group one Done away. */
+/** `/groups`: every board group as a tile of one grid, with the open group one Done away. */
 const groupsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: GROUPS_PATH,

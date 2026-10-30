@@ -572,7 +572,6 @@ const ja: Record<TKey, string> = {
   // Groups page
   'Groups': 'グループ',
   'Group {name}': 'グループ {name}',
-  'Group {n} of {total}': 'グループ {n} / {total}',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': 'フィルター',

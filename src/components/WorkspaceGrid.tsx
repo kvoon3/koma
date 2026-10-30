@@ -155,6 +155,7 @@ export function WorkspaceGrid() {
   const stageRef = useRef<HTMLDivElement | null>(null)
   const columnRef = useRef<HTMLDivElement | null>(null)
   const boardRef = useRef<HTMLDivElement | null>(null)
+  const boardFalloffRef = useRef<HTMLDivElement | null>(null)
   const trackRef = useRef<HTMLDivElement | null>(null)
   const viewZoom = useStageZoom(wrapRef, columnRef)
 
@@ -211,6 +212,7 @@ export function WorkspaceGrid() {
     travel,
     viewScale: viewZoom.scale,
     boardRef,
+    falloffRef: boardFalloffRef,
     trackRef,
     onSwitch: switchGrid,
     onOpenGroups: openGroups,
@@ -322,26 +324,30 @@ export function WorkspaceGrid() {
                     )}
                   />
                 </div>
-                <div
-                  ref={boardRef}
-                  data-board=""
-                  className="grid grid-cols-3"
-                  style={{ gap: gridGap, width: boardW }}
-                >
-                  {workspaces.map((ws, i) => (
-                    <SortableCell
-                      key={ws.id}
-                      ws={ws}
-                      cell={cell}
-                      box={box}
-                      photoById={photoById}
-                      transparent={transparent}
-                      highlighted={hl === i}
-                      viewScale={viewZoom.scale}
-                      onEnter={enterAfterDrag}
-                    />
-                  ))}
-                  {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
+                {/* The board carries the pager's pan; the grid inside carries
+                    the falloff, whose shrink keeps its own centre origin. */}
+                <div ref={boardRef} data-board="" style={{ width: boardW }}>
+                  <div
+                    ref={boardFalloffRef}
+                    data-board-grid=""
+                    className="grid grid-cols-3"
+                    style={{ gap: gridGap, width: boardW }}
+                  >
+                    {workspaces.map((ws, i) => (
+                      <SortableCell
+                        key={ws.id}
+                        ws={ws}
+                        cell={cell}
+                        box={box}
+                        photoById={photoById}
+                        transparent={transparent}
+                        highlighted={hl === i}
+                        viewScale={viewZoom.scale}
+                        onEnter={enterAfterDrag}
+                      />
+                    ))}
+                    {workspaces.length < MAX_WORKSPACES && <AddCell cell={cell} cellH={box.h} />}
+                  </div>
                 </div>
               </div>
             </SortableContext>
@@ -526,7 +532,6 @@ function PagerBoard({ side, board, base, cell, box, gap, boardW, travel, viewSca
 }) {
   return (
     <div
-      ref={el => onRef(side, el)}
       data-pager-board={side}
       className="pointer-events-none absolute origin-top-left"
       style={{
@@ -538,7 +543,13 @@ function PagerBoard({ side, board, base, cell, box, gap, boardW, travel, viewSca
         transform: `translateX(${side === 'prev' ? -travel : travel}px) scale(${viewScale})`,
       }}
     >
-      <div className="grid grid-cols-3" style={{ gap, width: boardW }}>
+      {/* The falloff lands on the grid inside, so its shrink keeps the default
+          centre origin and the board converges on the live board's box. */}
+      <div
+        ref={el => onRef(side, el)}
+        className="grid grid-cols-3"
+        style={{ gap, width: boardW }}
+      >
         {board.map(ws => (
           <div key={ws.id} className="relative overflow-hidden bg-panel-2" style={{ width: cell, height: box.h }}>
             <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={false} quiet />

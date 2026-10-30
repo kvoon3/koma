@@ -33,7 +33,7 @@ export function isGridPath(path: string): boolean {
   return path === OVERVIEW_PATH
 }
 
-/** The groups page: one page card per board group. */
+/** The groups page: every board group as a tile of one grid. */
 export function isGroupsPath(path: string): boolean {
   return path === GROUPS_PATH
 }

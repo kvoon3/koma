@@ -1,12 +1,13 @@
 /**
- * The groups page geometry and physics, pure and DOM-free: one page card per
- * group sized against the compact dock band, the carousel falloff, and the
- * release rules the pager hook reads. Components render these numbers, they do
- * not invent sizes.
+ * The groups page geometry and the group pager physics, pure and DOM-free:
+ * the tile grid every group's card lays out in, and the slide, falloff and
+ * release rules the overview's pager hook reads (the groups page itself no
+ * longer pages; its tiles are buttons). Components render these numbers, they
+ * do not invent sizes.
  */
 import { FLICK_VELOCITY, pickSnap, rubberBand } from './dockPhysics'
-import { PAGER_SLOP } from './gestureAxis'
 import { gridCellBox } from './gridTools'
+import { MAX_GRIDS } from './workspaces'
 
 export interface PageBox {
   x: number
@@ -15,121 +16,119 @@ export interface PageBox {
   h: number
 }
 
-export interface PageLayout {
-  band: 'roomy' | 'tight'
+/** Release spring: quick and near-critical, so a flick lands without a bounce. */
+export const PAGE_SPRING = { type: 'spring', stiffness: 380, damping: 40, mass: 1 } as const
+
+/** How far a page slides before its neighbour centres: its width plus air. */
+export function pageTravel(boardW: number, air: number): number {
+  return boardW + air
+}
+
+export interface TilesLayout {
   stageW: number
   stageH: number
   /** The stage's bottom edge above the compact dock band. */
   floor: number
   headerH: number
-  card: PageBox
+  /** Tile columns and rows (the add slot counts as a tile). */
+  columns: number
+  rows: number
+  /** How many tiles the grid holds: one per group, plus the add slot. */
+  slots: number
+  /** Every tile is the same square. */
+  tile: number
+  gap: number
   radius: number
   matte: number
   board: { w: number, h: number }
   cell: { w: number, h: number }
   boardGap: number
-  cardGap: number
-  travel: number
-  check: { size: number, gap: number, inside: boolean }
-  dots: { y: number, row: number, slot: number, size: number, active: number }
+  /** The open group's check badge, drawn inside the tile's corner. */
+  check: number
+  tiles: PageBox[]
   done: { top: number, right: number, w: number, h: number }
-  add: { top: number, right: number, size: number }
 }
 
-/** The dot jump's duration per page, in ms. */
-export const PAGE_JUMP_MS = 200
-
-/** Release spring: quick and near-critical, so a flick lands without a bounce. */
-export const PAGE_SPRING = { type: 'spring', stiffness: 380, damping: 40, mass: 1 } as const
-
-/** A card's dot growth at rest, and the active pill's width. */
-const DOT_SIZE = 6
-const DOT_ACTIVE = 18
-
-/** How far a page slides before its neighbour centres: its width plus air. */
-export function pageTravel(cardW: number, gap: number): number {
-  return cardW + gap
-}
-
-/** The page's geometry, from the stage, the compact dock band and the cell ratio. */
-export function pageLayout({ stageW, stageH, dockH, ratio, gridGap, coarse }: {
+/**
+ * The groups page as a flat grid of tiles: one per group (plus the dashed add
+ * slot while there is room), every tile the same square, centred as one grid
+ * in the area between the header and the compact dock band. The board inside
+ * keeps the page card's matte-and-radius language, scaled to the tile.
+ */
+export function tilesLayout({ stageW, stageH, count, dockBand, coarse, ratio, gridGap }: {
   stageW: number
   stageH: number
+  /** How many groups there are; the grid adds the add slot under the cap. */
+  count: number
   /** The compact dock band, handle + icon row + footer. */
-  dockH: number
+  dockBand: number
+  coarse: boolean
   ratio: number
   gridGap: number
-  coarse: boolean
-}): PageLayout {
-  const floor = stageH - dockH
+}): TilesLayout {
+  const floor = stageH - dockBand
   const wide = stageW >= 768
   const marginX = wide ? 64 : 16
-  const cardGap = wide ? 32 : 24
-  const dotsRow = coarse ? 36 : 24
-  const dotsSlot = coarse ? 24 : 16
-  const roomy = floor - (wide ? 64 : 56) >= 380
-  const dots = { y: 0, row: dotsRow, slot: dotsSlot, size: DOT_SIZE, active: DOT_ACTIVE }
+  const marginY = wide ? 8 : (coarse ? 12 : 16)
+  const headerH = wide ? 64 : 56
+  const gap = wide ? 32 : 24
+  const columns = stageW < 640 ? 2 : Math.min(4, Math.max(2, Math.floor(stageW / 300)))
+  const slots = count + (count < MAX_GRIDS ? 1 : 0)
+  const rows = Math.max(1, Math.ceil(slots / columns))
 
-  if (roomy) {
-    const headerH = wide ? 64 : 56
-    const regionTop = headerH
-    const regionBottom = floor - 8
-    const regionH = regionBottom - regionTop
-    // Card, check below it, then the dots row; centred as one group.
-    const groupExtra = 12 + 44 + 24 + dotsRow
-    const cardW = Math.round(clamp(Math.min(stageW - 2 * marginX, regionH - 16 - groupExtra, 560), 220, 560))
-    const matte = clamp(Math.round(cardW * 0.055), 16, 32)
-    const boardW = cardW - 2 * matte
-    const boardGap = clamp(gridGap, 2, 12)
-    const cell = gridCellBox({ w: boardW, h: boardW }, boardGap, ratio, boardW, 1)
-    const cardY = Math.round(regionTop + (regionH - cardW - groupExtra) / 2)
-    const doneRight = wide ? 64 : 16
-    return {
-      band: 'roomy',
-      stageW,
-      stageH,
-      floor,
-      headerH,
-      card: { x: Math.round((stageW - cardW) / 2), y: cardY, w: cardW, h: cardW },
-      radius: clamp(Math.round(cardW * 0.08), 20, 32),
-      matte,
-      board: { w: boardW, h: boardW },
-      cell: { w: cell.w, h: cell.h },
-      boardGap,
-      cardGap,
-      travel: pageTravel(cardW, cardGap),
-      check: { size: 44, gap: 12, inside: false },
-      dots: { ...dots, y: cardY + cardW + 12 + 44 + 24 },
-      done: { top: 10, right: doneRight, w: 80, h: 36 },
-      add: { top: 10, right: doneRight + 92, size: 44 },
-    }
-  }
-
-  // Tight: the stage is too short for the roomy stack. The cards keep the top
-  // chrome row and the check rides inside the card.
-  const cardW = Math.round(clamp(Math.min(stageW - 48, floor - 56, 560), 160, 560))
-  const matte = 16
-  const boardW = cardW - 2 * matte
-  const boardGap = clamp(gridGap, 2, 12)
-  const cell = gridCellBox({ w: boardW, h: boardW }, boardGap, ratio, boardW, 1)
-  return {
-    band: 'tight',
+  const base: TilesLayout = {
     stageW,
     stageH,
     floor,
-    headerH: 0,
-    card: { x: Math.round((stageW - cardW) / 2), y: 48, w: cardW, h: cardW },
-    radius: clamp(Math.round(cardW * 0.08), 20, 32),
+    headerH,
+    columns,
+    rows,
+    slots,
+    tile: 0,
+    gap,
+    radius: 20,
+    matte: 16,
+    board: { w: 0, h: 0 },
+    cell: { w: 0, h: 0 },
+    boardGap: Math.min(12, Math.max(2, gridGap)),
+    check: 24,
+    tiles: [],
+    done: { top: 10, right: marginX, w: 80, h: 36 },
+  }
+  if (stageW <= 0 || stageH <= 0)
+    return base
+
+  const byW = (stageW - 2 * marginX - (columns - 1) * gap) / columns
+  const byH = (floor - headerH - 2 * marginY - (rows - 1) * gap) / rows
+  const tile = Math.floor(Math.max(0, Math.min(byW, byH)))
+  if (tile < 1)
+    return base
+
+  // A single short row (fewer slots than columns) centres on the columns it
+  // uses; a multi-row grid is a full rectangle, every row but the last full.
+  const usedCols = rows === 1 ? slots : columns
+  const gridW = usedCols * tile + (usedCols - 1) * gap
+  const gridH = rows * tile + (rows - 1) * gap
+  const originX = Math.round((stageW - gridW) / 2)
+  const originY = Math.round(headerH + (floor - headerH - gridH) / 2)
+  const matte = clamp(Math.round(tile * 0.055), 16, 32)
+  const board = tile - 2 * matte
+  const cell = gridCellBox({ w: board, h: board }, base.boardGap, ratio, board, 1)
+  const tiles = Array.from({ length: slots }, (_, i) => ({
+    x: Math.round(originX + (i % columns) * (tile + gap)),
+    y: Math.round(originY + Math.floor(i / columns) * (tile + gap)),
+    w: tile,
+    h: tile,
+  }))
+  return {
+    ...base,
+    tile,
+    radius: clamp(Math.round(tile * 0.08), 20, 32),
     matte,
-    board: { w: boardW, h: boardW },
+    board: { w: board, h: board },
     cell: { w: cell.w, h: cell.h },
-    boardGap,
-    cardGap,
-    travel: pageTravel(cardW, cardGap),
-    check: { size: 36, gap: 0, inside: true },
-    dots: { ...dots, y: 8 },
-    done: { top: 8, right: 16, w: 80, h: 36 },
-    add: { top: 8, right: 108, size: 44 },
+    check: clamp(Math.round(tile * 0.16), 24, 36),
+    tiles,
   }
 }
 
@@ -138,9 +137,9 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
- * A card's falloff at `distance` pages from centre. The smoothstep eases both
+ * A tile's falloff at `distance` pages from centre. The smoothstep eases both
  * ends, so a neighbour starts a page out at half opacity and a 0.94 scale and
- * reaches the active card's full strength only on centre. Reduced motion keeps
+ * reaches the active tile's full strength only on centre. Reduced motion keeps
  * the fade but drops the scale.
  */
 export function pageFalloff(distance: number, reduce: boolean): { opacity: number, scale: number } {
@@ -149,12 +148,7 @@ export function pageFalloff(distance: number, reduce: boolean): { opacity: numbe
   return { opacity: 1 - 0.5 * e, scale: reduce ? 1 : 1 - 0.06 * e }
 }
 
-/** A card's base left edge in the stage, before the row's drag offset. */
-export function pageCardLeft(index: number, activeIndex: number, layout: PageLayout, offset: number): number {
-  return layout.card.x + (index - activeIndex) * layout.travel + offset
-}
-
-/** Resistance at an end with no card behind it, and the most it can lean. */
+/** Resistance at an end with no board behind it, and the most it can lean. */
 const EDGE_SLOPE = 0.3
 const EDGE_REACH = 0.35
 
@@ -172,7 +166,7 @@ export function pageOffset(raw: number, travel: number, hasPrev: boolean, hasNex
 }
 
 /**
- * Which card a release lands on, as a step over the group list: 0 stays, +1 is
+ * Which board a release lands on, as a step over the group list: 0 stays, +1 is
  * the next group (dragged left), -1 the previous one. Past half a travel the
  * release goes where it leans; a flick carries one page on its own, and a flick
  * back home settles home. An end has nowhere to go.
@@ -195,52 +189,10 @@ export function pageRestOffset(step: -1 | 0 | 1, travel: number): number {
   return step === 0 ? 0 : step > 0 ? -travel : travel
 }
 
-export type PageRelease = 'tap' | 'page' | 'stay'
-
-/**
- * What letting go of the page surface means. A press that never locked an axis
- * and never left the slop is a tap, which the caller hit-tests against the
- * cards. A sideways gesture settles a card. A cancelled pointer is never a tap,
- * and a gesture past the slop with no axis decided nothing.
- */
-export function pageRelease({ axis, dx, dy, cancelled }: {
-  axis: 'x' | 'y' | null
-  dx: number
-  dy: number
-  cancelled: boolean
-}): PageRelease {
-  if (axis === 'x')
-    return 'page'
-  if (cancelled || axis === 'y')
-    return 'stay'
-  return Math.max(Math.abs(dx), Math.abs(dy)) < PAGER_SLOP ? 'tap' : 'stay'
-}
-
-/** The card nearest the stage centre at `offset`, clamped to the row. */
+/** The board nearest the stage centre at `offset`, clamped to the row. */
 export function pageTargetIndex(offset: number, travel: number, activeIndex: number, count: number): number {
   if (count <= 0)
     return 0
   const raw = Math.round(activeIndex - offset / Math.max(1, travel))
   return Math.min(count - 1, Math.max(0, raw))
-}
-
-/**
- * The card under a stage x coordinate, or null. Only a card showing at least
- * 48px inside the stage is tappable, so a phone's offscreen peep and the stage
- * margin are not.
- */
-export function pageAtX(x: number, layout: PageLayout, activeIndex: number, count: number, offset: number): number | null {
-  for (let i = 0; i < count; i++) {
-    const left = pageCardLeft(i, activeIndex, layout, offset)
-    const right = left + layout.card.w
-    const shown = Math.min(right, layout.stageW) - Math.max(left, 0)
-    if (shown >= 48 && x >= left && x <= right)
-      return i
-  }
-  return null
-}
-
-/** The raw multi-page offset a dot jump animates to, before the row re-bases. */
-export function pageJumpOffset(from: number, to: number, travel: number): number {
-  return (from - to) * travel
 }
