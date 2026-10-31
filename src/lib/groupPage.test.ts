@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { pageFalloff, pageOffset, pageRestOffset, pageStep, pageTargetIndex, pageTravel, tilesLayout, tileWiggle } from './groupPage'
+import { pageFalloff, pageOffset, pageRestOffset, pageStep, pageTargetIndex, pageTravel, TILE_EXIT_CATCHALL_MS, TILE_EXIT_MS, tilesLayout, tileWiggle } from './groupPage'
 
 const PHONE = { stageW: 375, coarse: true, ratio: 1, gridGap: 10 }
 const DESKTOP = { stageW: 1280, coarse: false, ratio: 1, gridGap: 10 }
@@ -160,6 +160,17 @@ describe('tileWiggle', () => {
   test('the rhythm belongs to the id alone: stable, and distinct next door', () => {
     expect(tileWiggle('g1')).toEqual(tileWiggle('g1'))
     expect(tileWiggle('g1')).not.toEqual(tileWiggle('g2'))
+  })
+})
+
+describe('tile exit timing', () => {
+  test('the exit is the fast step and the catch-all outlasts it', () => {
+    // 120 is the motion scale's `--dur-fast` step, so the exit reads as one
+    // blink; the catch-all sits past it so the animation ends first whenever
+    // it runs at all.
+    expect(TILE_EXIT_MS).toBe(120)
+    expect(TILE_EXIT_CATCHALL_MS).toBe(200)
+    expect(TILE_EXIT_CATCHALL_MS).toBeGreaterThan(TILE_EXIT_MS)
   })
 })
 

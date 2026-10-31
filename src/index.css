@@ -564,6 +564,30 @@ html.dark {
 }
 
 /*
+ * A tile's appear and disappear, on the tile root (the node dnd-kit sizes,
+ * never the wiggle wrapper): a just-added group fades and rises in over the
+ * surface step, a deleted one fades and shrinks over `--tile-exit-ms` (the
+ * exit duration `lib/groupPage` owns; the page container sets it once, so
+ * CSS and the two-phase delete timing share one number). No fill on the
+ * enter, so a finished entrance stops overriding the sortable translate
+ * dnd-kit puts on the same node; the exit fills both and the store commit
+ * unmounts it. The app-wide reduced-motion block ends both near-instantly,
+ * so the enter skips and the exit commits straight away.
+ */
+@keyframes tile-in {
+  from { opacity: 0; transform: translateY(10px); }
+}
+.tile-in {
+  animation: tile-in var(--dur-surface) var(--ease-out);
+}
+@keyframes tile-out {
+  to { opacity: 0; transform: scale(0.9); }
+}
+.tile-out {
+  animation: tile-out var(--tile-exit-ms, 120ms) var(--ease-out) both;
+}
+
+/*
  * The groups page entrance: the wallpaper fades up when the page mounts.
  */
 @keyframes wallpaper-in {

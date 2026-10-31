@@ -4,23 +4,27 @@
  * Press, hold, then move, on every pointer type: both sensors arm after a
  * 250ms hold and give the press up if it wanders past 8px first, so a swipe
  * scrolls the page (the native pan wins) and a plain tap still clicks the
- * tile open. The drop commits through the store's `moveGrid`. No delete
- * strip here; deletion is the hidden state's `x` on the tile, not a drop.
+ * tile open. The drop commits through the store's `moveGrid`, or hands the
+ * tile to `onDelete` when it lands on the shared delete strip (the same
+ * two-phase path as the tucked state's `x`).
  */
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { GridGroup } from '../../lib/workspaces'
 import { MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { useMemo, useRef, useState } from 'react'
+import { DELETE_ZONE_ID } from '../../lib/deleteZone'
 
 /** How long a press holds before the drag arms. */
 const HOLD_MS = 250
 /** How far the press may wander during the hold before it gives the drag up. */
 const HOLD_TOLERANCE_PX = 8
 
-export function useGroupsReorder({ grids, moveGrid }: {
+export function useGroupsReorder({ grids, moveGrid, onDelete }: {
   grids: readonly GridGroup[]
   /** Commit a reorder: the moved group's id and its new index. */
   moveGrid: (id: string, to: number) => void
+  /** A tile dropped on the delete strip: the same two-phase delete as the `x`. */
+  onDelete: (id: string) => void
 }) {
   const [dragId, setDragId] = useState<string | null>(null)
   const sensors = useSensors(
@@ -40,6 +44,11 @@ export function useGroupsReorder({ grids, moveGrid }: {
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     setDragId(null)
     dragEndedAtRef.current = Date.now()
+    if (over?.id === DELETE_ZONE_ID) {
+      navigator.vibrate?.(10)
+      onDelete(String(active.id))
+      return
+    }
     if (!over || active.id === over.id)
       return
     const from = grids.findIndex(g => g.id === active.id)

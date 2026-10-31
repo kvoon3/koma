@@ -1,24 +1,26 @@
-import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { TilesLayout } from '../../lib/groupPage'
-import { closestCenter, DndContext, DragOverlay, MeasuringStrategy } from '@dnd-kit/core'
+import { DndContext, DragOverlay, MeasuringStrategy, useDroppable } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 import { useNavigate } from '@tanstack/react-router'
 import { Check, Plus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useElementSize, useMediaQuery } from '../../hooks'
+import { DELETE_ZONE_ID, deleteFirst } from '../../lib/deleteZone'
 import { cellRatioValue } from '../../lib/gridTools'
-import { tilesLayout } from '../../lib/groupPage'
+import { TILE_EXIT_CATCHALL_MS, TILE_EXIT_MS, tilesLayout } from '../../lib/groupPage'
 import { useT } from '../../lib/i18n'
 import { EASE_OUT_CSS } from '../../lib/motionTokens'
 import { OVERVIEW_PATH } from '../../lib/routes'
 import { prefersReducedMotion, viewTransitionOption } from '../../lib/viewTransition'
 import { isTransparentBg, useStore } from '../../store'
+import { DeleteZone } from '../DeleteZone'
 import { DockToolset } from '../Stage'
 import { ToolsDock } from '../ToolsDock'
 import { GroupWallpaper } from './GroupWallpaper'
-import { PageTile, TileBoard } from './PageCard'
+import { LeavingTile, PageTile, TileBoard } from './PageCard'
 import { useGroupsKeys } from './useGroupsKeys'
 import { useGroupsNav } from './useGroupsNav'
 import { useGroupsReorder } from './useGroupsReorder'
@@ -40,10 +42,12 @@ const BLANK_OWNER = '[data-group-tile],button,a,[data-dock-mode],[role="dialog"]
  * press-hold-move reorders the row (the store's `grids` order, which the
  * root pager and capsule follow), and a tap on the board, Done, Escape, Back
  * or the blank page leaves for that group's overview through the `ws-<id>`
- * morph. The eye under a tucked tile dims it and offers the delete `x`; the
- * + pill beside Done adds a group (the row is endless); the tools dock is
- * not on this page, so the grid owns the whole height and scrolls when the
- * tiles run past it.
+ * morph. The eye under a tucked tile dims it and offers the delete `x`; a
+ * held tile dropped on the red strip deletes the same way. Both deletes and
+ * the + pill's adds are animated: a new tile rises in and the scroller
+ * follows it, a deleted one plays out before the row glides shut. The tools
+ * dock is not on this page, so the grid owns the whole height and scrolls
+ * when the tiles run past it.
  */
 export function GroupsPage() {
   const t = useT()
@@ -91,14 +95,74 @@ export function GroupsPage() {
     return id === activeGridId ? workspaces : parked[id]?.workspaces ?? []
   }, [grids, activeGridId, workspaces, parked])
 
-  // ---- Drag-to-reorder (dnd-kit, insert-shift through `moveGrid`) ---------
-  const reorder = useGroupsReorder({ grids, moveGrid })
+  // ---- Deleting is two-phase -----------------------------------------------
+  // The tile plays its way out (`LeavingTile`) before the store drops the
+  // group, so survivors glide shut; the catch-all timer commits when the
+  // animation never runs. Both the `x` and a strip drop land here; a
+  // refused delete (the last group) brings the tile back.
+  const [leaving, setLeaving] = useState<ReadonlyMap<string, boolean>>(() => new Map())
+  const commitDelete = useCallback((id: string) => {
+    setLeaving((old) => {
+      if (!old.has(id))
+        return old
+      const next = new Map(old)
+      next.delete(id)
+      return next
+    })
+    removeGrid(id)
+  }, [removeGrid])
+  const deleteGroup = useCallback((id: string, dimmed = false) => {
+    if (leaving.has(id))
+      return
+    setLeaving(old => new Map(old).set(id, dimmed))
+    setTimeout(commitDelete, TILE_EXIT_CATCHALL_MS, id)
+  }, [leaving, commitDelete])
+  const deleteFromDrop = useCallback((id: string) => deleteGroup(id, true), [deleteGroup])
+
+  // ---- A group id that joins the row rises in -------------------------------
+  // Added, or undone back in: the tile mounts wearing `tile-in` and the
+  // scroller follows it (a no-op while the grid fits). The page's own mount
+  // skips the diff, so opening animates nothing.
+  const [enteringIds, setEnteringIds] = useState<ReadonlySet<string>>(() => new Set())
+  const prevIdsRef = useRef<readonly string[] | null>(null)
+  useLayoutEffect(() => {
+    const prev = prevIdsRef.current
+    prevIdsRef.current = grids.map(g => g.id)
+    if (!prev)
+      return
+    const had = new Set(prev)
+    const added = grids.filter(g => !had.has(g.id)).map(g => g.id)
+    if (!added.length)
+      return
+    const live = new Set(grids.map(g => g.id))
+    setEnteringIds((old) => {
+      const next = new Set(added)
+      for (const id of old) {
+        if (live.has(id))
+          next.add(id)
+      }
+      return next
+    })
+    // The tile mounted in this same commit, so its box is already laid out.
+    document.querySelector<HTMLElement>(`[data-tile-id="${added[added.length - 1]}"]`)
+      ?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest', inline: 'nearest' })
+  }, [grids])
+
+  // ---- Drag-to-reorder (dnd-kit, insert-shift through `moveGrid`) ----------
+  // A drop on the delete strip rides the same two-phase delete as the `x`.
+  const reorder = useGroupsReorder({ grids, moveGrid, onDelete: deleteFromDrop })
   const dragIndex = reorder.dragId ? grids.findIndex(g => g.id === reorder.dragId) : -1
   const dragBoard = dragIndex >= 0 ? boardOf(dragIndex) : null
   const afterDrag = useCallback((run: () => void) => {
     if (Date.now() - reorder.dragEndedAtRef.current > CLICK_AFTER_DRAG_MS)
       run()
   }, [reorder.dragEndedAtRef])
+  // A leaving tile is not a drop target: the survivors it would shift past
+  // are about to close over it.
+  const sortableIds = useMemo(
+    () => grids.filter(g => !leaving.has(g.id)).map(g => g.id),
+    [grids, leaving],
+  )
 
   // ---- The scroll module's own tap guards ---------------------------------
   // A release at the end of a scroll still clicks on the surface it scrolled,
@@ -147,9 +211,6 @@ export function GroupsPage() {
   const addGroup = useCallback(() => {
     addGrid()
   }, [addGrid])
-  const deleteGroup = useCallback((id: string) => {
-    removeGrid(id)
-  }, [removeGrid])
 
   // The blank page is a leave: anything that is not a tile, a button or the
   // dock returns to `/` the way Done does. The click that follows a finished
@@ -174,7 +235,6 @@ export function GroupsPage() {
 
   const activeName = grids[activeIndex]?.name ?? ''
   const live = t('Group {name}', { name: activeName })
-  const groupTiles = layout.tiles.slice(0, grids.length)
 
   return (
     <div
@@ -205,18 +265,22 @@ export function GroupsPage() {
 
       {/* The tiles: one scrolling module filling the page from under the
           header to the safe-area bottom; the grid centres while it fits and
-          scrolls once it does not. Each board face is a button, so Tab and
-          Enter reach them natively; the drag rides the same face. */}
-      <div data-groups-tiles="" className="absolute inset-0 z-[5]">
+          scrolls once it does not. The exit duration rides the container,
+          so every leaving tile reads it. */}
+      <div
+        data-groups-tiles=""
+        className="absolute inset-0 z-[5]"
+        style={{ '--tile-exit-ms': `${TILE_EXIT_MS}ms` } as CSSProperties}
+      >
         <DndContext
           sensors={reorder.sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={deleteFirst}
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragStart={reorder.onDragStart}
           onDragEnd={reorder.onDragEnd}
           onDragCancel={reorder.onDragCancel}
         >
-          <SortableContext items={reorder.ids} strategy={rectSortingStrategy}>
+          <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
             <div
               data-tiles-scroll=""
               className="absolute inset-x-0 bottom-[env(safe-area-inset-bottom)] flex touch-pan-y flex-col overflow-y-auto overscroll-contain"
@@ -229,26 +293,55 @@ export function GroupsPage() {
                   shrink is off: the content keeps its height and the
                   scroller, not the flex line, owns the overflow. */}
               <div className="relative m-auto w-full shrink-0" style={{ height: layout.contentH }}>
-                {groupTiles.map((box, i) => (
-                  <PageTile
-                    key={grids[i].id}
-                    group={grids[i]}
-                    board={boardOf(i)}
-                    box={box}
-                    layout={layout}
-                    named={i === activeIndex}
-                    hidden={grids[i].hidden === true}
-                    photoById={photoById}
-                    transparent={transparent}
-                    canDelete={grids.length > 1}
-                    onOpen={openTile}
-                    onDelete={deleteGroup}
-                    onToggle={toggleGridHidden}
-                  />
+                {layout.tiles.map((box, i) => (
+                  leaving.has(grids[i].id)
+                    ? null
+                    : (
+                        <PageTile
+                          key={grids[i].id}
+                          group={grids[i]}
+                          board={boardOf(i)}
+                          box={box}
+                          layout={layout}
+                          named={i === activeIndex}
+                          hidden={grids[i].hidden === true}
+                          entering={enteringIds.has(grids[i].id)}
+                          photoById={photoById}
+                          transparent={transparent}
+                          canDelete={grids.length > 1}
+                          onOpen={openTile}
+                          onDelete={deleteGroup}
+                          onToggle={toggleGridHidden}
+                        />
+                      )
                 ))}
+                {[...leaving.keys()].map((id) => {
+                  const i = grids.findIndex(g => g.id === id)
+                  const box = i >= 0 ? layout.tiles[i] : undefined
+                  if (!box)
+                    return null
+                  return (
+                    <LeavingTile
+                      key={id}
+                      group={grids[i]}
+                      board={boardOf(i)}
+                      box={box}
+                      layout={layout}
+                      hidden={grids[i].hidden === true}
+                      dimmed={leaving.get(id) === true}
+                      photoById={photoById}
+                      transparent={transparent}
+                      onExited={commitDelete}
+                    />
+                  )
+                })}
               </div>
             </div>
           </SortableContext>
+
+          {/* The red strip a held tile drops on to delete; the same surface
+              the overview's cell drag uses, pinned across the page top. */}
+          <GroupsDeleteZone active={!!reorder.dragId} label={t('Drop here to delete')} />
 
           <DragOverlay dropAnimation={prefersReducedMotion() ? null : { duration: 160, easing: EASE_OUT_CSS }}>
             {dragBoard
@@ -282,6 +375,12 @@ export function GroupsPage() {
       </ToolsDock>
     </div>
   )
+}
+
+/** The delete strip's droppable side: the shared `DeleteZone` under this page's drag. */
+function GroupsDeleteZone({ active, label }: { active: boolean, label: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: DELETE_ZONE_ID })
+  return <DeleteZone setRef={setNodeRef} active={active} over={isOver} label={label} />
 }
 
 /** The page chrome: the + pill and the check-mark Done pill. The title stays for screen readers. */

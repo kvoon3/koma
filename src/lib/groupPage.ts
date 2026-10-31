@@ -136,6 +136,19 @@ function clamp(v: number, lo: number, hi: number): number {
 const WIGGLE_MIN_MS = 900
 const WIGGLE_MAX_MS = 1300
 
+/**
+ * A deleted tile's exit: the CSS animation fades and shrinks it over
+ * `TILE_EXIT_MS` (the motion scale's `--dur-fast` step), then the store drops
+ * the group and the survivors glide shut. The delete commits on the exit
+ * animation's end or at `TILE_EXIT_CATCHALL_MS`, whichever comes first, so the
+ * store always updates even when the animation never runs (reduced motion
+ * ends it near-instantly; a hidden or unmounted tile never fires it). The page
+ * feeds `TILE_EXIT_MS` to the keyframe through `--tile-exit-ms`, so CSS and
+ * the timing wiring read one number.
+ */
+export const TILE_EXIT_MS = 120
+export const TILE_EXIT_CATCHALL_MS = 200
+
 /** FNV-1a over the id: a stable hash, so a tile's rhythm survives reorders. */
 function hashId(id: string): number {
   let h = 0x811C9DC5

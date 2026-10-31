@@ -1,10 +1,9 @@
-import type { CollisionDetection } from '@dnd-kit/core'
 import type { CardKind } from '../lib/cards'
 import type { Photo } from '../lib/imageStore'
 import type { Node } from '../lib/panes'
 import type { Workspace } from '../store'
 import { Menu } from '@base-ui/react/menu'
-import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, pointerWithin, useDroppable } from '@dnd-kit/core'
+import { DndContext, DragOverlay, MeasuringStrategy, useDroppable } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
@@ -14,6 +13,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useDockRestBand, useElementSize, useMediaQuery, useStageZoom } from '../hooks'
 import { useAppCommands } from '../lib/appCommands'
 import { viewTransform } from '../lib/canvasView'
+import { DELETE_ZONE_ID, deleteFirst } from '../lib/deleteZone'
 import { dockBand } from '../lib/dockMetrics'
 import { GRID_CELL_MAX } from '../lib/exporter'
 import { cellRatioValue, gridCellBox } from '../lib/gridTools'
@@ -30,7 +30,7 @@ import { useDockCapacity, useDockMetrics } from './dockContext'
 import { CAPSULE_H, CAPTION_GAP, CAPTION_H, STAGE_PAD_Y, stageTopPad } from './grid/boardLayout'
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
 import { useGridKeyboard } from './grid/useGridKeyboard'
-import { DELETE_ZONE_ID, useGridReorder } from './grid/useGridReorder'
+import { useGridReorder } from './grid/useGridReorder'
 import { useStageGestures } from './grid/useStageGestures'
 import { useGroupsNav } from './groups/useGroupsNav'
 import { DockToolset } from './Stage'
@@ -65,26 +65,13 @@ function stageCellBox(body: { w: number, h: number }, gap: number, ratio: number
 }
 
 /**
- * The delete strip is hit by the pointer itself (it sits outside the grid, so
- * closestCenter would never pick it, and must not steal near-top drops);
- * every other drop is decided by the pointer too.
- *
- * The cells are decided by the pointer first: the canvas view zoom is a CSS
- * transform, and dnd-kit's translate (screen pixels from the sensor) and the
- * collided rect (the cell's own rect plus that translate) disagree by the
- * scale, while the pointer and every droppable rect are measured in the same
- * space. closestCenter stays the fallback for a pointer resting in a gap.
+ * Collision detection is the shared `deleteFirst` (`lib/deleteZone.ts`): the
+ * delete strip only when the pointer is inside it, else the pointer's own
+ * hits, with `closestCenter` for a pointer resting in a gap. The pointer-first
+ * rule matters here because the canvas view zoom is a CSS transform, and
+ * dnd-kit's translate and the collided rect disagree by the scale, while the
+ * pointer and every droppable rect are measured in the same space.
  */
-const deleteFirst: CollisionDetection = (args) => {
-  const hit = pointerWithin(args)
-  const zone = hit.filter(c => c.id === DELETE_ZONE_ID)
-  if (zone.length)
-    return zone
-  const cells = hit.filter(c => c.id !== DELETE_ZONE_ID)
-  if (cells.length)
-    return cells
-  return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(c => c.id !== DELETE_ZONE_ID) })
-}
 
 /**
  * The 3×3 workspace overview: read-only square previews of all nine

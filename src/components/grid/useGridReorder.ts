@@ -16,10 +16,8 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useMemo, useRef, useState } from 'react'
+import { DELETE_ZONE_ID } from '../../lib/deleteZone'
 import { useStore } from '../../store'
-
-/** The delete strip's droppable id (it sits outside the grid). */
-export const DELETE_ZONE_ID = '__delete__'
 
 export function useGridReorder({ workspaces, moveWorkspace }: {
   workspaces: Workspace[]
