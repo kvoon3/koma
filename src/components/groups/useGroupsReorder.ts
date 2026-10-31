@@ -13,6 +13,7 @@ import type { GridGroup } from '../../lib/workspaces'
 import { MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { useMemo, useRef, useState } from 'react'
 import { DELETE_ZONE_ID } from '../../lib/deleteZone'
+import { useStore } from '../../store'
 
 /** How long a press holds before the drag arms. */
 const HOLD_MS = 250
@@ -52,9 +53,12 @@ export function useGroupsReorder({ grids, moveGrid, onDelete }: {
     if (!over || active.id === over.id)
       return
     const from = grids.findIndex(g => g.id === active.id)
-    const to = grids.findIndex(g => g.id === over.id)
-    if (from !== -1 && to !== -1)
-      moveGrid(grids[from].id, to)
+    // The page passes the visible groups, but `moveGrid` indexes the whole
+    // row, so the target lands where it sits among every group, tucked ones
+    // included; a reorder among the visible ones keeps the tucked ones put.
+    const storeTo = useStore.getState().grids.findIndex(g => g.id === over.id)
+    if (from !== -1 && storeTo !== -1)
+      moveGrid(grids[from].id, storeTo)
   }
 
   const onDragCancel = () => {

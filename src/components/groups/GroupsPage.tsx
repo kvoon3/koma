@@ -73,27 +73,32 @@ export function GroupsPage() {
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
+  // The page lists the visible groups only: a tucked-away group has no tile
+  // here (the root pager and the capsule keep it, so the eye stays reversible).
+  const shown = useMemo(() => grids.filter(g => g.hidden !== true), [grids])
   const layout = useMemo(
     () => tilesLayout({
       stageW: stage.w,
-      count: grids.length,
+      count: shown.length,
       coarse,
       ratio: cellRatioValue(gridCellRatio),
       gridGap,
     }),
-    [stage.w, grids.length, coarse, gridCellRatio, gridGap],
+    [stage.w, shown.length, coarse, gridCellRatio, gridGap],
   )
-  const activeIndex = Math.max(0, grids.findIndex(g => g.id === activeGridId))
+  // The open group can be tucked away, so it may not be among the shown
+  // tiles; -1 then means no tile wears the names or the open mark.
+  const activeIndex = shown.findIndex(g => g.id === activeGridId)
   const activeBoard = useMemo(
-    () => (grids[activeIndex]?.id === activeGridId ? workspaces : parked[activeGridId]?.workspaces ?? workspaces),
-    [grids, activeIndex, activeGridId, workspaces, parked],
+    () => (shown[activeIndex]?.id === activeGridId ? workspaces : parked[activeGridId]?.workspaces ?? workspaces),
+    [shown, activeIndex, activeGridId, workspaces, parked],
   )
   const boardOf = useCallback((index: number) => {
-    const id = grids[index]?.id
+    const id = shown[index]?.id
     if (!id)
       return []
     return id === activeGridId ? workspaces : parked[id]?.workspaces ?? []
-  }, [grids, activeGridId, workspaces, parked])
+  }, [shown, activeGridId, workspaces, parked])
 
   // ---- Deleting is two-phase -----------------------------------------------
   // The tile plays its way out (`LeavingTile`) before the store drops the
@@ -144,14 +149,16 @@ export function GroupsPage() {
       return next
     })
     // The tile mounted in this same commit, so its box is already laid out.
-    document.querySelector<HTMLElement>(`[data-tile-id="${added[added.length - 1]}"]`)
-      ?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest', inline: 'nearest' })
+    // The new group sits at the end of the row, so the whole scroller rides
+    // to the bottom; `block: 'nearest'` keeps it a no-op while the grid fits.
+    document.querySelector<HTMLElement>('[data-tiles-scroll]')
+      ?.scrollTo({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', top: Number.MAX_SAFE_INTEGER })
   }, [grids])
 
   // ---- Drag-to-reorder (dnd-kit, insert-shift through `moveGrid`) ----------
   // A drop on the delete strip rides the same two-phase delete as the `x`.
-  const reorder = useGroupsReorder({ grids, moveGrid, onDelete: deleteFromDrop })
-  const dragIndex = reorder.dragId ? grids.findIndex(g => g.id === reorder.dragId) : -1
+  const reorder = useGroupsReorder({ grids: shown, moveGrid, onDelete: deleteFromDrop })
+  const dragIndex = reorder.dragId ? shown.findIndex(g => g.id === reorder.dragId) : -1
   const dragBoard = dragIndex >= 0 ? boardOf(dragIndex) : null
   const afterDrag = useCallback((run: () => void) => {
     if (Date.now() - reorder.dragEndedAtRef.current > CLICK_AFTER_DRAG_MS)
@@ -160,8 +167,8 @@ export function GroupsPage() {
   // A leaving tile is not a drop target: the survivors it would shift past
   // are about to close over it.
   const sortableIds = useMemo(
-    () => grids.filter(g => !leaving.has(g.id)).map(g => g.id),
-    [grids, leaving],
+    () => shown.filter(g => !leaving.has(g.id)).map(g => g.id),
+    [shown, leaving],
   )
 
   // ---- The scroll module's own tap guards ---------------------------------
@@ -233,7 +240,7 @@ export function GroupsPage() {
     headingRef.current?.focus()
   }, [])
 
-  const activeName = grids[activeIndex]?.name ?? ''
+  const activeName = shown[activeIndex]?.name ?? ''
   const live = t('Group {name}', { name: activeName })
 
   return (
@@ -294,21 +301,21 @@ export function GroupsPage() {
                   scroller, not the flex line, owns the overflow. */}
               <div className="relative m-auto w-full shrink-0" style={{ height: layout.contentH }}>
                 {layout.tiles.map((box, i) => (
-                  leaving.has(grids[i].id)
+                  leaving.has(shown[i].id)
                     ? null
                     : (
                         <PageTile
-                          key={grids[i].id}
-                          group={grids[i]}
+                          key={shown[i].id}
+                          group={shown[i]}
                           board={boardOf(i)}
                           box={box}
                           layout={layout}
                           named={i === activeIndex}
-                          hidden={grids[i].hidden === true}
-                          entering={enteringIds.has(grids[i].id)}
+                          hidden={shown[i].hidden === true}
+                          entering={enteringIds.has(shown[i].id)}
                           photoById={photoById}
                           transparent={transparent}
-                          canDelete={grids.length > 1}
+                          canDelete={shown.length > 1}
                           onOpen={openTile}
                           onDelete={deleteGroup}
                           onToggle={toggleGridHidden}
@@ -316,18 +323,18 @@ export function GroupsPage() {
                       )
                 ))}
                 {[...leaving.keys()].map((id) => {
-                  const i = grids.findIndex(g => g.id === id)
+                  const i = shown.findIndex(g => g.id === id)
                   const box = i >= 0 ? layout.tiles[i] : undefined
                   if (!box)
                     return null
                   return (
                     <LeavingTile
                       key={id}
-                      group={grids[i]}
+                      group={shown[i]}
                       board={boardOf(i)}
                       box={box}
                       layout={layout}
-                      hidden={grids[i].hidden === true}
+                      hidden={shown[i].hidden === true}
                       dimmed={leaving.get(id) === true}
                       photoById={photoById}
                       transparent={transparent}
