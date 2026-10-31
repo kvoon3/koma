@@ -146,16 +146,20 @@ export function WorkspaceGrid() {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const viewZoom = useStageZoom(wrapRef, columnRef)
 
-  const activeIndex = Math.max(0, grids.findIndex(g => g.id === activeGridId))
+  // The root pages only the visible groups; a tucked one is managed from the
+  // groups page and never shows here. The open group is always visible (the
+  // store hands the stage over when it is tucked).
+  const visible = useMemo(() => grids.filter(g => g.hidden !== true), [grids])
+  const activeIndex = Math.max(0, visible.findIndex(g => g.id === activeGridId))
   const hasPrev = activeIndex > 0
-  const hasNext = activeIndex >= 0 && activeIndex < grids.length - 1
+  const hasNext = activeIndex >= 0 && activeIndex < visible.length - 1
   /** The cells of the group at `index` in the row (the live board included). */
   const boardOf = useCallback((index: number) => {
-    const id = grids[index]?.id
+    const id = visible[index]?.id
     if (!id)
       return []
     return id === activeGridId ? workspaces : parkedBoards[id]?.workspaces ?? []
-  }, [grids, activeGridId, workspaces, parkedBoards])
+  }, [visible, activeGridId, workspaces, parkedBoards])
 
   // ---- Group pager (swipe sideways to switch groups) -----------------------
   // The board's screen box, measured the way the old board switcher measured
@@ -194,7 +198,7 @@ export function WorkspaceGrid() {
   // ---- Stage gestures (the pager, the pull-down, the long press) -----------
   const gestures = useStageGestures({
     enabled: true,
-    gridIds: grids.map(g => g.id),
+    gridIds: visible.map(g => g.id),
     activeIndex,
     travel,
     viewScale: viewZoom.scale,
@@ -215,7 +219,7 @@ export function WorkspaceGrid() {
     const s = stage.getBoundingClientRect()
     const b = board.getBoundingClientRect()
     setBoardBase({ x: b.left - s.left - offset(), y: b.top - s.top })
-  }, [wrapSize.w, wrapSize.h, cell, box.h, gridGap, boardRows, viewZoom.scale, topPad, dockReserve, activeIndex, grids.length, offset])
+  }, [wrapSize.w, wrapSize.h, cell, box.h, gridGap, boardRows, viewZoom.scale, topPad, dockReserve, activeIndex, visible.length, offset])
 
   return (
     <div
@@ -397,14 +401,12 @@ export function WorkspaceGrid() {
             onClick={openGroups}
             className="flex h-full cursor-pointer items-center justify-center gap-[9px] rounded-full px-3 outline-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent"
           >
-            {grids.map((g, i) => (
+            {visible.map((g, i) => (
               <span
                 key={g.id}
                 aria-hidden
-                className={`h-[6px] snap-center rounded-full transition-[width,background-color] duration-(--dur-surface) ease-(--ease-out) ${
-                  i === gestures.targetIndex
-                    ? 'w-[22px] bg-float-icon'
-                    : g.hidden ? 'w-[6px] bg-float-icon/25' : 'w-[6px] bg-float-icon/50'
+                className={`h-[6px] snap-center rounded-full transition-[width] duration-(--dur-surface) ease-(--ease-out) ${
+                  i === gestures.targetIndex ? 'w-[22px] bg-float-icon' : 'w-[6px] bg-float-icon/50'
                 }`}
               />
             ))}
