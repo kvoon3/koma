@@ -1,6 +1,7 @@
 import type { MinimapView } from '../lib/boardPaint'
 import type { ExportView } from '../lib/exportView'
 import type { ExportItem } from './ExportDialog'
+import NumberFlow from '@number-flow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery } from '../hooks'
 import { minimapViewStyle } from '../lib/boardPaint'
@@ -305,8 +306,8 @@ function ExportZoomChip({ percent, onFit }: { percent: number, onFit: () => void
       onDoubleClick={e => e.stopPropagation()}
       onClick={onFit}
     >
-      {percent}
-      %
+      {/* Same rolling digits as ViewZoomChip; the comment there covers both. */}
+      <NumberFlow value={percent} format={{ useGrouping: false }} suffix="%" willChange />
     </button>
   )
 }

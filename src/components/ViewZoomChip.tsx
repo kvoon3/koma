@@ -1,3 +1,4 @@
+import NumberFlow from '@number-flow/react'
 import { isOffFit, viewPercent } from '../lib/canvasView'
 import { useT } from '../lib/i18n'
 
@@ -29,8 +30,9 @@ export function ViewZoomChip({ scale, onFit, className = '' }: {
       aria-label={label}
       onClick={onFit}
     >
-      {pct}
-      %
+      {/* Rolls per gesture notch; the suffix lives inside so the grid keeps
+          one item and the sign rides the digits. */}
+      <NumberFlow value={pct} format={{ useGrouping: false }} suffix="%" willChange />
     </button>
   )
 }
