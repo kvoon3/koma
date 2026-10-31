@@ -662,13 +662,14 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(stepsOf()).toBe(6)
   })
 
-  test('tucking a group away is one undo step, and the row never moves', () => {
+  test('tucking away is one undo step; the root never pages a tucked group', () => {
     const firstId = state().activeGridId
     const added = state().addGrid()!
     const ids = state().grids.map(g => g.id)
 
-    state().toggleGridHidden(added)
-    expect(state().grids.map(g => g.hidden)).toEqual([undefined, true])
+    // Tucking a parked group keeps the open group and the row order.
+    state().toggleGridHidden(firstId)
+    expect(state().grids.map(g => g.hidden)).toEqual([true, undefined])
     expect(state().grids.map(g => g.id)).toEqual(ids)
     expect(state().activeGridId).toBe(added)
     expect(stepsOf()).toBe(2)
@@ -676,12 +677,49 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     state().undo()
     expect(state().grids.map(g => g.hidden)).toEqual([undefined, undefined])
     state().redo()
-    expect(state().grids.map(g => g.hidden)).toEqual([undefined, true])
+    expect(state().grids.map(g => g.hidden)).toEqual([true, undefined])
 
-    // Tucking the open group away changes nothing about the board in view.
-    state().toggleGridHidden(firstId)
-    expect(state().grids.map(g => g.id)).toEqual(ids)
+    // Hiding the last visible group is refused: the root pages only the
+    // visible row, so it always keeps one board to draw.
+    state().toggleGridHidden(added)
+    expect(state().grids.map(g => g.hidden)).toEqual([true, undefined])
     expect(state().activeGridId).toBe(added)
+    expect(stepsOf()).toBe(2)
+
+    state().undo()
+    expect(state().grids.map(g => g.hidden)).toEqual([undefined, undefined])
+    expect(state().activeGridId).toBe(added)
+  })
+
+  test('tucking the open group hands the stage to a visible neighbour', () => {
+    state().addGrid()
+    state().addGrid()
+    // Open the middle group, then tuck it: the stage goes to the neighbour
+    // that is still visible.
+    state().switchGrid(state().grids[1]!.id)
+    const openId = state().activeGridId
+    state().toggleGridHidden(openId)
+    expect(state().grids.find(g => g.id === openId)!.hidden).toBe(true)
+    expect(state().activeGridId).not.toBe(openId)
+    expect(state().grids.find(g => g.id === state().activeGridId)!.hidden).toBeUndefined()
+  })
+
+  test('the last visible group never tucks away', () => {
+    const s = state()
+    const only = s.activeGridId
+    s.toggleGridHidden(only)
+    expect(s.grids.map(g => g.hidden)).toEqual([undefined])
+    expect(s.activeGridId).toBe(only)
+  })
+
+  test('opening a tucked group shows it again', () => {
+    const firstId = state().activeGridId
+    state().addGrid()
+    state().toggleGridHidden(firstId)
+    expect(state().grids.find(g => g.id === firstId)!.hidden).toBe(true)
+    state().switchGrid(firstId)
+    expect(state().grids.find(g => g.id === firstId)!.hidden).toBeFalsy()
+    expect(state().activeGridId).toBe(firstId)
   })
 
   test('a legacy session (one board, no groups) hydrates as group 1', () => {

@@ -614,9 +614,35 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * is a marker: the group keeps its place in the row and its board stays.
    */
   toggleGridHidden: (id) => {
-    const next = toggleGroupHidden(get().grids, id)
-    if (next === get().grids)
+    const s = get()
+    const next = toggleGroupHidden(s.grids, id)
+    if (next === s.grids)
       return
+    // The root pages only the visible groups, so the open group must stay
+    // among them: hiding it hands the stage to the nearest visible neighbour,
+    // the same handover a delete does. The last visible group never hides.
+    const hiding = next.find(g => g.id === id)?.hidden === true
+    if (hiding && id === s.activeGridId) {
+      const idx = s.grids.findIndex(g => g.id === id)
+      const visible = next.filter(g => !g.hidden && g.id !== id)
+      const neighbour = visible.find(g => s.grids.indexOf(g) < idx) ?? visible[visible.length - 1]
+      if (!neighbour)
+        return
+      const parkedBoards = { ...s.parkedBoards }
+      delete parkedBoards[neighbour.id]
+      const parked = parkedBoards[neighbour.id] ?? { workspaces: s.workspaces, activeId: s.activeId }
+      parkedBoards[s.activeGridId] = { workspaces: s.workspaces, activeId: s.activeId }
+      commit('toggleGridHidden')
+      set({
+        grids: next,
+        activeGridId: neighbour.id,
+        parkedBoards,
+        workspaces: parked.workspaces,
+        activeId: parked.workspaces.some(w => w.id === parked.activeId) ? parked.activeId : parked.workspaces[0].id,
+        ...clearedSelection,
+      })
+      return
+    }
     commit('toggleGridHidden')
     set({ grids: next })
   },
@@ -647,7 +673,14 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const parkedBoards = { ...s.parkedBoards }
     delete parkedBoards[id]
     parkedBoards[s.activeGridId] = { workspaces: s.workspaces, activeId: s.activeId }
+    // Opening a group also shows it: the root pages only the visible row, so
+    // the group being opened must rejoin it. No undo entry of its own, the
+    // same navigation-only rule the switch already follows.
+    const grids = s.grids.some(g => g.id === id && g.hidden)
+      ? s.grids.map(g => g.id === id ? { ...g, hidden: false } : g)
+      : s.grids
     set({
+      grids,
       activeGridId: id,
       parkedBoards,
       workspaces: target.workspaces,

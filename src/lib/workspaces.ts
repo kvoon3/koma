@@ -155,8 +155,16 @@ export function renameGroup(groups: GridGroup[], id: string, name: string): Grid
 }
 
 /** Tuck a group away or bring it back; the row's order never moves. */
+/**
+ * Tuck a group away or bring it back. The last visible group never tucks: the
+ * root pages only the visible row, so hiding the last one would leave the
+ * overview with no board to draw. That request returns the row untouched.
+ */
 export function toggleGroupHidden(groups: GridGroup[], id: string): GridGroup[] {
   if (!groups.some(g => g.id === id))
+    return groups
+  const hiding = !groups.find(g => g.id === id)!.hidden
+  if (hiding && groups.filter(g => !g.hidden).length <= 1)
     return groups
   return groups.map(g => (g.id === id ? { ...g, hidden: !g.hidden || undefined } : g))
 }

@@ -73,32 +73,31 @@ export function GroupsPage() {
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
-  // The page lists the visible groups only: a tucked-away group has no tile
-  // here (the root pager and the capsule keep it, so the eye stays reversible).
-  const shown = useMemo(() => grids.filter(g => g.hidden !== true), [grids])
+  // Every group is managed here, tucked ones too: the page is where a tucked
+  // group is un-tucked. A tucked tile wears the dimmed face and the delete x.
   const layout = useMemo(
     () => tilesLayout({
       stageW: stage.w,
-      count: shown.length,
+      count: grids.length,
       coarse,
       ratio: cellRatioValue(gridCellRatio),
       gridGap,
     }),
-    [stage.w, shown.length, coarse, gridCellRatio, gridGap],
+    [stage.w, grids.length, coarse, gridCellRatio, gridGap],
   )
-  // The open group can be tucked away, so it may not be among the shown
-  // tiles; -1 then means no tile wears the names or the open mark.
-  const activeIndex = shown.findIndex(g => g.id === activeGridId)
+  // The open group is always visible (the store hands the stage over when it
+  // is tucked), so it always has a tile here.
+  const activeIndex = Math.max(0, grids.findIndex(g => g.id === activeGridId))
   const activeBoard = useMemo(
-    () => (shown[activeIndex]?.id === activeGridId ? workspaces : parked[activeGridId]?.workspaces ?? workspaces),
-    [shown, activeIndex, activeGridId, workspaces, parked],
+    () => (grids[activeIndex]?.id === activeGridId ? workspaces : parked[activeGridId]?.workspaces ?? workspaces),
+    [grids, activeIndex, activeGridId, workspaces, parked],
   )
   const boardOf = useCallback((index: number) => {
-    const id = shown[index]?.id
+    const id = grids[index]?.id
     if (!id)
       return []
     return id === activeGridId ? workspaces : parked[id]?.workspaces ?? []
-  }, [shown, activeGridId, workspaces, parked])
+  }, [grids, activeGridId, workspaces, parked])
 
   // ---- Deleting is two-phase -----------------------------------------------
   // The tile plays its way out (`LeavingTile`) before the store drops the
@@ -157,8 +156,8 @@ export function GroupsPage() {
 
   // ---- Drag-to-reorder (dnd-kit, insert-shift through `moveGrid`) ----------
   // A drop on the delete strip rides the same two-phase delete as the `x`.
-  const reorder = useGroupsReorder({ grids: shown, moveGrid, onDelete: deleteFromDrop })
-  const dragIndex = reorder.dragId ? shown.findIndex(g => g.id === reorder.dragId) : -1
+  const reorder = useGroupsReorder({ grids, moveGrid, onDelete: deleteFromDrop })
+  const dragIndex = reorder.dragId ? grids.findIndex(g => g.id === reorder.dragId) : -1
   const dragBoard = dragIndex >= 0 ? boardOf(dragIndex) : null
   const afterDrag = useCallback((run: () => void) => {
     if (Date.now() - reorder.dragEndedAtRef.current > CLICK_AFTER_DRAG_MS)
@@ -167,8 +166,8 @@ export function GroupsPage() {
   // A leaving tile is not a drop target: the survivors it would shift past
   // are about to close over it.
   const sortableIds = useMemo(
-    () => shown.filter(g => !leaving.has(g.id)).map(g => g.id),
-    [shown, leaving],
+    () => grids.filter(g => !leaving.has(g.id)).map(g => g.id),
+    [grids, leaving],
   )
 
   // ---- The scroll module's own tap guards ---------------------------------
@@ -240,7 +239,7 @@ export function GroupsPage() {
     headingRef.current?.focus()
   }, [])
 
-  const activeName = shown[activeIndex]?.name ?? ''
+  const activeName = grids[activeIndex]?.name ?? ''
   const live = t('Group {name}', { name: activeName })
 
   return (
@@ -301,21 +300,21 @@ export function GroupsPage() {
                   scroller, not the flex line, owns the overflow. */}
               <div className="relative m-auto w-full shrink-0" style={{ height: layout.contentH }}>
                 {layout.tiles.map((box, i) => (
-                  leaving.has(shown[i].id)
+                  leaving.has(grids[i].id)
                     ? null
                     : (
                         <PageTile
-                          key={shown[i].id}
-                          group={shown[i]}
+                          key={grids[i].id}
+                          group={grids[i]}
                           board={boardOf(i)}
                           box={box}
                           layout={layout}
                           named={i === activeIndex}
-                          hidden={shown[i].hidden === true}
-                          entering={enteringIds.has(shown[i].id)}
+                          hidden={grids[i].hidden === true}
+                          entering={enteringIds.has(grids[i].id)}
                           photoById={photoById}
                           transparent={transparent}
-                          canDelete={shown.length > 1}
+                          canDelete={grids.length > 1}
                           onOpen={openTile}
                           onDelete={deleteGroup}
                           onToggle={toggleGridHidden}
@@ -323,18 +322,18 @@ export function GroupsPage() {
                       )
                 ))}
                 {[...leaving.keys()].map((id) => {
-                  const i = shown.findIndex(g => g.id === id)
+                  const i = grids.findIndex(g => g.id === id)
                   const box = i >= 0 ? layout.tiles[i] : undefined
                   if (!box)
                     return null
                   return (
                     <LeavingTile
                       key={id}
-                      group={shown[i]}
+                      group={grids[i]}
                       board={boardOf(i)}
                       box={box}
                       layout={layout}
-                      hidden={shown[i].hidden === true}
+                      hidden={grids[i].hidden === true}
                       dimmed={leaving.get(id) === true}
                       photoById={photoById}
                       transparent={transparent}
