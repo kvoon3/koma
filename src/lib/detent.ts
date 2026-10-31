@@ -192,6 +192,12 @@ export function dialDegAt(ratio: number): number {
  * (90°, 23.7°, 0°). Wraps first, then rounds, so the seam reads 0° and never
  * "-0°".
  */
+/** The numeric degree the dial's readout animates: rounded like the label.
+    `+ 0` folds the rounded -0 back to +0, so the seam never reads "-0°". */
+export function readoutDeg(deg: number): number {
+  return Math.round(wrapDeg(deg) * 10) / 10 + 0
+}
+
 export function formatDeg(deg: number): string {
   const d = Math.round(wrapDeg(deg) * 10) / 10
   if (d === 0)

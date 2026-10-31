@@ -300,6 +300,13 @@ export function stepValue(value: number, notches: number, scale: RailScale): num
  */
 export type RailFormat = 'percent' | 'size'
 
+/** The numeric value the rail's readout animates: rounded like the label. */
+export function railValue(value: number, format: RailFormat): number {
+  if (!Number.isFinite(value) || value <= 0)
+    return 0
+  return format === 'percent' ? Math.round(value * 100) : Math.round(value)
+}
+
 export function railValueLabel(value: number, format: RailFormat): string {
   if (!Number.isFinite(value) || value <= 0)
     return '-'

@@ -288,7 +288,8 @@ export function ExportPreview({ item }: { item: ExportItem | null }) {
 /**
  * The discoverable reset: the live percentage, and fit on click. Not a reuse of
  * `ViewZoomChip`, which hardcodes its own label key and attribute; the classes
- * are the shared thing and they are copied verbatim.
+ * are the shared thing and they are copied verbatim: bold text, no background
+ * or border, the digits are the affordance.
  */
 function ExportZoomChip({ percent, onFit }: { percent: number, onFit: () => void }) {
   const t = useT()
@@ -297,7 +298,7 @@ function ExportZoomChip({ percent, onFit }: { percent: number, onFit: () => void
     <button
       type="button"
       data-export-zoom-chip=""
-      className="absolute right-2 top-2 z-[3] grid h-[30px] min-w-[46px] cursor-pointer place-items-center border border-float-line bg-float-bg px-1.5 text-[11px] font-semibold tabular-nums text-float-icon backdrop-blur-[7px] transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:h-[38px]"
+      className="absolute right-2 top-2 z-[3] grid h-[30px] min-w-[46px] cursor-pointer place-items-center px-1.5 text-[11px] font-bold tabular-nums text-float-icon transition-[color,scale] duration-(--dur-fast) active:scale-[0.97] hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:h-[38px]"
       title={label}
       aria-label={label}
       // The chip is not the photo: its press must not reach the viewport's

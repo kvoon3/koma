@@ -2,6 +2,7 @@ import type { RefObject } from 'react'
 import type { PaneLabel, Sticker } from '../lib/panes'
 import type { RailTick } from '../lib/scaleRail'
 import type { ScaleTarget } from '../lib/scaleTarget'
+import NumberFlow from '@number-flow/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useFloatingActionsBottom, useMediaQuery, useToolsSheetTop } from '../hooks'
 import { wheelNotches } from '../lib/canvasView'
@@ -13,6 +14,7 @@ import {
   RAIL_KEY_STEPS,
   RAIL_PAGE_STEPS,
   railTicks,
+  railValue,
   railValueLabel,
   rubberBand,
   settleValue,
@@ -578,10 +580,11 @@ export function ScaleRail({ nudge = 0 }: {
         </span>
 
         {/* The live value, beside the scale while the pointer (or focus) is
-            there: the same floating chip the view-zoom readout uses. */}
+            there: bold text like the view-zoom readout, no background or
+            border, the digits the affordance. */}
         <span
           data-rail-value=""
-          className={`absolute grid origin-right place-items-center border border-float-line bg-float-bg px-1.5 text-[11px] font-semibold tabular-nums text-float-icon backdrop-blur-[7px] transition-[opacity,translate,scale] ease-(--ease-out) motion-reduce:duration-0 ${settle} ${chip}`}
+          className={`absolute grid origin-right place-items-center px-1.5 text-[11px] font-bold tabular-nums text-float-icon transition-[opacity,translate,scale] ease-(--ease-out) motion-reduce:duration-0 ${settle} ${chip}`}
           style={{
             right: bandW / 2 + TICK_FIT / 2 + CHIP_GAP,
             top: INSET - CHIP_H / 2,
@@ -590,7 +593,7 @@ export function ScaleRail({ nudge = 0 }: {
             translate: `0 ${lift}px`,
           }}
         >
-          {railValueLabel(value, target.format)}
+          <NumberFlow value={railValue(value, target.format)} format={{ useGrouping: false }} suffix={target.format === 'percent' ? '%' : undefined} willChange />
         </span>
       </div>
     </>
