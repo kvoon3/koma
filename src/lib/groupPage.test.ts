@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test'
-import { pageFalloff, pageOffset, pageRestOffset, pageStep, pageTargetIndex, pageTravel, tilesLayout } from './groupPage'
+import { pageFalloff, pageOffset, pageRestOffset, pageStep, pageTargetIndex, pageTravel, tilesLayout, tileWiggle } from './groupPage'
 
 const PHONE = { stageW: 375, coarse: true, ratio: 1, gridGap: 10 }
 const DESKTOP = { stageW: 1280, coarse: false, ratio: 1, gridGap: 10 }
@@ -134,6 +134,32 @@ describe('tilesLayout invariants', () => {
       if (l.columns > 1)
         expect(l.tiles[1].x - (left + l.board.w)).toBe(l.gap)
     }
+  })
+})
+
+describe('tileWiggle', () => {
+  test('two tiles swing on rhythms of their own', () => {
+    const a = tileWiggle('g-abc123')
+    const b = tileWiggle('g-def456')
+    expect(a.delay).toBe(-934)
+    expect(a.duration).toBe(1197)
+    expect(b.delay).toBe(-412)
+    expect(b.duration).toBe(1031)
+  })
+
+  test('every rhythm stays in the band, its phase already under way', () => {
+    for (let i = 0; i < 200; i++) {
+      const { delay, duration } = tileWiggle(`g${i}`)
+      expect(duration).toBeGreaterThanOrEqual(900)
+      expect(duration).toBeLessThanOrEqual(1300)
+      expect(delay).toBeLessThanOrEqual(0)
+      expect(delay).toBeGreaterThan(-duration)
+    }
+  })
+
+  test('the rhythm belongs to the id alone: stable, and distinct next door', () => {
+    expect(tileWiggle('g1')).toEqual(tileWiggle('g1'))
+    expect(tileWiggle('g1')).not.toEqual(tileWiggle('g2'))
   })
 })
 

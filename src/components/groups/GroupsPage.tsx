@@ -5,7 +5,7 @@ import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 import { useNavigate } from '@tanstack/react-router'
 import { Check, Plus } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import { useElementSize, useMediaQuery } from '../../hooks'
 import { cellRatioValue } from '../../lib/gridTools'
@@ -23,10 +23,6 @@ import { useGroupsKeys } from './useGroupsKeys'
 import { useGroupsNav } from './useGroupsNav'
 import { useGroupsReorder } from './useGroupsReorder'
 
-/** The entry morph's landing time: the wiggle waits it out before it starts. */
-const WIGGLE_START_MS = 350
-/** Air between one tile's wiggle start and the next. */
-const WIGGLE_STAGGER_MS = 90
 /** A finished drag's drop still clicks; neither opens nor exits inside this. */
 const CLICK_AFTER_DRAG_MS = 150
 /** A scroll's tail: a blank tap inside this is the scroll's release, not a leave. */
@@ -40,13 +36,14 @@ const BLANK_OWNER = '[data-group-tile],button,a,[data-dock-mode],[role="dialog"]
 /**
  * The groups page: every board group as a frameless tile of one scrolling
  * grid, opened from the overview's dot capsule, a pull down or a long press.
- * The page is the board's edit mode: tiles wiggle, drag reorders the row (the
- * store's `grids` order, which the root pager and capsule follow), the
- * checkbox under a tile gates its delete `x`, and a tap on the board, Done,
- * Escape, Back or the blank page leaves for that group's overview through
- * the `ws-<id>` morph. The + pill beside Done adds a group (the row is
- * endless); the tools dock is not on this page, so the grid owns the whole
- * height and scrolls when the tiles run past it.
+ * The page is the board's edit mode: tiles wiggle each on its own rhythm,
+ * press-hold-move reorders the row (the store's `grids` order, which the
+ * root pager and capsule follow), and a tap on the board, Done, Escape, Back
+ * or the blank page leaves for that group's overview through the `ws-<id>`
+ * morph. The eye under a tucked tile dims it and offers the delete `x`; the
+ * + pill beside Done adds a group (the row is endless); the tools dock is
+ * not on this page, so the grid owns the whole height and scrolls when the
+ * tiles run past it.
  */
 export function GroupsPage() {
   const t = useT()
@@ -62,14 +59,13 @@ export function GroupsPage() {
   const moveGrid = useStore(s => s.moveGrid)
   const addGrid = useStore(s => s.addGrid)
   const removeGrid = useStore(s => s.removeGrid)
+  const toggleGridHidden = useStore(s => s.toggleGridHidden)
   const navigate = useNavigate()
   const { close: closeGroups } = useGroupsNav()
 
   const [stageRef, stage] = useElementSize<HTMLDivElement>()
   const coarse = useMediaQuery('(pointer: coarse)')
   const headingRef = useRef<HTMLHeadingElement | null>(null)
-  /** Which tiles have their checkbox set: page-local, never the store's. */
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
 
   const photoById = useMemo(() => new Map(photos.map(p => [p.id, p])), [photos])
   const transparent = isTransparentBg(bg)
@@ -153,24 +149,7 @@ export function GroupsPage() {
   }, [addGrid])
   const deleteGroup = useCallback((id: string) => {
     removeGrid(id)
-    setSelected((prev) => {
-      if (!prev.has(id))
-        return prev
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
   }, [removeGrid])
-  const toggleCheck = useCallback((id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (prev.has(id))
-        next.delete(id)
-      else
-        next.add(id)
-      return next
-    })
-  }, [])
 
   // The blank page is a leave: anything that is not a tile, a button or the
   // dock returns to `/` the way Done does. The click that follows a finished
@@ -246,8 +225,10 @@ export function GroupsPage() {
             >
               {/* An auto margin centres the grid while it fits and collapses
                   to zero when it overflows, so the scroll starts at the top
-                  instead of clipping it (the justify-content trap). */}
-              <div className="relative m-auto w-full" style={{ height: layout.contentH }}>
+                  instead of clipping it (the justify-content trap). The
+                  shrink is off: the content keeps its height and the
+                  scroller, not the flex line, owns the overflow. */}
+              <div className="relative m-auto w-full shrink-0" style={{ height: layout.contentH }}>
                 {groupTiles.map((box, i) => (
                   <PageTile
                     key={grids[i].id}
@@ -256,14 +237,13 @@ export function GroupsPage() {
                     box={box}
                     layout={layout}
                     named={i === activeIndex}
-                    selected={selected.has(grids[i].id)}
-                    wiggleDelay={WIGGLE_START_MS + i * WIGGLE_STAGGER_MS}
+                    hidden={grids[i].hidden === true}
                     photoById={photoById}
                     transparent={transparent}
                     canDelete={grids.length > 1}
                     onOpen={openTile}
                     onDelete={deleteGroup}
-                    onToggle={toggleCheck}
+                    onToggle={toggleGridHidden}
                   />
                 ))}
               </div>

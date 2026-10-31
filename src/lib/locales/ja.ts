@@ -567,9 +567,9 @@ const ja: Record<TKey, string> = {
   // Groups (the board groups, browsed on the groups page)
   'Add a group': 'グループを追加',
   'Open group {name}': 'グループ {name} を開く',
-  'Select group {name}': 'グループ {name} を選択',
   'Delete group?': 'グループを削除しますか？',
   'Toggle group visibility': 'グループの表示を切り替える',
+  'Toggle visibility for {name}': 'グループ {name} の表示を切り替える',
 
   // Groups page
   'Groups': 'グループ',

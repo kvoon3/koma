@@ -1,11 +1,13 @@
+import type { CSSProperties } from 'react'
 import type { BoardCell } from '../../lib/boardPreview'
 import type { PageBox, TilesLayout } from '../../lib/groupPage'
 import type { Photo } from '../../lib/imageStore'
 import type { GridGroup } from '../../lib/workspaces'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, X } from 'lucide'
+import { Eye, EyeOff, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
+import { tileWiggle } from '../../lib/groupPage'
 import { useT } from '../../lib/i18n'
 import { MAX_WORKSPACES } from '../../lib/workspaces'
 import { AddSlotFrame, CellBody } from '../grid/CellPreview'
@@ -63,17 +65,16 @@ export function TileBoard({ board, cell, gap, photoById, transparent, named, dim
 export interface PageTileProps {
   group: GridGroup
   board: readonly BoardCell[]
-  /** The tile's board box in the stage, from `tilesLayout`. */
+  /** The tile's board box in the content, from `tilesLayout`. */
   box: PageBox
   layout: TilesLayout
   /** Only the open group's cells carry the view-transition names. */
   named: boolean
-  /** The checkbox under the tile is checked, so the delete `x` shows. */
-  selected: boolean
-  /** The wiggle's start offset: the entry morph lands first, then a stagger. */
-  wiggleDelay: number
+  /** The group is tucked away: the board dims, the delete `x` shows. */
+  hidden: boolean
   photoById: Map<string, Photo>
   transparent: boolean
+  /** The last group of the row carries no delete `x`. */
   canDelete: boolean
   onOpen: (id: string) => void
   onDelete: (id: string) => void
@@ -82,22 +83,25 @@ export interface PageTileProps {
 
 /**
  * One group as a frameless edit-mode tile: the board itself (no card frame,
- * no matte, one soft shadow), wiggling like an iOS home-screen icon while the
- * page is shown. The board face is the drag handle (dnd-kit insert-shift
- * reorder through `onOpen`'s siblings; the drop commits via the store's
- * `moveGrid`), the round checkbox under it gates the delete `x`, and tapping
- * the board opens the group through the `ws-<id>` morph. The tile leaves
+ * no matte, one soft shadow), wiggling like an iOS home-screen icon on a
+ * rhythm of its own (`tileWiggle`, hashed from the id). The board face is
+ * the drag handle (press and hold on any pointer; the drop commits via the
+ * store's `moveGrid`) and a plain tap opens the group through the `ws-<id>`
+ * morph. The eye under the board tucks it away; a tucked tile dims, keeps
+ * wiggling, and offers the delete `x` at its corner. The tile leaves
  * `touch-action` to its chain so a swipe on it scrolls the page; the hold
  * arms the drag before any scroll can start.
  */
-export function PageTile({ group, board, box, layout, named, selected, wiggleDelay, photoById, transparent, canDelete, onOpen, onDelete, onToggle }: PageTileProps) {
+export function PageTile({ group, board, box, layout, named, hidden, photoById, transparent, canDelete, onOpen, onDelete, onToggle }: PageTileProps) {
   const t = useT()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.id })
+  const wiggle = tileWiggle(group.id)
   return (
     <div
       ref={setNodeRef}
       data-group-tile=""
       data-tile-open={named || undefined}
+      data-tile-hidden={hidden || undefined}
       className="absolute"
       style={{
         left: box.x,
@@ -110,17 +114,22 @@ export function PageTile({ group, board, box, layout, named, selected, wiggleDel
     >
       {/* The wiggle rides this inner wrapper, so its keyframe transform never
           composes with dnd-kit's translate above; a drag pauses it on the
-          tile the ghost already lifts. */}
+          tile the ghost already lifts. The rhythm is the tile's own, and it
+          never changes, so a reorder never restarts it. */}
       <div
         className="tile-wiggle relative"
-        style={{ animationDelay: `${wiggleDelay}ms`, animationPlayState: isDragging ? 'paused' : undefined }}
+        style={{
+          '--wiggle-dur': `${wiggle.duration}ms`,
+          '--wiggle-delay': `${wiggle.delay}ms`,
+          'animationPlayState': isDragging ? 'paused' : undefined,
+        } as CSSProperties}
       >
         <button
           type="button"
           data-tile-face=""
           {...attributes}
           {...listeners}
-          className={`relative block cursor-pointer select-none ${TILE_SHADOW} outline-2 outline-offset-2 outline-transparent outline-0 transition-[outline-color] duration-(--dur-fast) hover:not-focus-visible:outline-line-strong focus-visible:outline-sel`}
+          className={`relative block cursor-pointer select-none ${TILE_SHADOW} outline-2 outline-offset-2 outline-transparent outline-0 transition-[outline-color,opacity] duration-(--dur-fast) hover:not-focus-visible:outline-line-strong focus-visible:outline-sel ${hidden ? ' opacity-45' : ''}`}
           aria-label={t('Open group {name}', { name: group.name })}
           aria-current={named ? 'true' : undefined}
           onClick={() => onOpen(group.id)}
@@ -128,9 +137,9 @@ export function PageTile({ group, board, box, layout, named, selected, wiggleDel
           <TileBoard board={board} cell={layout.cell} gap={layout.boardGap} photoById={photoById} transparent={transparent} named={named} dimmed={isDragging} />
         </button>
 
-        {/* The delete `x` shows only while the tile's checkbox is checked; it
-            never rides a hover or a coarse-pointer press. */}
-        {canDelete && selected && (
+        {/* The delete `x` is the tucked-away state's affordance: a visible
+            tile has none, and a tucked one needs no second check. */}
+        {canDelete && hidden && (
           <button
             type="button"
             data-tile-delete=""
@@ -144,25 +153,25 @@ export function PageTile({ group, board, box, layout, named, selected, wiggleDel
         )}
       </div>
 
-      {/* The round iOS checkbox: a hollow ring when clear, filled with a check
-          when set. Page-local selection state; its own hit target. */}
+      {/* The round eye toggle: hollow with the eye when the group is in the
+          row at full strength, filled with the slash once it is tucked away.
+          Its own hit target; tapping it never opens the group. */}
       <button
         type="button"
-        role="checkbox"
-        aria-checked={selected}
-        data-tile-check=""
+        aria-pressed={hidden}
+        data-tile-eye=""
         className="absolute top-full left-1/2 grid h-7 w-7 -translate-x-1/2 cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 outline-0 pointer-coarse:h-11 pointer-coarse:w-11 focus-visible:outline-1 focus-visible:outline-accent"
-        aria-label={t('Select group {name}', { name: group.name })}
+        aria-label={t('Toggle visibility for {name}', { name: group.name })}
         onClick={() => onToggle(group.id)}
       >
         <span
           aria-hidden
           className={`grid place-items-center rounded-full border-2 ${
-            selected ? 'border-accent bg-accent text-on-accent' : 'border-dim bg-transparent text-transparent'
+            hidden ? 'border-accent bg-accent text-on-accent' : 'border-dim bg-transparent text-dim'
           }`}
           style={{ width: layout.check, height: layout.check }}
         >
-          <MorphIcon icon={Check} size={Math.round(layout.check * 0.55)} strokeWidth={2.5} />
+          <MorphIcon icon={hidden ? EyeOff : Eye} size={Math.round(layout.check * 0.6)} strokeWidth={2.25} />
         </span>
       </button>
     </div>

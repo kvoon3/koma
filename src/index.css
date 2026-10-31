@@ -548,16 +548,19 @@ html.dark {
 /*
  * The groups page's edit-mode wiggle (the iOS home-screen icon jiggle): a
  * small rotation and offset on an inner wrapper of each tile, never the
- * sortable node dnd-kit translates. Each tile's inline animation-delay phases
- * it and staggers the start past the entry morph. The app-wide reduced-motion
- * block ends the animation with no fill, so reduced motion shows still tiles.
+ * sortable node dnd-kit translates. Each tile sets its own rhythm through
+ * two custom properties (`lib/groupPage`'s `tileWiggle`, hashed from the
+ * group's id): a duration in the 0.9s–1.3s band and a negative delay that
+ * starts the cycle mid-phase, so the row never swings as one. The app-wide
+ * reduced-motion block ends the animation with no fill, so reduced motion
+ * shows still tiles.
  */
 @keyframes tile-wiggle {
   0%, 100% { transform: rotate(-0.6deg) translateY(0.5px); }
   50% { transform: rotate(0.6deg) translateY(-0.5px); }
 }
 .tile-wiggle {
-  animation: tile-wiggle 520ms var(--ease-in-out) infinite;
+  animation: tile-wiggle var(--wiggle-dur, 520ms) var(--ease-in-out) var(--wiggle-delay, 0ms) infinite;
 }
 
 /*

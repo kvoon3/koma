@@ -571,9 +571,9 @@ const zhHant: Record<TKey, string> = {
   // Groups (the board groups, browsed on the groups page)
   'Add a group': '新增群組',
   'Open group {name}': '開啟群組 {name}',
-  'Select group {name}': '選擇群組 {name}',
   'Delete group?': '刪除群組？',
   'Toggle group visibility': '顯示或隱藏群組',
+  'Toggle visibility for {name}': '顯示或隱藏群組 {name}',
 
   // Groups page
   'Groups': '群組',

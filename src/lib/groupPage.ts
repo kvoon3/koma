@@ -132,6 +132,31 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v))
 }
 
+/** The band every tile's own wiggle duration lives in, ms. */
+const WIGGLE_MIN_MS = 900
+const WIGGLE_MAX_MS = 1300
+
+/** FNV-1a over the id: a stable hash, so a tile's rhythm survives reorders. */
+function hashId(id: string): number {
+  let h = 0x811C9DC5
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+/**
+ * One tile's wiggle rhythm, from a stable hash of the group's id: a duration
+ * in the band and a negative delay (a phase already under way at mount). No
+ * two tiles swing together, and a reorder or a re-render restarts nothing.
+ */
+export function tileWiggle(id: string): { delay: number, duration: number } {
+  const h = hashId(id)
+  const duration = WIGGLE_MIN_MS + (h % (WIGGLE_MAX_MS - WIGGLE_MIN_MS + 1))
+  return { delay: -((h >>> 10) % duration), duration }
+}
+
 /**
  * A tile's falloff at `distance` pages from centre. The smoothstep eases both
  * ends, so a neighbour starts a page out at half opacity and a 0.94 scale and

@@ -573,9 +573,9 @@ const zhHans = {
   // Groups (the board groups, browsed on the groups page)
   'Add a group': '新增分组',
   'Open group {name}': '打开分组 {name}',
-  'Select group {name}': '选择分组 {name}',
   'Delete group?': '删除分组？',
   'Toggle group visibility': '显示或隐藏分组',
+  'Toggle visibility for {name}': '显示或隐藏分组 {name}',
 
   // Groups page
   'Groups': '分组',
