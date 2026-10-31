@@ -2,10 +2,11 @@
  * The overview's stage gestures: one hook owns every press on the board stage.
  *
  * A press that moves locks one axis past the slop (`lockedAxis`): sideways is
- * the group pager (the board column and quiet previews of the neighbouring
- * groups slide as one row, and a release past half or a flick lands on the
- * neighbour through `switchGrid`), and straight down is the pull-down into
- * the groups page (the old `usePullDown` rule: one commit, at `PULL_COMMIT`).
+ * the group pager (the board column and true-look previews of the
+ * neighbouring groups slide as one row, and a release past half or a flick
+ * lands on the neighbour through `switchGrid`), and straight down is the
+ * pull-down into the groups page (the old `usePullDown` rule: one commit, at
+ * `PULL_COMMIT`).
  * Up and undecided presses do nothing, and a press held still on blank stage
  * for `LONG_PRESS_MS` opens the groups page as well.
  *

@@ -573,6 +573,7 @@ const zhHans = {
   // Groups (the board groups, browsed on the groups page)
   'Add a group': '新增分组',
   'Open group {name}': '打开分组 {name}',
+  'Select group {name}': '选择分组 {name}',
   'Delete group?': '删除分组？',
 
   // Groups page
@@ -754,6 +755,7 @@ const zhHans = {
   'Add workspace': '添加工作区',
   'Delete workspace': '删除工作区',
   'Move workspace': '移动工作区',
+  'Move group': '移动分组',
   'Shuffle workspaces': '随机排列工作区',
   'Clear photos': '清空照片',
   'New workspace': '新建工作区',

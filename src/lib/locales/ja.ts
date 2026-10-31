@@ -567,6 +567,7 @@ const ja: Record<TKey, string> = {
   // Groups (the board groups, browsed on the groups page)
   'Add a group': 'グループを追加',
   'Open group {name}': 'グループ {name} を開く',
+  'Select group {name}': 'グループ {name} を選択',
   'Delete group?': 'グループを削除しますか？',
 
   // Groups page
@@ -748,6 +749,7 @@ const ja: Record<TKey, string> = {
   'Add workspace': 'ワークスペースを追加',
   'Delete workspace': 'ワークスペースを削除',
   'Move workspace': 'ワークスペースを移動',
+  'Move group': 'グループを移動',
   'Shuffle workspaces': 'ワークスペースをシャッフル',
   'Clear photos': '写真を消去',
   'New workspace': '新しいワークスペース',

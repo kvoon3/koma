@@ -1,9 +1,9 @@
 /**
  * The groups page geometry and the group pager physics, pure and DOM-free:
- * the tile grid every group's card lays out in, and the slide, falloff and
- * release rules the overview's pager hook reads (the groups page itself no
- * longer pages; its tiles are buttons). Components render these numbers, they
- * do not invent sizes.
+ * the frameless tile grid every group's board lays out in, and the slide,
+ * falloff and release rules the overview's pager hook reads (the groups page
+ * itself no longer pages; its tiles are buttons). Components render these
+ * numbers, they do not invent sizes.
  */
 import { FLICK_VELOCITY, pickSnap, rubberBand } from './dockPhysics'
 import { gridCellBox } from './gridTools'
@@ -35,25 +35,32 @@ export interface TilesLayout {
   rows: number
   /** How many tiles the grid holds: one per group, plus the add slot. */
   slots: number
-  /** Every tile is the same square. */
-  tile: number
+  /** Air between tile slots. */
   gap: number
-  radius: number
-  matte: number
+  /** The tile is the board box itself: the 3×3 at the root's own cell gap. */
   board: { w: number, h: number }
   cell: { w: number, h: number }
+  /** The board's own cell gap, the root's `gridGap`, so a tile reads as the board. */
   boardGap: number
-  /** The open group's check badge, drawn inside the tile's corner. */
+  /** The checkbox row reserved under every tile. */
+  checkRow: number
+  /** The round checkbox's face, inside its row. */
   check: number
   tiles: PageBox[]
   done: { top: number, right: number, w: number, h: number }
 }
 
+/** The smallest board tile the page draws before it widens the grid a column. */
+const TILE_FLOOR = 96
+
 /**
- * The groups page as a flat grid of tiles: one per group (plus the dashed add
- * slot while there is room), every tile the same square, centred as one grid
- * in the area between the header and the compact dock band. The board inside
- * keeps the page card's matte-and-radius language, scaled to the tile.
+ * The groups page as a flat grid of frameless tiles: one per group (plus the
+ * dashed add slot while there is room), every tile the board itself, the 3×3
+ * at the root's own cell gap with no card frame or matte, plus a checkbox
+ * row reserved under it. Centred as one grid between the header and the
+ * compact dock band. When two rows cannot keep the board at the floor once
+ * the checkbox rows are paid for, the grid widens a column until one row can
+ * (a landscape phone trades rows for a legible board).
  */
 export function tilesLayout({ stageW, stageH, count, dockBand, coarse, ratio, gridGap }: {
   stageW: number
@@ -72,64 +79,64 @@ export function tilesLayout({ stageW, stageH, count, dockBand, coarse, ratio, gr
   const marginY = wide ? 8 : (coarse ? 12 : 16)
   const headerH = wide ? 64 : 56
   const gap = wide ? 32 : 24
-  const columns = stageW < 640 ? 2 : Math.min(4, Math.max(2, Math.floor(stageW / 300)))
+  const checkRow = coarse ? 36 : 28
   const slots = count + (count < MAX_GRIDS ? 1 : 0)
-  const rows = Math.max(1, Math.ceil(slots / columns))
-
+  const startColumns = stageW < 640 ? 2 : Math.min(4, Math.max(2, Math.floor(stageW / 300)))
+  const rowsOf = (cols: number) => Math.max(1, Math.ceil(slots / cols))
   const base: TilesLayout = {
     stageW,
     stageH,
     floor,
     headerH,
-    columns,
-    rows,
+    columns: startColumns,
+    rows: rowsOf(startColumns),
     slots,
-    tile: 0,
     gap,
-    radius: 20,
-    matte: 16,
     board: { w: 0, h: 0 },
     cell: { w: 0, h: 0 },
-    boardGap: Math.min(12, Math.max(2, gridGap)),
-    check: 24,
+    boardGap: gridGap,
+    checkRow,
+    check: 22,
     tiles: [],
     done: { top: 10, right: marginX, w: 80, h: 36 },
   }
   if (stageW <= 0 || stageH <= 0)
     return base
 
-  const byW = (stageW - 2 * marginX - (columns - 1) * gap) / columns
-  const byH = (floor - headerH - 2 * marginY - (rows - 1) * gap) / rows
-  const tile = Math.floor(Math.max(0, Math.min(byW, byH)))
-  if (tile < 1)
-    return base
+  // The board one column/row pair fits: cells floored to integers, so the
+  // board can come out a touch under the pair's box.
+  const boardAt = (cols: number) => {
+    const rows = rowsOf(cols)
+    const colW = (stageW - 2 * marginX - (cols - 1) * gap) / cols
+    const rowH = (floor - headerH - 2 * marginY - (rows - 1) * gap) / rows - checkRow
+    const cell = gridCellBox({ w: colW, h: rowH }, gridGap, ratio, colW, 1)
+    return { rows, colW, rowH, cell, board: { w: cell.w * 3 + gridGap * 2, h: cell.h * 3 + gridGap * 2 } }
+  }
+
+  let columns = startColumns
+  let fit = boardAt(columns)
+  while (columns < 4 && columns < slots && fit.board.w < TILE_FLOOR) {
+    columns += 1
+    fit = boardAt(columns)
+  }
+  const { rows, colW, rowH, cell, board } = fit
+  if (colW < 1 || rowH < 1)
+    return { ...base, columns, rows }
 
   // A single short row (fewer slots than columns) centres on the columns it
   // uses; a multi-row grid is a full rectangle, every row but the last full.
   const usedCols = rows === 1 ? slots : columns
-  const gridW = usedCols * tile + (usedCols - 1) * gap
-  const gridH = rows * tile + (rows - 1) * gap
+  const gridW = usedCols * board.w + (usedCols - 1) * gap
+  const gridH = rows * board.h + rows * checkRow + (rows - 1) * gap
   const originX = Math.round((stageW - gridW) / 2)
   const originY = Math.round(headerH + (floor - headerH - gridH) / 2)
-  const matte = clamp(Math.round(tile * 0.055), 16, 32)
-  const board = tile - 2 * matte
-  const cell = gridCellBox({ w: board, h: board }, base.boardGap, ratio, board, 1)
   const tiles = Array.from({ length: slots }, (_, i) => ({
-    x: Math.round(originX + (i % columns) * (tile + gap)),
-    y: Math.round(originY + Math.floor(i / columns) * (tile + gap)),
-    w: tile,
-    h: tile,
+    x: Math.round(originX + (i % columns) * (board.w + gap)),
+    y: Math.round(originY + Math.floor(i / columns) * (board.h + checkRow + gap)),
+    w: board.w,
+    h: board.h,
   }))
-  return {
-    ...base,
-    tile,
-    radius: clamp(Math.round(tile * 0.08), 20, 32),
-    matte,
-    board: { w: board, h: board },
-    cell: { w: cell.w, h: cell.h },
-    check: clamp(Math.round(tile * 0.16), 24, 36),
-    tiles,
-  }
+  return { ...base, columns, rows, board, cell, tiles }
 }
 
 function clamp(v: number, lo: number, hi: number): number {

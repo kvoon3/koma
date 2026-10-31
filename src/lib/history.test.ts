@@ -342,6 +342,7 @@ describe('labels', () => {
     flipPane: 'Flip photo',
     moveSticker: 'Move sticker',
     moveWorkspace: 'Move workspace',
+    moveGrid: 'Move group',
     pastePane: 'Paste pane',
     patch: 'Board look',
     removeGrid: 'Delete workspace',

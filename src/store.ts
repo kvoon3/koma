@@ -615,6 +615,19 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     set({ grids: next })
   },
 
+  /** Insert-shift reorder of the groups row: remove `id` and splice it at `to`. */
+  moveGrid: (id, to) => {
+    const s = get()
+    const from = s.grids.findIndex(g => g.id === id)
+    if (from === -1 || to < 0 || to >= s.grids.length || from === to)
+      return
+    const next = [...s.grids]
+    const [group] = next.splice(from, 1)
+    next.splice(to, 0, group)
+    commit('moveGrid')
+    set({ grids: next })
+  },
+
   /**
    * Open another group's board. Navigation, not a board mutation (like
    * `patch({ activeId })`): it pushes no undo entry, and the group it leaves
@@ -1609,6 +1622,8 @@ interface Actions {
   addGrid: (name?: string) => string | null
   removeGrid: (id: string) => void
   renameGrid: (id: string, name: string) => void
+  /** Insert-shift reorder of the groups row (the groups page's drag). */
+  moveGrid: (id: string, to: number) => void
   /** Open a group's board (navigation: pushes no undo entry). */
   switchGrid: (id: string) => void
   shuffleWorkspaces: (rng?: () => number) => void

@@ -571,6 +571,7 @@ const zhHant: Record<TKey, string> = {
   // Groups (the board groups, browsed on the groups page)
   'Add a group': '新增群組',
   'Open group {name}': '開啟群組 {name}',
+  'Select group {name}': '選擇群組 {name}',
   'Delete group?': '刪除群組？',
 
   // Groups page
@@ -752,6 +753,7 @@ const zhHant: Record<TKey, string> = {
   'Add workspace': '新增工作區',
   'Delete workspace': '刪除工作區',
   'Move workspace': '移動工作區',
+  'Move group': '移動群組',
   'Shuffle workspaces': '隨機排列工作區',
   'Clear photos': '清空照片',
   'New workspace': '新增工作區',

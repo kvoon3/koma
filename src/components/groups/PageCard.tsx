@@ -2,143 +2,194 @@ import type { BoardCell } from '../../lib/boardPreview'
 import type { PageBox, TilesLayout } from '../../lib/groupPage'
 import type { Photo } from '../../lib/imageStore'
 import type { GridGroup } from '../../lib/workspaces'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Check, Plus, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useT } from '../../lib/i18n'
-import { CellBody } from '../grid/CellPreview'
+import { MAX_WORKSPACES } from '../../lib/workspaces'
+import { AddSlotFrame, CellBody } from '../grid/CellPreview'
 
-/** A board is always nine slots. */
-const SLOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const
+/** The one shadow a frameless tile is allowed: separation from the wallpaper. */
+const TILE_SHADOW = 'shadow-[0_14px_36px_-12px_rgba(0,0,0,0.45)]'
+
+/**
+ * The board a tile wears (and the drag ghost carries): the root's own 3×3 at
+ * the root's own cell gap, filled cells through `CellBody`, an empty
+ * workspace with its hint, the dashed + slot while there is room. Ragged like
+ * the root: a board with fewer workspaces ends where its cells do.
+ */
+export function TileBoard({ board, cell, gap, photoById, transparent, named, dimmed = false, className }: {
+  board: readonly BoardCell[]
+  cell: { w: number, h: number }
+  gap: number
+  photoById: Map<string, Photo>
+  transparent: boolean
+  /** Only the open group's cells carry the view-transition names. */
+  named?: boolean
+  /** The tile the ghost lifts fades back, like the overview's dragged cell. */
+  dimmed?: boolean
+  className?: string
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`relative grid grid-cols-3 transition-opacity duration-(--dur-surface) ${dimmed ? ' opacity-25' : ''} ${className ?? ''}`}
+      style={{ width: cell.w * 3 + gap * 2, gap }}
+    >
+      {board.map(ws => (
+        <span
+          key={ws.id}
+          data-tile-cell=""
+          className="relative block overflow-hidden bg-pane-bg"
+          style={{
+            width: cell.w,
+            height: cell.h,
+            viewTransitionName: named ? `ws-${ws.id}` : undefined,
+          }}
+        >
+          <CellBody ws={ws} box={cell} photoById={photoById} transparent={transparent} dimmed={false} />
+        </span>
+      ))}
+      {board.length < MAX_WORKSPACES && (
+        <span className="relative grid place-items-center text-dim" style={{ width: cell.w, height: cell.h }}>
+          <AddSlotFrame cell={cell.w} cellH={cell.h} />
+        </span>
+      )}
+    </span>
+  )
+}
 
 export interface PageTileProps {
   group: GridGroup
   board: readonly BoardCell[]
-  /** The tile's box in the stage, from `tilesLayout`. */
+  /** The tile's board box in the stage, from `tilesLayout`. */
   box: PageBox
   layout: TilesLayout
-  open: boolean
   /** Only the open group's cells carry the view-transition names. */
   named: boolean
+  /** The checkbox under the tile is checked, so the delete `x` shows. */
+  selected: boolean
+  /** The wiggle's start offset: the entry morph lands first, then a stagger. */
+  wiggleDelay: number
   photoById: Map<string, Photo>
   transparent: boolean
   canDelete: boolean
   onOpen: (id: string) => void
   onDelete: (id: string) => void
+  onToggle: (id: string) => void
 }
 
 /**
- * One group's board as a tile of the groups page grid: a rounded face, a 3x3
- * board at tile scale, the open group's check badge and the delete chip. The
- * tile is a button, so Tab and Enter reach it natively; tapping it opens the
- * group's overview through the `ws-<id>` morph.
+ * One group as a frameless edit-mode tile: the board itself (no card frame,
+ * no matte, one soft shadow), wiggling like an iOS home-screen icon while the
+ * page is shown. The board face is the drag handle (dnd-kit insert-shift
+ * reorder through `onOpen`'s siblings; the drop commits via the store's
+ * `moveGrid`), the round checkbox under it gates the delete `x`, and tapping
+ * the board opens the group through the `ws-<id>` morph.
  */
-export function PageTile({ group, board, box, layout, open, named, photoById, transparent, canDelete, onOpen, onDelete }: PageTileProps) {
+export function PageTile({ group, board, box, layout, named, selected, wiggleDelay, photoById, transparent, canDelete, onOpen, onDelete, onToggle }: PageTileProps) {
   const t = useT()
-  const contentW = layout.cell.w * 3 + layout.boardGap * 2
-  const contentH = layout.cell.h * 3 + layout.boardGap * 2
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.id })
   return (
     <div
+      ref={setNodeRef}
       data-group-tile=""
-      data-tile-open={open || undefined}
-      className="group/tile absolute"
-      style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
+      data-tile-open={named || undefined}
+      className="absolute touch-none"
+      style={{
+        left: box.x,
+        top: box.y,
+        width: box.w,
+        height: box.h,
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
     >
+      {/* The wiggle rides this inner wrapper, so its keyframe transform never
+          composes with dnd-kit's translate above; a drag pauses it on the
+          tile the ghost already lifts. */}
+      <div
+        className="tile-wiggle relative"
+        style={{ animationDelay: `${wiggleDelay}ms`, animationPlayState: isDragging ? 'paused' : undefined }}
+      >
+        <button
+          type="button"
+          data-tile-face=""
+          {...attributes}
+          {...listeners}
+          className={`relative block cursor-pointer touch-none select-none ${TILE_SHADOW} outline-2 outline-offset-2 outline-transparent outline-0 transition-[outline-color] duration-(--dur-fast) hover:not-focus-visible:outline-line-strong focus-visible:outline-sel`}
+          aria-label={t('Open group {name}', { name: group.name })}
+          aria-current={named ? 'true' : undefined}
+          onClick={() => onOpen(group.id)}
+        >
+          <TileBoard board={board} cell={layout.cell} gap={layout.boardGap} photoById={photoById} transparent={transparent} named={named} dimmed={isDragging} />
+        </button>
+
+        {/* The delete `x` shows only while the tile's checkbox is checked; it
+            never rides a hover or a coarse-pointer press. */}
+        {canDelete && selected && (
+          <button
+            type="button"
+            data-tile-delete=""
+            className="absolute top-0 left-0 z-10 grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center rounded-full border border-float-line bg-float-bg text-danger shadow-pop outline-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent"
+            aria-label={t('Delete group?')}
+            title={t('Delete group?')}
+            onClick={() => onDelete(group.id)}
+          >
+            <MorphIcon icon={X} size={11} strokeWidth={2} />
+          </button>
+        )}
+      </div>
+
+      {/* The round iOS checkbox: a hollow ring when clear, filled with a check
+          when set. Page-local selection state; its own hit target. */}
       <button
         type="button"
-        data-tile-face=""
-        className="page-card absolute inset-0 flex cursor-pointer items-center justify-center overflow-hidden bg-panel-2 outline-2 outline-offset-1 outline-transparent outline-0 transition-[outline-color] duration-(--dur-fast) hover:not-focus-visible:outline-line-strong focus-visible:outline-sel"
-        style={{ borderRadius: layout.radius, padding: layout.matte }}
-        aria-label={t('Open group {name}', { name: group.name })}
-        aria-current={open ? 'true' : undefined}
-        onClick={() => onOpen(group.id)}
+        role="checkbox"
+        aria-checked={selected}
+        data-tile-check=""
+        className="absolute top-full left-1/2 grid h-7 w-7 -translate-x-1/2 cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 outline-0 pointer-coarse:h-11 pointer-coarse:w-11 focus-visible:outline-1 focus-visible:outline-accent"
+        aria-label={t('Select group {name}', { name: group.name })}
+        onClick={() => onToggle(group.id)}
       >
         <span
           aria-hidden
-          className="relative grid grid-cols-3"
-          style={{ width: contentW, height: contentH, gap: layout.boardGap }}
+          className={`grid place-items-center rounded-full border-2 ${
+            selected ? 'border-accent bg-accent text-on-accent' : 'border-dim bg-transparent text-transparent'
+          }`}
+          style={{ width: layout.check, height: layout.check }}
         >
-          {SLOTS.map((slot) => {
-            const ws = board[slot]
-            if (!ws) {
-              return (
-                <span
-                  key={`slot-${slot}`}
-                  className="relative block border border-line bg-pane-empty"
-                  style={{ width: layout.cell.w, height: layout.cell.h }}
-                />
-              )
-            }
-            return (
-              <span
-                key={ws.id}
-                data-tile-cell=""
-                className="relative block overflow-hidden bg-pane-bg"
-                style={{
-                  width: layout.cell.w,
-                  height: layout.cell.h,
-                  viewTransitionName: named ? `ws-${ws.id}` : undefined,
-                }}
-              >
-                <CellBody
-                  ws={ws}
-                  box={{ w: layout.cell.w, h: layout.cell.h }}
-                  photoById={photoById}
-                  transparent={transparent}
-                  dimmed={false}
-                  quiet
-                />
-              </span>
-            )
-          })}
+          <MorphIcon icon={Check} size={Math.round(layout.check * 0.55)} strokeWidth={2.5} />
         </span>
       </button>
-
-      {/* The open group's mark, inside the tile's corner. */}
-      {open && (
-        <span
-          aria-hidden
-          data-tile-check=""
-          className="pointer-events-none absolute grid place-items-center rounded-full border border-accent bg-accent text-on-accent"
-          style={{ bottom: 10, right: 10, width: layout.check, height: layout.check }}
-        >
-          <MorphIcon icon={Check} size={Math.round(layout.check * 0.5)} strokeWidth={2.25} />
-        </span>
-      )}
-
-      {canDelete && (
-        <button
-          type="button"
-          data-tile-delete=""
-          className="pointer-events-auto absolute top-1.5 left-1.5 z-10 grid h-5 w-5 cursor-pointer place-items-center rounded-full border border-float-line bg-float-bg text-float-icon opacity-0 shadow-pop outline-0 transition-[opacity,background-color,color,scale] duration-(--dur-fast) group-hover/tile:opacity-100 hover:text-danger focus-visible:opacity-100 focus-visible:outline-1 focus-visible:outline-accent active:scale-[0.97] pointer-coarse:opacity-100"
-          aria-label={t('Delete group?')}
-          title={t('Delete group?')}
-          onClick={() => onDelete(group.id)}
-        >
-          <MorphIcon icon={X} size={11} strokeWidth={2} />
-        </button>
-      )}
     </div>
   )
 }
 
 /**
  * The grid's last slot when there is room for another group: the overview's
- * add-cell language (a dashed frame and a Plus) on a tile, rounded. Adding
- * keeps the page; the new group's tile appears with the rest.
+ * add-cell language (a dashed frame and a Plus) at a board's box, frameless
+ * like the tiles beside it. Adding keeps the page; the new group's tile
+ * appears with the rest.
  */
-export function AddTile({ box, radius, onAdd }: { box: PageBox, radius: number, onAdd: () => void }) {
+export function AddTile({ box, wiggleDelay, onAdd }: { box: PageBox, wiggleDelay: number, onAdd: () => void }) {
   const t = useT()
   return (
-    <button
-      type="button"
-      data-add-tile=""
-      className="absolute grid cursor-pointer place-items-center border-2 border-dashed border-line-strong bg-transparent text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt focus-visible:outline-2 focus-visible:outline-txt active:scale-[0.97]"
-      style={{ left: box.x, top: box.y, width: box.w, height: box.h, borderRadius: radius }}
-      aria-label={t('Add a group')}
-      title={t('Add a group')}
-      onClick={onAdd}
+    <div
+      className="tile-wiggle absolute"
+      style={{ left: box.x, top: box.y, width: box.w, height: box.h, animationDelay: `${wiggleDelay}ms` }}
     >
-      <MorphIcon icon={Plus} size={22} strokeWidth={1.75} />
-    </button>
+      <button
+        type="button"
+        data-add-tile=""
+        className="relative grid h-full w-full cursor-pointer place-items-center border-2 border-dashed border-line-strong bg-transparent text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt focus-visible:outline-2 focus-visible:outline-txt active:scale-[0.97]"
+        aria-label={t('Add a group')}
+        title={t('Add a group')}
+        onClick={onAdd}
+      >
+        <MorphIcon icon={Plus} size={22} strokeWidth={1.75} />
+      </button>
+    </div>
   )
 }

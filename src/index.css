@@ -546,20 +546,18 @@ html.dark {
 }
 
 /*
- * The groups page card: a raised page over the blurred wallpaper. The light
- * theme keeps the shadow soft; the dark theme needs a ring to separate the
- * face from the wallpaper at all.
+ * The groups page's edit-mode wiggle (the iOS home-screen icon jiggle): a
+ * small rotation and offset on an inner wrapper of each tile, never the
+ * sortable node dnd-kit translates. Each tile's inline animation-delay phases
+ * it and staggers the start past the entry morph. The app-wide reduced-motion
+ * block ends the animation with no fill, so reduced motion shows still tiles.
  */
-.page-card {
-  box-shadow:
-    0 1px 2px rgba(23, 23, 23, 0.08),
-    0 18px 44px -12px rgba(23, 23, 23, 0.35);
+@keyframes tile-wiggle {
+  0%, 100% { transform: rotate(-0.6deg) translateY(0.5px); }
+  50% { transform: rotate(0.6deg) translateY(-0.5px); }
 }
-
-.dark .page-card {
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 24px 60px -16px rgba(0, 0, 0, 0.8);
+.tile-wiggle {
+  animation: tile-wiggle 520ms var(--ease-in-out) infinite;
 }
 
 /*

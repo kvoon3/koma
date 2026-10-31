@@ -409,6 +409,7 @@ const LABELS: Record<string, TKey> = {
   addGrid: 'New workspace',
   removeGrid: 'Delete workspace',
   renameGrid: 'Rename workspace',
+  moveGrid: 'Move group',
   // generic
   patch: 'Board look',
   edit: 'Edit',

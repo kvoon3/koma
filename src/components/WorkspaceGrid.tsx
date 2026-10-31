@@ -334,7 +334,7 @@ export function WorkspaceGrid() {
               </div>
             </SortableContext>
 
-            {/* The neighbouring groups as full-size quiet board previews, one
+            {/* The neighbouring groups as full-size board previews, one
                 page of travel either side of the live board's measured box.
                 They slide with the row (the track pans) and are inert. */}
             <div ref={trackRef} data-pager-track="" aria-hidden className="pointer-events-none absolute inset-0">

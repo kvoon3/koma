@@ -608,6 +608,35 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(leafList(boardOf(state(), added)[0]!.root).some(l => l.photoId)).toBe(true)
   })
 
+  test('a reorder moves one group, undoes, and pushes no step for a no-op', () => {
+    const firstId = state().activeGridId
+    const second = state().addGrid()!
+    const third = state().addGrid()!
+    expect(state().grids.map(g => g.id)).toEqual([firstId, second, third])
+    expect(state().activeGridId).toBe(third)
+
+    const parkedBefore = state().parkedBoards
+    state().moveGrid(firstId, 2)
+    expect(state().grids.map(g => g.id)).toEqual([second, third, firstId])
+    // Moving a group moves the row, not the open board or any parked one.
+    expect(state().activeGridId).toBe(third)
+    expect(state().parkedBoards).toBe(parkedBefore)
+
+    state().undo()
+    expect(state().grids.map(g => g.id)).toEqual([firstId, second, third])
+    state().redo()
+    expect(state().grids.map(g => g.id)).toEqual([second, third, firstId])
+
+    const steps = stepsOf()
+    // Same slot, out of bounds, unknown id: nothing moves, nothing is pushed.
+    state().moveGrid(second, 0)
+    state().moveGrid(second, -1)
+    state().moveGrid(second, 9)
+    state().moveGrid('nope', 0)
+    expect(state().grids.map(g => g.id)).toEqual([second, third, firstId])
+    expect(stepsOf()).toBe(steps)
+  })
+
   test('a no-op group action pushes nothing', () => {
     const steps = stepsOf()
     // One group: it can't be deleted, and an unknown id changes nothing.
