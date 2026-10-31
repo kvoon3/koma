@@ -573,6 +573,7 @@ const zhHant: Record<TKey, string> = {
   'Open group {name}': '開啟群組 {name}',
   'Select group {name}': '選擇群組 {name}',
   'Delete group?': '刪除群組？',
+  'Toggle group visibility': '顯示或隱藏群組',
 
   // Groups page
   'Groups': '群組',

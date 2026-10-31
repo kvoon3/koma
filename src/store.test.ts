@@ -5,7 +5,6 @@ import { mulberry32 } from './lib/gridTools'
 import { canRedo, canUndo, emptyHistory, HISTORY_LIMIT, historyPath, stepCount } from './lib/history'
 import { leafList, newLabel, rotationOf } from './lib/panes'
 import { musicAssetsOf, paneAssetsOf, photoAssetsOf } from './lib/stickerLibrary'
-import { MAX_GRIDS } from './lib/workspaces'
 
 // The `document` / `localStorage` stand-ins this file relies on are the shared
 // ones every test file boots on (src/testSetup.ts, via bunfig `[test] preload`).
@@ -643,22 +642,46 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     state().removeGrid(state().activeGridId)
     state().removeGrid('nope')
     state().renameGrid('nope', 'X')
+    state().toggleGridHidden('nope')
     state().switchGrid(state().activeGridId)
     // A blank rename never counts.
     state().renameGrid(state().activeGridId, '  ')
     expect(stepsOf()).toBe(steps)
   })
 
-  test('four groups is the cap', () => {
-    for (let i = 0; i < MAX_GRIDS + 2; i++) {
+  test('groups are unlimited: the row grows past four, numbering as it goes', () => {
+    const firstId = state().activeGridId
+    for (let i = 0; i < 6; i++) {
       const added = state().addGrid()
-      if (i < MAX_GRIDS - 1)
-        expect(added).not.toBeNull()
-      else
-        expect(added).toBeNull()
+      // The last one added is the one now open.
+      expect(state().activeGridId).toBe(added)
     }
-    expect(state().grids).toHaveLength(MAX_GRIDS)
-    expect(stepsOf()).toBe(MAX_GRIDS - 1)
+    expect(state().grids).toHaveLength(7)
+    expect(state().grids.map(g => g.name)).toEqual(['1', '2', '3', '4', '5', '6', '7'])
+    expect(state().grids[0]!.id).toBe(firstId)
+    expect(stepsOf()).toBe(6)
+  })
+
+  test('tucking a group away is one undo step, and the row never moves', () => {
+    const firstId = state().activeGridId
+    const added = state().addGrid()!
+    const ids = state().grids.map(g => g.id)
+
+    state().toggleGridHidden(added)
+    expect(state().grids.map(g => g.hidden)).toEqual([undefined, true])
+    expect(state().grids.map(g => g.id)).toEqual(ids)
+    expect(state().activeGridId).toBe(added)
+    expect(stepsOf()).toBe(2)
+
+    state().undo()
+    expect(state().grids.map(g => g.hidden)).toEqual([undefined, undefined])
+    state().redo()
+    expect(state().grids.map(g => g.hidden)).toEqual([undefined, true])
+
+    // Tucking the open group away changes nothing about the board in view.
+    state().toggleGridHidden(firstId)
+    expect(state().grids.map(g => g.id)).toEqual(ids)
+    expect(state().activeGridId).toBe(added)
   })
 
   test('a legacy session (one board, no groups) hydrates as group 1', () => {

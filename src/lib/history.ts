@@ -410,6 +410,7 @@ const LABELS: Record<string, TKey> = {
   removeGrid: 'Delete workspace',
   renameGrid: 'Rename workspace',
   moveGrid: 'Move group',
+  toggleGridHidden: 'Toggle group visibility',
   // generic
   patch: 'Board look',
   edit: 'Edit',

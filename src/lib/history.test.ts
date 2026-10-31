@@ -366,6 +366,7 @@ describe('labels', () => {
     shuffleWorkspaces: 'Shuffle workspaces',
     split: 'Split pane',
     swapPhotos: 'Swap panes',
+    toggleGridHidden: 'Toggle group visibility',
     updateLeaf: 'Pan the photo',
   }
 

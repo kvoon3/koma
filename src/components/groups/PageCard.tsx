@@ -4,7 +4,7 @@ import type { Photo } from '../../lib/imageStore'
 import type { GridGroup } from '../../lib/workspaces'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, Plus, X } from 'lucide'
+import { Check, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useT } from '../../lib/i18n'
 import { MAX_WORKSPACES } from '../../lib/workspaces'
@@ -86,7 +86,9 @@ export interface PageTileProps {
  * page is shown. The board face is the drag handle (dnd-kit insert-shift
  * reorder through `onOpen`'s siblings; the drop commits via the store's
  * `moveGrid`), the round checkbox under it gates the delete `x`, and tapping
- * the board opens the group through the `ws-<id>` morph.
+ * the board opens the group through the `ws-<id>` morph. The tile leaves
+ * `touch-action` to its chain so a swipe on it scrolls the page; the hold
+ * arms the drag before any scroll can start.
  */
 export function PageTile({ group, board, box, layout, named, selected, wiggleDelay, photoById, transparent, canDelete, onOpen, onDelete, onToggle }: PageTileProps) {
   const t = useT()
@@ -96,7 +98,7 @@ export function PageTile({ group, board, box, layout, named, selected, wiggleDel
       ref={setNodeRef}
       data-group-tile=""
       data-tile-open={named || undefined}
-      className="absolute touch-none"
+      className="absolute"
       style={{
         left: box.x,
         top: box.y,
@@ -118,7 +120,7 @@ export function PageTile({ group, board, box, layout, named, selected, wiggleDel
           data-tile-face=""
           {...attributes}
           {...listeners}
-          className={`relative block cursor-pointer touch-none select-none ${TILE_SHADOW} outline-2 outline-offset-2 outline-transparent outline-0 transition-[outline-color] duration-(--dur-fast) hover:not-focus-visible:outline-line-strong focus-visible:outline-sel`}
+          className={`relative block cursor-pointer select-none ${TILE_SHADOW} outline-2 outline-offset-2 outline-transparent outline-0 transition-[outline-color] duration-(--dur-fast) hover:not-focus-visible:outline-line-strong focus-visible:outline-sel`}
           aria-label={t('Open group {name}', { name: group.name })}
           aria-current={named ? 'true' : undefined}
           onClick={() => onOpen(group.id)}
@@ -162,33 +164,6 @@ export function PageTile({ group, board, box, layout, named, selected, wiggleDel
         >
           <MorphIcon icon={Check} size={Math.round(layout.check * 0.55)} strokeWidth={2.5} />
         </span>
-      </button>
-    </div>
-  )
-}
-
-/**
- * The grid's last slot when there is room for another group: the overview's
- * add-cell language (a dashed frame and a Plus) at a board's box, frameless
- * like the tiles beside it. Adding keeps the page; the new group's tile
- * appears with the rest.
- */
-export function AddTile({ box, wiggleDelay, onAdd }: { box: PageBox, wiggleDelay: number, onAdd: () => void }) {
-  const t = useT()
-  return (
-    <div
-      className="tile-wiggle absolute"
-      style={{ left: box.x, top: box.y, width: box.w, height: box.h, animationDelay: `${wiggleDelay}ms` }}
-    >
-      <button
-        type="button"
-        data-add-tile=""
-        className="relative grid h-full w-full cursor-pointer place-items-center border-2 border-dashed border-line-strong bg-transparent text-dim outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt focus-visible:outline-2 focus-visible:outline-txt active:scale-[0.97]"
-        aria-label={t('Add a group')}
-        title={t('Add a group')}
-        onClick={onAdd}
-      >
-        <MorphIcon icon={Plus} size={22} strokeWidth={1.75} />
       </button>
     </div>
   )

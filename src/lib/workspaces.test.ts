@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, it } from 'bun:test'
-import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, gridStep, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './workspaces'
+import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, gridStep, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot, toggleGroupHidden } from './workspaces'
 
 let n = 0
 const fresh = () => ({ id: `new${++n}`, v: 0 })
@@ -102,12 +102,17 @@ describe('the group bar', () => {
     expect(nextGridName(groups('Cover', '2'))).toBe('1')
   })
 
-  it('appends up to the cap and no further', () => {
+  it('numbers past the default names once the bar holds four', () => {
+    expect(nextGridName(groups('1', '2', '3', '4'))).toBe('5')
+    expect(nextGridName(groups('1', '2', '3', '4', '5'))).toBe('6')
+  })
+
+  it('appends without a cap, numbering as it goes', () => {
     let bar = groups('1')
-    for (let i = 0; i < MAX_GRIDS + 2; i++)
+    for (let i = 0; i < 9; i++)
       bar = addGroup(bar, () => ({ id: `new${i}`, name: nextGridName(bar) }))
-    expect(bar).toHaveLength(MAX_GRIDS)
-    expect(bar.map(g => g.name)).toEqual(['1', '2', '3', '4'])
+    expect(bar).toHaveLength(10)
+    expect(bar.map(g => g.name)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
   })
 
   it('removes a group but never the last one', () => {
@@ -123,6 +128,16 @@ describe('the group bar', () => {
     const bar = groups('1', '2')
     expect(renameGroup(bar, 'g1', '   ')).toBe(bar)
     expect(renameGroup(bar, 'g1', '2')).toBe(bar)
+  })
+
+  it('tucks a group away and back without moving the row', () => {
+    const bar = groups('1', '2', '3')
+    const tucked = toggleGroupHidden(bar, 'g1')
+    expect(tucked.map(g => [g.id, g.name])).toEqual([['g0', '1'], ['g1', '2'], ['g2', '3']])
+    expect(tucked.map(g => g.hidden)).toEqual([undefined, true, undefined])
+    // Toggling again brings it back with no leftover marker.
+    expect(toggleGroupHidden(tucked, 'g1')).toEqual(bar)
+    expect(toggleGroupHidden(bar, 'nope')).toBe(bar)
   })
 })
 
@@ -165,7 +180,7 @@ describe('normalizeGrids (session migration)', () => {
     expect(out.parked.gB).toBeUndefined()
   })
 
-  it('opens the first group when the saved one is gone, and drops extra groups', () => {
+  it('opens the first group when the saved one is gone, and keeps every group', () => {
     const out = normalizeGrids({
       grids: [
         // Saved names are kept verbatim, whatever they are (these are the
@@ -178,12 +193,24 @@ describe('normalizeGrids (session migration)', () => {
       ],
       activeGridId: 'gone',
     }, fresh, newGridId)
-    expect(out.grids.map(g => g.id)).toEqual(['gA', 'gB', 'gC', 'gD'])
-    expect(out.grids.map(g => g.name)).toEqual(['A', 'B', 'C', 'D'])
+    expect(out.grids.map(g => g.id)).toEqual(['gA', 'gB', 'gC', 'gD', 'gE'])
+    expect(out.grids.map(g => g.name)).toEqual(['A', 'B', 'C', 'D', 'E'])
     expect(out.activeGridId).toBe('gA')
     // A board's cell falls back to its first when the saved one is unknown.
     expect(out.activeId).toBe('w0')
-    expect(Object.keys(out.parked).sort()).toEqual(['gB', 'gC', 'gD'])
+    expect(Object.keys(out.parked).sort()).toEqual(['gB', 'gC', 'gD', 'gE'])
+  })
+
+  it('keeps a tucked-away group tucked, and a session without the marker visible', () => {
+    const saved = normalizeGrids({
+      grids: [
+        { id: 'gA', name: 'A', hidden: true, workspaces: makeGrid(2), activeId: '' },
+        { id: 'gB', name: 'B', workspaces: makeGrid(2), activeId: '' },
+        { id: 'gC', name: 'C', hidden: false, workspaces: makeGrid(2), activeId: '' },
+      ],
+      activeGridId: 'gB',
+    }, fresh, newGridId)
+    expect(saved.grids.map(g => g.hidden)).toEqual([true, undefined, undefined])
   })
 
   it('numbers nameless saved groups 1, 2, …', () => {

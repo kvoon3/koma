@@ -233,19 +233,19 @@ export function WorkspaceGrid() {
   return (
     <div
       ref={wrapRef}
-      className="stage-checker absolute inset-0 flex touch-none flex-col overflow-hidden"
+      className="stage-checker absolute inset-0 flex flex-col overflow-hidden"
       // A double-click on the stage margin fits the view again; on the board
       // it belongs to the board.
       onDoubleClick={viewZoom.onStageDoubleClick}
     >
       {/* The board area: every press here belongs to the stage gestures (a
           swipe between groups, a pull down or a long press into the groups
-          page). The dock is a sibling, so a pull on the sheet never lands
-          here. */}
+          page). The dock and the dot capsule are siblings, so a pull on the
+          sheet never lands here. */}
       <div
         ref={stageRef}
         data-board-stage=""
-        className="relative min-h-0 flex-1"
+        className="relative min-h-0 flex-1 touch-none"
         {...gestures.stageProps}
       >
         <DndContext
@@ -390,29 +390,34 @@ export function WorkspaceGrid() {
               : null}
           </DragOverlay>
         </DndContext>
+      </div>
 
-        {/* The dot capsule (the iOS home-screen page indicator): one dot per
-            group, the pill on the group the row rests on, and a swipe leans
-            the pill to the group a release would land on. One button into
-            the groups page; its row is reserved in the board's layout. */}
-        <div
-          data-dot-capsule=""
-          className="pointer-events-none absolute inset-x-0 flex justify-center"
-          style={{ bottom: dockReserve, height: CAPSULE_H }}
-        >
+      {/* The dot capsule (the iOS page indicator): one dot per group, the
+          pill on the resting group, a tucked-away group's dot dimmed. One
+          button into the groups page. A sibling of the touch-none board
+          stage, it owns its own horizontal scroll, so a long row of dots
+          still pans. */}
+      <div
+        data-dot-capsule=""
+        className="pointer-events-none absolute inset-x-0 flex justify-center"
+        style={{ bottom: dockReserve, height: CAPSULE_H }}
+      >
+        <div className="pointer-events-auto h-full max-w-full touch-pan-x snap-x snap-proximity overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
             data-groups-capsule=""
             aria-label={t('Groups')}
             onClick={openGroups}
-            className="pointer-events-auto flex h-full cursor-pointer items-center justify-center gap-[9px] rounded-full px-3 outline-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent"
+            className="flex h-full cursor-pointer items-center justify-center gap-[9px] rounded-full px-3 outline-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent"
           >
             {grids.map((g, i) => (
               <span
                 key={g.id}
                 aria-hidden
-                className={`h-[6px] rounded-full transition-[width] duration-(--dur-surface) ease-(--ease-out) ${
-                  i === gestures.targetIndex ? 'w-[22px] bg-float-icon' : 'w-[6px] bg-float-icon/50'
+                className={`h-[6px] snap-center rounded-full transition-[width,background-color] duration-(--dur-surface) ease-(--ease-out) ${
+                  i === gestures.targetIndex
+                    ? 'w-[22px] bg-float-icon'
+                    : g.hidden ? 'w-[6px] bg-float-icon/25' : 'w-[6px] bg-float-icon/50'
                 }`}
               />
             ))}

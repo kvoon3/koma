@@ -575,6 +575,7 @@ const zhHans = {
   'Open group {name}': '打开分组 {name}',
   'Select group {name}': '选择分组 {name}',
   'Delete group?': '删除分组？',
+  'Toggle group visibility': '显示或隐藏分组',
 
   // Groups page
   'Groups': '分组',

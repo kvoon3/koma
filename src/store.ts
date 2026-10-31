@@ -71,7 +71,7 @@ import {
 } from './lib/stickerLibrary'
 import { normalizePhotoRecipes } from './lib/stickerRecipe'
 import { runPaneMorph, runViewTransition } from './lib/viewTransition'
-import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_GRIDS, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot } from './lib/workspaces'
+import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot, toggleGroupHidden } from './lib/workspaces'
 
 // The transparent-fill test describes the collage background, so it lives with
 // it in lib/collageBg; re-exported so the app's call sites keep one import site.
@@ -151,11 +151,10 @@ interface State extends PersistedSettings {
   workspaces: Workspace[]
   activeId: string
   /**
-   * The board groups, in switcher order (see `lib/workspaces`): the overview
-   * holds a handful of arrangements, switched from the workspace switcher.
-   * The open group's cells are `workspaces`; the other
-   * groups' boards sit in `parkedBoards`, so nothing but the group actions has
-   * to know groups exist.
+   * The board groups, in row order (see `lib/workspaces`): the overview holds
+   * as many arrangements as the user adds, managed from the groups page. The
+   * open group's cells are `workspaces`; the other groups' boards sit in
+   * `parkedBoards`, so nothing but the group actions has to know groups exist.
    */
   grids: GridGroup[]
   /** The group the grid overview and the editor work on. */
@@ -553,23 +552,18 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   // ---- grid groups (boards switched from the workspace switcher) ----------
 
   /**
-   * Add a board group and open it (the switcher's +): the new board is a deep
-   * copy of the open group's board. Photos are shared through the library
-   * (`photoId` copies as-is) while every pane, sticker and label gets a fresh
-   * id (see `cloneNode`). The open board parks. Null at the cap.
+   * Add a board group and open it (the groups page's +): the new board is a
+   * deep copy of the open group's board. Photos are shared through the
+   * library (`photoId` copies as-is) while every pane, sticker and label gets
+   * a fresh id (see `cloneNode`). The open board parks. The row is endless.
    */
   addGrid: (name) => {
     const s = get()
-    if (s.grids.length >= MAX_GRIDS)
-      return null
     const group: GridGroup = { id: uid('g'), name: name?.trim() || nextGridName(s.grids) }
-    const next = addGroup(s.grids, () => group)
-    if (next === s.grids)
-      return null
     const workspaces = s.workspaces.map(cloneWorkspace)
     commit('addGrid')
     set({
-      grids: next,
+      grids: addGroup(s.grids, () => group),
       activeGridId: group.id,
       workspaces,
       activeId: workspaces[0]!.id,
@@ -612,6 +606,18 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (next === get().grids)
       return
     commit('renameGrid')
+    set({ grids: next })
+  },
+
+  /**
+   * Tuck a group away or bring it back (undoable, like `renameGrid`). Hiding
+   * is a marker: the group keeps its place in the row and its board stays.
+   */
+  toggleGridHidden: (id) => {
+    const next = toggleGroupHidden(get().grids, id)
+    if (next === get().grids)
+      return
+    commit('toggleGridHidden')
     set({ grids: next })
   },
 
@@ -1618,10 +1624,12 @@ interface Actions {
   /** Returns the new workspace's id, or null when the board is full. */
   addWorkspace: (kind?: CardKind) => string | null
   removeWorkspace: (id: string) => void
-  /** Returns the new group's id, or null at the group cap. */
-  addGrid: (name?: string) => string | null
+  /** Returns the new group's id; the row is endless, so never null. */
+  addGrid: (name?: string) => string
   removeGrid: (id: string) => void
   renameGrid: (id: string, name: string) => void
+  /** Tuck a group away or bring it back (see `toggleGroupHidden`). */
+  toggleGridHidden: (id: string) => void
   /** Insert-shift reorder of the groups row (the groups page's drag). */
   moveGrid: (id: string, to: number) => void
   /** Open a group's board (navigation: pushes no undo entry). */

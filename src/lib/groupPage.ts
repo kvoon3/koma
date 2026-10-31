@@ -1,13 +1,11 @@
 /**
  * The groups page geometry and the group pager physics, pure and DOM-free:
- * the frameless tile grid every group's board lays out in, and the slide,
- * falloff and release rules the overview's pager hook reads (the groups page
- * itself no longer pages; its tiles are buttons). Components render these
- * numbers, they do not invent sizes.
+ * the scrolling tile grid every group's board lays out in, and the slide,
+ * falloff and release rules the overview's pager hook reads. Components render
+ * these numbers, they do not invent sizes.
  */
 import { FLICK_VELOCITY, pickSnap, rubberBand } from './dockPhysics'
 import { gridCellBox } from './gridTools'
-import { MAX_GRIDS } from './workspaces'
 
 export interface PageBox {
   x: number
@@ -26,15 +24,10 @@ export function pageTravel(boardW: number, air: number): number {
 
 export interface TilesLayout {
   stageW: number
-  stageH: number
-  /** The stage's bottom edge above the compact dock band. */
-  floor: number
   headerH: number
-  /** Tile columns and rows (the add slot counts as a tile). */
+  /** Tile columns and rows. */
   columns: number
   rows: number
-  /** How many tiles the grid holds: one per group, plus the add slot. */
-  slots: number
   /** Air between tile slots. */
   gap: number
   /** The tile is the board box itself: the 3×3 at the root's own cell gap. */
@@ -46,97 +39,93 @@ export interface TilesLayout {
   checkRow: number
   /** The round checkbox's face, inside its row. */
   check: number
+  /**
+   * The tile grid's height in the scroll module: rows of (tile + check) plus
+   * the gaps and the top and bottom air. The scroller centres it (an auto
+   * margin) while it fits and scrolls once it does not.
+   */
+  contentH: number
+  /** Tile boxes in the content's own coordinates: x from the stage edge, y from its top. */
   tiles: PageBox[]
   done: { top: number, right: number, w: number, h: number }
+  /** The + pill beside Done, same row and chrome. */
+  add: { top: number, right: number, w: number, h: number }
 }
 
-/** The smallest board tile the page draws before it widens the grid a column. */
+/** The smallest board tile the page draws before it gives up a column for it. */
 const TILE_FLOOR = 96
 
 /**
- * The groups page as a flat grid of frameless tiles: one per group (plus the
- * dashed add slot while there is room), every tile the board itself, the 3×3
- * at the root's own cell gap with no card frame or matte, plus a checkbox
- * row reserved under it. Centred as one grid between the header and the
- * compact dock band. When two rows cannot keep the board at the floor once
- * the checkbox rows are paid for, the grid widens a column until one row can
- * (a landscape phone trades rows for a legible board).
+ * The groups page as one scrolling grid of frameless tiles: one per group,
+ * every tile the board itself (the 3×3 at the root's own cell gap, no card
+ * frame or matte) plus a checkbox row reserved under it. Columns ask for
+ * 300px each, at most four, with a two-column floor on narrow stages; the
+ * tile is its column, so its size does not shrink as groups are added. What
+ * overflows the stage scrolls: the page renders `contentH` and the scroller
+ * centres the grid while it fits.
  */
-export function tilesLayout({ stageW, stageH, count, dockBand, coarse, ratio, gridGap }: {
+export function tilesLayout({ stageW, count, coarse, ratio, gridGap }: {
   stageW: number
-  stageH: number
-  /** How many groups there are; the grid adds the add slot under the cap. */
+  /** How many groups there are. */
   count: number
-  /** The compact dock band, handle + icon row + footer. */
-  dockBand: number
   coarse: boolean
   ratio: number
   gridGap: number
 }): TilesLayout {
-  const floor = stageH - dockBand
   const wide = stageW >= 768
   const marginX = wide ? 64 : 16
   const marginY = wide ? 8 : (coarse ? 12 : 16)
   const headerH = wide ? 64 : 56
   const gap = wide ? 32 : 24
   const checkRow = coarse ? 36 : 28
-  const slots = count + (count < MAX_GRIDS ? 1 : 0)
-  const startColumns = stageW < 640 ? 2 : Math.min(4, Math.max(2, Math.floor(stageW / 300)))
-  const rowsOf = (cols: number) => Math.max(1, Math.ceil(slots / cols))
+  const done = { top: 10, right: marginX, w: 80, h: 36 }
+  const add = { top: done.top, right: marginX + done.w + 8, w: done.h, h: done.h }
   const base: TilesLayout = {
     stageW,
-    stageH,
-    floor,
     headerH,
-    columns: startColumns,
-    rows: rowsOf(startColumns),
-    slots,
+    columns: 2,
+    rows: 1,
     gap,
     board: { w: 0, h: 0 },
     cell: { w: 0, h: 0 },
     boardGap: gridGap,
     checkRow,
     check: 22,
+    contentH: 0,
     tiles: [],
-    done: { top: 10, right: marginX, w: 80, h: 36 },
+    done,
+    add,
   }
-  if (stageW <= 0 || stageH <= 0)
+  if (stageW <= 0 || count <= 0)
     return base
 
-  // The board one column/row pair fits: cells floored to integers, so the
-  // board can come out a touch under the pair's box.
-  const boardAt = (cols: number) => {
-    const rows = rowsOf(cols)
-    const colW = (stageW - 2 * marginX - (cols - 1) * gap) / cols
-    const rowH = (floor - headerH - 2 * marginY - (rows - 1) * gap) / rows - checkRow
-    const cell = gridCellBox({ w: colW, h: rowH }, gridGap, ratio, colW, 1)
-    return { rows, colW, rowH, cell, board: { w: cell.w * 3 + gridGap * 2, h: cell.h * 3 + gridGap * 2 } }
-  }
+  const colW = (cols: number) => (stageW - 2 * marginX - (cols - 1) * gap) / cols
+  let columns = stageW < 640 ? 2 : Math.min(4, Math.max(2, Math.floor(stageW / 300)))
+  // A column this narrow cannot hold the tile floor, so the stage pays for
+  // one column instead. Real stages never get here; the floor stays a promise.
+  while (columns > 1 && colW(columns) < TILE_FLOOR)
+    columns -= 1
+  const rows = Math.max(1, Math.ceil(count / columns))
+  // The cell fits its column, never the stage height: extra rows scroll. The
+  // height is unbounded (`Infinity`) so `gridCellBox` sizes by width alone.
+  const cell = gridCellBox({ w: colW(columns), h: Number.POSITIVE_INFINITY }, gridGap, ratio, colW(columns), 1)
+  if (cell.w < 1)
+    return base
+  const board = { w: cell.w * 3 + gridGap * 2, h: cell.h * 3 + gridGap * 2 }
 
-  let columns = startColumns
-  let fit = boardAt(columns)
-  while (columns < 4 && columns < slots && fit.board.w < TILE_FLOOR) {
-    columns += 1
-    fit = boardAt(columns)
-  }
-  const { rows, colW, rowH, cell, board } = fit
-  if (colW < 1 || rowH < 1)
-    return { ...base, columns, rows }
-
-  // A single short row (fewer slots than columns) centres on the columns it
+  // A single short row (fewer tiles than columns) centres on the columns it
   // uses; a multi-row grid is a full rectangle, every row but the last full.
-  const usedCols = rows === 1 ? slots : columns
+  const usedCols = rows === 1 ? count : columns
   const gridW = usedCols * board.w + (usedCols - 1) * gap
-  const gridH = rows * board.h + rows * checkRow + (rows - 1) * gap
   const originX = Math.round((stageW - gridW) / 2)
-  const originY = Math.round(headerH + (floor - headerH - gridH) / 2)
-  const tiles = Array.from({ length: slots }, (_, i) => ({
+  const contentH = rows * (board.h + checkRow) + (rows - 1) * gap + 2 * marginY
+  const tiles = Array.from({ length: count }, (_, i) => ({
     x: Math.round(originX + (i % columns) * (board.w + gap)),
-    y: Math.round(originY + Math.floor(i / columns) * (board.h + checkRow + gap)),
+    y: Math.round(marginY + Math.floor(i / columns) * (board.h + checkRow + gap)),
     w: board.w,
     h: board.h,
   }))
-  return { ...base, columns, rows, board, cell, tiles }
+  return { ...base, columns, rows, board, cell, contentH, tiles }
 }
 
 function clamp(v: number, lo: number, hi: number): number {
