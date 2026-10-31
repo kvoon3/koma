@@ -8,7 +8,7 @@ import { closestCenter, DndContext, DragOverlay, MeasuringStrategy, pointerWithi
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Camera, Image, LayoutGrid, Square, Type } from 'lucide'
+import { Camera, Image, Square, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useDockRestBand, useElementSize, useMediaQuery, useStageZoom } from '../hooks'
@@ -27,7 +27,7 @@ import { MAX_WORKSPACES } from '../lib/workspaces'
 import { isTransparentBg, useStore } from '../store'
 import { DeleteZone } from './DeleteZone'
 import { useDockCapacity, useDockMetrics } from './dockContext'
-import { CAPTION_GAP, CAPTION_H, STAGE_PAD_Y, stageTopPad } from './grid/boardLayout'
+import { CAPSULE_H, CAPTION_GAP, CAPTION_H, STAGE_PAD_Y, stageTopPad } from './grid/boardLayout'
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
 import { useGridKeyboard } from './grid/useGridKeyboard'
 import { DELETE_ZONE_ID, useGridReorder } from './grid/useGridReorder'
@@ -96,9 +96,9 @@ const deleteFirst: CollisionDetection = (args) => {
  * The board groups swipe in place: dragging the board sideways slides the
  * neighbouring group's board in from the screen edge and a release past half
  * (or a flick) opens it (`grid/useStageGestures` owns the gesture). The
- * groups page (`/groups`) is reached through the Workspace capsule, a pull
- * down, or a long press on blank stage; a tile's cell names morph from the
- * same `ws-<id>` names this overview wears.
+ * groups page (`/groups`) is reached through the dot capsule under the board,
+ * a pull down, or a long press on blank stage; a tile's cell names morph from
+ * the same `ws-<id>` names this overview wears.
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
@@ -141,7 +141,7 @@ export function WorkspaceGrid() {
   const topPad = stageTopPad(wrapSize.w, useMediaQuery('(pointer: coarse)'))
   const body = {
     w: wrapSize.w,
-    h: Math.max(1, wrapSize.h - topPad - STAGE_PAD_Y - dockReserve),
+    h: Math.max(1, wrapSize.h - topPad - STAGE_PAD_Y - dockReserve - CAPSULE_H),
   }
   const { cell, box } = stageCellBox(body, gridGap, cellRatioValue(gridCellRatio))
   const boardW = cell * 3 + gridGap * 2
@@ -266,17 +266,16 @@ export function WorkspaceGrid() {
             className="absolute inset-0 flex items-center justify-center"
             style={{
               paddingTop: topPad,
-              paddingBottom: STAGE_PAD_Y + dockReserve,
+              paddingBottom: STAGE_PAD_Y + dockReserve + CAPSULE_H,
               maskImage: mask,
               WebkitMaskImage: mask,
             }}
           >
             <SortableContext items={reorder.ids} strategy={rectSortingStrategy}>
-              {/* The board's caption row (the workspace capsule and the
-                  snapshot chip, centred: groups render nameless) and the grid
-                  below it, one column of the board's width. The view zoom
-                  scales the column; while a pager drag is live the column
-                  ignores the pointer, so no cell grabs the gesture. */}
+              {/* The board's caption row (the snapshot chip alone: groups
+                  render nameless, the dot capsule under the board is the
+                  groups entry) and the grid below it. While a pager drag is
+                  live the column ignores the pointer, so no cell grabs it. */}
               <div
                 ref={columnRef}
                 data-canvas-view={viewZoom.scale}
@@ -288,24 +287,7 @@ export function WorkspaceGrid() {
                   pointerEvents: gestures.panning ? 'none' : undefined,
                 }}
               >
-                <div className="flex items-center justify-center gap-1.5" style={{ width: boardW, height: CAPTION_H }}>
-                  <Tip
-                    label={t('Workspace')}
-                    trigger={(
-                      <button
-                        type="button"
-                        data-workspace-capsule=""
-                        className="inline-flex h-[30px] cursor-pointer items-center justify-center gap-1.5 rounded-full border border-float-line bg-float-bg px-2.5 text-[11px] font-semibold text-float-icon tabular-nums backdrop-blur-[7px] outline-0 transition-[background-color,color,scale] duration-(--dur-fast) hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent active:scale-[0.97] pointer-coarse:h-[38px] pointer-coarse:px-3"
-                        aria-label={t('Workspace')}
-                        onClick={openGroups}
-                      >
-                        <MorphIcon icon={LayoutGrid} size={15} strokeWidth={1.75} />
-                        {/* The group position; a drag under way leans it to the
-                            group a release there would land on. */}
-                        {`${gestures.targetIndex + 1}/${grids.length}`}
-                      </button>
-                    )}
-                  />
+                <div className="flex items-center justify-center" style={{ width: boardW, height: CAPTION_H }}>
                   <Tip
                     label={t('Snapshot: each cell plus the whole grid')}
                     trigger={(
@@ -408,6 +390,34 @@ export function WorkspaceGrid() {
               : null}
           </DragOverlay>
         </DndContext>
+
+        {/* The dot capsule (the iOS home-screen page indicator): one dot per
+            group, the pill on the group the row rests on, and a swipe leans
+            the pill to the group a release would land on. One button into
+            the groups page; its row is reserved in the board's layout. */}
+        <div
+          data-dot-capsule=""
+          className="pointer-events-none absolute inset-x-0 flex justify-center"
+          style={{ bottom: dockReserve, height: CAPSULE_H }}
+        >
+          <button
+            type="button"
+            data-groups-capsule=""
+            aria-label={t('Groups')}
+            onClick={openGroups}
+            className="pointer-events-auto flex h-full cursor-pointer items-center justify-center gap-[9px] rounded-full px-3 outline-0 transition-[scale] duration-(--dur-fast) active:scale-[0.97] focus-visible:outline-1 focus-visible:outline-accent"
+          >
+            {grids.map((g, i) => (
+              <span
+                key={g.id}
+                aria-hidden
+                className={`h-[6px] rounded-full transition-[width] duration-(--dur-surface) ease-(--ease-out) ${
+                  i === gestures.targetIndex ? 'w-[22px] bg-float-icon' : 'w-[6px] bg-float-icon/50'
+                }`}
+              />
+            ))}
+          </button>
+        </div>
       </div>
 
       {/* Off fit, a small chip says how far and puts it back. */}
@@ -510,10 +520,11 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, view
 /**
  * A neighbouring group's board on the pager: the same 3×3 the overview draws
  * (the grid's own cell previews at the same cell size and gap, empty cells
- * quiet), laid out at canvas size over the live board's measured box and
- * offset one page of travel either side, scaled by the view zoom so the two
- * boards slide past each other as one plane. Inert: the stage owns the
- * gesture, and only its opacity and scale move (the falloff).
+ * with their hints too, so landing swaps nothing), laid out at canvas size
+ * over the live board's measured box and offset one page of travel either
+ * side, scaled by the view zoom so the two boards slide past each other as
+ * one plane. Inert: the stage owns the gesture, and only its opacity and
+ * scale move (the falloff).
  */
 function PagerBoard({ side, board, base, cell, box, gap, boardW, travel, viewScale, photoById, transparent, onRef }: {
   side: 'prev' | 'next'
@@ -552,7 +563,7 @@ function PagerBoard({ side, board, base, cell, box, gap, boardW, travel, viewSca
       >
         {board.map(ws => (
           <div key={ws.id} className="relative overflow-hidden bg-panel-2" style={{ width: cell, height: box.h }}>
-            <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={false} quiet />
+            <CellBody ws={ws} box={box} photoById={photoById} transparent={transparent} dimmed={false} />
           </div>
         ))}
         {board.length < MAX_WORKSPACES && (

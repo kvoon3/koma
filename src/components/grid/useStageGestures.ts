@@ -246,8 +246,9 @@ export function useStageGestures({ enabled, gridIds, activeIndex, travel, viewSc
       return
     const target = e.target as HTMLElement | null
     // The dock sheet is a sibling of the board area anyway, but a dialog can
-    // cover it (settings, library, help): neither is the board.
-    if (target?.closest('[role="dialog"],[data-dock-mode]'))
+    // cover it (settings, library, help) and the dot capsule is the groups
+    // button: neither is the board.
+    if (target?.closest('[role="dialog"],[data-dock-mode],[data-groups-capsule]'))
       return
     // A mouse press on a cell belongs to dnd-kit's reorder; a finger's swipe
     // is still ours (the touch sensor only arms a reorder after a 250ms hold,

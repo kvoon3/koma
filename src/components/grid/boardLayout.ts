@@ -17,6 +17,13 @@ export const CAPTION_GAP = 8
 export const STAGE_PAD_Y = 12
 
 /**
+ * The dot capsule's row under the board, just above the dock band. Reserved
+ * out of the board's slot like the dock band, so the resting board never
+ * touches the capsule (iOS keeps the same air under its home-screen pages).
+ */
+export const CAPSULE_H = 32
+
+/**
  * The floating action cluster (undo / redo / history / reset) pinned over the
  * stage's top-right corner. The caption chips over the 3x3 are centred, so on a
  * stage narrow enough the two share a horizontal band: every phone, never a
