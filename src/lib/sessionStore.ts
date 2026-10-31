@@ -37,6 +37,8 @@ export interface SessionPhotoRecord {
 export interface SessionGrid {
   id: string
   name: string
+  /** Tucked away on the groups page; absent in sessions saved before visibility. */
+  hidden?: boolean
   workspaces: Workspace[]
   /** The cell last edited in this group (where it re-opens). */
   activeId: string
@@ -75,7 +77,7 @@ export interface SessionMeta {
 
 /** The store slices a session is built from (see `sessionMeta`). */
 export interface SessionSource {
-  grids: { id: string, name: string }[]
+  grids: { id: string, name: string, hidden?: boolean }[]
   activeGridId: string
   workspaces: Workspace[]
   activeId: string
@@ -106,6 +108,7 @@ export function sessionMeta(s: SessionSource): SessionMeta {
     grids: s.grids.map(g => ({
       id: g.id,
       name: g.name,
+      hidden: g.hidden === true,
       workspaces: g.id === s.activeGridId ? s.workspaces : s.parkedBoards[g.id]?.workspaces ?? [],
       activeId: g.id === s.activeGridId ? s.activeId : s.parkedBoards[g.id]?.activeId ?? '',
     })),

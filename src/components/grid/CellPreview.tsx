@@ -1,8 +1,9 @@
 /**
  * The grid's read-only cell previews: a workspace drawn as the editor draws it
  * (photos, stickers, labels through the same placement math), the cell body the
- * overview, the drag overlay and the switcher's pager all share, and the dashed
- * add-slot frame. Pure rendering: no board state lives here.
+ * overview, the drag overlay and the overview pager's neighbour boards all
+ * share, and the dashed add-slot frame. Pure rendering: no board state lives
+ * here.
  */
 import type { Photo } from '../../lib/imageStore'
 import type { Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../../lib/panes'
@@ -249,22 +250,18 @@ export function CellPreview({ root, canvasRatio, box, photoById, stickers = [], 
 }
 
 /**
- * The cell's visible body, shared by the in-grid cell, the drag overlay and the
- * switcher's boards. `quiet` draws an empty cell as a plain square: behind the
- * switcher the board is receded and blurred, where a per-cell glyph and caption
- * stack up into placeholder noise (the full overview keeps both). The quiet
- * square keeps a 2px `--dim` hairline: it is the only thing that survives the
- * recede on an all-empty board (a fresh session has nothing else to draw), and
- * a 1px `--line` hairline washed out to 1/255 at the old 45% + 3px blur.
+ * The cell's visible body, shared by the in-grid cell, the drag overlay, the
+ * pager's neighbour boards and the groups tiles. An empty cell wears its
+ * hint: near-canvas fill and the glyph over the label, centered in the neutral
+ * gray. The tile and the pager preview draw it too, so a landing group swaps
+ * nothing for what its own board shows.
  */
-export function CellBody({ ws, box, photoById, transparent, dimmed, quiet = false }: {
+export function CellBody({ ws, box, photoById, transparent, dimmed }: {
   ws: { root: Node, canvasRatio: number | null, stickers?: Sticker[], labels?: PaneLabel[] }
   box: { w: number, h: number }
   photoById: Map<string, Photo>
   transparent: boolean
   dimmed: boolean
-  /** Empty cell as a bare square: no glyph, no caption (the receded board). */
-  quiet?: boolean
 }) {
   const t = useT()
   const filled = leafList(ws.root).some(l => l.photoId)
@@ -276,20 +273,18 @@ export function CellBody({ ws, box, photoById, transparent, dimmed, quiet = fals
               <CellPreview root={ws.root} canvasRatio={ws.canvasRatio} box={box} photoById={photoById} stickers={ws.stickers ?? []} labels={ws.labels ?? []} />
             </div>
           )
-        : quiet
-          ? <span className="absolute inset-0 border-2 border-dim bg-pane-bg bg-pane-empty" />
-          : (
-              // The empty pane's hint, worn by the cell: near-canvas fill, and
-              // the glyph over the label centered in the neutral gray. No
-              // button of its own: the cell is the button. The label adapts to
-              // the cell (the stage's pane hint, same contract).
-              <span data-cell-hint="" className="@container absolute inset-0 grid place-items-center bg-pane-bg bg-pane-empty">
-                <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
-                  <MorphIcon icon={LayoutDashboard} size={22} strokeWidth={1.75} />
-                  <span className="max-w-full truncate @max-[7rem]:hidden">{t('New collage')}</span>
-                </span>
+        : (
+            // The empty pane's hint, worn by the cell: near-canvas fill, and
+            // the glyph over the label centered in the neutral gray. No
+            // button of its own: the cell is the button. The label adapts to
+            // the cell (the stage's pane hint, same contract).
+            <span data-cell-hint="" className="@container absolute inset-0 grid place-items-center bg-pane-bg bg-pane-empty">
+              <span className="flex flex-col items-center gap-1.5 whitespace-nowrap text-[12.5px] font-semibold text-dim">
+                <MorphIcon icon={LayoutDashboard} size={22} strokeWidth={1.75} />
+                <span className="max-w-full truncate @max-[7rem]:hidden">{t('New collage')}</span>
               </span>
-            )}
+            </span>
+          )}
     </div>
   )
 }

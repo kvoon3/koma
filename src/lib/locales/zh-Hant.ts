@@ -568,10 +568,16 @@ const zhHant: Record<TKey, string> = {
   // Dual grid (two 9-grid groups, compared side by side)
   // Dual grid (two 9-grid groups, compared side by side or stacked)
   // First / second, not left / right: on a phone the two boards stack.
-  // Workspaces (the board groups, switched from the Mission Control-style switcher)
+  // Groups (the board groups, browsed on the groups page)
   'Add a group': '新增群組',
   'Open group {name}': '開啟群組 {name}',
   'Delete group?': '刪除群組？',
+  'Toggle group visibility': '顯示或隱藏群組',
+  'Toggle visibility for {name}': '顯示或隱藏群組 {name}',
+
+  // Groups page
+  'Groups': '群組',
+  'Group {name}': '群組 {name}',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': '濾鏡',
@@ -748,6 +754,7 @@ const zhHant: Record<TKey, string> = {
   'Add workspace': '新增工作區',
   'Delete workspace': '刪除工作區',
   'Move workspace': '移動工作區',
+  'Move group': '移動群組',
   'Shuffle workspaces': '隨機排列工作區',
   'Clear photos': '清空照片',
   'New workspace': '新增工作區',

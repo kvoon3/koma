@@ -4,4 +4,11 @@ declare module 'react' {
   }
 }
 
+declare module '@tanstack/history' {
+  interface HistoryState {
+    /** The overview stamps this on the groups entry; Done then goes Back. */
+    fromOverview?: boolean
+  }
+}
+
 export {}

@@ -564,10 +564,16 @@ const ja: Record<TKey, string> = {
   'Icon': 'アイコン',
   'Invert': '反転',
   'Square (1:1)': '正方形（1:1）',
-  // Workspaces (the board groups, switched from the Mission Control-style switcher)
+  // Groups (the board groups, browsed on the groups page)
   'Add a group': 'グループを追加',
   'Open group {name}': 'グループ {name} を開く',
   'Delete group?': 'グループを削除しますか？',
+  'Toggle group visibility': 'グループの表示を切り替える',
+  'Toggle visibility for {name}': 'グループ {name} の表示を切り替える',
+
+  // Groups page
+  'Groups': 'グループ',
+  'Group {name}': 'グループ {name}',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': 'フィルター',
@@ -744,6 +750,7 @@ const ja: Record<TKey, string> = {
   'Add workspace': 'ワークスペースを追加',
   'Delete workspace': 'ワークスペースを削除',
   'Move workspace': 'ワークスペースを移動',
+  'Move group': 'グループを移動',
   'Shuffle workspaces': 'ワークスペースをシャッフル',
   'Clear photos': '写真を消去',
   'New workspace': '新しいワークスペース',

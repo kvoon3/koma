@@ -1,0 +1,70 @@
+/**
+ * The groups page's drag-to-reorder (dnd-kit, insert-shift).
+ *
+ * Press, hold, then move, on every pointer type: both sensors arm after a
+ * 250ms hold and give the press up if it wanders past 8px first, so a swipe
+ * scrolls the page (the native pan wins) and a plain tap still clicks the
+ * tile open. The drop commits through the store's `moveGrid`, or hands the
+ * tile to `onDelete` when it lands on the shared delete strip (the same
+ * two-phase path as the tucked state's `x`).
+ */
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { GridGroup } from '../../lib/workspaces'
+import { MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { useMemo, useRef, useState } from 'react'
+import { DELETE_ZONE_ID } from '../../lib/deleteZone'
+import { useStore } from '../../store'
+
+/** How long a press holds before the drag arms. */
+const HOLD_MS = 250
+/** How far the press may wander during the hold before it gives the drag up. */
+const HOLD_TOLERANCE_PX = 8
+
+export function useGroupsReorder({ grids, moveGrid, onDelete }: {
+  grids: readonly GridGroup[]
+  /** Commit a reorder: the moved group's id and its new index. */
+  moveGrid: (id: string, to: number) => void
+  /** A tile dropped on the delete strip: the same two-phase delete as the `x`. */
+  onDelete: (id: string) => void
+}) {
+  const [dragId, setDragId] = useState<string | null>(null)
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { delay: HOLD_MS, tolerance: HOLD_TOLERANCE_PX } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: HOLD_MS, tolerance: HOLD_TOLERANCE_PX } }),
+  )
+  // Suppress the clicks that follow a finished drag: the tile must not open
+  // and the page's blank-click exit must not fire.
+  const dragEndedAtRef = useRef(0)
+
+  const ids = useMemo(() => grids.map(g => g.id), [grids])
+
+  const onDragStart = (e: DragStartEvent) => {
+    setDragId(String(e.active.id))
+  }
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragId(null)
+    dragEndedAtRef.current = Date.now()
+    if (over?.id === DELETE_ZONE_ID) {
+      navigator.vibrate?.(10)
+      onDelete(String(active.id))
+      return
+    }
+    if (!over || active.id === over.id)
+      return
+    const from = grids.findIndex(g => g.id === active.id)
+    // The page passes the visible groups, but `moveGrid` indexes the whole
+    // row, so the target lands where it sits among every group, tucked ones
+    // included; a reorder among the visible ones keeps the tucked ones put.
+    const storeTo = useStore.getState().grids.findIndex(g => g.id === over.id)
+    if (from !== -1 && storeTo !== -1)
+      moveGrid(grids[from].id, storeTo)
+  }
+
+  const onDragCancel = () => {
+    setDragId(null)
+    dragEndedAtRef.current = Date.now()
+  }
+
+  return { dragId, ids, sensors, dragEndedAtRef, onDragStart, onDragEnd, onDragCancel }
+}

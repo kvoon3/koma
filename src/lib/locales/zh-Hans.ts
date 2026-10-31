@@ -570,10 +570,16 @@ const zhHans = {
   // Dual grid (two 9-grid groups, compared side by side)
   // Dual grid (two 9-grid groups, compared side by side or stacked)
   // First / second, not left / right: on a phone the two boards stack.
-  // Workspaces (the board groups, switched from the Mission Control-style switcher)
+  // Groups (the board groups, browsed on the groups page)
   'Add a group': '新增分组',
   'Open group {name}': '打开分组 {name}',
   'Delete group?': '删除分组？',
+  'Toggle group visibility': '显示或隐藏分组',
+  'Toggle visibility for {name}': '显示或隐藏分组 {name}',
+
+  // Groups page
+  'Groups': '分组',
+  'Group {name}': '分组 {name}',
 
   // Filters (tactile texture filters over a pane's photo)
   'Filter': '滤镜',
@@ -750,6 +756,7 @@ const zhHans = {
   'Add workspace': '添加工作区',
   'Delete workspace': '删除工作区',
   'Move workspace': '移动工作区',
+  'Move group': '移动分组',
   'Shuffle workspaces': '随机排列工作区',
   'Clear photos': '清空照片',
   'New workspace': '新建工作区',

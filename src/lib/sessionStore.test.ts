@@ -11,7 +11,7 @@ const board = (prefix: string, n: number) => Array.from({ length: n }, (_, i) =>
 /** The store slices a session is written from, trimmed to what it reads. */
 function source() {
   return {
-    grids: [{ id: 'gA', name: 'Cover' }, { id: 'gB', name: 'Variant' }],
+    grids: [{ id: 'gA', name: 'Cover', hidden: true }, { id: 'gB', name: 'Variant' }],
     activeGridId: 'gB',
     workspaces: board('b', 2),
     activeId: 'b1',
@@ -62,10 +62,20 @@ describe('sessionMeta', () => {
   it('round-trips through the hydration migration', () => {
     const out = normalizeGrids(savedFrom(sessionMeta(source())), () => cell('fresh'), () => 'gNew')
     expect(out.grids.map(g => g.name)).toEqual(['Cover', 'Variant'])
+    // A tucked-away group stays tucked; the marker survives the round trip.
+    expect(out.grids.map(g => g.hidden)).toEqual([true, undefined])
     expect(out.activeGridId).toBe('gB')
     expect(out.workspaces.map(w => w.id)).toEqual(['b0', 'b1'])
     expect(out.activeId).toBe('b1')
     expect(out.parked.gA).toEqual({ workspaces: board('a', 3), activeId: 'a2' })
     expect(out.parked.gB).toBeUndefined()
+  })
+
+  it('round-trips an untouched row too (hidden: false is what a save writes)', () => {
+    const plain = { ...source(), grids: [{ id: 'gA', name: 'Cover' }, { id: 'gB', name: 'Variant' }] }
+    const meta = sessionMeta(plain)
+    expect(meta.grids?.map(g => g.hidden)).toEqual([false, false])
+    const out = normalizeGrids(savedFrom(meta), () => cell('fresh'), () => 'gNew')
+    expect(out.grids.map(g => g.hidden)).toEqual([undefined, undefined])
   })
 })

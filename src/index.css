@@ -493,11 +493,11 @@ html.dark {
  * (one frame, final state).
  */
 /*
- * Grid ⇄ editor zoom: the 3×3 cell and the stage canvas share
- * view-transition-name ws-<id>, so the browser morphs one into the other
- * (the router wraps the grid ⇄ editor navigation in
- * document.startViewTransition). Reduced
- * motion is handled in JS; the swap falls back to instant.
+ * Board zoom: the 3x3 cell and the stage canvas share view-transition-name
+ * ws-<id>, so the browser morphs one into the other (the router wraps the
+ * navigation in document.startViewTransition). The groups page's active card
+ * carries the same names, so the overview's cells morph into its board and
+ * back. Reduced motion is handled in JS; the swap falls back to instant.
  */
 ::view-transition-group(*) {
   animation-duration: var(--dur-morph);
@@ -546,29 +546,55 @@ html.dark {
 }
 
 /*
- * Workspace switcher (WorkspaceGrid): the frosted strip drops in from above
- * on entry and lifts back out on exit, while the board morphs between its
- * full and receded boxes through its own group (ws-board): the element's own
- * scale becomes the group's animated transform, so no keyframes are needed
- * there. Same duration and curve as every other morph (the * group rule).
+ * The groups page's edit-mode wiggle (the iOS home-screen icon jiggle): a
+ * small rotation and offset on an inner wrapper of each tile, never the
+ * sortable node dnd-kit translates. Each tile sets its own rhythm through
+ * two custom properties (`lib/groupPage`'s `tileWiggle`, hashed from the
+ * group's id): a duration in the 0.9s–1.3s band and a negative delay that
+ * starts the cycle mid-phase, so the row never swings as one. The app-wide
+ * reduced-motion block ends the animation with no fill, so reduced motion
+ * shows still tiles.
  */
-::view-transition-new(ws-strip) {
-  animation: ws-strip-in var(--dur-morph) var(--ease-out) both;
+@keyframes tile-wiggle {
+  0%, 100% { transform: rotate(-0.6deg) translateY(0.5px); }
+  50% { transform: rotate(0.6deg) translateY(-0.5px); }
 }
-::view-transition-old(ws-strip) {
-  animation: ws-strip-out var(--dur-morph) var(--ease-out) both;
+.tile-wiggle {
+  animation: tile-wiggle var(--wiggle-dur, 520ms) var(--ease-in-out) var(--wiggle-delay, 0ms) infinite;
 }
-@keyframes ws-strip-in {
-  from {
-    transform: translateY(-16%);
-    opacity: 0;
-  }
+
+/*
+ * A tile's appear and disappear, on the tile root (the node dnd-kit sizes,
+ * never the wiggle wrapper): a just-added group fades and rises in over the
+ * surface step, a deleted one fades and shrinks over `--tile-exit-ms` (the
+ * exit duration `lib/groupPage` owns; the page container sets it once, so
+ * CSS and the two-phase delete timing share one number). No fill on the
+ * enter, so a finished entrance stops overriding the sortable translate
+ * dnd-kit puts on the same node; the exit fills both and the store commit
+ * unmounts it. The app-wide reduced-motion block ends both near-instantly,
+ * so the enter skips and the exit commits straight away.
+ */
+@keyframes tile-in {
+  from { opacity: 0; transform: translateY(10px); }
 }
-@keyframes ws-strip-out {
-  to {
-    transform: translateY(-16%);
-    opacity: 0;
-  }
+.tile-in {
+  animation: tile-in var(--dur-surface) var(--ease-out);
+}
+@keyframes tile-out {
+  to { opacity: 0; transform: scale(0.9); }
+}
+.tile-out {
+  animation: tile-out var(--tile-exit-ms, 120ms) var(--ease-out) both;
+}
+
+/*
+ * The groups page entrance: the wallpaper fades up when the page mounts.
+ */
+@keyframes wallpaper-in {
+  from { opacity: 0; }
+}
+.wallpaper-in {
+  animation: wallpaper-in var(--dur-morph) var(--ease-out);
 }
 
 /*

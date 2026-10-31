@@ -65,11 +65,9 @@ export function activeAfterRemove<T extends { id: string }>(before: T[], after: 
 }
 
 /**
- * A board is one group of nine cells. The overview keeps a handful of them,
- * switched from the workspace switcher; past four the switcher strip stops
- * earning its row.
+ * A board is one group of nine cells. The overview keeps as many of them as
+ * the user adds; the groups page scrolls, so no count is refused.
  */
-export const MAX_GRIDS = 4
 /** One board always stays: the app needs somewhere to edit. */
 export const MIN_GRIDS = 1
 /** Default group names, in add order (the user renames them). */
@@ -79,6 +77,12 @@ export const GRID_NAMES = ['1', '2', '3', '4'] as const
 export interface GridGroup {
   id: string
   name: string
+  /**
+   * A tucked-away group. Hiding is a marker, not a filter: the group keeps its
+   * place in the row, stays swipable and openable, and only reads as dimmed
+   * (the groups page shows the eye and the delete `x` on it).
+   */
+  hidden?: boolean
 }
 
 /**
@@ -97,6 +101,8 @@ export interface ParkedBoard<T> {
 export interface SavedGrid<T> {
   id: string
   name?: string
+  /** Absent in sessions saved before group visibility: those load visible. */
+  hidden?: boolean | null
   workspaces?: readonly T[] | null
   activeId?: string | null
 }
@@ -127,9 +133,9 @@ export function nextGridName(groups: readonly GridGroup[]): string {
   return GRID_NAMES.find(name => !used.has(name)) ?? String(groups.length + 1)
 }
 
-/** Append a group; a full bar is returned untouched. */
+/** Append a group; the row is endless, so nothing is ever refused. */
 export function addGroup(groups: GridGroup[], fresh: () => GridGroup): GridGroup[] {
-  return groups.length >= MAX_GRIDS ? groups : [...groups, fresh()]
+  return [...groups, fresh()]
 }
 
 /** Drop a group; the last one stays, so there is always a board to edit. */
@@ -148,41 +154,55 @@ export function renameGroup(groups: GridGroup[], id: string, name: string): Grid
   return groups.map(g => (g.id === id ? { ...g, name: clean } : g))
 }
 
+/** Tuck a group away or bring it back; the row's order never moves. */
+export function toggleGroupHidden(groups: GridGroup[], id: string): GridGroup[] {
+  if (!groups.some(g => g.id === id))
+    return groups
+  return groups.map(g => (g.id === id ? { ...g, hidden: !g.hidden || undefined } : g))
+}
+
 /** One group as a session wrote it, before the ids and names are checked. */
 interface SavedEntry<T> {
   id: string
   name: string
+  hidden: boolean
   workspaces: readonly T[] | null | undefined
   activeId: string | null | undefined
 }
 
 /**
- * The saved groups as entries within the cap (fresh ids for the missing or
- * duplicate ones), or a single entry for a board saved before groups existed.
+ * The saved groups as entries (fresh ids for the missing or duplicate ones),
+ * or a single entry for a board saved before groups existed. Every saved
+ * group survives: an old build capped the row, this one does not.
  */
 function savedEntries<T extends { id: string }>(saved: SavedGrids<T>, newGridId: () => string): SavedEntry<T>[] {
   const seen = new Set<string>()
   const entries: SavedEntry<T>[] = []
   for (const g of saved.grids ?? []) {
-    if (entries.length >= MAX_GRIDS)
-      break
     if (!g)
       continue
     const id = typeof g.id === 'string' && g.id && !seen.has(g.id) ? g.id : newGridId()
     if (seen.has(id))
       continue
     seen.add(id)
-    entries.push({ id, name: typeof g.name === 'string' ? g.name.trim() : '', workspaces: g.workspaces, activeId: g.activeId })
+    entries.push({
+      id,
+      name: typeof g.name === 'string' ? g.name.trim() : '',
+      hidden: g.hidden === true,
+      workspaces: g.workspaces,
+      activeId: g.activeId,
+    })
   }
   if (!entries.length)
-    entries.push({ id: newGridId(), name: '', workspaces: saved.workspaces, activeId: saved.activeId })
+    entries.push({ id: newGridId(), name: '', hidden: false, workspaces: saved.workspaces, activeId: saved.activeId })
   return entries
 }
 
 /**
- * Bring a saved board within the group model: groups past the cap are dropped,
- * missing or duplicate ids get a fresh one, a nameless group takes the next
- * default name, and each board is within 1–9 cells (see normalizeSlots).
+ * Bring a saved board within the group model: missing or duplicate ids get a
+ * fresh one, a nameless group takes the next default name, and each board is
+ * within 1–9 cells (see normalizeSlots). A group saved before visibility
+ * exists loads as visible (`hidden === true` is the only tucked-away read).
  *
  * A session saved before groups held exactly one board and no group list: that
  * board becomes group 1, so a refresh after this change lands on the board the
@@ -196,7 +216,7 @@ export function normalizeGrids<T extends { id: string }>(
   const entries = savedEntries(saved, newGridId)
   const grids: GridGroup[] = []
   const boards = entries.map((entry) => {
-    const group = { id: entry.id, name: entry.name || nextGridName(grids) }
+    const group = { id: entry.id, name: entry.name || nextGridName(grids), hidden: entry.hidden || undefined }
     grids.push(group)
     const workspaces = normalizeSlots(entry.workspaces as T[] | null | undefined, fresh)
     const activeId = workspaces.some(w => w.id === entry.activeId) ? entry.activeId as string : workspaces[0].id

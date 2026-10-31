@@ -342,6 +342,7 @@ describe('labels', () => {
     flipPane: 'Flip photo',
     moveSticker: 'Move sticker',
     moveWorkspace: 'Move workspace',
+    moveGrid: 'Move group',
     pastePane: 'Paste pane',
     patch: 'Board look',
     removeGrid: 'Delete workspace',
@@ -365,6 +366,7 @@ describe('labels', () => {
     shuffleWorkspaces: 'Shuffle workspaces',
     split: 'Split pane',
     swapPhotos: 'Swap panes',
+    toggleGridHidden: 'Toggle group visibility',
     updateLeaf: 'Pan the photo',
   }
 

@@ -185,7 +185,7 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
  * the grid / editor maps behind it. `exportOpen` is the export dialog's
  * presence; while it is up the board ignores the keyboard entirely.
  */
-export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }: {
+export function useRouteKeys({ grid, hub = false, groups = false, exportOpen, onExport, chrome }: {
   /** The overview (`/`) owns different bindings than the editor. */
   grid: boolean
   /**
@@ -195,6 +195,12 @@ export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }
    * open.
    */
   hub?: boolean
+  /**
+   * The groups page owns the arrow / Enter / Escape keys itself. The board map
+   * behind it would edit the active board out of sight, so only the popover
+   * keys act here.
+   */
+  groups?: boolean
   exportOpen: boolean
   /** Run the current route's export (mod+E). */
   onExport: () => void
@@ -248,9 +254,10 @@ export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }
         },
       }
 
-      if (hub) {
-        // A hub route shows no board, so only the popover keys it shares with
-        // the overview act there: a pane key would edit a board out of sight.
+      if (hub || groups) {
+        // A hub or groups route shows no editable board, so only the popover
+        // keys it shares with the overview act there: a pane key would edit a
+        // board out of sight.
         handleGridKey(e, k, ui)
         return
       }
@@ -279,5 +286,5 @@ export function useRouteKeys({ grid, hub = false, exportOpen, onExport, chrome }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [helpOpen, libOpen, settingsOpen, report, setHelpOpen, setLibOpen, setSettingsOpen, setReport, doCrops, grid, hub, navigate, exportOpen])
+  }, [helpOpen, libOpen, settingsOpen, report, setHelpOpen, setLibOpen, setSettingsOpen, setReport, doCrops, grid, hub, groups, navigate, exportOpen])
 }
