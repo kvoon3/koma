@@ -33,6 +33,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@number-flow/react": "^0.6.2",
     "@tanstack/react-router": "^1.170.45",
     "heic-to": "^1.6.6",
     "lucide": "^1.59.0",

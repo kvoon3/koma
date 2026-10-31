@@ -1,12 +1,13 @@
-import { isOffFit, viewPercent } from '../lib/canvasView'
+import NumberFlow from '@number-flow/react'
+import { viewPercent } from '../lib/canvasView'
 import { useT } from '../lib/i18n'
 
 /**
- * The view-zoom indicator: a small chip that appears once the canvas view is
- * off fit and puts it back on click. The app's floating-chrome idiom (a
- * float-bg scrim with a blur, chip-hover under the pointer), the same weight as
- * the back / undo buttons it sits under, and only while it has something to
- * say, so a fitted canvas keeps the stage clean.
+ * The view-zoom indicator: bold text that fades in once the canvas view is off
+ * fit and puts it back on click. No background or border: the digits are the
+ * affordance, the same weight as the float row beside it. Fading out takes the
+ * chip past the unmount instead of the unmount cutting the fade, so the click
+ * to fit rolls the digits home to 100% before the chip disappears.
  */
 export function ViewZoomChip({ scale, onFit, className = '' }: {
   /** The live view scale; the chip renders nothing at fit. */
@@ -16,21 +17,24 @@ export function ViewZoomChip({ scale, onFit, className = '' }: {
   className?: string
 }) {
   const t = useT()
-  if (!isOffFit(scale))
-    return null
+  const offFit = Math.abs(scale - 1) > 1e-3
   const pct = viewPercent(scale)
   const label = t('Canvas at {n}% · click to fit', { n: pct })
+  // aria-hidden at fit: the visible readout is gone and `tabular-nums` ghosts
+  // must not sit in the a11y tree twice.
   return (
     <button
       type="button"
       data-view-zoom-chip=""
-      className={`grid h-[30px] min-w-[46px] cursor-pointer place-items-center border border-float-line bg-float-bg px-1.5 text-[11px] font-semibold tabular-nums text-float-icon backdrop-blur-[7px] transition-[background-color,color,scale] duration-(--dur-fast) active:scale-[0.97] hover:bg-chip-hover hover:text-txt focus-visible:outline-1 focus-visible:outline-accent pointer-coarse:h-[38px] ${className}`}
+      aria-hidden={offFit ? undefined : true}
+      className={`pointer-events-none absolute grid h-[30px] min-w-[46px] cursor-pointer place-items-center px-1.5 text-[11px] font-bold tabular-nums text-float-icon transition-[opacity,scale] duration-(--dur-fast) active:scale-[0.97] hover:text-txt focus-visible:outline-1 focus-visible:outline-accent focus-visible:pointer-events-auto pointer-coarse:h-[38px] ${offFit ? 'pointer-events-auto opacity-100 scale-100' : 'opacity-0 scale-[0.96]'} ${className}`}
       title={label}
-      aria-label={label}
+      aria-label={offFit ? label : undefined}
       onClick={onFit}
     >
-      {pct}
-      %
+      {/* Rolls per gesture notch; the suffix lives inside so the grid keeps
+          one item and the sign rides the digits. */}
+      <NumberFlow value={pct} format={{ useGrouping: false }} suffix="%" willChange />
     </button>
   )
 }

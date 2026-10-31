@@ -1,3 +1,4 @@
+import NumberFlow from '@number-flow/react'
 import { useCallback, useRef, useState } from 'react'
 import {
   assistDeg,
@@ -10,6 +11,7 @@ import {
   HARD_STEP_DEG,
   nudgeDeg,
   radToDeg,
+  readoutDeg,
   settleDeg,
   snapFine,
   SOFT_STEP_DEG,
@@ -177,7 +179,9 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-dim">{label}</span>
         <div className="flex items-center gap-1">
-          {/* The reading is the zero button: tap the number to go back upright. */}
+          {/* The reading is the zero button: tap the number to go back upright.
+              The digits roll, so a release near a detent folds 23.7° into 90°
+          instead of snapping. */}
           <button
             type="button"
             className={`${btnCls} min-w-11 justify-end border-transparent bg-transparent pr-0 text-accent tabular-nums`}
@@ -186,7 +190,7 @@ export function RotationControl({ value, onChange, label, disabled = false, clas
             disabled={disabled || deg === 0}
             onClick={() => onChange(0)}
           >
-            {formatDeg(deg)}
+            <NumberFlow value={readoutDeg(deg)} format={{ useGrouping: false, maximumFractionDigits: 1 }} suffix="°" willChange />
           </button>
           <button
             type="button"
