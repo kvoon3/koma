@@ -170,6 +170,46 @@ const railVals = await page.evaluate(() => {
 })
 console.log('rail:', railVals === null ? 'null' : JSON.stringify(railVals))
 
+// Rail pill style: full-round, white in light / black in dark, no border.
+const railStyle = await page.evaluate(() => {
+  const chip = document.querySelector('[data-rail-value]')
+  if (!chip)
+    return null
+  const cs = getComputedStyle(chip)
+  const r = chip.getBoundingClientRect()
+  return {
+    radius: cs.borderTopLeftRadius,
+    bg: cs.backgroundColor,
+    border: cs.borderTopWidth,
+    weight: cs.fontWeight,
+    w: Math.round(r.width),
+    h: Math.round(r.height),
+  }
+})
+console.log('rail pill style (light):', JSON.stringify(railStyle))
+const darkPage = await browser.newPage({ viewport: { width: 1280, height: 900 }, ignoreHTTPSErrors: true, colorScheme: 'dark' })
+await darkPage.goto(url, { waitUntil: 'networkidle' })
+await darkPage.evaluate(async () => {
+  const store = (window as FlowWindow).__collage.store()
+  const canvas = document.createElement('canvas')
+  canvas.width = 400
+  canvas.height = 300
+  canvas.getContext('2d')!.fillRect(0, 0, 400, 300)
+  const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'))
+  await store.addPhotos([new File([blob!], 'seed.png', { type: 'image/png' })], true)
+})
+await darkPage.waitForTimeout(400)
+const mobIdD = await darkPage.evaluate(() => (window as FlowWindow).__collage.store().activeId)
+await darkPage.goto(`${url}#/w/${mobIdD}`, { waitUntil: 'networkidle' })
+await darkPage.waitForTimeout(700)
+const railDark = await darkPage.evaluate(() => {
+  const chip = document.querySelector('[data-rail-value]')
+  return chip ? getComputedStyle(chip).backgroundColor : null
+})
+const htmlDark = await darkPage.evaluate(() => document.documentElement.classList.contains('dark'))
+console.log('rail pill bg (dark page):', JSON.stringify(railDark), 'html.dark:', htmlDark)
+await darkPage.close()
+
 // 3. Rotation dial readout: tap the pane (a coordinate tap routes), open the
 //    dock's Rotate popover, then read the rolling zero button.
 const paneBox = await page.evaluate(() => {

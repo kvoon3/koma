@@ -580,11 +580,11 @@ export function ScaleRail({ nudge = 0 }: {
         </span>
 
         {/* The live value, beside the scale while the pointer (or focus) is
-            there: bold text like the view-zoom readout, no background or
-            border, the digits the affordance. */}
+            there: a full-round pill over the photo (white in light, black in
+            dark, the panel token), bold digits the affordance. */}
         <span
           data-rail-value=""
-          className={`absolute grid origin-right place-items-center px-1.5 text-[11px] font-bold tabular-nums text-float-icon transition-[opacity,translate,scale] ease-(--ease-out) motion-reduce:duration-0 ${settle} ${chip}`}
+          className={`absolute grid origin-right place-items-center rounded-full bg-panel px-1.5 text-[11px] font-bold tabular-nums text-txt transition-[opacity,translate,scale] ease-(--ease-out) motion-reduce:duration-0 ${settle} ${chip}`}
           style={{
             right: bandW / 2 + TICK_FIT / 2 + CHIP_GAP,
             top: INSET - CHIP_H / 2,
