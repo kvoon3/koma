@@ -45,15 +45,20 @@ so a Storybook deploy never touches `koma` or its domain.
 bun run deploy:storybook   # build-storybook, then wrangler deploy with the storybook config
 ```
 
-The Worker lands at `https://koma-storybook.kvoon.workers.dev`, with preview
-URLs at `https://<version-prefix>-koma-storybook.kvoon.workers.dev` for
-non-main branches.
+The Worker lands at `https://koma-storybook.kvoon.workers.dev`. Each upload
+also gets a version preview URL at
+`https://<version-prefix>-koma-storybook.kvoon.workers.dev`.
 
-Automatic deploys on main need one dashboard step. In the Cloudflare
-dashboard, add a second Workers Builds project for this repo, point it at
-`main`, and set the build command to `bun run deploy:storybook`. Set the
-output directory to `storybook-static` so the project reads the workshop
-build. Leave the app's own Workers Builds project as it is.
+Automatic deploys on main run through
+[.github/workflows/storybook-deploy.yml](.github/workflows/storybook-deploy.yml).
+It builds the workshop with `bun run build-storybook`, then deploys
+`wrangler.storybook.jsonc` with the same `CLOUDFLARE_API_TOKEN` secret as the
+app deploy.
+
+Do not reconnect Cloudflare Workers Builds. The app's integration is
+disconnected on purpose because its bare `wrangler deploy` on every main
+merge replaced the app Worker and wiped its secrets. The workflow above
+replaces the need for a Storybook Workers Builds project.
 
 ## License
 

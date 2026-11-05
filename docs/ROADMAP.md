@@ -92,7 +92,6 @@ Merged on 2026-10-24, and the merge deployed main.
 
 - Rotate the Jev key, which was shared in chat. `JEV_API_URL` and `JEV_API_KEY` are already set on the `koma` Worker in `Kvoon@duck.com's Account`, and on the `wave12/jev-tags` preview plus its preview base config. Rotating means updating all three.
 - The preview proved the real path end to end: a `生日蛋糕` label came back with `icon: "cake"` through the deployed Worker proxy. A direct request from this machine still gets HTTP 451, so local runs need an egress outside the blocked region.
-- A second Cloudflare Workers Builds project for `koma-storybook`, pointed at `main` with `bun run deploy:storybook`.
 
 ## Rules of engagement
 
