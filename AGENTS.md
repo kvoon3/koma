@@ -42,6 +42,9 @@ Where a note conflicts with a poteto default, the note wins.
   `wrangler.json` (void refuses those two exact names; the storybook worker's
   `wrangler.storybook.jsonc` is fine). Deploy, secrets and rollback steps
   live in `docs/void.md`.
+- Storybook deploys on main through `.github/workflows/storybook-deploy.yml`,
+  which builds the workshop and deploys `wrangler.storybook.jsonc` to
+  `koma-storybook` with `CLOUDFLARE_API_TOKEN`, never `koma`.
 
 ## UI
 

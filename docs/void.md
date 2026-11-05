@@ -174,16 +174,14 @@ bunx wrangler deploy --config wrangler.preview.jsonc --name koma-pr-<number>
   unmeasured is the cost and resilience of that invocation on asset-heavy
   pages; measure with `void project logs` before relying on it.
 - The Cloudflare Workers Builds integration ("Workers Builds: koma", a PR
-  check) has been auto-deploying every `main` merge 40–60 s later with a bare
-  `wrangler deploy` from the in-tree `wrangler.jsonc` (measured: #80, #81 and
-  #77 merged 05:31–05:53Z on 2026-10-27, each followed by a metadata-less
-  deploy; the live bundle carried #80's minimap marker). Those deploys carry
-  no `void:{...}` metadata, so `wrangler deployments list` cannot attribute
-  them to the void pipeline. Once the root `wrangler.jsonc` is gone from
-  main (this stack), the integration's build fails permanently and manual
-  `bun run deploy` becomes the only deploy path. Either accept that or
-  reconnect the integration with `bun run deploy` as its build command; do
-  not let both pipelines run.
+  check) is disconnected. Do not reconnect it. When it ran, its bare
+  `wrangler deploy` on every `main` merge replaced the app Worker and wiped
+  its secrets. The app's push-to-main deploys now go through
+  `.github/workflows/void-deploy.yml`. Before the disconnect, #80, #81 and
+  #77 merged between 05:31 and 05:53Z on 2026-10-27. The integration deployed
+  40 to 60 seconds after each merge, without metadata, so
+  `wrangler deployments list` could not attribute those versions to the void
+  pipeline.
 - Branch preview URLs were unverified after the Void switch. PR previews now
   have their own Worker per PR (`koma-pr-<number>.kvoon.workers.dev`), owned
   by `.github/workflows/preview.yml`; see PR previews.
