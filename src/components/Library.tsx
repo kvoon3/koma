@@ -1,15 +1,10 @@
 import type { Photo } from '../lib/imageStore'
+import type { PickMods } from '../lib/librarySelection'
 import { Check } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useEffect, useRef } from 'react'
 import { useInView, useThumb } from '../hooks'
 import { useT } from '../lib/i18n'
-
-/** Modifier state of a thumbnail click, resolved by the drawer into a selection op. */
-export interface PickMods {
-  toggle: boolean
-  range: boolean
-}
 
 // How long a pointer must stay down before it counts as a selection long-press.
 const LONG_PRESS_MS = 450

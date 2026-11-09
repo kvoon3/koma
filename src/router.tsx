@@ -1,11 +1,10 @@
 /* eslint-disable react-refresh/only-export-components -- a code-based route module necessarily mixes the exported router instance with its route components. */
-import type { ExportItem } from './components/ExportDialog'
 import type { AppCommands } from './lib/appCommands'
 import type { RenderedItem } from './lib/exportRun'
 import type { LibrarySearch } from './lib/library'
 import { Tooltip } from '@base-ui/react/tooltip'
 import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, redirect, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
 import { ExportDialog } from './components/ExportDialog'
@@ -26,11 +25,13 @@ import { AppCommandsContext } from './lib/appCommands'
 import { buildCropReport } from './lib/exporter'
 import { exportOptions, renderGridCellItems, renderGridItems, renderWorkspaceItems } from './lib/exportFlow'
 import { armRun, releaseRun } from './lib/exportRun'
+import { EXPORT_IDLE, exportBusy, exportItems, exportRunToRelease, exportTransition } from './lib/exportSession'
 import { hubKeyForPath, markHubSeen } from './lib/hubSeen'
 import { t } from './lib/i18n'
 import { parseLibraryType } from './lib/library'
 import { EDITOR_PATH, GROUPS_PATH, isGridPath, isGroupsPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
 import { say } from './lib/toast'
+import { useFlow } from './lib/useFlow'
 import { viewTransitionOption } from './lib/viewTransition'
 import { useStore } from './store'
 import { initTheme } from './theme'
@@ -48,13 +49,16 @@ function RootLayout() {
   const groups = useRouterState({ select: s => isGroupsPath(s.location.pathname) })
   const pathname = useRouterState({ select: s => s.location.pathname })
 
-  const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
   const [clearAsk, setClearAsk] = useState(false)
-  /** The finished export run the dialog is showing; null while none is open. */
-  const [exportItems, setExportItems] = useState<ExportItem[] | null>(null)
-  /** The run the preview URLs belong to, held past the dialog's close. */
-  const runRef = useRef<ExportItem[] | null>(null)
+  /**
+   * The export run's lifecycle (see lib/exportSession): rendering is
+   * single-flight, previewing owns the run's URLs, and releasing is the close
+   * animation, after which the URLs are revoked.
+   */
+  const { state: exportSession, send: sendExport, latest: latestExport } = useFlow(EXPORT_IDLE, exportTransition)
+  const busy = exportBusy(exportSession)
+  const run = exportItems(exportSession)
 
   const [libOpen, setLibOpen] = usePersisted('libOpen', false)
   const [settingsOpen, setSettingsOpen] = usePersisted('settingsOpen', false)
@@ -86,51 +90,55 @@ function RootLayout() {
     return () => window.removeEventListener('wheel', onWheel)
   }, [])
 
-  /** Hand a finished run to the dialog, letting the run it replaces go. */
+  /** Hand a finished run to the dialog, adopting its URLs. */
   const showRun = useCallback((rendered: RenderedItem[]) => {
-    const run = armRun(rendered, runRef.current)
-    runRef.current = run
-    setExportItems(run)
-  }, [])
+    const next = armRun(rendered, null)
+    // A refused event would leave the URLs unowned; release them instead.
+    if (!sendExport({ type: 'rendered', run: next }))
+      releaseRun(next)
+  }, [sendExport])
 
   /** The dialog has animated out: its run is off screen, its URLs can go. */
   const dropRun = useCallback(() => {
-    releaseRun(runRef.current)
-    runRef.current = null
-    setExportItems(null)
-  }, [])
+    releaseRun(exportRunToRelease(latestExport()))
+    sendExport({ type: 'released' })
+  }, [latestExport, sendExport])
 
   const doExport = useCallback(async () => {
-    setBusy(true)
+    // `send` reads the machine synchronously, so a second tap or the mod+E
+    // shortcut in the same frame cannot start a parallel render.
+    if (!sendExport({ type: 'start' }))
+      return
     say(t('Rendering at original resolution...'))
     try {
-      const items = grid ? await renderGridItems() : await renderWorkspaceItems()
-      if (items.length)
-        showRun(items)
+      const rendered = grid ? await renderGridItems() : await renderWorkspaceItems()
+      if (rendered.length)
+        showRun(rendered)
+      else
+        sendExport({ type: 'failed' })
     }
     catch (e) {
       say(t('Export failed: {msg}', { msg: (e as Error).message }))
+      sendExport({ type: 'failed' })
     }
-    finally {
-      setBusy(false)
-    }
-  }, [grid, showRun])
+  }, [grid, showRun, sendExport])
 
   const doExportGridCells = useCallback(async () => {
-    setBusy(true)
+    if (!sendExport({ type: 'start' }))
+      return
     say(t('Rendering at original resolution...'))
     try {
-      const items = await renderGridCellItems()
-      if (items.length)
-        showRun(items)
+      const rendered = await renderGridCellItems()
+      if (rendered.length)
+        showRun(rendered)
+      else
+        sendExport({ type: 'failed' })
     }
     catch (e) {
       say(t('Export failed: {msg}', { msg: (e as Error).message }))
+      sendExport({ type: 'failed' })
     }
-    finally {
-      setBusy(false)
-    }
-  }, [showRun])
+  }, [showRun, sendExport])
 
   const doCrops = useCallback(() => setReport(buildCropReport(exportOptions())), [])
 
@@ -152,7 +160,7 @@ function RootLayout() {
     grid,
     hub,
     groups,
-    exportOpen: exportItems != null,
+    exportOpen: run != null,
     onExport: doExport,
     chrome: { helpOpen, libOpen, settingsOpen, report, doCrops, setHelpOpen, setLibOpen, setSettingsOpen, setReport },
   })
@@ -237,7 +245,7 @@ function RootLayout() {
 
         <CropDialog report={report} onClose={() => setReport(null)} />
 
-        <ExportDialog items={exportItems} onClose={() => setExportItems(null)} onReleased={dropRun} />
+        <ExportDialog items={run} onClose={() => sendExport({ type: 'dismiss' })} onReleased={dropRun} />
 
         <ConfirmDialog
           open={clearAsk}

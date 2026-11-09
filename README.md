@@ -23,7 +23,8 @@ Requires [mise](https://mise.jdx.dev) (provides Bun); `mise.toml` pins
 only for the editor and typescript-eslint.
 
 Design notes: pane tree model, interaction reference, implementation details
-live in [DESIGN.md](DESIGN.md).
+live in [DESIGN.md](DESIGN.md). Long-running flows and their transitions are
+cataloged in [docs/state-machines.md](docs/state-machines.md).
 
 Jev picks a leading icon when a text label is committed, and posts to a Worker
 proxy in production. The two secrets and the local check live in

@@ -1,6 +1,6 @@
 import type { TKey } from '../lib/i18n'
 import type { LyricFont, LyricLeading, LyricSize, MusicCardStyle } from '../lib/musicCard'
-import type { MusicResolveError, ResolvedMusic } from '../lib/musicLink'
+import type { MusicResolveError } from '../lib/musicLink'
 import { Dialog } from '@base-ui/react/dialog'
 import { AlignLeft, Check, Image as ImageIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
@@ -8,9 +8,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../lib/i18n'
 import { fetchLyrics, lyricLinesFrom } from '../lib/lyrics'
 import { DEFAULT_MUSIC_CARD_STYLE, loadMusicArtwork, LYRIC_FONT_IDS, LYRIC_FONT_STACKS, LYRIC_LEADINGS, LYRIC_SIZE_SCALE, MUSIC_CARD_STYLE_IDS, musicCardFileName, renderMusicCardBlob } from '../lib/musicCard'
+import { canAdd, canFindLyrics, canGenerate, MUSIC_CARD_FLOW, musicAdding, musicCardTransition, musicLyricsBusy } from '../lib/musicCardFlow'
 import { resolveMusic } from '../lib/musicLink'
 import { findLeaf } from '../lib/panes'
 import { say } from '../lib/toast'
+import { useFlow } from '../lib/useFlow'
 import { activeWs, useStore } from '../store'
 import { chipOffCls, chipOnCls } from './library/chips'
 import { Button } from './ui/button'
@@ -96,16 +98,16 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     return !!findLeaf(activeWs(s).root, s.musicCardFor)?.photoId
   })
 
+  const { state: flow, send, latest } = useFlow(MUSIC_CARD_FLOW, musicCardTransition)
+  const { music, error } = flow
+  const adding = musicAdding(flow)
+  const lyricsBusy = musicLyricsBusy(flow)
+  const lyricsNote = flow.lyricsNote
+
   const [link, setLink] = useState('')
-  const [resolving, setResolving] = useState(false)
-  const [adding, setAdding] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [music, setMusic] = useState<ResolvedMusic | null>(null)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [lyrics, setLyrics] = useState('')
-  const [lyricsBusy, setLyricsBusy] = useState(false)
-  const [lyricsNote, setLyricsNote] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   /** The composition; kept across opens, like a tool setting. */
   const [style, setStyle] = useState<MusicCardStyle>(DEFAULT_MUSIC_CARD_STYLE)
@@ -200,19 +202,14 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     }
     setPreviewUrl(null)
     setLink('')
-    setResolving(false)
-    setAdding(false)
-    setError(null)
-    setMusic(null)
+    send({ type: 'reset' })
     setTitle('')
     setArtist('')
     setLyrics('')
     setLyricPicks([])
     setPasteOpen(false)
-    setLyricsBusy(false)
-    setLyricsNote(null)
     scrollRef.current?.scrollTo({ top: 0 })
-  }, [])
+  }, [send])
 
   /** Every close path (button, Escape, backdrop) drops the last card's state. */
   const close = useCallback(() => {
@@ -262,10 +259,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         lyricFont,
         lyricLeading,
         style,
-      }).then(swapPreview).catch(() => setError(t('No artwork found for that link.')))
+      }).then(swapPreview).catch(() => send({ type: 'error', error: t('No artwork found for that link.') }))
     }, PREVIEW_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [music, title, artist, selectedLyrics, lyricSize, lyricFont, lyricLeading, style, t, swapPreview])
+  }, [music, title, artist, selectedLyrics, lyricSize, lyricFont, lyricLeading, style, t, swapPreview, send])
 
   /**
    * Ask LRCLIB for the track's words. A resolve fills them silently; the
@@ -278,8 +275,11 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     if (announce)
       setStyle('lyrics')
     const job = ++lyricsJobRef.current
-    setLyricsBusy(true)
-    setLyricsNote(null)
+    // The machine owns "one lookup at a time": a silent lookup after a resolve
+    // is accepted because `send(resolved)` has already moved to ready.
+    if (!send({ type: 'lyrics-start' }))
+      return
+    let note: string | null = null
     try {
       const text = await fetchLyrics(titleText.trim(), artistText.trim())
       if (lyricsJobRef.current !== job)
@@ -291,17 +291,17 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
         return
       }
       if (announce)
-        setLyricsNote(t('No lyrics found. Try another search or paste them.'))
+        note = t('No lyrics found. Try another search or paste them.')
     }
     catch {
       if (lyricsJobRef.current === job && announce)
-        setLyricsNote(t('Could not reach LRCLIB. Try again or paste them.'))
+        note = t('Could not reach LRCLIB. Try again or paste them.')
     }
     finally {
       if (lyricsJobRef.current === job)
-        setLyricsBusy(false)
+        send({ type: 'lyrics-done', note })
     }
-  }, [applyLyrics, t])
+  }, [applyLyrics, send, t])
 
   const chooseStyle = (next: MusicCardStyle) => {
     setStyle(next)
@@ -310,8 +310,21 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
       void findLyrics(title, artist, true)
   }
 
+  /** A resolve that did not land: drop the previous card's pixels and metadata too. */
+  const failResolve = (error: string) => {
+    artworkRef.current = null
+    if (previewRef.current) {
+      URL.revokeObjectURL(previewRef.current)
+      previewRef.current = null
+    }
+    setPreviewUrl(null)
+    setTitle('')
+    setArtist('')
+    send({ type: 'resolve-failed', error })
+  }
+
   const generate = async () => {
-    if (resolving || !link.trim())
+    if (!link.trim() || !send({ type: 'generate' }))
       return
     const job = ++jobRef.current
     lyricsJobRef.current++
@@ -319,52 +332,41 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     setLyrics('')
     setLyricPicks([])
     setPasteOpen(false)
-    setLyricsBusy(false)
-    setLyricsNote(null)
-    setResolving(true)
-    setError(null)
     try {
       const out = await resolveMusic(link)
       if (jobRef.current !== job)
         return
       if (!out.ok) {
-        artworkRef.current = null
-        if (previewRef.current) {
-          URL.revokeObjectURL(previewRef.current)
-          previewRef.current = null
-        }
-        setMusic(null)
-        setPreviewUrl(null)
-        setError(errorCopy(t, out.error))
+        failResolve(errorCopy(t, out.error))
         return
       }
       const artwork = await loadMusicArtwork(out.music.artworkUrl)
       if (jobRef.current !== job)
         return
       artworkRef.current = artwork
-      setMusic(out.music)
       setTitle(out.music.title)
       setArtist(out.music.artist)
+      send({ type: 'resolved', music: out.music })
       void findLyrics(out.music.title, out.music.artist, false)
     }
     catch {
       if (jobRef.current === job)
-        setError(t('No artwork found for that link.'))
-    }
-    finally {
-      if (jobRef.current === job)
-        setResolving(false)
+        failResolve(t('No artwork found for that link.'))
     }
   }
 
   const add = async () => {
-    if (!music || !artworkRef.current || adding)
+    // `latest` is the machine's synchronous state, so a late tap after a
+    // resolve started cannot add the previous track.
+    const current = latest()
+    if (!canAdd(current) || !current.music || !artworkRef.current)
       return
-    setAdding(true)
-    setError(null)
+    const track = current.music
+    if (!send({ type: 'add' }))
+      return
     try {
       const blob = await renderMusicCardBlob(artworkRef.current, {
-        provider: music.provider,
+        provider: track.provider,
         title,
         artist,
         lyrics: selectedLyrics,
@@ -375,10 +377,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
       })
       const file = new File([blob], musicCardFileName(title, artist), { type: 'image/png' })
       const photo = addMusicCard(file, {
-        provider: music.provider,
+        provider: track.provider,
         title: title.trim(),
         artist: artist.trim(),
-        url: music.url,
+        url: track.url,
       })
       // The card is always an asset; a board target is a second, one-step
       // placement. A stale target falls back to the library-only outcome.
@@ -387,10 +389,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
       close()
     }
     catch {
-      setError(t('No artwork found for that link.'))
-    }
-    finally {
-      setAdding(false)
+      send({ type: 'add-failed', error: t('No artwork found for that link.') })
     }
   }
 
@@ -469,7 +468,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                     data-music-link=""
                     onChange={(e) => {
                       setLink(e.target.value)
-                      setError(null)
+                      send({ type: 'link-edited' })
                     }}
                     onKeyDown={(e) => {
                       if (e.key !== 'Enter')
@@ -479,7 +478,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                     }}
                   />
                   <span className="flex flex-none">
-                    <Button variant="strong" data-music-generate="" disabled={!link.trim() || resolving} onClick={() => void generate()}>
+                    <Button variant="strong" data-music-generate="" disabled={!link.trim() || !canGenerate(flow)} onClick={() => void generate()}>
                       {t('Generate')}
                     </Button>
                   </span>
@@ -541,7 +540,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
                           type="button"
                           className={TEXT_ACTION}
                           data-music-find-lyrics=""
-                          disabled={!music || lyricsBusy || !title.trim()}
+                          disabled={!canFindLyrics(flow) || !title.trim()}
                           onClick={() => void findLyrics(title, artist, true)}
                         >
                           {lyricsBusy ? t('Finding lyrics') : t('Find lyrics')}
@@ -682,7 +681,7 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
             <Button
               variant="strong"
               data-music-add=""
-              disabled={!music || !previewUrl || adding}
+              disabled={!canAdd(flow) || !previewUrl}
               onClick={() => void add()}
             >
               {musicCardFor

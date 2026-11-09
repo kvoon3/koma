@@ -24,6 +24,10 @@ Where a note conflicts with a poteto default, the note wins.
   `uv run scripts/subset-wordmark-font.py`, which rewrites the woff2, the CSS `unicode-range`
   and the SOURCE.md size/hash. `--check` verifies. See `src/assets/fonts/SOURCE.md` for the
   rerun triggers. The build never runs it.
+- A long-running flow (async, three or more phases, or correlated booleans) is an
+  explicit machine: a pure transition module in `src/lib` plus a test, bound with
+  `useFlow`. The rule, the inventory, and the deliberate exceptions live in
+  `docs/state-machines.md`.
 
 ## Gates
 

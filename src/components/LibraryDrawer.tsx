@@ -1,14 +1,16 @@
-import type { PickMods } from './Library'
+import type { PickMods } from '../lib/librarySelection'
 import { Drawer } from '@base-ui/react/drawer'
 import { LayoutGrid, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { buttonBase, buttonVariants } from '@/components/ui/buttonStyles'
 import { useT } from '../lib/i18n'
+import { EMPTY_LIBRARY_SELECTION, librarySelectionTransition, selectedInOrder } from '../lib/librarySelection'
 import { leafList } from '../lib/panes'
 import { paneAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
+import { useFlow } from '../lib/useFlow'
 import { activeWs, useStore } from '../store'
 import { Library } from './Library'
 
@@ -24,11 +26,10 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
   const emptyCount = useStore(s => leafList(activeWs(s).root).filter(l => !l.photoId).length)
   const t = useT()
 
-  // Batch selection, session-only: an array-ordered Set so `assignMany` can
-  // fill panes in the order the user picked them.
-  const [selected, setSelected] = useState<Set<string>>(() => new Set())
-  // Where a shift-click range starts: the last thumbnail the user clicked.
-  const anchorRef = useRef<string | null>(null)
+  // Batch selection, session-only: pick order is assign order (`assignMany`),
+  // and the anchor is where a shift-range starts (see lib/librarySelection).
+  const { state: selection, send: select } = useFlow(EMPTY_LIBRARY_SELECTION, librarySelectionTransition)
+  const order = useMemo(() => photos.map(p => p.id), [photos])
 
   const activeId = useStore((s) => {
     const root = activeWs(s).root
@@ -41,46 +42,19 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
     return walk(root)
   })
 
-  const selectedIds = useMemo(
-    () => [...selected].filter(id => photos.some(p => p.id === id)),
-    [selected, photos],
-  )
+  const selectedIds = useMemo(() => selectedInOrder(selection, order), [selection, order])
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
   const clearSel = useCallback(() => {
-    setSelected(new Set())
-    anchorRef.current = null
-  }, [])
+    select({ type: 'clear' })
+  }, [select])
 
   const onPick = useCallback((id: string, mods: PickMods) => {
-    if (!photos.some(p => p.id === id))
-      return
-    if (mods.range) {
-      const order = photos.map(p => p.id)
-      const b = order.indexOf(id)
-      // `b` is always found (guarded above); the anchor can be gone if the
-      // library changed since the last click, in which case the range is just
-      // the clicked photo.
-      const a = anchorRef.current ? order.indexOf(anchorRef.current) : b
-      setSelected(new Set(order.slice(Math.min(a === -1 ? b : a, b), Math.max(a === -1 ? b : a, b) + 1)))
-      return
-    }
-    if (mods.toggle) {
-      anchorRef.current = id
-      setSelected((prev) => {
-        const next = new Set(prev)
-        if (next.has(id))
-          next.delete(id)
-        else
-          next.add(id)
-        return next
-      })
-      return
-    }
+    select({ type: 'pick', id, order, mods })
     // Plain click keeps the old behavior: assign the photo, drop the selection.
-    clearSel()
-    if (focusId)
+    if (!mods.toggle && !mods.range && focusId)
       assign(focusId, id)
-  }, [photos, focusId, assign, clearSel])
+  }, [select, order, focusId, assign])
 
   const addSelectedToEmpty = () => {
     if (!emptyCount) {
@@ -158,7 +132,7 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
                 <Library
                   photos={photos}
                   activeId={activeId}
-                  selectedIds={selected}
+                  selectedIds={selectedSet}
                   layout="row"
                   onPick={onPick}
                 />

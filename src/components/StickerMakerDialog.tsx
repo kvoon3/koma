@@ -4,6 +4,7 @@ import type { TKey } from '../lib/locales/zh-Hans'
 import type { StickerMaterialType, StickerSource } from '../lib/sticker'
 import type { StickerBakeStyle, StickerTarget } from '../lib/stickerAssets'
 import type { PerforationDesign } from '../lib/stickerFX'
+import type { MakerPanel, MakerTab, StickerImageStage } from '../lib/stickerMakerFlow'
 import type { StickerOriginalInput, StickerRecipe } from '../lib/stickerRecipe'
 import type { StickerTexture } from '../lib/stickerTexture'
 import { Dialog } from '@base-ui/react/dialog'
@@ -21,8 +22,10 @@ import { useT } from '../lib/i18n'
 import { makeSticker } from '../lib/sticker'
 import { saveMadeSticker } from '../lib/stickerAssets'
 import { MAX_TOOTH_DEPTH, MAX_TOOTH_SPACING, MIN_TOOTH_DEPTH, MIN_TOOTH_SPACING, perforationFromSliders } from '../lib/stickerFX'
+import { canSaveSticker, initialStickerMaker, makerImageStage, stickerMakerTransition } from '../lib/stickerMakerFlow'
 import { editedStickerMeta, textOriginal } from '../lib/stickerRecipe'
 import { say } from '../lib/toast'
+import { useFlow } from '../lib/useFlow'
 import { CameraCapturePanel } from './sticker/CameraCapturePanel'
 import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 
@@ -256,17 +259,6 @@ function CutoutOverlay({ job }: { job: BgJob }) {
   )
 }
 
-/** Image-tab stage shape derived from the pick and the cutout job. */
-type ImageStage = 'empty' | 'cuttingOut' | 'ready'
-
-function imageStageOf(imageSrc: string | null, bgJob: BgJob | null): ImageStage {
-  if (!imageSrc)
-    return 'empty'
-  if (bgJob)
-    return 'cuttingOut'
-  return 'ready'
-}
-
 /**
  * Shared stage for both tabs: empty image pick target, cutout overlay on the
  * raw pick, or the live makeSticker preview (with image action chips).
@@ -293,7 +285,7 @@ function StickerStage({
   onPickLibrary = null,
 }: {
   tab: 'text' | 'image'
-  imageStage: ImageStage
+  imageStage: StickerImageStage
   imageSrc: string | null
   bgJob: BgJob | null
   hasCutout: boolean
@@ -717,7 +709,7 @@ function MakerFooter({ reEdit, canInsert, saveLabel, onClose, onInsert, onReset 
  * record rather than rewriting one.
  */
 /** The Text / Image door pair above the stage. */
-function MakerTabs({ tab, onChange }: { tab: 'text' | 'image', onChange: (tab: 'text' | 'image') => void }) {
+function MakerTabs({ tab, onChange }: { tab: MakerTab, onChange: (tab: MakerTab) => void }) {
   const t = useT()
   return (
     <div className="flex gap-[5px]">
@@ -760,7 +752,7 @@ function MakerTextFields({ text, font, fontMeta, color, onText, onFont, onColor 
 }
 
 /** Which door fills the stage slot. One at a time, by construction. */
-type StageView = 'stage' | 'camera' | 'library' | 'mask'
+type StageView = MakerPanel
 
 /**
  * What fills the stage slot: the camera panel, the library picker, the mask
@@ -890,7 +882,18 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   // below starts from the recipe rather than from the last make.
   const seed = seedOf(reEdit)
 
-  const [tab, setTab] = useState<'text' | 'image'>(seed.tab)
+  /** The dialog shell: tab, stage door and save flight (see lib/stickerMakerFlow). */
+  const { state: flow, send } = useFlow(initialStickerMaker(seed.tab), stickerMakerTransition)
+  const tab = flow.tab
+  const stageView = flow.panel
+  const openPanel = (panel: Exclude<MakerPanel, 'stage'>) => send({ type: 'panel', panel })
+  const closePanel = () => send({ type: 'stage' })
+  /** Every close path tells the machine, so a reopen starts on the bare stage. */
+  const close = () => {
+    send({ type: 'close' })
+    onClose()
+  }
+
   const [text, setText] = useState(seed.text)
   const [color, setColor] = useState(seed.color)
   const [font, setFont] = useState(seed.font)
@@ -902,15 +905,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
   const [toothSpacing, setToothSpacing] = useState(seed.toothSpacing)
   const [displayLongEdge, setDisplayLongEdge] = useState(seed.displayLongEdge)
   const [texture, setTexture] = useState<StickerTexture | null>(seed.texture)
-  // The board host keeps this dialog mounted, so the transient stage panel is
-  // keyed by the state that should reset it: a close or a tab change reads as
-  // the stage again, with no effect and no extra render.
-  const viewKey = `${open ? 'open' : 'closed'}:${tab}`
-  const [stageViewAt, setStageViewAt] = useState<{ key: string, view: StageView }>({ key: viewKey, view: 'stage' })
-  const stageView = stageViewAt.key === viewKey ? stageViewAt.view : 'stage'
-  const setStageView = (view: StageView) => setStageViewAt({ key: viewKey, view })
 
-  const [inserting, setInserting] = useState(false)
   const { imageSrc, baseSrc, imageName, hasCutout, bgJob, pickImage, loadFile, removeBg, restoreOriginal, applyMask, original } = useStickerImage(seed.image)
   const libraryMode = target?.kind === 'library'
 
@@ -921,7 +916,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     [tab, text, color, fontMeta, imageSrc, imageName],
   )
 
-  const imageStage = imageStageOf(imageSrc, bgJob)
+  const imageStage = makerImageStage(!!imageSrc, !!bgJob)
   // The teeth are punched through the same border the width slider draws, so
   // the perforation is a property of the outline pass, not a second sticker.
   // Its numbers are stage pixels; the bake converts them (see StickerPreview).
@@ -929,24 +924,26 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     () => (stamp ? perforationFromSliders(toothDepth, toothSpacing) : null),
     [stamp, toothDepth, toothSpacing],
   )
+  const canInsert = canSaveSticker({ flow, hasSource: !!source, hasTarget: !!target, cutting: !!bgJob })
   const insert = async () => {
-    if (!source || !target)
+    if (!source || !target || !canInsert)
       return
     const baseName = baseNameOf(reEdit, tab, text, imageName)
     const style: StickerBakeStyle = { outlineWidth, outlineColor, material, baseName, perforation, displayLongEdge, texture }
     // The picture this sticker started from, carried onto the new record.
     const fromOriginal = originalOf(tab, text, color, font, original())
-    setInserting(true)
+    if (!send({ type: 'save-start' }))
+      return
     try {
       // Bake once, land it where this door wants it (lib/stickerAssets).
       await saveMadeSticker(source, style, target, t, fromOriginal)
-      onClose()
+      close()
     }
     catch {
       say(t('Failed to make sticker'))
     }
     finally {
-      setInserting(false)
+      send({ type: 'save-settle' })
     }
   }
 
@@ -961,7 +958,6 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
     setTexture(seed.texture)
   }
 
-  const canInsert = !!source && !!target && !inserting && !bgJob && stageView !== 'camera'
   /** The library target's folder, in the reader's own words ('' is Unsorted). */
   const saveLabel = target?.kind === 'library'
     ? t('Save to {folder}', { folder: target.folder || t('Unsorted') })
@@ -973,7 +969,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
       onOpenChange={(o) => {
         if (o)
           return
-        onClose()
+        close()
       }}
     >
       <Dialog.Portal>
@@ -987,7 +983,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-            <MakerTabs tab={tab} onChange={setTab} />
+            <MakerTabs tab={tab} onChange={next => send({ type: 'tab', tab: next })} />
 
             {tab === 'text' && (
               <MakerTextFields
@@ -1006,23 +1002,23 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
               view={stageView}
               baseSrc={baseSrc}
               imageSrc={imageSrc}
-              onCancelCamera={() => setStageView('stage')}
+              onCancelCamera={closePanel}
               onCapture={(file) => {
-                setStageView('stage')
+                closePanel()
                 loadFile(file)
               }}
-              onCancelPick={() => setStageView('stage')}
+              onCancelPick={closePanel}
               onPickPhoto={(photo: Photo) => {
-                setStageView('stage')
+                closePanel()
                 // The photo's own File is the source, so the cutout, the
                 // effects and the bake are the ones a file pick runs.
                 loadFile(photo.file)
               }}
               onApplyMask={(url) => {
                 applyMask(url)
-                setStageView('stage')
+                closePanel()
               }}
-              onCancelMask={() => setStageView('stage')}
+              onCancelMask={closePanel}
               stage={{
                 tab,
                 imageStage,
@@ -1038,11 +1034,11 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
                 displayLongEdge,
                 onDisplaySize: setDisplayLongEdge,
                 onPick: pickImage,
-                onTakePhoto: () => setStageView('camera'),
+                onTakePhoto: () => openPanel('camera'),
                 onRemoveBg: removeBg,
                 onRestore: restoreOriginal,
-                onAdjust: () => setStageView('mask'),
-                onPickLibrary: libraryMode ? () => setStageView('library') : null,
+                onAdjust: () => openPanel('mask'),
+                onPickLibrary: libraryMode ? () => openPanel('library') : null,
               }}
             />
 
@@ -1068,7 +1064,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
             reEdit={!!reEdit}
             canInsert={canInsert}
             saveLabel={saveLabel}
-            onClose={onClose}
+            onClose={close}
             onInsert={insert}
             onReset={resetEffects}
           />
