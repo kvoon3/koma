@@ -941,8 +941,8 @@ function DividerChrome({ view, focused, isLit, onBeginDrag, onHotChange }: {
 
       {/* Grips, one layer above every line: shadcn/`react-resizable-panels`
           style, as wide as the 15px band, so the thing you see is the
-          thing you grab. Shown only while a pane is focused. (Above the
-          lines: see the T-junction note in DESIGN.md.) */}
+          thing you grab. Shown only while a pane is focused. A divider's
+          midpoint lands on the crossing line and would slice the grip. */}
       <div
         className={`pointer-events-none absolute inset-0 z-[6] transition-opacity duration-(--dur-fast) ${
           focused ? 'opacity-100' : 'opacity-0'}`}
