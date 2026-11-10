@@ -16,8 +16,7 @@ import { useCallback } from 'react'
  * tool 20–60% opaque, which reads as a caption cut off mid-word, not as "more
  * tools this way". So the x band holds a clear gutter at the edge and then eases
  * in over the padding: the tool under the cut is gone, and what is left fading
- * is the one after it (see DESIGN.md: "the end that still hides tools fading out
- * as it goes").
+ * is the one after it.
  */
 export type ScrollFadeAxis = 'x' | 'y'
 
