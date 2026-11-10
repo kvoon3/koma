@@ -252,8 +252,6 @@ export async function captureOriginal(file: File, maxEdge: number = ORIGINAL_MAX
   context.imageSmoothingEnabled = true
   context.imageSmoothingQuality = 'high'
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
-  // A source that may carry alpha keeps PNG; a photo keeps its own character as
-  // JPEG, which is several times smaller for the same picture.
   const keepsAlpha = /^image\/(?:png|webp|avif|gif)/.test(file.type)
   const dataUrl = keepsAlpha ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', JPEG_QUALITY)
   canvas.width = 0
