@@ -1,0 +1,92 @@
+name: Storybook Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# One run per PR: a new push cancels the deploy it supersedes, and closing the
+# PR cancels an in-flight deploy before the cleanup job runs.
+concurrency:
+  group: storybook-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # Actions does not expose repository secrets to fork PRs, so a fork cannot
+    # deploy a preview. Skip it instead of failing the check.
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run build-storybook
+
+      - name: Deploy the Storybook preview Worker
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          NAME="koma-storybook-pr-${{ github.event.pull_request.number }}"
+          OUT="$(bunx wrangler deploy --config wrangler.storybook.jsonc --name "$NAME" 2>&1)"
+          printf '%s\n' "$OUT"
+          URL="$(printf '%s\n' "$OUT" | grep -oE 'https://[^[:space:]]+\.workers\.dev' | tail -n 1 || true)"
+          if [ -z "$URL" ]; then
+            echo "no preview URL in the deploy output" >&2
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the Storybook URL
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+          PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const marker = '<!-- koma-storybook-preview -->'
+            const body = `${marker}\n**Storybook:** ${process.env.PREVIEW_URL}\n\nWorkshop build of \`${process.env.PREVIEW_SHA.slice(0, 7)}\`.`
+            const { owner, repo } = context.repo
+            const issue_number = context.issue.number
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 })
+            const existing = comments.find(comment => comment.body?.startsWith(marker))
+            if (existing)
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body })
+            else
+              await github.rest.issues.createComment({ owner, repo, issue_number, body })
+
+  cleanup:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - run: bun install --frozen-lockfile
+
+      - name: Delete the Storybook preview Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          NAME="koma-storybook-pr-${{ github.event.pull_request.number }}"
+          if OUT="$(bunx wrangler delete "$NAME" --force --config wrangler.storybook.jsonc 2>&1)"; then
+            printf '%s\n' "$OUT"
+          elif printf '%s\n' "$OUT" | grep -qE 'code: (10007|10090)'; then
+            # A PR can close before its first preview deploy, so no Worker exists.
+            printf '%s\n' "$OUT"
+          else
+            printf '%s\n' "$OUT" >&2
+            exit 1
+          fi

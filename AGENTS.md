@@ -71,8 +71,10 @@ Where a note conflicts with a poteto default, the note wins.
   run `bun install` there.
 - Never `reset --hard` a worktree another lane owns; its uncommitted edits do not survive.
 - Branch names are `waveN/<layer>`. PR previews are per-PR Workers at
-  `koma-pr-<number>.kvoon.workers.dev`, deployed and deleted by
-  `.github/workflows/preview.yml`; see `docs/void.md`.
+  `koma-pr-<number>.kvoon.workers.dev` (app) and
+  `koma-storybook-pr-<number>.kvoon.workers.dev` (workshop), deployed and deleted by
+  `.github/workflows/preview.yml` and `.github/workflows/storybook-preview.yml`; see
+  `docs/void.md`.
 
 ## Exceptions to poteto defaults
 
