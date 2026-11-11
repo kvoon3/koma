@@ -15,7 +15,6 @@ export const TRAIL_MIN = 6
 export const TRAIL_RAMP = 36
 /** The weight at full tilt: always under the head it trails. */
 export const TRAIL_MAX = 0.9
-/** The gap at which the tail has caught up and the streak retires. */
 const TRAIL_DONE = 0.4
 
 export interface TrailPoint {

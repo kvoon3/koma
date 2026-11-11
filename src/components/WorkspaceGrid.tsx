@@ -31,6 +31,7 @@ import { CAPSULE_H, CAPTION_GAP, CAPTION_H, STAGE_PAD_Y, stageTopPad } from './g
 import { AddSlotFrame, CellBody } from './grid/CellPreview'
 import { useGridKeyboard } from './grid/useGridKeyboard'
 import { useGridReorder } from './grid/useGridReorder'
+import { useGridShuffle } from './grid/useGridShuffle'
 import { useStageGestures } from './grid/useStageGestures'
 import { useGroupsNav } from './groups/useGroupsNav'
 import { DockToolset } from './Stage'
@@ -89,6 +90,7 @@ function stageCellBox(body: { w: number, h: number }, gap: number, ratio: number
  */
 export function WorkspaceGrid() {
   const workspaces = useStore(s => s.workspaces)
+  const shuffleSeq = useStore(s => s.shuffleSeq)
   const activeId = useStore(s => s.activeId)
   const photos = useStore(s => s.photos)
   const bg = useStore(s => s.bg)
@@ -189,6 +191,15 @@ export function WorkspaceGrid() {
 
   // ---- Drag-to-reorder (dnd-kit, insert-shift) -----------------------------
   const reorder = useGridReorder({ workspaces, moveWorkspace })
+  useGridShuffle({
+    boardRef,
+    workspaces,
+    cell,
+    cellH: box.h,
+    gap: gridGap,
+    shuffleSeq,
+    dragId: reorder.dragId,
+  })
   /** The click that follows a finished drag must not enter. */
   const enterAfterDrag = (id: string) => {
     if (Date.now() - reorder.dragEndedAtRef.current > 120)
@@ -299,7 +310,8 @@ export function WorkspaceGrid() {
                 </div>
                 {/* The board carries the pager's pan; the grid inside carries
                     the falloff, whose shrink keeps its own centre origin. */}
-                <div ref={boardRef} data-board="" style={{ width: boardW }}>
+                <div ref={boardRef} data-board="" className="relative" style={{ width: boardW }}>
+                  <div data-grid-trail="" aria-hidden className="pointer-events-none absolute inset-0 z-[-1] overflow-visible motion-reduce:hidden" />
                   <div
                     ref={boardFalloffRef}
                     data-board-grid=""
@@ -493,6 +505,7 @@ function SortableCell({ ws, cell, box, photoById, transparent, highlighted, view
       {...attributes}
       {...listeners}
       data-cell=""
+      data-cell-id={ws.id}
       className={`relative cursor-pointer touch-none select-none overflow-hidden bg-panel-2 outline-0 transition-[transform,scale,opacity,outline-color] duration-(--dur-surface) active:scale-[0.97] ${
         highlighted ? ' outline-2 outline-txt -outline-offset-2' : ''
       }`}

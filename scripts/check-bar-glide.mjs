@@ -127,7 +127,7 @@ try {
 
   const chips = await page.locator('[data-bar-chip]').count()
   results.chips = chips
-  assert(chips >= 7, `expected the bar's 7 chips, found ${chips}`)
+  assert(chips >= 8, `expected the bar's 8 chips, found ${chips}`)
 
   // Rest state: nothing painted, nothing marked.
   const rest = await boxState(page)
