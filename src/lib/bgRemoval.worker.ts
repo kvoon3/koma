@@ -51,9 +51,10 @@ let transformersPromise: Promise<TransformersModule> | null = null
 /**
  * The vendored bundle carries no static module type, so the dynamic import
  * arrives as `unknown`. This guard proves every binding the worker
- * destructures (and the `env.backends.onnx` path `createRemover` reads), so a
+ * destructures and the `env.backends.onnx` path `createRemover` reads, so a
  * bundle that lost or renamed an export fails here with one message instead of
- * deep inside the pixel loops.
+ * deep inside the pixel loops. The `wasm` member inside that path keeps its
+ * own check in `createRemover`.
  */
 export function isTransformersModule(value: unknown): value is TransformersModule {
   if (!isRecord(value))
@@ -129,7 +130,7 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
   env.allowRemoteModels = false
   env.localModelPath = modelBaseUrl
   const wasm = env.backends.onnx.wasm
-  if (!wasm)
+  if (!isRecord(wasm))
     throw new Error('the ONNX WASM backend is unavailable')
   wasm.wasmPaths = {
     mjs: `${vendorBaseUrl}ort-wasm-simd-threaded.mjs`,
