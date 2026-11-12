@@ -22,6 +22,7 @@ const meta = {
   title: 'UI/ToastHost',
   component: ToastHost,
   tags: ['autodocs'],
+  parameters: { docs: { story: { inline: false, height: '360px' } } },
   render: () => <ToastDemo />,
 } satisfies Meta<typeof ToastHost>
 
