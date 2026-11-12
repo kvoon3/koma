@@ -119,13 +119,24 @@ function addNode<T>(
   return { nodes, root: history.root ?? id, cursor: id, seq: history.seq + 1 }
 }
 
+/** A node an id names. A missing one is a broken tree. */
+function nodeAt<T>(nodes: Record<string, HistoryNode<T>>, id: string): HistoryNode<T> {
+  const node = nodes[id]
+  if (!node)
+    throw new Error(`history: no node ${id}`)
+  return node
+}
+
 /** `id` and every step above it, bottom-up. Missing nodes stop the walk. */
 function lineage<T>(history: History<T>, id: string | null): string[] {
   const out: string[] = []
   let cur = id
-  while (cur != null && history.nodes[cur]) {
+  while (cur != null) {
+    const node = history.nodes[cur]
+    if (!node)
+      break
     out.push(cur)
-    cur = history.nodes[cur]!.parent
+    cur = node.parent
   }
   return out
 }
@@ -133,13 +144,14 @@ function lineage<T>(history: History<T>, id: string | null): string[] {
 /** Detach one step from its parent, and point the parent's way back down at a step that is left. */
 function unlink<T>(nodes: Record<string, HistoryNode<T>>, id: string): Record<string, HistoryNode<T>> {
   const node = nodes[id]
-  const parent = node?.parent == null ? undefined : nodes[node.parent]
-  if (!node || !parent)
+  const parentId = node?.parent
+  const parent = parentId == null ? undefined : nodes[parentId]
+  if (!node || !parent || parentId == null)
     return nodes
   const children = parent.children.filter(c => c !== id)
   return {
     ...nodes,
-    [node.parent!]: {
+    [parentId]: {
       ...parent,
       children,
       lastVisitedChild: parent.lastVisitedChild === id ? (children.at(-1) ?? null) : parent.lastVisitedChild,
@@ -164,7 +176,9 @@ function dropSubtree<T>(nodes: Record<string, HistoryNode<T>>, id: string): Reco
   const next = unlink(nodes, id)
   const stack = [id]
   while (stack.length) {
-    const cur = stack.pop()!
+    const cur = stack.pop()
+    if (cur === undefined)
+      break
     const node = next[cur]
     if (!node)
       continue
@@ -218,7 +232,7 @@ function prune<T>(history: History<T>, limit: number): History<T> {
     }
     const next = { ...nodes }
     delete next[oldest]
-    next[heir] = { ...next[heir]!, parent: null }
+    next[heir] = { ...nodeAt(next, heir), parent: null }
     nodes = next
     root = heir
     count--
@@ -301,8 +315,9 @@ export function stepDown<T>(history: History<T>, current: T): Step<T> | null {
   const node = cursor == null ? undefined : history.nodes[cursor]
   if (cursor == null || !node)
     return null
-  const remembered = node.lastVisitedChild == null ? undefined : history.nodes[node.lastVisitedChild]
-  const childId = remembered ? node.lastVisitedChild! : node.children.at(-1)
+  const visited = node.lastVisitedChild
+  const remembered = visited == null ? undefined : history.nodes[visited]
+  const childId = remembered ? visited : node.children.at(-1)
   const child = childId == null ? undefined : history.nodes[childId]
   if (childId == null || !child)
     return null
@@ -439,7 +454,8 @@ function humanize(tag: string): string {
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .trim()
-  return words === '' ? 'Edit' : words[0]!.toUpperCase() + words.slice(1)
+  const first = words[0]
+  return first === undefined ? 'Edit' : first.toUpperCase() + words.slice(1)
 }
 
 /**

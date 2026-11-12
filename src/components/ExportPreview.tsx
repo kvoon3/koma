@@ -214,7 +214,10 @@ export function ExportPreview({ item }: { item: ExportItem | null }) {
       // One finger remains: the pinch becomes a pan from WHERE THAT FINGER IS,
       // so the view does not jump on the frame the second finger lifts.
       pinchesRef.current = null
-      pansRef.current = [...pointersRef.current.values()][0]!
+      const remaining = pointersRef.current.values().next()
+      if (remaining.done)
+        throw new Error('pointer map drained while a finger remained')
+      pansRef.current = remaining.value
     }
     // pointercancel lands here too. The view already holds what was painted:
     // there is no draft to flush.

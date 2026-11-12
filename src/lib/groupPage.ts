@@ -208,9 +208,12 @@ export function pageOffset(raw: number, travel: number, hasPrev: boolean, hasNex
 export function pageStep(pos: number, velocity: number, travel: number, hasPrev: boolean, hasNext: boolean): -1 | 0 | 1 {
   const offsets = [-travel, 0, travel]
   const dir = Math.sign(pos)
+  const snapped = offsets[pickSnap(offsets, pos, 0, 1)]
+  if (snapped === undefined)
+    throw new Error('snap offset out of range')
   const offset = Math.abs(velocity) >= FLICK_VELOCITY
     ? (Math.sign(velocity) === dir ? dir * travel : 0)
-    : offsets[pickSnap(offsets, pos, 0, 1)]!
+    : snapped
   if (offset < 0)
     return hasNext ? 1 : 0
   if (offset > 0)

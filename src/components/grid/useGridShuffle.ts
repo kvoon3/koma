@@ -67,7 +67,12 @@ export function useGridShuffle({ boardRef, workspaces, cell, cellH, gap, shuffle
     if (!board)
       return
     const cells = new Map([...board.querySelectorAll<HTMLElement>('[data-cell-id]')]
-      .map(el => [el.dataset.cellId!, el] as const))
+      .map((el): [string, HTMLElement] => {
+        const id = el.dataset.cellId
+        if (id === undefined)
+          throw new Error('cell element without a data-cell-id')
+        return [id, el]
+      }))
     const run: Run = { workspaces, frame: 0, cells: [], points: new Map() }
     const movers: { move: CellMove, el: HTMLElement }[] = []
     for (const move of moves) {

@@ -101,10 +101,11 @@ export function parseMusicLink(raw: string): ParseMusicLink {
 
   const uri = SPOTIFY_URI.exec(text)
   if (uri) {
-    const kind = uri[1]!.toLowerCase() as MusicLinkKind
-    if (!SPOTIFY_ID.test(uri[2]!))
+    const kind = uri[1]?.toLowerCase()
+    const id = uri[2]
+    if ((kind !== 'track' && kind !== 'album') || !id || !SPOTIFY_ID.test(id))
       return invalid()
-    return { ok: true, link: { provider: 'spotify', kind, id: uri[2]!, url: spotifyUrl(kind, uri[2]!) } }
+    return { ok: true, link: { provider: 'spotify', kind, id, url: spotifyUrl(kind, id) } }
   }
 
   let url: URL
@@ -326,11 +327,18 @@ export type ResolveMusic
 /** The one request each resolve makes; narrow so a test can stand in for it. */
 export type MusicFetch = (url: string) => Promise<Response>
 
+/** A track link names its track; the parser only omits the id for an album. */
+function appleTrackId(link: AppleLink): string {
+  if (link.trackId === undefined)
+    throw new Error('Apple track link without a trackId')
+  return link.trackId
+}
+
 /** The public endpoint each provider answers without a key or a server. */
 export function musicLookupUrl(link: MusicLink): string {
   if (link.provider === 'spotify')
     return `https://open.spotify.com/oembed?url=${encodeURIComponent(link.url)}`
-  const id = link.kind === 'track' ? link.trackId! : link.collectionId
+  const id = link.kind === 'track' ? appleTrackId(link) : link.collectionId
   const entity = link.kind === 'track' ? 'song' : 'album'
   return `https://itunes.apple.com/lookup?id=${id}&entity=${entity}&country=${link.country}`
 }

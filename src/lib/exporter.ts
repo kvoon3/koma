@@ -53,6 +53,22 @@ export function outputSizeFor(longSide: number, ratio: number) {
   } as ExportOptions)
 }
 
+/** The canvas's 2d context. A canvas that cannot provide one cannot export. */
+function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d')
+  if (!ctx)
+    throw new Error('exporter: 2d canvas context unavailable')
+  return ctx
+}
+
+/** A glow layer by index. The reverse walk names one every step. */
+function entryAt<T>(list: readonly T[], i: number): T {
+  const value = list[i]
+  if (value === undefined)
+    throw new Error(`exporter: no entry at ${i}`)
+  return value
+}
+
 function clampCorner(r: number, w: number, h: number) {
   return Math.max(0, Math.min(r, w / 2, h / 2))
 }
@@ -175,7 +191,7 @@ export function filteredSource(src: CanvasImageSource, w: number, h: number, fil
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(src, 0, 0, w, h)
   const img = ctx.getImageData(0, 0, w, h)
@@ -220,7 +236,7 @@ function drawPanePhoto(
   const scratch = document.createElement('canvas')
   scratch.width = cw
   scratch.height = ch
-  const sc = scratch.getContext('2d')!
+  const sc = context2d(scratch)
   sc.imageSmoothingQuality = 'high'
   // The scratch is the pane box shifted by -rect.x/-rect.y, so the pane center
   // sits at half its size: turning there turns about the same point the
@@ -508,7 +524,7 @@ function drawLabel(ctx: CanvasRenderingContext2D, prep: Prepared, lab: PaneLabel
     const cos = Math.cos(rot)
     const sin = Math.sin(rot)
     for (let i = glow.length - 1; i >= 0; i--) {
-      const layer = glow[i]!
+      const layer = entryAt(glow, i)
       const ox = layer.offset?.x ?? 0
       const oy = layer.offset?.y ?? 0
       ctx.save()
@@ -535,7 +551,7 @@ export async function renderCollage(opts: ExportOptions): Promise<HTMLCanvasElem
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   if (!isTransparentBg(opts.bg)) {
     ctx.fillStyle = opts.bg
     ctx.fillRect(0, 0, W, H)
@@ -631,8 +647,12 @@ async function withLiveVideos<T>(
   const urls: string[] = []
   const vids: LiveVid[] = []
   try {
-    for (const cell of lives)
-      urls.push(URL.createObjectURL(cell.photo.videoFile!))
+    for (const cell of lives) {
+      const videoFile = cell.photo.videoFile
+      if (!videoFile)
+        throw new Error('exporter: live video cell has no video file')
+      urls.push(URL.createObjectURL(videoFile))
+    }
     if (!urls.length)
       return null
     // Loads run together: every decoder is alive for the whole recording
@@ -684,7 +704,7 @@ export async function renderCollageVideo(
     const canvas = document.createElement('canvas')
     canvas.width = W
     canvas.height = H
-    const ctx = canvas.getContext('2d')!
+    const ctx = context2d(canvas)
     ctx.imageSmoothingQuality = 'high'
 
     // Sticker sources decode through the same refcounted batch as an export
@@ -826,7 +846,7 @@ async function renderGridCell(ws: GridWs, w: number, h: number, opts: GridSnapsh
   const out = document.createElement('canvas')
   out.width = w
   out.height = h
-  const ctx = out.getContext('2d')!
+  const ctx = context2d(out)
   ctx.imageSmoothingQuality = 'high'
   const s = Math.max(w / c.width, h / c.height)
   const sw = w / s
@@ -871,7 +891,7 @@ export async function renderGridSnapshot(opts: GridSnapshotOptions): Promise<HTM
   const canvas = document.createElement('canvas')
   canvas.width = w * cols + gap * (cols - 1)
   canvas.height = h * rows + gap * (rows - 1)
-  const ctx = canvas.getContext('2d')!
+  const ctx = context2d(canvas)
   ctx.imageSmoothingQuality = 'high'
   if (!isTransparentBg(opts.bg)) {
     ctx.fillStyle = opts.bg

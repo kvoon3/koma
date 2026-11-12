@@ -250,7 +250,10 @@ export function MusicCardDialog({ open, onClose }: { open: boolean, onClose: () 
     if (!music || !artworkRef.current)
       return
     const timer = window.setTimeout(() => {
-      void renderMusicCardBlob(artworkRef.current!, {
+      const artwork = artworkRef.current
+      if (!artwork)
+        return
+      void renderMusicCardBlob(artwork, {
         provider: music.provider,
         title,
         artist,

@@ -26,6 +26,13 @@ export function prefersReducedMotion() {
    names the second has just tagged on the same panes. */
 let paneMorphRun = 0
 
+function paneIdOf(el: HTMLElement): string {
+  const id = el.dataset.paneId
+  if (id === undefined)
+    throw new Error('pane element without a data-pane-id')
+  return id
+}
+
 /**
  * Run a pane-count change (split, duplicate, close, close others/empty) as a
  * View Transition choreographed after Omarchy's Hyprland setup
@@ -55,7 +62,7 @@ export function runPaneMorph(removed: readonly string[], apply: () => void) {
   // The old snapshot has to carry the names and roles, so set them before
   // the capture.
   for (const el of document.querySelectorAll<HTMLElement>('[data-pane-id]')) {
-    const id = el.dataset.paneId!
+    const id = paneIdOf(el)
     before.set(id, el)
     el.style.viewTransitionName = `pane-${id}`
     el.style.viewTransitionClass = gone.has(id) ? 'pane-out' : 'pane-move'
@@ -69,7 +76,7 @@ export function runPaneMorph(removed: readonly string[], apply: () => void) {
     // Panes the change created exist only now: tag them so they pop in
     // instead of blinking in.
     for (const el of document.querySelectorAll<HTMLElement>('[data-pane-id]')) {
-      const id = el.dataset.paneId!
+      const id = paneIdOf(el)
       if (!before.has(id)) {
         el.style.viewTransitionName = `pane-${id}`
         el.style.viewTransitionClass = 'pane-in'

@@ -111,11 +111,12 @@ export function parseTranslate(transform: string | null | undefined): FlipStart 
   if (!transform || transform === 'none')
     return { x: 0, y: 0 }
   const body = /^matrix(3d)?\(([^)]+)\)$/.exec(transform.trim())
-  if (!body)
+  const args = body?.[2]
+  if (!body || !args)
     return { x: 0, y: 0 }
-  const parts = body[2]!.split(',').map(n => Number(n))
+  const parts = args.split(',').map(n => Number(n))
   // matrix(a, b, c, d, tx, ty); matrix3d(... 16 values, tx at 12).
-  const x = body[1] ? parts[12] : parts[4]
-  const y = body[1] ? parts[13] : parts[5]
-  return { x: Number.isFinite(x) ? x! : 0, y: Number.isFinite(y) ? y! : 0 }
+  const x = Number(body[1] ? parts[12] : parts[4])
+  const y = Number(body[1] ? parts[13] : parts[5])
+  return { x: Number.isFinite(x) ? x : 0, y: Number.isFinite(y) ? y : 0 }
 }

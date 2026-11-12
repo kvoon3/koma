@@ -1091,14 +1091,16 @@ function cutoutMenuTool(t: Translate, ctx: {
 }): ToolDef {
   const variants = ctx.photo ? variantsOf(ctx.cutouts, ctx.sets, ctx.photo.id, ctx.has) : null
   const source = variants?.source ?? null
-  const canPick = !ctx.busy && !!ctx.paneId && !!ctx.photo
+  const paneId = ctx.paneId
+  const photo = ctx.photo
+  const canPick = !ctx.busy && paneId !== null && photo !== null
   const row = (key: CutoutState, icon: IconInput, label: string, reachable: boolean): ToolOption => ({
     key,
     icon,
     label,
     active: variants?.state === key,
     reason: ctx.busy ? t('Cutting out…') : reachable ? undefined : t('The original photo is gone'),
-    onClick: canPick && reachable ? () => ctx.apply(ctx.paneId!, ctx.photo!, key) : null,
+    onClick: canPick && reachable ? () => ctx.apply(paneId, photo, key) : null,
   })
   return {
     key: 'cutout',

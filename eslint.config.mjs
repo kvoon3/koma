@@ -63,6 +63,7 @@ export default antfu({
     'ts/no-explicit-any': 'error',
     'ts/no-floating-promises': 'error',
     'ts/no-misused-promises': 'error',
+    'ts/no-non-null-assertion': 'error',
     'ts/no-unnecessary-type-assertion': 'error',
     'ts/no-unsafe-argument': 'error',
     'ts/no-unsafe-assignment': 'error',
@@ -71,6 +72,13 @@ export default antfu({
     'ts/no-unsafe-return': 'error',
     'ts/only-throw-error': 'error',
     'ts/switch-exhaustiveness-check': 'error',
+  },
+}, {
+  // Test fixtures assert their own shape, and vendored code mirrors its
+  // upstream sample; the gate covers app code.
+  files: ['src/**/*.test.{ts,tsx}', 'src/vendor/**/*.{ts,tsx}'],
+  rules: {
+    'ts/no-non-null-assertion': 'off',
   },
 }, {
   name: 'local/no-chinese-comment',

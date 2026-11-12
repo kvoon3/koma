@@ -162,9 +162,10 @@ export function renameGroup(groups: GridGroup[], id: string, name: string): Grid
  * overview with no board to draw. That request returns the row untouched.
  */
 export function toggleGroupHidden(groups: GridGroup[], id: string): GridGroup[] {
-  if (!groups.some(g => g.id === id))
+  const group = groups.find(g => g.id === id)
+  if (!group)
     return groups
-  const hiding = !groups.find(g => g.id === id)!.hidden
+  const hiding = !group.hidden
   if (hiding && groups.filter(g => !g.hidden).length <= 1)
     return groups
   return groups.map(g => (g.id === id ? { ...g, hidden: !g.hidden || undefined } : g))

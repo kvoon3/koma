@@ -112,7 +112,9 @@ function filteredCanvas(source: CanvasImageSource, w: number, h: number, filter:
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx)
+    throw new Error('Canvas 2D is unavailable.')
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(source, 0, 0, w, h)
   const img = ctx.getImageData(0, 0, w, h)
@@ -220,7 +222,9 @@ export function getFilterSwatch(photo: Photo, filter: FilterValue | null, px: nu
       const out = document.createElement('canvas')
       out.width = side
       out.height = side
-      const octx = out.getContext('2d')!
+      const octx = out.getContext('2d')
+      if (!octx)
+        throw new Error('Canvas 2D is unavailable.')
       octx.imageSmoothingQuality = 'high'
       octx.drawImage(im, sx, sy, side, side, 0, 0, side, side)
       const url = await canvasToUrl(out)

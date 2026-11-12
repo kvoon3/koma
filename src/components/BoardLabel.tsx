@@ -56,9 +56,9 @@ function labelText(label: LabelText, t: Translate): string {
 
 const ICON_NONE = '__none'
 // @x18n-keys
-const LABEL_ICON_ITEMS: { value: string, label: TKey }[] = [
-  { value: ICON_NONE, label: 'No icon' },
-  ...LABEL_ICONS.map(i => ({ value: i.id, label: i.label })),
+const LABEL_ICON_ITEMS: { value: string, label: TKey, node: IconNode | null }[] = [
+  { value: ICON_NONE, label: 'No icon', node: null },
+  ...LABEL_ICONS.map(i => ({ value: i.id, label: i.label, node: i.node })),
 ]
 
 const colorInputCls = 'h-[22px] w-[22px] cursor-pointer rounded-none border border-float-line bg-float-bg-2 p-[2px] [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-none [&::-webkit-color-swatch]:border-0'
@@ -692,9 +692,9 @@ function LabelIconSelect({ labelId, lab, setLabel, selectLabel, triggerClassName
                   aria-label={t(item.label)}
                   className="grid h-8 w-8 cursor-default select-none place-items-center outline-0 data-highlighted:bg-accent data-highlighted:text-on-accent data-selected:outline-1 data-selected:outline-accent"
                 >
-                  {item.value === ICON_NONE
-                    ? <MorphIcon icon={Ban} size={15} strokeWidth={1.75} />
-                    : <LabelIconGlyph node={labelIconNode(item.value)!} size="16" />}
+                  {item.node
+                    ? <LabelIconGlyph node={item.node} size="16" />
+                    : <MorphIcon icon={Ban} size={15} strokeWidth={1.75} />}
                 </Select.Item>
               ))}
             </Select.List>
@@ -1050,9 +1050,9 @@ export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocat
               className="grid h-9 w-9 cursor-pointer place-items-center rounded-none border-0 bg-transparent p-0 text-txt outline-0 hover:bg-chip-hover aria-pressed:outline-1 aria-pressed:outline-accent focus-visible:outline-1 focus-visible:outline-accent"
               onClick={() => setLabel(labelId, { icon: item.value === ICON_NONE ? undefined : item.value })}
             >
-              {item.value === ICON_NONE
-                ? <MorphIcon icon={Ban} size={16} strokeWidth={1.75} />
-                : <LabelIconGlyph node={labelIconNode(item.value)!} size="18" />}
+              {item.node
+                ? <LabelIconGlyph node={item.node} size="18" />
+                : <MorphIcon icon={Ban} size={16} strokeWidth={1.75} />}
             </button>
           ))}
         </div>

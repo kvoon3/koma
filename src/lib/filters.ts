@@ -201,7 +201,10 @@ export function resolveFilter(v: FilterValue | null | undefined): FilterSpec | n
 
 /** Every knob of `id` at its default: what picking a filter in the palette stores. */
 export function defaultFilter(id: FilterId): FilterSpec {
-  return resolveFilter(id)!
+  const spec = resolveFilter(id)
+  if (!spec)
+    throw new Error(`defaultFilter: ${id} does not resolve to a filter`)
+  return spec
 }
 
 /**
@@ -269,9 +272,9 @@ function filmGrain(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h:
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4
-      const R = src[i]!
-      const G = src[i + 1]!
-      const B = src[i + 2]!
+      const R = src[i] ?? 0
+      const G = src[i + 1] ?? 0
+      const B = src[i + 2] ?? 0
       const L = luma(R, G, B) / 255
       // Grain grows as the exposure drops, as it does on film.
       const amp = 20 + 28 * (1 - L)
@@ -322,7 +325,7 @@ function duotone(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: n
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4
-      const L = luma(src[i]!, src[i + 1]!, src[i + 2]!) / 255
+      const L = luma(src[i] ?? 0, src[i + 1] ?? 0, src[i + 2] ?? 0) / 255
       const curved = clamp01(lerp(L, smooth(L), curve))
       const ink = 1 - curved
       const amp = grain * (0.6 + 0.7 * ink)
@@ -361,17 +364,17 @@ function twoInkPrint(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, 
       const i = (y * w + x) * 4
       // The red plate answers to what absorbs red; the blue plate to the cool
       // channels, read off-register.
-      const ca0 = clamp01((1 - src[i]! / 255 - 0.16) / 0.82)
+      const ca0 = clamp01((1 - (src[i] ?? 0) / 255 - 0.16) / 0.82)
       const jx = Math.min(w - 1, Math.max(0, x - dx))
       const jy = Math.min(h - 1, Math.max(0, y - dy))
       const j = (jy * w + jx) * 4
-      const cb0 = clamp01((1 - (0.42 * src[j + 1]! + 0.58 * src[j + 2]!) / 255 - 0.18) / 0.8)
+      const cb0 = clamp01((1 - (0.42 * (src[j + 1] ?? 0) + 0.58 * (src[j + 2] ?? 0)) / 255 - 0.18) / 0.8)
       // Each plate lays its ink unevenly, as a drum does.
       const ca = clamp01(ca0 * (0.9 + 0.2 * cellNoise(x, y, 1.4 * r, seed + 3)))
       const cb = clamp01(cb0 * (0.9 + 0.2 * cellNoise(x, y, 1.9 * r, seed + 5)))
       const fib = (cellNoise(x, y, fiber, seed + 9) - 0.5) * 7
       for (let c = 0; c < 3; c++) {
-        dst[i + c] = PRINT_PAPER[c]! * (1 - ca * redAbsorb[c]!) * (1 - cb * blueAbsorb[c]!) + fib
+        dst[i + c] = (PRINT_PAPER[c] ?? 0) * (1 - ca * (redAbsorb[c] ?? 0)) * (1 - cb * (blueAbsorb[c] ?? 0)) + fib
       }
       dst[i + 3] = 255
     }
@@ -395,7 +398,7 @@ function cyanotype(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h:
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4
       const nx = (x + 0.5) / w - 0.5
-      const L = luma(src[i]!, src[i + 1]!, src[i + 2]!) / 255
+      const L = luma(src[i] ?? 0, src[i + 1] ?? 0, src[i + 2] ?? 0) / 255
       // Density curve: shadows deepen faster than midtones, so the blue holds.
       let d = clamp01((1 - L) * 1.2)
       d = clamp01(d * (0.85 + 0.3 * d))
@@ -428,7 +431,7 @@ function paperTone(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h:
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4
-      const L = luma(src[i]!, src[i + 1]!, src[i + 2]!) / 255
+      const L = luma(src[i] ?? 0, src[i + 1] ?? 0, src[i + 2] ?? 0) / 255
       const p = 1 - L
       // Soft ink: the coverage curve flattens at both ends, so nothing is pure
       // paper or pure ink.
@@ -437,7 +440,7 @@ function paperTone(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h:
       const mottle = (cellNoise(x, y, 7.5 * r, seed + 21) - 0.5) * 11
       const tex = fib + mottle
       for (let c = 0; c < 3; c++)
-        dst[i + c] = PAPER_TONE_BASE[c]! * (1 - cov * absorb[c]!) + tex
+        dst[i + c] = (PAPER_TONE_BASE[c] ?? 0) * (1 - cov * (absorb[c] ?? 0)) + tex
       dst[i + 3] = 255
     }
   }
@@ -462,7 +465,7 @@ function blockMean(src: Uint8ClampedArray, w: number, x0: number, y0: number, x1
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
       const i = (y * w + x) * 4
-      sum += luma(src[i]!, src[i + 1]!, src[i + 2]!)
+      sum += luma(src[i] ?? 0, src[i + 1] ?? 0, src[i + 2] ?? 0)
       n++
     }
   }
@@ -582,9 +585,9 @@ function mosaic(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: nu
         const row = y * w
         for (let x = x0; x < x1; x++) {
           const i = (row + x) * 4
-          sr += src[i]!
-          sg += src[i + 1]!
-          sb += src[i + 2]!
+          sr += src[i] ?? 0
+          sg += src[i + 1] ?? 0
+          sb += src[i + 2] ?? 0
         }
       }
       const n = (y1 - y0) * (x1 - x0)
@@ -629,10 +632,10 @@ function sumLattice(src: Uint8ClampedArray, w: number, h: number, lat: Lattice, 
     for (let x = 0; x < w; x++) {
       const c = cellOf(u0 + x * du, d) * rows + (cellOf(v0 + x * dv, d) - cv0)
       const i = (row + x) * 4
-      sumR[c] = sumR[c]! + src[i]!
-      sumG[c] = sumG[c]! + src[i + 1]!
-      sumB[c] = sumB[c]! + src[i + 2]!
-      count[c] = count[c]! + 1
+      sumR[c] = (sumR[c] ?? 0) + (src[i] ?? 0)
+      sumG[c] = (sumG[c] ?? 0) + (src[i + 1] ?? 0)
+      sumB[c] = (sumB[c] ?? 0) + (src[i + 2] ?? 0)
+      count[c] = (count[c] ?? 0) + 1
     }
   }
 }
@@ -652,9 +655,9 @@ function paintLattice(dst: Uint8ClampedArray, w: number, h: number, lat: Lattice
       // lines land on the cell boundaries and the period is exactly one cell.
       const grout = u0 + x * du - cu * d >= d - g || v0 + x * dv - cv * d >= d - g
       const i = (row + x) * 4
-      dst[i] = grout ? GROUT_INK[0] : flat[c * 3]!
-      dst[i + 1] = grout ? GROUT_INK[1] : flat[c * 3 + 1]!
-      dst[i + 2] = grout ? GROUT_INK[2] : flat[c * 3 + 2]!
+      dst[i] = grout ? GROUT_INK[0] : (flat[c * 3] ?? 0)
+      dst[i + 1] = grout ? GROUT_INK[1] : (flat[c * 3 + 1] ?? 0)
+      dst[i + 2] = grout ? GROUT_INK[2] : (flat[c * 3 + 2] ?? 0)
       dst[i + 3] = 255
     }
   }
@@ -673,12 +676,12 @@ function latticePass(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, 
   sumLattice(src, w, h, lat, sumR, sumG, sumB, count)
   const flat = new Uint8Array(total * 3)
   for (let c = 0; c < total; c++) {
-    const n = count[c]!
+    const n = count[c] ?? 0
     if (!n)
       continue
-    flat[c * 3] = Math.round(sumR[c]! / n)
-    flat[c * 3 + 1] = Math.round(sumG[c]! / n)
-    flat[c * 3 + 2] = Math.round(sumB[c]! / n)
+    flat[c * 3] = Math.round((sumR[c] ?? 0) / n)
+    flat[c * 3 + 1] = Math.round((sumG[c] ?? 0) / n)
+    flat[c * 3 + 2] = Math.round((sumB[c] ?? 0) / n)
   }
   paintLattice(dst, w, h, lat, flat)
 }
@@ -848,10 +851,10 @@ function sumScreen(src: Uint8ClampedArray, w: number, h: number, sc: Screen, sum
     for (let x = 0; x < w; x++, u += cq, v -= sq) {
       const c = Math.floor(u / pu) * nv + (Math.floor(v / pu) - v0)
       const i = (row + x) * 4
-      sumR[c] = sumR[c]! + src[i]!
-      sumG[c] = sumG[c]! + src[i + 1]!
-      sumB[c] = sumB[c]! + src[i + 2]!
-      count[c] = count[c]! + 1
+      sumR[c] = (sumR[c] ?? 0) + (src[i] ?? 0)
+      sumG[c] = (sumG[c] ?? 0) + (src[i + 1] ?? 0)
+      sumB[c] = (sumB[c] ?? 0) + (src[i + 2] ?? 0)
+      count[c] = (count[c] ?? 0) + 1
     }
   }
 }
@@ -869,10 +872,10 @@ function screenDots(src: Uint8ClampedArray, w: number, h: number, sc: Screen, to
   const rad2 = new Float64Array(total)
   const dot = new Uint8Array(total * 3)
   for (let c = 0; c < total; c++) {
-    const n = count[c]!
+    const n = count[c] ?? 0
     if (!n)
       continue
-    const cov = clamp01(1 - luma(sumR[c]! / n, sumG[c]! / n, sumB[c]! / n) / 255)
+    const cov = clamp01(1 - luma((sumR[c] ?? 0) / n, (sumG[c] ?? 0) / n, (sumB[c] ?? 0) / n) / 255)
     // Radius from area coverage: π r² = coverage · p², so the printed tone is
     // the photo's tone and neighbouring dots touch at 78%.
     const rq = 2 * DOT_SPREAD * p * Math.sqrt(cov) * ANGLE_Q
@@ -908,11 +911,11 @@ function paintScreen(dst: Uint8ClampedArray, w: number, h: number, sc: Screen, r
       // so the dot's edge falls on the same pixels everywhere.
       const du = 2 * u - (2 * cu + 1) * pu
       const dv = 2 * v - (2 * cv + 1) * pu
-      const on = du * du + dv * dv <= rad2[c]!
+      const on = du * du + dv * dv <= (rad2[c] ?? 0)
       const i = (row + x) * 4
-      dst[i] = on ? dot[c * 3]! : paper[0]
-      dst[i + 1] = on ? dot[c * 3 + 1]! : paper[1]
-      dst[i + 2] = on ? dot[c * 3 + 2]! : paper[2]
+      dst[i] = on ? (dot[c * 3] ?? 0) : paper[0]
+      dst[i + 1] = on ? (dot[c * 3 + 1] ?? 0) : paper[1]
+      dst[i + 2] = on ? (dot[c * 3 + 2] ?? 0) : paper[2]
       dst[i + 3] = 255
     }
   }
@@ -930,8 +933,10 @@ function paintScreen(dst: Uint8ClampedArray, w: number, h: number, sc: Screen, r
 function halftone(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: number, r: number, pitch: number, angle: number, duotone: number) {
   const p = stagePitch(pitch, r)
   const deg = Math.min(45, Math.max(0, Math.round(angle)))
-  const cq = COS_Q[deg]!
-  const sq = SIN_Q[deg]!
+  const cq = COS_Q[deg]
+  const sq = SIN_Q[deg]
+  if (cq === undefined || sq === undefined)
+    throw new Error(`halftone: non-finite screen angle ${angle}`)
   const pu = p * ANGLE_Q
   // Cell bounds over the picture (cos and sin are both ≥ 0 in 0-45°).
   const uMax = (w - 1) * cq + (h - 1) * sq
@@ -1061,8 +1066,8 @@ function bayerMono(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h:
     const ty = (Math.floor(y / p) % n) * n
     for (let x = 0; x < w; x++) {
       const i = (row + x) * 4
-      const ink = 1 - luma(src[i]!, src[i + 1]!, src[i + 2]!) / 255
-      const t = (m[ty + Math.floor(x / p) % n]! + 0.5) / total
+      const ink = 1 - luma(src[i] ?? 0, src[i + 1] ?? 0, src[i + 2] ?? 0) / 255
+      const t = ((m[ty + Math.floor(x / p) % n] ?? 0) + 0.5) / total
       const c = ink > t ? SCREEN_INK : SCREEN_PAPER
       dst[i] = c[0]
       dst[i + 1] = c[1]
@@ -1091,9 +1096,9 @@ function bayerColor(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h
     const ty = (Math.floor(y / p) % n) * n
     for (let x = 0; x < w; x++) {
       const i = (row + x) * 4
-      const t = (m[ty + Math.floor(x / p) % n]! + 0.5) / total
+      const t = ((m[ty + Math.floor(x / p) % n] ?? 0) + 0.5) / total
       for (let ch = 0; ch < 3; ch++) {
-        const v = src[i + ch]!
+        const v = src[i + ch] ?? 0
         const lo = v - (v % DITHER_STEP)
         const hi = Math.min(255, lo + DITHER_STEP)
         dst[i + ch] = (v - lo) / DITHER_STEP > t ? hi : lo

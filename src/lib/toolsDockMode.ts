@@ -12,6 +12,14 @@ export type DockEvent
     | { type: 'snap', mode: ToolsDockMode }
     | { type: 'dismiss' }
 
+/** A list entry a mode index names. An out-of-range read is a broken dock order. */
+function entryAt<T>(list: readonly T[], i: number): T {
+  const value = list[i]
+  if (value === undefined)
+    throw new Error(`tools dock: no entry at ${i}`)
+  return value
+}
+
 /**
  * Modes reachable for the given capacity, in tap-cycle order: the compact
  * host's icon-only row alone, else the icon-only row, the labelled row, and
@@ -42,7 +50,7 @@ export function dockTransition(mode: ToolsDockMode, event: DockEvent, cap: DockC
     case 'tap': {
       const modes = dockModes(cap)
       const i = modes.indexOf(clampDockMode(mode, cap))
-      return modes[(i + 1) % modes.length]!
+      return entryAt(modes, (i + 1) % modes.length)
     }
     case 'snap':
       return clampDockMode(event.mode, cap)
@@ -78,10 +86,10 @@ export function dockModeAtHeight(
   liveH: number,
 ): ToolsDockMode {
   for (let i = 1; i < order.length; i++) {
-    if (liveH <= dockModeMidpoint(heights[i - 1]!, heights[i]!))
-      return order[i - 1]!
+    if (liveH <= dockModeMidpoint(entryAt(heights, i - 1), entryAt(heights, i)))
+      return entryAt(order, i - 1)
   }
-  return order[order.length - 1]!
+  return entryAt(order, order.length - 1)
 }
 
 /**
@@ -127,14 +135,14 @@ export function dockDisplayAt(input: {
   const iIcons = order.indexOf('icons')
   // Defensive: not a dock order. The last mode is the largest display.
   if (iRow < 0)
-    return order.at(-1)!
-  if (reduce || iIcons < 0 || iExp < 0 || heights[iExp]! - heights[iRow]! < 1)
+    return entryAt(order, order.length - 1)
+  if (reduce || iIcons < 0 || iExp < 0 || entryAt(heights, iExp) - entryAt(heights, iRow) < 1)
     return dockModeAtHeight(order, heights, liveH)
-  if (liveH <= dockModeMidpoint(heights[iIcons]!, heights[iRow]!))
+  if (liveH <= dockModeMidpoint(entryAt(heights, iIcons), entryAt(heights, iRow)))
     return 'icons'
   return prev === 'expanded'
-    ? (liveH <= heights[iRow]! + DOCK_DISPLAY_EPS ? 'row' : 'expanded')
-    : (liveH >= heights[iExp]! - DOCK_DISPLAY_EPS ? 'expanded' : 'row')
+    ? (liveH <= entryAt(heights, iRow) + DOCK_DISPLAY_EPS ? 'row' : 'expanded')
+    : (liveH >= entryAt(heights, iExp) - DOCK_DISPLAY_EPS ? 'expanded' : 'row')
 }
 
 export type DockHandleIntent = 'expand' | 'collapse'

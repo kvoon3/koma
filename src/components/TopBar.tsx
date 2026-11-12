@@ -644,6 +644,7 @@ export function TopBar({
     const [firstWorkspace] = workspaces
     if (!firstWorkspace)
       throw new Error('loaded board has no workspaces')
+    const bgImage = doc.settings.bgImage
     useStore.setState({
       photos,
       workspaces,
@@ -660,7 +661,7 @@ export function TopBar({
       stickerFolders: doc.stickerFolders ?? [],
       bgGradient: doc.settings.bgGradient ?? null,
       // A saved photo id only applies if that photo came along in the file.
-      bgImage: doc.settings.bgImage && photos.some(p => p.id === doc.settings.bgImage!.photoId) ? doc.settings.bgImage : null,
+      bgImage: bgImage && photos.some(p => p.id === bgImage.photoId) ? bgImage : null,
       longSide: doc.settings.longSide,
       format: doc.settings.format,
       quality: doc.settings.quality,

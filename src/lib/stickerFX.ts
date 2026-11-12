@@ -445,7 +445,9 @@ export function parseHexColor(color: string): [number, number, number] {
   const hex = color.trim().replace(/^#/, '')
   const expand = (value: string) => Number.parseInt(value, 16)
   if (/^[0-9a-f]{3}$/i.test(hex)) {
-    const [r, g, b] = [hex[0]!.repeat(2), hex[1]!.repeat(2), hex[2]!.repeat(2)]
+    const r = hex.slice(0, 1).repeat(2)
+    const g = hex.slice(1, 2).repeat(2)
+    const b = hex.slice(2, 3).repeat(2)
     return [expand(r), expand(g), expand(b)]
   }
   if (/^[0-9a-f]{6}$/i.test(hex))

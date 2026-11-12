@@ -81,7 +81,10 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
   env.allowLocalModels = true
   env.allowRemoteModels = false
   env.localModelPath = modelBaseUrl
-  env.backends.onnx.wasm!.wasmPaths = {
+  const wasm = env.backends.onnx.wasm
+  if (!wasm)
+    throw new Error('the ONNX WASM backend is unavailable')
+  wasm.wasmPaths = {
     mjs: `${vendorBaseUrl}ort-wasm-simd-threaded.mjs`,
     wasm: `${vendorBaseUrl}ort-wasm-simd-threaded.wasm`,
   }

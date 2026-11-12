@@ -43,7 +43,9 @@ export function CollageBgLayer({ W, H, photoById }: { W: number, H: number, phot
     const dpr = Math.min(3, window.devicePixelRatio || 1)
     c.width = Math.max(1, Math.round(W * dpr))
     c.height = Math.max(1, Math.round(H * dpr))
-    const ctx = c.getContext('2d')!
+    const ctx = c.getContext('2d')
+    if (!ctx)
+      throw new Error('Canvas 2D is unavailable.')
     ctx.clearRect(0, 0, c.width, c.height)
     paintCollageBg(ctx, c.width, c.height, { bg, gradient, image }, drawn && { src: drawn, w: drawn.naturalWidth, h: drawn.naturalHeight })
   }, [on, W, H, bg, gradient, image, drawn])
