@@ -211,10 +211,25 @@ describe('parseSessionMeta', () => {
     expect(parseSessionMeta(null)).toBeNull()
     expect(parseSessionMeta('x')).toBeNull()
     expect(parseSessionMeta({ ...sessionMeta(source()), workspaces: 'nine cells' })).toBeNull()
-    expect(parseSessionMeta({ ...sessionMeta(source()), workspaces: [{ id: 4 }] })).toBeNull()
     expect(parseSessionMeta({ ...sessionMeta(source()), format: 'image/webp' })).toBeNull()
     expect(parseSessionMeta({ ...sessionMeta(source()), gap: Number.NaN })).toBeNull()
     expect(parseSessionMeta({ ...sessionMeta(source()), activeId: 3 })).toBeNull()
+  })
+
+  it('drops a bad board cell alone, the filter normalizeSlots applies', () => {
+    const saved = sessionMeta(source())
+    // A cell without a string id costs itself, not the board (normalizeSlots
+    // filters the same way at hydrate; an all-bad board becomes the fresh nine).
+    const one = parseSessionMeta({ ...saved, workspaces: [{ id: 4 }, ...board('b', 2)] })
+    expect(one?.workspaces.map(w => w.id)).toEqual(['b0', 'b1'])
+    const all = parseSessionMeta({ ...saved, workspaces: [{ id: 4 }] })
+    expect(all?.workspaces).toEqual([])
+    // Inside a saved group, one bad cell keeps the group with its good cells.
+    const grid = parseSessionMeta({
+      ...saved,
+      grids: [{ id: 'gA', name: 'Cover', workspaces: [{ id: 7 }, ...board('a', 3)], activeId: 'a2' }],
+    })
+    expect(grid?.grids?.[0]?.workspaces.map(w => w.id)).toEqual(['a0', 'a1', 'a2'])
   })
 
   it('keeps null distinct from absent for the background fields', () => {
