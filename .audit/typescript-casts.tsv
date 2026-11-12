@@ -11,3 +11,6 @@ ts	phase	decision	why	evidence	result
 2026-11-12T08:42:17Z	review	the hardcoded path in BoardLabel was a real regression: 30+ label icons use circle, rect or line nodes; restored the real tag with createElement and added a server-rendered markup test	a type assertion has no runtime effect, so the old tag was already correct	commit 710b468; src/components/BoardLabel.test.ts	fixed
 2026-11-12T08:42:17Z	review	isDockBg duplicated the DOCK_BGS list; exported the list and used it	one source of truth for the dock backgrounds	src/components/SettingsPanel.tsx; src/lib/settingsStore.ts	fixed
 2026-11-12T08:42:17Z	verify	final gate after the review fixes	the handoff must show the real artifact	916 tests, 13 lint rules, parity identical	verified
+2026-11-12T08:55:13Z	review	correction: the BoardLabel fix is e004ccb, not 710b468; 710b468 introduced the regression, and the test is src/components/BoardLabel.test.ts	the trail must point at the commit that fixed the bug	e004ccb	corrected
+2026-11-12T08:55:13Z	review	correction: the SettingsPanel DOCK_BGS fix is 358e53d	the row named the files but not the commit	358e53d	corrected
+2026-11-12T08:55:13Z	delivery	opened PR #115 on top of #114 with five commits	the cast cleanup is review-ready	https://github.com/kvoon3/koma/pull/115	open, not merged
