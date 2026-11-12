@@ -339,12 +339,17 @@ describe('perforation sliders (stage pixels)', () => {
     const { punch, centers } = perforationPunches(dist, size, size, radius, texture)
     // One notch on the top rim, at y = 10 (the art starts at y = 20).
     const notch = centers.filter(c => c.y === 10).sort((a, b) => a.x - b.x)[1]
+    if (!notch)
+      throw new Error('top rim has no notch')
     expect(notch).toBeDefined()
     // Depth = how far the punched disc reaches *down* from the rim, which is
     // the disc's radius: depth × scale texture pixels, i.e. 4 stage pixels.
     let depth = 0
     for (let y = notch.y; y < notch.y + 60; y += 1) {
-      if (punch[y * size + notch.x] <= 0.5)
+      const bite = punch[y * size + notch.x]
+      if (bite === undefined)
+        throw new Error('punched field has no sample at the notch')
+      if (bite <= 0.5)
         break
       depth = y - notch.y + 1
     }

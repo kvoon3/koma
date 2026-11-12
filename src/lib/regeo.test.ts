@@ -56,7 +56,10 @@ describe('district index', () => {
     ]
     let worst = 0
     for (let i = 0; i < 500; i++) {
-      const [lat, lng] = points[i % points.length]
+      const point = points[i % points.length]
+      if (!point)
+        throw new Error('benchmark point is missing')
+      const [lat, lng] = point
       const t0 = performance.now()
       lookupDistrict(index, lat, lng)
       worst = Math.max(worst, performance.now() - t0)

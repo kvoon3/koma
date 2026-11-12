@@ -38,7 +38,8 @@ describe('stageTopPad', () => {
     // edge by at least the caption gap.
     const clusterBottom = FLOAT_ACTIONS.offset + FLOAT_ACTIONS.btn.coarse
     const overhang = (FLOAT_ACTIONS.btn.coarse - CAPTION_H) / 2
-    for (const [stageW, stageH] of [[375, 781], [360, 609], [320, 537], [390, 813], [428, 795]]) {
+    const stages: [number, number][] = [[375, 781], [360, 609], [320, 537], [390, 813], [428, 795]]
+    for (const [stageW, stageH] of stages) {
       const pad = stageTopPad(stageW, true)
       expect(pad).toBeGreaterThan(STAGE_PAD_Y)
       // A board tall enough to fill the area: the column cannot centre lower.

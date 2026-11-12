@@ -23,8 +23,8 @@ export function Footer({ className }: { className?: string } = {}) {
   // Both marks sit mid-phrase, where each locale's word order puts them: the
   // Vite mark in front of the word Vite, the heart in front of the byline. The
   // '{vite}' / '{heart}' markers in the translated phrase mark those spots.
-  const [beforeVite, afterVite] = t('Made with {vite} Vite and {heart} by {name}', { name: 'Kevin Kwong' }).split('{vite}')
-  const [beforeHeart, afterHeart] = afterVite.split('{heart}')
+  const [beforeVite = '', afterVite = ''] = t('Made with {vite} Vite and {heart} by {name}', { name: 'Kevin Kwong' }).split('{vite}')
+  const [beforeHeart = '', afterHeart = ''] = afterVite.split('{heart}')
 
   return (
     <footer

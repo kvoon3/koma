@@ -53,8 +53,9 @@ export function useGroupsReorder({ grids, moveGrid, onDelete }: {
       return
     const from = grids.findIndex(g => g.id === active.id)
     const to = grids.findIndex(g => g.id === over.id)
-    if (from !== -1 && to !== -1)
-      moveGrid(grids[from].id, to)
+    const moved = grids[from]
+    if (moved && to !== -1)
+      moveGrid(moved.id, to)
   }
 
   const onDragCancel = () => {

@@ -59,8 +59,9 @@ export function useGridReorder({ workspaces, moveWorkspace }: {
     const arr = useStore.getState().workspaces
     const from = arr.findIndex(w => w.id === active.id)
     const to = arr.findIndex(w => w.id === over.id)
-    if (from !== -1 && to !== -1)
-      moveWorkspace(arr[from].id, to)
+    const moved = arr[from]
+    if (moved && to !== -1)
+      moveWorkspace(moved.id, to)
   }
 
   const onDragCancel = () => {

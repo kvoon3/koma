@@ -67,11 +67,14 @@ describe('withLiveLeaves', () => {
     const geo = cachedGeometry(cache, cacheRoot, BOX)
     const live = split('s', { ...leaf('a'), zoom: 4 }, leaf('b'))
     const view = withLiveLeaves(geo, live)
-    expect(view.leaves[0].node.zoom).toBe(4)
+    const [first, second] = view.leaves
+    if (!first || !second)
+      throw new Error('withLiveLeaves dropped a pane')
+    expect(first.node.zoom).toBe(4)
     // The rect objects are the cache's own: that identity is what keeps an
     // untouched pane out of the next render.
-    expect(view.leaves[0].rect).toBe(geo.rects.get('a') as never)
-    expect(view.leaves[1].rect).toBe(geo.rects.get('b') as never)
+    expect(first.rect).toBe(geo.rects.get('a') as never)
+    expect(second.rect).toBe(geo.rects.get('b') as never)
   })
 })
 

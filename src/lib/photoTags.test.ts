@@ -112,15 +112,21 @@ describe('membership fan-out', () => {
 
   test('a rename repoints every photo wearing the tag, in any case', () => {
     const out = retag(photos, 'Trip', 'Journey')
-    expect(out[0].tags).toEqual(['Journey', 'Food'])
+    const [first] = out
+    if (!first)
+      throw new Error('retag returned no photos')
+    expect(first.tags).toEqual(['Journey', 'Food'])
     expect(out[1]).toBe(photos[1]!)
     expect(out[2]).toBe(photos[2]!)
   })
 
   test('a delete takes the tag off every photo and nothing else', () => {
     const out = untagAll(photos, 'food')
-    expect(out[0].tags).toEqual(['Trip'])
-    expect(out[1].tags).toBeUndefined()
+    const [first, second] = out
+    if (!first || !second)
+      throw new Error('untagAll returned fewer than two photos')
+    expect(first.tags).toEqual(['Trip'])
+    expect(second.tags).toBeUndefined()
     expect(out[2]).toBe(photos[2]!)
   })
 

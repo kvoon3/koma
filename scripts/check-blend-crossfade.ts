@@ -130,7 +130,8 @@ if (r.status !== 0) {
 }
 
 const pre = r.stdout.match(/<pre id="out">([\s\S]*?)<\/pre>/)
-if (!pre || pre[1].trim() === 'pending') {
+const output = pre?.[1]
+if (!output || output.trim() === 'pending') {
   console.error('script did not run', r.stdout.slice(0, 400))
   rmSync(dir, { recursive: true, force: true })
   process.exit(1)
@@ -149,7 +150,7 @@ interface Report {
   hard: Sample
 }
 
-const data = JSON.parse(pre[1].trim()) as Report
+const data: Report = JSON.parse(output.trim())
 console.log(JSON.stringify(data, null, 2))
 
 // Old feather-to-black dips near black

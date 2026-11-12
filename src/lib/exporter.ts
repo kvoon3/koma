@@ -639,8 +639,11 @@ async function withLiveVideos<T>(
     // either way, so staggering the starts only delays the first frame.
     const loaded = await Promise.all(urls.map(url => loadVideoEl(url)))
     for (const [i, v] of loaded.entries()) {
-      if (v)
-        vids.push({ cell: lives[i], v, url: urls[i] })
+      const cell = lives[i]
+      const url = urls[i]
+      if (!v || cell === undefined || url === undefined)
+        continue
+      vids.push({ cell, v, url })
     }
     if (!vids.length)
       return null

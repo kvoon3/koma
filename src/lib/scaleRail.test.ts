@@ -68,7 +68,13 @@ describe('the tick ladder', () => {
   const gaps = (track: number, scale = CANVAS_SCALE) => {
     const ticks = railTicks(track, INSET, scale)
     const ys = ticks.map(t => tickY(t.tall, track, INSET))
-    return { ticks, spacing: ys.slice(1).map((y, i) => Math.abs(y - ys[i])) }
+    const spacing: number[] = []
+    for (const [i, y] of ys.entries()) {
+      const prev = ys[i - 1]
+      if (prev !== undefined)
+        spacing.push(Math.abs(y - prev))
+    }
+    return { ticks, spacing }
   }
 
   test('a tall track marks every step, the bounds included', () => {
@@ -103,7 +109,7 @@ describe('the tick ladder', () => {
     const { ticks } = gaps(340, LABEL_SCALE)
     const refs = ticks.filter(t => t.ref)
     expect(refs).toHaveLength(1)
-    expect(refs[0].value).toBeCloseTo(DEFAULT_LABEL_SIZE, 9)
+    expect(refs[0]?.value).toBeCloseTo(DEFAULT_LABEL_SIZE, 9)
     // The rest of the grid is tens: the ladder is the label's own units.
     for (const tick of ticks.filter(t => !t.ref && t.value !== LABEL_SCALE.min && t.value !== LABEL_SCALE.max))
       expect(Math.abs(tick.value % 10)).toBeLessThan(1e-9)
@@ -112,7 +118,7 @@ describe('the tick ladder', () => {
   test('the sticker line marks a fresh sticker at its default', () => {
     const { ticks } = gaps(340, STICKER_SCALE)
     expect(ticks.filter(t => t.ref).map(t => +t.value.toFixed(2))).toEqual([0.2])
-    expect(ticks[0].value).toBeCloseTo(STICKER_SCALE.min, 9)
+    expect(ticks[0]?.value).toBeCloseTo(STICKER_SCALE.min, 9)
   })
 
   test('a short track drops to a coarser ladder rather than a comb', () => {
@@ -121,7 +127,7 @@ describe('the tick ladder', () => {
     expect(short.length).toBeLessThan(tall.length)
     // The landmarks stay whatever the track; the grid between them thins.
     expect(short.some(t => t.ref)).toBe(true)
-    expect(short[0].value).toBeCloseTo(CANVAS_SCALE.min, 9)
+    expect(short[0]?.value).toBeCloseTo(CANVAS_SCALE.min, 9)
     expect(short.at(-1)?.value).toBeCloseTo(CANVAS_SCALE.max, 9)
     for (const tick of short) {
       const isLandmark = tick.ref || tick.value === CANVAS_SCALE.min || tick.value === CANVAS_SCALE.max
@@ -152,8 +158,11 @@ describe('the tick ladder', () => {
           expect(tick.tall).toBeGreaterThanOrEqual(0)
           expect(tick.tall).toBeLessThanOrEqual(1)
         }
-        for (let i = 1; i < ticks.length; i++)
-          expect(ticks[i].value).toBeGreaterThan(ticks[i - 1].value)
+        for (const [i, tick] of ticks.entries()) {
+          const prev = ticks[i - 1]
+          if (prev !== undefined)
+            expect(tick.value).toBeGreaterThan(prev.value)
+        }
       }
     }
   })

@@ -143,7 +143,10 @@ function withAlpha(hex: string, a: number) {
   const m = /^#([0-9a-f]{6})$/i.exec(hex)
   if (a >= 1 || !m)
     return hex
-  const n = Number.parseInt(m[1], 16)
+  const digits = m[1]
+  if (digits === undefined)
+    return hex
+  const n = Number.parseInt(digits, 16)
   return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
 }
 

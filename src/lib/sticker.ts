@@ -174,7 +174,8 @@ function imageHasTransparency(image: HTMLImageElement): boolean {
   context.drawImage(image, 0, 0, width, height)
   const pixels = context.getImageData(0, 0, width, height).data
   for (let index = 3; index < pixels.length; index += 4) {
-    if (pixels[index] < 255)
+    const alpha = pixels[index]
+    if (alpha !== undefined && alpha < 255)
       return true
   }
   return false
@@ -547,14 +548,32 @@ function getGlitterRandomValues(seed: number, count: number) {
   return values
 }
 
+function randomValueAt(values: Float64Array, index: number): number {
+  const value = values[index]
+  if (value === undefined)
+    throw new Error('Glitter random values are too short.')
+  return value
+}
+
 function scaledPhase(position: number, scale: number) {
   return (position - 0.5) * scale + 0.5
+}
+
+function holographicColor(colors: readonly [string, string, string], step: number): string {
+  const turn = ((step % 3) + 3) % 3
+  if (turn === 0)
+    return colors[0]
+  if (turn === 1)
+    return colors[1]
+  if (turn === 2)
+    return colors[2]
+  throw new Error('Holographic gradient stop is not a whole turn.')
 }
 
 function addHolographicStops(
   gradient: CanvasGradient,
   scale: number,
-  colors: readonly string[],
+  colors: readonly [string, string, string],
   phaseOffset: number,
 ) {
   const phaseStart = scaledPhase(0, scale) + phaseOffset
@@ -563,14 +582,14 @@ function addHolographicStops(
   const lastStop = Math.ceil(phaseEnd * 3)
 
   // Anchor the ends so scales under 1 still cover the whole sticker.
-  gradient.addColorStop(0, colors[((firstStop % 3) + 3) % 3])
+  gradient.addColorStop(0, holographicColor(colors, firstStop))
   for (let stop = firstStop; stop <= lastStop; stop += 1) {
     const position = (stop / 3 - phaseStart) / scale
     if (position <= 0 || position >= 1)
       continue
-    gradient.addColorStop(position, colors[((stop % 3) + 3) % 3])
+    gradient.addColorStop(position, holographicColor(colors, stop))
   }
-  gradient.addColorStop(1, colors[((lastStop % 3) + 3) % 3])
+  gradient.addColorStop(1, holographicColor(colors, lastStop))
 }
 
 function applyHolographicFrost(
@@ -616,20 +635,20 @@ function applyGlitterMaterial(
   const randomValues = getGlitterRandomValues(seed, count)
   const base = context.getImageData(0, 0, width, height)
   const alphaMask = new Uint8ClampedArray(width * height)
-  for (let i = 0, p = 0; i < base.data.length; i += 4, p += 1)
-    alphaMask[p] = base.data[i + 3]
+  for (let i = 3, p = 0; i < base.data.length; i += 4, p += 1)
+    alphaMask[p] = base.data[i] ?? 0
 
   const placeOnDieCut = (randomOffset: number) => {
-    let x = randomValues[randomOffset] * width
-    let y = randomValues[randomOffset + 1] * height
+    let x = randomValueAt(randomValues, randomOffset) * width
+    let y = randomValueAt(randomValues, randomOffset + 1) * height
     // Text silhouettes waste most uniform samples on transparent padding.
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const px = Math.min(width - 1, Math.max(0, x | 0))
       const py = Math.min(height - 1, Math.max(0, y | 0))
-      if (alphaMask[py * width + px] >= 128)
+      if ((alphaMask[py * width + px] ?? 0) >= 128)
         return { x, y }
-      x = randomValues[(randomOffset + attempt + 1) % randomValues.length] * width
-      y = randomValues[(randomOffset + attempt + 2) % randomValues.length] * height
+      x = randomValueAt(randomValues, (randomOffset + attempt + 1) % randomValues.length) * width
+      y = randomValueAt(randomValues, (randomOffset + attempt + 2) % randomValues.length) * height
     }
     return { x, y }
   }
@@ -644,18 +663,18 @@ function applyGlitterMaterial(
   // Spectral + dark facets (source-atop): readable on white outline and mid tones.
   for (let index = 0; index < count; index += 1) {
     const randomOffset = index * GLITTER_RANDOM_VALUES_PER_FLAKE
-    const roll = randomValues[randomOffset + 2]
+    const roll = randomValueAt(randomValues, randomOffset + 2)
     if (roll < 0.42)
       continue
     const { x, y } = placeOnDieCut(randomOffset)
-    const opacity = 0.45 + randomValues[randomOffset + 3] * 0.55
+    const opacity = 0.45 + randomValueAt(randomValues, randomOffset + 3) * 0.55
     const orientation = ((x * 0.013 + y * 0.017 + seed * 7) % 1) * Math.PI * 2
     const twinkle = 0.22 + Math.max(0, Math.cos(orientation - lightAngle)) ** 8 * 0.78
     context.fillStyle = roll < 0.72
       ? spectralRgb((roll - 0.42) / 0.3, 0.28)
       : '#2a2118'
     context.globalAlpha = Math.min(1, 0.7 * amount * opacity * twinkle * lightStrength)
-    const size = (1.25 + randomValues[randomOffset + 4] * 2.9) / Math.sqrt(scale)
+    const size = (1.25 + randomValueAt(randomValues, randomOffset + 4) * 2.9) / Math.sqrt(scale)
     context.fillRect(x, y, size, size)
   }
 
@@ -664,22 +683,22 @@ function applyGlitterMaterial(
   context.globalCompositeOperation = 'lighter'
   for (let index = 0; index < count; index += 1) {
     const randomOffset = index * GLITTER_RANDOM_VALUES_PER_FLAKE
-    const roll = randomValues[randomOffset + 2]
+    const roll = randomValueAt(randomValues, randomOffset + 2)
     if (roll >= 0.42)
       continue
     const { x, y } = placeOnDieCut(randomOffset)
-    const opacity = 0.5 + randomValues[randomOffset + 3] * 0.5
+    const opacity = 0.5 + randomValueAt(randomValues, randomOffset + 3) * 0.5
     const orientation = ((x * 0.013 + y * 0.017 + seed * 7) % 1) * Math.PI * 2
     const twinkle = 0.18 + Math.max(0, Math.cos(orientation - lightAngle)) ** 10 * 0.82
     context.fillStyle = spectralRgb(roll / 0.42, 0.55)
     context.globalAlpha = Math.min(1, 0.95 * amount * opacity * twinkle * lightStrength)
-    const size = (1.4 + randomValues[randomOffset + 4] * 3.1) / Math.sqrt(scale)
+    const size = (1.4 + randomValueAt(randomValues, randomOffset + 4) * 3.1) / Math.sqrt(scale)
     context.fillRect(x, y, size, size)
   }
   context.restore()
   const baked = context.getImageData(0, 0, width, height)
-  for (let i = 0, p = 0; i < baked.data.length; i += 4, p += 1)
-    baked.data[i + 3] = alphaMask[p]
+  for (let i = 3, p = 0; i < baked.data.length; i += 4, p += 1)
+    baked.data[i] = alphaMask[p] ?? 0
   context.putImageData(baked, 0, 0)
 }
 

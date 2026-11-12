@@ -39,6 +39,8 @@ describe('backdrop plan', () => {
   })
   test('the blur overhangs the frame by one radius on every side', () => {
     const [blur] = backdropPlan(1800, 1200)
+    if (!blur)
+      throw new Error('backdrop plan is missing its blur op')
     const r = backdropBlurRadius(1800, 1200)
     expect(blur.kind).toBe('blur')
     if (blur.kind !== 'blur')
@@ -50,6 +52,8 @@ describe('backdrop plan', () => {
   })
   test('the cutout fills the frame exactly, so the subject keeps its silhouette', () => {
     const [, cut] = backdropPlan(1800, 1200)
+    if (!cut)
+      throw new Error('backdrop plan is missing its cutout op')
     expect(cut.rect).toEqual({ x: 0, y: 0, w: 1800, h: 1200 })
     expect('radius' in cut).toBe(false)
   })

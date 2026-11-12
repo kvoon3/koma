@@ -265,6 +265,19 @@ export const MAX_ZOOM = 8
 
 export type { DockBg, PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 
+/**
+ * A total read from a list the domain keeps non-empty: a board holds at least
+ * one workspace, a layout tree at least one leaf, and the group row at least
+ * one group. Throws instead of returning `undefined`, so a broken invariant
+ * fails at the read.
+ */
+function at<T>(list: readonly T[], i: number): T {
+  const item = list[i]
+  if (item === undefined)
+    throw new Error('list index out of range')
+  return item
+}
+
 function newWorkspace(kind?: CardKind): Workspace {
   if (kind)
     return cardWorkspace(kind)
@@ -305,7 +318,7 @@ const bootGridId = uid('g')
 
 /** Active workspace (never null: activeId always matches a workspace). */
 export function activeWs(s: State): Workspace {
-  return s.workspaces.find(w => w.id === s.activeId) ?? s.workspaces[0]
+  return s.workspaces.find(w => w.id === s.activeId) ?? at(s.workspaces, 0)
 }
 
 /** A stable empty board: a selector must not hand back a fresh array. */
@@ -346,7 +359,7 @@ function snapshotOf(s: State): UndoSnapshot {
 function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
   const keep = snap.workspaces.some(w => w.id === s.activeId)
     ? s.activeId
-    : snap.workspaces.some(w => w.id === snap.activeId) ? snap.activeId : snap.workspaces[0].id
+    : snap.workspaces.some(w => w.id === snap.activeId) ? snap.activeId : at(snap.workspaces, 0).id
   return { ...snap, activeId: keep }
 }
 
@@ -417,7 +430,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   cutoutJob: null,
   cutoutSets: {},
   workspaces: bootWorkspaces,
-  activeId: bootWorkspaces[0].id,
+  activeId: at(bootWorkspaces, 0).id,
   grids: [{ id: bootGridId, name: '1' }],
   activeGridId: bootGridId,
   parkedBoards: {},
@@ -540,7 +553,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return null
     commit('addWorkspace')
     set({ workspaces: next })
-    return next[next.length - 1].id
+    return at(next, next.length - 1).id
   },
 
   /**
@@ -593,11 +606,11 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     const parkedBoards = { ...s.parkedBoards }
     let { workspaces, activeId, activeGridId } = s
     if (id === s.activeGridId) {
-      const left = next[Math.max(0, s.grids.findIndex(g => g.id === id) - 1)]
+      const left = at(next, Math.max(0, s.grids.findIndex(g => g.id === id) - 1))
       const parked = parkedBoards[left.id] ?? { workspaces: initialWorkspaces(), activeId: '' }
       delete parkedBoards[left.id]
       workspaces = parked.workspaces
-      activeId = workspaces.some(w => w.id === parked.activeId) ? parked.activeId : workspaces[0].id
+      activeId = workspaces.some(w => w.id === parked.activeId) ? parked.activeId : at(workspaces, 0).id
       activeGridId = left.id
     }
     else {
@@ -645,7 +658,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
         activeGridId: neighbour.id,
         parkedBoards,
         workspaces: parked.workspaces,
-        activeId: parked.workspaces.some(w => w.id === parked.activeId) ? parked.activeId : parked.workspaces[0].id,
+        activeId: parked.workspaces.some(w => w.id === parked.activeId) ? parked.activeId : at(parked.workspaces, 0).id,
         ...clearedSelection,
       })
       return
@@ -661,7 +674,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (from === -1 || to < 0 || to >= s.grids.length || from === to)
       return
     const next = [...s.grids]
-    const [group] = next.splice(from, 1)
+    const group = at(next.splice(from, 1), 0)
     next.splice(to, 0, group)
     commit('moveGrid')
     set({ grids: next })
@@ -691,7 +704,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       activeGridId: id,
       parkedBoards,
       workspaces: target.workspaces,
-      activeId: target.workspaces.some(w => w.id === target.activeId) ? target.activeId : target.workspaces[0].id,
+      activeId: target.workspaces.some(w => w.id === target.activeId) ? target.activeId : at(target.workspaces, 0).id,
       ...clearedSelection,
     })
   },
@@ -960,7 +973,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       return
     const next = root
     const leaves = leafList(next)
-    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : at(leaves, 0).id
     commit('closeEmptyPanes')
     runPaneMorph(empty.map(l => l.id), () =>
       set({
@@ -978,7 +991,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (!next || next === ws.root)
       return
     const leaves = leafList(next)
-    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : at(leaves, 0).id
     commit('closePane')
     runPaneMorph([paneId], () =>
       set({
@@ -997,7 +1010,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (next === ws.root)
       return
     const leaves = leafList(next)
-    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : leaves[0].id
+    const focusId = leaves.some(l => l.id === ws.focusId) ? ws.focusId : at(leaves, 0).id
     commit('deletePane')
     runPaneMorph([paneId], () =>
       set({
@@ -1225,7 +1238,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     for (const leaf of leafList(ws.root)) {
       if (leaf.photoId)
         continue
-      const p = pool[k++ % pool.length]
+      const p = at(pool, k++ % pool.length)
       next = updateLeafIn(next, leaf.id, { photoId: p.id, zoom: 1, cx: 0.5, cy: 0.5, filter: undefined })
     }
     if (next === ws.root)
@@ -1287,7 +1300,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
     if (from === -1 || to < 0 || to >= Math.min(s.workspaces.length, MAX_WORKSPACES) || from === to)
       return
     const next = [...s.workspaces]
-    const [ws] = next.splice(from, 1)
+    const ws = at(next.splice(from, 1), 0)
     next.splice(to, 0, ws)
     commit('moveWorkspace')
     set({ workspaces: next })

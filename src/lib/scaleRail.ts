@@ -213,18 +213,19 @@ export function nextTickValue(value: number, dir: 1 | -1, scale: RailScale, step
     const up = ladder.findIndex(v => v > value + scale.step * 1e-6)
     if (up < 0)
       return scale.max
-    return ladder[Math.min(ladder.length - 1, up + away - 1)]
+    return ladder[Math.min(ladder.length - 1, up + away - 1)] ?? scale.max
   }
   let down = -1
   for (let i = ladder.length - 1; i >= 0; i--) {
-    if (ladder[i] < value - scale.step * 1e-6) {
+    const v = ladder[i]
+    if (v !== undefined && v < value - scale.step * 1e-6) {
       down = i
       break
     }
   }
   if (down < 0)
     return scale.min
-  return ladder[Math.max(0, down - away + 1)]
+  return ladder[Math.max(0, down - away + 1)] ?? scale.min
 }
 
 /**

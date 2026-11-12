@@ -83,6 +83,8 @@ describe('a committed label text gets Jev\'s icon', () => {
     expect(wire.body?.state).toBe('生日蛋糕')
     const questions = (wire.body?.questions ?? {}) as Record<string, { type: string, criteria: Record<string, string> }>
     const question = questions.label_icon
+    if (!question)
+      throw new Error('wire body is missing the label_icon question')
     expect(question).toBeDefined()
     expect(question.type).toBe('choice')
     expect(question.criteria.cake).toBe('Cake')

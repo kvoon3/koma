@@ -43,7 +43,8 @@ type Translate = ReturnType<typeof useT>
  * format tag.
  */
 function formatOf(blob: Blob): string {
-  return (blob.type.split(';')[0].split('/')[1] ?? '').toUpperCase()
+  const [type = ''] = blob.type.split(';')
+  return (type.split('/')[1] ?? '').toUpperCase()
 }
 
 function fileSize(bytes: number): string {

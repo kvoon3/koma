@@ -127,12 +127,15 @@ describe('tilesLayout invariants', () => {
   test('the grid is centred as one block', () => {
     for (const size of sizes) {
       const l = tilesLayout({ ...size, count: 2 })
-      const left = l.tiles[0].x
+      const [leftTile, rightTile] = l.tiles
+      if (!leftTile || !rightTile)
+        throw new Error('tilesLayout returned fewer than two tiles')
+      const left = leftTile.x
       const right = Math.max(...l.tiles.map(tile => tile.x + tile.w))
       expect(Math.abs(left - (l.stageW - right))).toBeLessThanOrEqual(1)
       // A one-column stage has no side-by-side pair to measure.
       if (l.columns > 1)
-        expect(l.tiles[1].x - (left + l.board.w)).toBe(l.gap)
+        expect(rightTile.x - (left + l.board.w)).toBe(l.gap)
     }
   })
 })

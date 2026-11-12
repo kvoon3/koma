@@ -135,6 +135,13 @@ export function perforationToTexture(design: PerforationDesign, scale: number): 
   }
 }
 
+function distanceTransformValue(values: ArrayLike<number>, index: number): number {
+  const value = values[index]
+  if (value === undefined)
+    throw new Error('Distance transform read past its buffer.')
+  return value
+}
+
 /**
  * One 1-D pass of Felzenszwalb & Huttenlocher's squared-distance transform:
  * the lower envelope of parabolas rooted at every sample. `f` holds the row's
@@ -147,15 +154,24 @@ function transform1D(
   boundary: Float64Array,
   length: number,
 ) {
+  if (length <= 0)
+    return
   let k = 0
   parabola[0] = 0
   boundary[0] = -DISTANCE_INFINITY
   boundary[1] = DISTANCE_INFINITY
   for (let q = 1; q < length; q += 1) {
-    let s = (f[q] + q * q - (f[parabola[k]] + parabola[k] * parabola[k])) / (2 * q - 2 * parabola[k])
-    while (s <= boundary[k]) {
+    const fq = distanceTransformValue(f, q)
+    let v = distanceTransformValue(parabola, k)
+    let fv = distanceTransformValue(f, v)
+    let z = distanceTransformValue(boundary, k)
+    let s = (fq + q * q - (fv + v * v)) / (2 * q - 2 * v)
+    while (s <= z) {
       k -= 1
-      s = (f[q] + q * q - (f[parabola[k]] + parabola[k] * parabola[k])) / (2 * q - 2 * parabola[k])
+      v = distanceTransformValue(parabola, k)
+      fv = distanceTransformValue(f, v)
+      z = distanceTransformValue(boundary, k)
+      s = (fq + q * q - (fv + v * v)) / (2 * q - 2 * v)
     }
     k += 1
     parabola[k] = q
@@ -163,11 +179,16 @@ function transform1D(
     boundary[k + 1] = DISTANCE_INFINITY
   }
   k = 0
+  let z = distanceTransformValue(boundary, k + 1)
   for (let q = 0; q < length; q += 1) {
-    while (boundary[k + 1] < q)
+    while (z < q) {
       k += 1
-    const delta = q - parabola[k]
-    out[q] = delta * delta + f[parabola[k]]
+      z = distanceTransformValue(boundary, k + 1)
+    }
+    const v = distanceTransformValue(parabola, k)
+    const fv = distanceTransformValue(f, v)
+    const delta = q - v
+    out[q] = delta * delta + fv
   }
 }
 
@@ -194,13 +215,13 @@ export function squaredDistanceTransform(
   for (let y = 0; y < height; y += 1) {
     const row = y * width
     for (let x = 0; x < width; x += 1) {
-      const solid = alpha[row + x] >= threshold
+      const solid = distanceTransformValue(alpha, row + x) >= threshold
       seeded ||= solid
       line[x] = solid ? 0 : DISTANCE_INFINITY
     }
     transform1D(line, result, parabola, boundary, width)
     for (let x = 0; x < width; x += 1)
-      columns[x * height + y] = result[x]
+      columns[x * height + y] = distanceTransformValue(result, x)
   }
 
   // Vertical pass over the transposed rows: the separable half of the field.
@@ -214,7 +235,7 @@ export function squaredDistanceTransform(
       height,
     )
     for (let y = 0; y < height; y += 1)
-      out[y * width + x] = result[y]
+      out[y * width + x] = distanceTransformValue(result, y)
   }
 
   if (!seeded)
@@ -232,7 +253,7 @@ export function borderCoverage(distSq: Float32Array, radius: number): Float32Arr
   const out = new Float32Array(distSq.length)
   const r = Math.max(0, radius)
   for (let i = 0; i < distSq.length; i += 1)
-    out[i] = clamp01(r + EDGE_SOFTNESS - Math.sqrt(distSq[i]))
+    out[i] = clamp01(r + EDGE_SOFTNESS - Math.sqrt(distanceTransformValue(distSq, i)))
   return out
 }
 
@@ -244,8 +265,11 @@ export function silhouetteCoverage(
 ): Float32Array {
   const band = borderCoverage(distSq, radius)
   const out = new Float32Array(alpha.length)
-  for (let i = 0; i < alpha.length; i += 1)
-    out[i] = alpha[i] > band[i] ? alpha[i] : band[i]
+  for (let i = 0; i < alpha.length; i += 1) {
+    const value = distanceTransformValue(alpha, i)
+    const edge = distanceTransformValue(band, i)
+    out[i] = value > edge ? value : edge
+  }
   return out
 }
 
@@ -304,7 +328,7 @@ function rimCenters(
   const inner = radius - EDGE_SOFTNESS
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      const d = Math.sqrt(distSq[y * width + x])
+      const d = Math.sqrt(distanceTransformValue(distSq, y * width + x))
       if (d > outer || d < inner)
         continue
       if (nearPlacedCenter(buckets, cell, spacing, x, y))
@@ -342,7 +366,7 @@ function punchDiscs(
         const dy = py - center.y
         const value = clamp01(reach - Math.sqrt(dx * dx + dy * dy))
         const at = py * width + px
-        if (value > punch[at])
+        if (value > (punch[at] ?? 0))
           punch[at] = value
       }
     }
@@ -391,7 +415,7 @@ export function composeSilhouette(
 export function composedAlpha(result: SilhouetteResult): Float32Array {
   const out = new Float32Array(result.coverage.length)
   for (let i = 0; i < out.length; i += 1)
-    out[i] = result.coverage[i] * (1 - result.punch[i])
+    out[i] = distanceTransformValue(result.coverage, i) * (1 - (result.punch[i] ?? 0))
   return out
 }
 
