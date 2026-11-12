@@ -29,6 +29,24 @@ Where a note conflicts with a poteto default, the note wins.
   `useFlow`. The rule, the inventory, and the deliberate exceptions live in
   `docs/state-machines.md`.
 
+## TypeScript
+
+`strict` is on, plus `noUncheckedIndexedAccess` and
+`exactOptionalPropertyTypes`. Type-aware lint covers `src` and `routes`:
+
+| Rule | What fails the gate |
+| --- | --- |
+| No explicit `any`, no property or call on an `any` value | `ts/no-explicit-any`, `ts/no-unsafe-*` |
+| No non-null assertion in app code, no assertion that changes no type | `ts/no-non-null-assertion` (tests and `src/vendor` exempt), `ts/no-unnecessary-type-assertion` |
+| No floating or misused promise | `ts/no-floating-promises`, `ts/no-misused-promises` |
+| Throw only an `Error` | `ts/only-throw-error`; TanStack redirects disable it on the line |
+| Every union switch is exhaustive | `ts/switch-exhaustiveness-check` |
+| Indexed reads are total, absent differs from `undefined` | the two compiler flags |
+
+`bun run check-gates` writes a bad fixture, proves every compiler flag and lint
+rule above still rejects it, then deletes the fixture. Run it after changing
+`tsconfig.json` or the type-aware lint block.
+
 ## Gates
 
 - `bun run ci` must exit 0 on the committed tree. Never pipe a gate into `tail`
