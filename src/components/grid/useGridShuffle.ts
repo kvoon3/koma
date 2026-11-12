@@ -86,7 +86,7 @@ export function useGridShuffle({ boardRef, workspaces, cell, cellH, gap, shuffle
       if (!el)
         continue
       const from = oldPoints?.get(move.id) ?? move.from
-      const ghost = createCellTrail(move.id)
+      const ghost = createCellTrail(move.id, cell, cellH)
       layer.append(ghost)
       const trail = createTrail(paintCellTrail(ghost, cell, cellH))
       trail.begin(from)
