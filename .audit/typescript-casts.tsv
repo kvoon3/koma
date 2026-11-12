@@ -14,3 +14,4 @@ ts	phase	decision	why	evidence	result
 2026-11-12T08:55:13Z	review	correction: the BoardLabel fix is e004ccb, not 710b468; 710b468 introduced the regression, and the test is src/components/BoardLabel.test.ts	the trail must point at the commit that fixed the bug	e004ccb	corrected
 2026-11-12T08:55:13Z	review	correction: the SettingsPanel DOCK_BGS fix is 358e53d	the row named the files but not the commit	358e53d	corrected
 2026-11-12T08:55:13Z	delivery	opened PR #115 on top of #114 with five commits	the cast cleanup is review-ready	https://github.com/kvoon3/koma/pull/115	open, not merged
+2026-11-12T09:03:04Z	review	correction: PR #115 has six commits after 5df488c; the five-commit row was written before the correction commit	the trail must count the commits that exist now	5df488c	corrected
