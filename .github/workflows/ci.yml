@@ -49,8 +49,10 @@ jobs:
         # single worker and the bundler. `build` type-checks before Vite runs.
         # `check-gates` proves the strictness gates still fire (it writes a bad
         # fixture, expects every compiler flag and lint rule to reject it, then
-        # deletes it); `check-parity` re-runs the frozen-algorithm harnesses.
-        gate: [lint, test, build, check-gates, check-parity]
+        # deletes it); `check-parity` re-runs the frozen-algorithm harnesses;
+        # `i18n` keeps locale-key parity. The five together are what local
+        # `bun run ci` runs, so no gate is local-only.
+        gate: [lint, test, build, check-gates, check-parity, i18n]
     steps:
       - uses: actions/checkout@v7
 
