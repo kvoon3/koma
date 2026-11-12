@@ -243,9 +243,20 @@ describe('undo / redo over the workspace grid', () => {
     expect(useStore.getState().workspaces.some(w => leafList(w.root).some(l => l.photoId))).toBe(true)
   })
 
+  test('shuffle reorders every cell, blank cells included', () => {
+    useStore.getState().assign(ws().focusId, 'photo-1')
+    const before = useStore.getState().workspaces.map(w => w.id)
+    useStore.getState().shuffleWorkspaces(mulberry32(3))
+    const after = useStore.getState().workspaces.map(w => w.id)
+    expect(after).not.toEqual(before)
+    expect([...after].sort()).toEqual([...before].sort())
+    useStore.getState().undo()
+    expect(useStore.getState().workspaces.map(w => w.id)).toEqual(before)
+  })
+
   test('a no-op action pushes nothing', () => {
     const steps = depth()
-    // Only one filled cell: shuffle has nothing to reorder.
+    // No photos, so the shuffle has nothing to move.
     useStore.getState().shuffleWorkspaces(mulberry32(1))
     // Nothing to clear either.
     useStore.getState().clearGridPhotos()

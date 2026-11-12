@@ -22,8 +22,7 @@ import {
   clearTreePhotos,
   countFilledCells,
   GRID_CELL_RATIO,
-  isFilledCell,
-  shuffleFilled,
+  shuffleAll,
 } from './lib/gridTools'
 import { emptyHistory, jump, record, stepDown, stepUp } from './lib/history'
 import { clearImageCaches } from './lib/imageStore'
@@ -701,15 +700,15 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * Reset every workspace to a fresh blank canvas, keeping their ids and
    * grid slots (photos fall back to the library; the board itself stays).
    */
-  /** Grid Shuffle: randomly reorder the workspaces that hold photos; empty slots stay. */
+  /** Grid Shuffle: randomly reorder every workspace, blank cells included. */
   shuffleWorkspaces: (rng?: () => number) => {
     const workspaces = get().workspaces
-    // Fewer than two filled cells has nothing to shuffle: no undo entry either.
-    if (countFilledCells(workspaces) < 2)
+    // No photos or fewer than two cells: nothing to see, so no undo entry.
+    if (workspaces.length < 2 || countFilledCells(workspaces) < 1)
       return
     commit('shuffleWorkspaces')
     set(s => ({
-      workspaces: shuffleFilled(workspaces, isFilledCell, rng),
+      workspaces: shuffleAll(workspaces, rng),
       shuffleSeq: s.shuffleSeq + 1,
     }))
   },

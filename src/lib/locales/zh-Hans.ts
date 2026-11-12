@@ -544,7 +544,7 @@ const zhHans = {
   'Cell aspect ratio': '格子比例',
   'Clear all cells?': '清空所有格子？',
   'Snapshot: each cell plus the whole grid': '截图：每个格子加整张九宫格',
-  'Randomly reorder the cells with photos': '随机打乱有照片的格子',
+  'Randomly reorder every cell': '随机打乱所有格子',
   'Remove all photos from the cells': '移除格子中的所有照片',
   'Share all ({n})': '全部分享（{n}）',
   'Sharing failed, use Download all instead': '分享失败，请改用「全部下载」',
