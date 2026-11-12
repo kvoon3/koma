@@ -71,6 +71,7 @@ and refs are the machine.
 | Live Photo hold / pin | `src/components/Pane.tsx` (`liveFor`, `livePin`) | Two photo ids derive one `live` boolean; playback is a DOM property |
 | Divider drag, canvas resize | `src/components/Stage.tsx` | Pointer stream + a ref for the live geometry |
 | Board pager, pull-down, long press | `src/components/grid/useStageGestures.ts` | Motion values and a press ref; the axis lock is the machine |
+| Grid Shuffle run | `src/components/grid/useGridShuffle.ts` | One 260ms rAF clock plus trail refs; the store order is the truth |
 | Mask painting | `src/components/StickerMaskEditor.tsx` | Stroke ref + undo canvas stack per mount |
 | Sticker erase commit | `src/components/StickerEraseDialog.tsx` | `ready` / `busy` for one dialog mount |
 | Groups page enter / leave | `src/components/groups/GroupsPage.tsx` | Animation bookkeeping keyed by group id |

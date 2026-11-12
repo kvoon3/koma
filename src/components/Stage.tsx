@@ -6,11 +6,11 @@ import type { CutoutSets, CutoutState } from '../lib/cutoutVariants'
 import type { Translate } from '../lib/i18n'
 import type { Photo } from '../lib/imageStore'
 import type { GeometryCache, SeamsCache } from '../lib/layout'
-import type { Divider, Leaf, Node, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
+import type { Divider, Leaf, PaneLabel, Rect, SeamSides, Sticker } from '../lib/panes'
 import type { StickerTarget } from '../lib/stickerAssets'
 import type { Derived } from '../store'
 import { Popover } from '@base-ui/react/popover'
-import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, Shuffle, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
+import { Blend, Check, Columns2, CopyPlus, Eraser, Frame, GripVertical, Image as ImageIcon, ImagePlus, MapPin, Maximize, MoveDiagonal2, Music, Ratio, RectangleHorizontal, RotateCcw, Scaling, Scissors, SquareSplitHorizontal, SquareSplitVertical, Sticker as StickerIcon, Trash2, Type, Undo2, WandSparkles } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useElementSize, useMediaQuery, usePreview, useStageZoom, useToolsSheetTop } from '../hooks'
@@ -18,12 +18,12 @@ import { bindAction, canRun, paneContext } from '../lib/actionGuard'
 import { collectBoard, CROP_MASK_DIM, dividerBandStyle, dividerGripStyle, gridCropMask, paintBoard, paneDraws } from '../lib/boardPaint'
 import { viewScaleAt, viewTransform } from '../lib/canvasView'
 import { variantsOf } from '../lib/cutoutVariants'
-import { cellRatioValue, GRID_CELL_RATIOS } from '../lib/gridTools'
+import { cellRatioValue, countFilledCells, GRID_CELL_RATIOS } from '../lib/gridTools'
 import { useT } from '../lib/i18n'
 import { setLabelPreviewUnit } from '../lib/labelMetrics'
 import { addLabelToPane, duplicatePaneAuto, fitPanePhoto, insertLocationLabel, matchCanvasToPhoto, pickPhotoForPane, pickStickersForPane, resetPaneView, splitPane } from '../lib/paneCommands'
 import { applyCutoutState } from '../lib/paneCutout'
-import { leafList, placement, ratioFromPointer, seamSides, setSplitRatioIn } from '../lib/panes'
+import { placement, ratioFromPointer, seamSides, setSplitRatioIn } from '../lib/panes'
 import { CANVAS_WHEEL_SCALE, stepValue } from '../lib/scaleRail'
 import { photoAssetsOf } from '../lib/stickerLibrary'
 import { activeWs, cachedGeometry, cachedSeams, computeGeometry, emptyGeometryCache, emptySeamsCache, fitCanvas, isTransparentBg, MIN_PANE_PX, useStore, withLiveLeaves } from '../store'
@@ -1012,23 +1012,20 @@ function CanvasResizeHandle({ sizing, label, onPointerDown, onDoubleClick }: {
  */
 const NO_PHOTOS = new Map<string, Photo>()
 
-const isFilled = (w: { root: Node }) => leafList(w.root).some(l => l.photoId)
-
 /**
- * Grid whole-board tools (Shuffle, Cell ratio, Clear), next to
- * Grid gap. `requires: 'grid'` disables them on the stage; `when` gates on
- * what the board holds.
+ * Grid whole-board tools (Cell ratio, Clear), next to Grid gap.
+ * `requires: 'grid'` disables them on the stage; `when` gates on what the
+ * board holds.
  */
 function GridBoardTools({ route }: { route: DockRoute }) {
   const t = useT()
-  const filled = useStore(s => s.workspaces.filter(isFilled).length)
+  const filled = useStore(s => countFilledCells(s.workspaces))
   const ratio = useStore(s => s.gridCellRatio)
   const patch = useStore(s => s.patch)
   const [askClear, setAskClear] = useState(false)
   const ctx = { pane: null, route }
   const onGrid = (run: () => void, ok = true) => (ok ? bindAction({ requires: 'grid', run }, ctx) : null)
   const tools: ToolDef[] = [
-    { key: 'shuffle', icon: Shuffle, label: t('Shuffle'), hint: t('Randomly reorder the cells with photos'), onClick: onGrid(() => useStore.getState().shuffleWorkspaces(), filled >= 2) },
     {
       key: 'cell-ratio',
       icon: RectangleHorizontal,
@@ -1059,8 +1056,9 @@ function GridBoardTools({ route }: { route: DockRoute }) {
 
 /**
  * The full dock tool set on every route, in one fixed order so buttons never
- * jump between stage and grid: Border, Grid gap, then the pane tools. Off
- * the stage (or without a selection/photo) tools render disabled.
+ * jump between stage and grid: Border, Grid gap, Cell ratio, Clear, then the
+ * pane tools. Off the stage (or without a selection/photo) tools render
+ * disabled.
  */
 export function DockToolset({ route }: { route: DockRoute }) {
   const { tools } = usePaneTools('', null, NO_PHOTOS, route)

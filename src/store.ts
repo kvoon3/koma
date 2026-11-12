@@ -20,7 +20,9 @@ import { clearFilterCaches } from './lib/filterCache'
 import { sameFilter } from './lib/filters'
 import {
   clearTreePhotos,
+  countFilledCells,
   GRID_CELL_RATIO,
+  isFilledCell,
   shuffleFilled,
 } from './lib/gridTools'
 import { emptyHistory, jump, record, stepDown, stepUp } from './lib/history'
@@ -70,7 +72,7 @@ import {
   withFolder,
 } from './lib/stickerLibrary'
 import { normalizePhotoRecipes } from './lib/stickerRecipe'
-import { runPaneMorph, runViewTransition } from './lib/viewTransition'
+import { runPaneMorph } from './lib/viewTransition'
 import { activeAfterRemove, addGroup, addSlot, DEFAULT_WORKSPACES, MAX_WORKSPACES, nextGridName, normalizeGrids, normalizeSlots, removeGroup, removeSlot, renameGroup, resetSlot, toggleGroupHidden } from './lib/workspaces'
 
 // The transparent-fill test describes the collage background, so it lives with
@@ -173,6 +175,11 @@ interface State extends PersistedSettings {
    * repeated requests for the same pane still fire.
    */
   labelEditReq: { labelId: string, seq: number } | null
+  /**
+   * Bumped by Shuffle so the grid can animate the new order. Session-only,
+   * outside the undo snapshots and the persisted settings.
+   */
+  shuffleSeq: number
   /**
    * Copied pane contents for the menu's paste item, session-only so a reload
    * forgets it. Pasting clones the stickers under fresh ids.
@@ -424,6 +431,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   labelSel: null,
   stickerSel: null,
   labelEditReq: null,
+  shuffleSeq: 0,
   paneClip: null,
   stickerMakerFor: null,
   musicCardOpen: false,
@@ -697,11 +705,13 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   shuffleWorkspaces: (rng?: () => number) => {
     const workspaces = get().workspaces
     // Fewer than two filled cells has nothing to shuffle: no undo entry either.
-    if (workspaces.filter(w => leafList(w.root).some(l => l.photoId)).length < 2)
+    if (countFilledCells(workspaces) < 2)
       return
     commit('shuffleWorkspaces')
-    runViewTransition(() =>
-      set({ workspaces: shuffleFilled(workspaces, w => leafList(w.root).some(l => l.photoId), rng) }))
+    set(s => ({
+      workspaces: shuffleFilled(workspaces, isFilledCell, rng),
+      shuffleSeq: s.shuffleSeq + 1,
+    }))
   },
 
   /** Grid Clear: drop every photo (panes and board stickers) from all workspaces; layouts stay. */

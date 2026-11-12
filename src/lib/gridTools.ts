@@ -3,6 +3,16 @@
  * per-cell export naming, clear). No store or DOM access, unit-tested.
  */
 import type { Node } from './panes'
+import { leafList } from './panes'
+
+/** A workspace holds a photo in at least one pane: the cells Shuffle acts on. */
+export function isFilledCell(w: { root: Node }): boolean {
+  return leafList(w.root).some(l => l.photoId)
+}
+
+export function countFilledCells(workspaces: readonly { root: Node }[]): number {
+  return workspaces.filter(isFilledCell).length
+}
 
 export type GridCellRatio = '1:1' | '4:5' | '3:4' | '16:9'
 export const GRID_CELL_RATIOS: readonly GridCellRatio[] = ['1:1', '4:5', '3:4', '16:9']

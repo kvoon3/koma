@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import type { Trail } from '../lib/motionTrail'
 import type { PaneLabel, Sticker } from '../lib/panes'
 import type { RailTick } from '../lib/scaleRail'
 import type { ScaleTarget } from '../lib/scaleTarget'
@@ -7,6 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useFloatingActionsBottom, useMediaQuery, useToolsSheetTop } from '../hooks'
 import { wheelNotches } from '../lib/canvasView'
 import { useT } from '../lib/i18n'
+import { createTrail } from '../lib/motionTrail'
 import {
   assistValue,
   clamp01,
@@ -64,23 +66,6 @@ const CHIP_GAP = 8
 const TICK_NEAR = 52
 /** The bar's centre keeps this much from either end of the track, in px. */
 const INSET = SCALE_BAR_THICK / 2
-/**
- * The wake's lag, in ms: an exponential tail, so its length is the speed (a
- * steady 480px/s drag trails ~58px behind; a flick, several times that). Long
- * enough that the streak reads as one, short enough that it dissolves in a
- * quarter second when the drag stops.
- */
-const WAKE_TAU = 120
-/**
- * How fast the wake comes in: a tail shorter than `WAKE_MIN` px is not drawn at
- * all (a stopped bar leaves nothing), and it reaches full weight `WAKE_RAMP` px
- * further on, so a slow nudge stays a faint smudge and only a real streak reads.
- */
-const WAKE_MIN = 6
-const WAKE_RAMP = 36
-/** The wake's weight at full tilt: always under the bar it trails. */
-const WAKE_MAX = 0.9
-
 /**
  * The size rail: the scale control on the right edge of the stage
  * (`lib/scaleTarget`).
@@ -184,12 +169,25 @@ export function ScaleRail({ nudge = 0 }: {
   const travel = Math.max(0, track - 2 * INSET)
   /** The bar's offset from the travel's own top, give included. */
   const lift = travel * (1 - tall) + give
-  /** Where the bar is trying to be, in px from the travel's top, for the wake. */
-  const targetRef = useRef(0)
-  /** The wake: where the tail has caught up to, the clock, and the frame handle. */
-  const wakeRef = useRef({ y: 0, last: 0, frame: 0 })
   const wakeElRef = useRef<HTMLSpanElement | null>(null)
-  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const trailRef = useRef<Trail | null>(null)
+  trailRef.current ??= createTrail(({ head, tail, opacity }) => {
+    const el = wakeElRef.current
+    if (!el)
+      return
+    if (opacity <= 0) {
+      el.style.opacity = '0'
+      return
+    }
+    // Meet the bar's edge, not its centre, so the streak has no seam with it.
+    const edge = tail.y < head.y ? tail.y - SCALE_BAR_THICK / 2 : tail.y + SCALE_BAR_THICK / 2
+    el.style.top = `${INSET + Math.min(head.y, edge)}px`
+    el.style.height = `${Math.abs(head.y - edge)}px`
+    // Flip so the opaque end stays at the bar whichever way it travels.
+    el.style.scale = `1 ${tail.y < head.y ? -1 : 1}`
+    el.style.opacity = opacity.toFixed(3)
+  })
+  const trail = trailRef.current
 
   /** Raise the readout for a moment: the value (or someone's wheel) moved. */
   const showReadout = useCallback(() => {
@@ -234,63 +232,7 @@ export function ScaleRail({ nudge = 0 }: {
     return () => clearTimeout(id)
   }, [showReadout, value])
 
-  /**
-   * Run the wake: one tail eases toward the bar with an exponential lag, and the
-   * gap is drawn as a single gradient streak from the bar back to where the tail
-   * is (opaque at the bar, gone at the tail). Driven per frame because the one
-   * thing a CSS transition cannot express is a wake whose *length* is the speed:
-   * it fades to nothing the moment the bar stops, instead of parking a duplicate
-   * under it. The styles are written here rather than through React state: a
-   * board re-render per frame is exactly what a gesture must not do.
-   */
-  const pumpWake = useCallback(() => {
-    if (reduceMotion || wakeRef.current.frame)
-      return
-    const step = (now: number) => {
-      const wake = wakeRef.current
-      const target = targetRef.current
-      const dt = wake.last ? Math.min(64, now - wake.last) : 16
-      wake.last = now
-      wake.y += (target - wake.y) * (1 - Math.exp(-dt / WAKE_TAU))
-      const gap = Math.abs(target - wake.y)
-      const el = wakeElRef.current
-      if (gap > 0.4) {
-        wake.frame = requestAnimationFrame(step)
-      }
-      else {
-        wake.frame = 0
-        wake.last = 0
-      }
-      if (!el)
-        return
-      if (gap <= 0.4) {
-        el.style.opacity = '0'
-        return
-      }
-      // Opaque at the bar, gone at the tail: flipping keeps that end at the bar
-      // whichever way it is travelling.
-      // Meet the bar's edge, not its centre, so the streak has no seam with it.
-      const tail = wake.y < target ? wake.y - SCALE_BAR_THICK / 2 : wake.y + SCALE_BAR_THICK / 2
-      el.style.top = `${INSET + Math.min(target, tail)}px`
-      el.style.height = `${Math.abs(target - tail)}px`
-      el.style.scale = `1 ${wake.y < target ? -1 : 1}`
-      // Capped under the bar: the wake trails it, it does not outshine it.
-      el.style.opacity = (WAKE_MAX * Math.min(1, Math.max(0, (gap - WAKE_MIN) / WAKE_RAMP))).toFixed(3)
-    }
-    wakeRef.current.last = 0
-    wakeRef.current.frame = requestAnimationFrame(step)
-  }, [reduceMotion])
-
-  const stopWake = useCallback(() => {
-    if (wakeRef.current.frame)
-      cancelAnimationFrame(wakeRef.current.frame)
-    wakeRef.current.frame = 0
-    wakeRef.current.last = 0
-    if (wakeElRef.current)
-      wakeElRef.current.style.opacity = '0'
-  }, [])
-
-  useEffect(() => () => stopWake(), [stopWake])
+  useEffect(() => () => trail.cancel(), [trail])
 
   const arm = useCallback(() => {
     if (timerRef.current != null)
@@ -329,12 +271,11 @@ export function ScaleRail({ nudge = 0 }: {
     const past = raw > 1 ? raw - 1 : raw < 0 ? raw : 0
     const give = rubberBand(-past * travel)
     setGive(give)
-    targetRef.current = travel * (1 - clamp01(raw)) + give
-    pumpWake()
+    trail.push({ x: 0, y: travel * (1 - clamp01(raw)) + give })
     const next = assistValue(valueAtTallness(raw, held.target.scale), held.target.scale)
     lastValueRef.current = next
     applyScaleTarget(held.target, next)
-  }, [box.track, pumpWake])
+  }, [box.track, trail])
 
   const onMove = useCallback((e: PointerEvent) => applyPointer(e.clientY), [applyPointer])
 
@@ -362,11 +303,10 @@ export function ScaleRail({ nudge = 0 }: {
     }
     // The bar is at rest now; let the wake catch up and dissolve.
     if (held)
-      targetRef.current = travel * (1 - tallnessOfValue(settled, held.target.scale))
-    pumpWake()
+      trail.push({ x: 0, y: travel * (1 - tallnessOfValue(settled, held.target.scale)) })
     showReadout()
     arm()
-  }, [arm, onMove, pumpWake, showReadout, travel])
+  }, [arm, onMove, showReadout, trail, travel])
 
   // Unmounting mid-gesture (a route change) still has to let go of the pointer
   // and the global cursor.
@@ -392,8 +332,7 @@ export function ScaleRail({ nudge = 0 }: {
     heldRef.current = { from: e.clientY, tall, target }
     lastValueRef.current = value
     // The wake starts where the bar already is, so nothing flies in from zero.
-    targetRef.current = travel * (1 - tall)
-    wakeRef.current.y = targetRef.current
+    trail.begin({ x: 0, y: travel * (1 - tall) })
     draggingRef.current = true
     if (timerRef.current != null)
       clearTimeout(timerRef.current)
@@ -408,7 +347,7 @@ export function ScaleRail({ nudge = 0 }: {
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', end)
     window.addEventListener('pointercancel', end)
-  }, [end, onMove, showReadout, tall, target, travel, value])
+  }, [end, onMove, showReadout, tall, target, trail, travel, value])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? 1 : e.key === 'ArrowDown' || e.key === 'PageDown' ? -1 : 0
