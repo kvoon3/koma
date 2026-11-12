@@ -1,0 +1,10 @@
+<style>
+  /*
+   * The app pins its viewport with `body { overflow: hidden }` in
+   * src/index.css. The workshop's docs page scrolls instead. This rule is
+   * unlayered, so it beats the app's `@layer base` rule without !important.
+   */
+  body {
+    overflow: visible;
+  }
+</style>

@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import type { ScaleMark } from './TickScale'
-import { useRef, useState } from 'react'
+import type { PointerEvent } from 'react'
+import type { ScaleMark, TickScaleProps } from './TickScale'
+import { useRef } from 'react'
+import { useArgs } from 'storybook/preview-api'
 import { SCALE_MARK_HARD, SCALE_MARK_SOFT, TickScale } from './TickScale'
 
 const ticks: ScaleMark[] = Array.from({ length: 13 }, (_, i) => ({
@@ -9,22 +11,87 @@ const ticks: ScaleMark[] = Array.from({ length: 13 }, (_, i) => ({
   strong: i % 3 === 0,
 }))
 
-/** A mark brightens as the bar nears it: the rail's reading, not the dial's. */
-const nearTicks: ScaleMark[] = ticks.map(tick => ({
-  ...tick,
-  near: 1 - Math.abs(tick.at - 0.5) * 2,
-}))
+function proximity(at: number, value: number) {
+  return Math.max(0, 1 - Math.abs(at - value) * 2)
+}
+
+function ScaleDemo() {
+  const [args, updateArgs] = useArgs<TickScaleProps>()
+  const { ticks, value, orientation = 'horizontal', tone = 'panel', growth = 0.6, ...scale } = args
+  const ref = useRef<HTMLDivElement>(null)
+  const vertical = orientation === 'vertical'
+
+  const setValue = (next: number) => updateArgs({ value: Math.min(1, Math.max(0, next)) })
+
+  const follow = (e: PointerEvent<HTMLDivElement>) => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect)
+      return
+    const length = vertical ? rect.height : rect.width
+    const pos = vertical ? e.clientY - rect.top : e.clientX - rect.left
+    setValue(pos / length)
+  }
+
+  const back = vertical ? 'ArrowUp' : 'ArrowLeft'
+  const forward = vertical ? 'ArrowDown' : 'ArrowRight'
+  const frame = tone === 'float'
+    ? 'h-48 w-16'
+    : vertical ? 'h-48 w-16 border border-line bg-panel' : 'h-12 w-72 border border-line bg-panel'
+  const backdrop = tone === 'float'
+    ? { background: 'linear-gradient(160deg, var(--dim), var(--accent))' }
+    : undefined
+
+  return (
+    <div
+      ref={ref}
+      role="slider"
+      aria-orientation={orientation}
+      aria-label="Demo scale"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(value * 100)}
+      aria-valuetext={`${Math.round(value * 100)}%`}
+      tabIndex={0}
+      className={`relative touch-none select-none outline-0 focus-visible:outline-1 focus-visible:outline-accent ${
+        vertical ? 'cursor-ns-resize' : 'cursor-ew-resize'} ${frame}`}
+      style={backdrop}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        follow(e)
+      }}
+      onPointerMove={(e) => {
+        if (e.buttons > 0)
+          follow(e)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Home' || e.key === 'End') {
+          e.preventDefault()
+          setValue(e.key === 'Home' ? 0 : 1)
+        }
+        else if (e.key === back || e.key === forward) {
+          e.preventDefault()
+          setValue(value + (e.key === forward ? 1 : -1) / 12)
+        }
+      }}
+    >
+      <TickScale
+        {...scale}
+        ticks={ticks.map(mark => ({ ...mark, near: proximity(mark.at, value) }))}
+        value={value}
+        orientation={orientation}
+        tone={tone}
+        growth={growth}
+      />
+    </div>
+  )
+}
 
 const meta = {
   title: 'UI/TickScale',
   component: TickScale,
   tags: ['autodocs'],
-  args: { ticks: nearTicks, value: 0.5, orientation: 'horizontal', tone: 'panel' },
-  render: args => (
-    <div className="relative h-12 w-72 border border-line bg-panel">
-      <TickScale {...args} />
-    </div>
-  ),
+  args: { ticks, value: 0.5, orientation: 'horizontal', tone: 'panel', growth: 0.6 },
+  render: ScaleDemo,
 } satisfies Meta<typeof TickScale>
 
 export default meta
@@ -34,60 +101,8 @@ export const Horizontal: Story = {}
 
 export const Vertical: Story = {
   args: { orientation: 'vertical' },
-  render: args => (
-    <div className="relative h-48 w-16 border border-line bg-panel">
-      <TickScale {...args} />
-    </div>
-  ),
 }
 
 export const FloatingOverPhoto: Story = {
   args: { orientation: 'vertical', tone: 'float' },
-  render: args => (
-    <div
-      className="relative h-48 w-16"
-      style={{ background: 'linear-gradient(160deg, var(--dim), var(--accent))' }}
-    >
-      <TickScale {...args} />
-    </div>
-  ),
-}
-
-function DraggableScale() {
-  const [value, setValue] = useState(0.5)
-  const ref = useRef<HTMLDivElement>(null)
-  const track = (e: React.PointerEvent) => {
-    const rect = ref.current?.getBoundingClientRect()
-    if (!rect)
-      return
-    setValue(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)))
-  }
-  return (
-    <div
-      ref={ref}
-      role="slider"
-      aria-label="Demo scale"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(value * 100)}
-      aria-valuetext={`${Math.round(value * 100)}%`}
-      className="relative h-12 w-72 touch-none select-none border border-line bg-panel"
-      style={{ cursor: 'ew-resize' }}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId)
-        track(e)
-      }}
-      onPointerMove={(e) => {
-        if (e.buttons > 0)
-          track(e)
-      }}
-    >
-      <TickScale ticks={nearTicks} value={value} orientation="horizontal" growth={0.6} />
-    </div>
-  )
-}
-
-/** The scale paints only, so interacting means being the caller: drag maps pointer x to `value`. */
-export const Draggable: Story = {
-  render: () => <DraggableScale />,
 }

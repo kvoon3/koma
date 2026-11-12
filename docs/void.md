@@ -142,12 +142,19 @@ It never touches `koma`, its domain, or its secrets. The client build is the
 real bundle, but `routes/` is not deployed, so `/api/jev` answers 404 there.
 Fork PRs are skipped because Actions does not expose the secret to them.
 
+`.github/workflows/storybook-preview.yml` does the same for the workshop,
+deploying `koma-storybook-pr-<number>` at
+`https://koma-storybook-pr-<number>.kvoon.workers.dev`. It builds the workshop
+from `wrangler.storybook.jsonc` and never touches `koma-storybook`.
+
 The deploy uses the `CLOUDFLARE_API_TOKEN` secret, which needs Workers Scripts
 edit for the account. A manual deploy of the same shape:
 
 ```sh
 bun run build
 bunx wrangler deploy --config wrangler.preview.jsonc --name koma-pr-<number>
+bun run build-storybook
+bunx wrangler deploy --config wrangler.storybook.jsonc --name koma-storybook-pr-<number>
 ```
 
 ## Gotchas

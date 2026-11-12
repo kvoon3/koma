@@ -7,6 +7,7 @@ const meta = {
   title: 'UI/ConfirmDialog',
   component: ConfirmDialog,
   tags: ['autodocs'],
+  parameters: { docs: { story: { inline: false, height: '360px' } } },
   args: { open: true, onClose: noop, onConfirm: noop },
 } satisfies Meta<typeof ConfirmDialog>
 

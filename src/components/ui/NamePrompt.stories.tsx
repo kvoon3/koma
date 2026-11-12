@@ -31,6 +31,7 @@ function PromptDemo({ initial = '', error = null }: { initial?: string, error?: 
 const meta = {
   title: 'UI/NamePrompt',
   tags: ['autodocs'],
+  parameters: { docs: { story: { inline: false, height: '360px' } } },
   render: () => <PromptDemo />,
 } satisfies Meta
 
