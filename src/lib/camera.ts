@@ -74,8 +74,8 @@ const FAILURE_CODES: Record<string, CameraErrorCode> = {
 export function classifyCameraFailure(error: unknown): CameraErrorCode {
   if (error instanceof CameraError)
     return error.code
-  if (typeof error === 'object' && error !== null) {
-    const name = (error as { name?: unknown }).name
+  if (typeof error === 'object' && error !== null && 'name' in error) {
+    const name = error.name
     if (typeof name === 'string' && Object.hasOwn(FAILURE_CODES, name)) {
       const code = FAILURE_CODES[name]
       if (code)

@@ -191,8 +191,12 @@ export interface SpotifyOembed {
   artworkUrl: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 function record(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null
+  return isRecord(value) ? value : null
 }
 
 function text(value: unknown): string {

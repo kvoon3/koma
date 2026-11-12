@@ -245,7 +245,7 @@ export function useStageGestures({ enabled, gridIds, activeIndex, travel, viewSc
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!enabled || pressRef.current || e.button !== 0 || !e.isPrimary)
       return
-    const target = e.target as HTMLElement | null
+    const target = e.target instanceof Element ? e.target : null
     // The dock sheet and the dot capsule are siblings of the board area, and
     // a dialog can cover it (settings, library, help): none of them is the
     // board.

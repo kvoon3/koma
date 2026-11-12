@@ -490,7 +490,9 @@ export function Stage() {
       onPointerDown={(e) => {
         if (e.button !== 0 || e.defaultPrevented)
           return
-        const el = e.target as HTMLElement
+        const el = e.target
+        if (!(el instanceof Element))
+          return
         // Portaled popups (the dock's filter and rotate popovers render into
         // document.body) still bubble their pointerdowns through the React
         // tree, so they arrive here with a target outside this DOM subtree.
@@ -510,7 +512,7 @@ export function Stage() {
       // Portaled popups bubble here the same way their pointerdowns do, and
       // they are not stage presses either.
       onDoubleClick={(e) => {
-        if (!wrapRef.current?.contains(e.target as HTMLElement))
+        if (!(e.target instanceof Node) || !wrapRef.current?.contains(e.target))
           return
         stageZoom.onStageDoubleClick(e)
       }}

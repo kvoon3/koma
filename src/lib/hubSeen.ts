@@ -39,6 +39,10 @@ function store(): Storage | null {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 /** When each destination was last opened (ms since the epoch); missing = never. */
 export function readHubSeen(): Partial<Record<HubKey, number>> {
   const ls = store()
@@ -47,11 +51,11 @@ export function readHubSeen(): Partial<Record<HubKey, number>> {
   try {
     const raw = ls.getItem(KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : null
-    if (!parsed || typeof parsed !== 'object')
+    if (!isRecord(parsed))
       return {}
     const out: Partial<Record<HubKey, number>> = {}
     for (const key of ['grid', 'photos', 'stickers'] as const) {
-      const value = (parsed as Record<string, unknown>)[key]
+      const value = parsed[key]
       if (typeof value === 'number' && Number.isFinite(value) && value > 0)
         out[key] = value
     }

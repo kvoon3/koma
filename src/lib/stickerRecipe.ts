@@ -96,8 +96,8 @@ export type StickerOriginalInput
     | { type: 'image', src: string, name: string, photoId?: string | undefined }
 
 /** A recipe read from untrusted input is only a recipe when every field is there. */
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 function asNumber(value: unknown): number | null {
@@ -114,9 +114,10 @@ const MATERIALS: readonly StickerMaterialType[] = ['original', 'holographic', 'g
 function asPerforation(value: unknown): { ok: true, design: StickerBakeStyle['perforation'] } | { ok: false } {
   if (value == null)
     return { ok: true, design: null }
-  const record = asRecord(value)
-  const depth = asNumber(record?.depth)
-  const spacing = asNumber(record?.spacing)
+  if (!isRecord(value))
+    return { ok: false }
+  const depth = asNumber(value.depth)
+  const spacing = asNumber(value.spacing)
   if (depth == null || spacing == null)
     return { ok: false }
   return { ok: true, design: { depth, spacing } }
@@ -130,25 +131,23 @@ function asPerforation(value: unknown): { ok: true, design: StickerBakeStyle['pe
 function asTexture(value: unknown): { ok: true, design: StickerTexture | null } | { ok: false } {
   if (value == null)
     return { ok: true, design: null }
-  return STICKER_TEXTURES.includes(value as StickerTexture)
-    ? { ok: true, design: value as StickerTexture }
-    : { ok: false }
+  const design = STICKER_TEXTURES.find(texture => texture === value)
+  return design ? { ok: true, design } : { ok: false }
 }
 
 function asStyle(value: unknown): StickerBakeStyle | null {
-  const record = asRecord(value)
-  if (!record)
+  if (!isRecord(value))
     return null
-  const outlineWidth = asNumber(record.outlineWidth)
-  const outlineColor = asString(record.outlineColor)
-  const baseName = asString(record.baseName)
-  const displayLongEdge = asNumber(record.displayLongEdge)
-  const material = asString(record.material) as StickerMaterialType | null
-  const perforation = asPerforation(record.perforation)
-  const texture = asTexture(record.texture)
+  const outlineWidth = asNumber(value.outlineWidth)
+  const outlineColor = asString(value.outlineColor)
+  const baseName = asString(value.baseName)
+  const displayLongEdge = asNumber(value.displayLongEdge)
+  const material = MATERIALS.find(material => material === value.material)
+  const perforation = asPerforation(value.perforation)
+  const texture = asTexture(value.texture)
   if (outlineWidth == null || outlineColor == null || baseName == null || displayLongEdge == null)
     return null
-  if (!material || !MATERIALS.includes(material) || !perforation.ok || !texture.ok)
+  if (!material || !perforation.ok || !texture.ok)
     return null
   return {
     outlineWidth,
@@ -162,21 +161,20 @@ function asStyle(value: unknown): StickerBakeStyle | null {
 }
 
 function asOriginal(value: unknown): StickerOriginal | null {
-  const record = asRecord(value)
-  if (!record)
+  if (!isRecord(value))
     return null
-  if (record.type === 'text') {
-    const text = asString(record.text)
-    const color = asString(record.color)
-    const fontId = asString(record.fontId)
+  if (value.type === 'text') {
+    const text = asString(value.text)
+    const color = asString(value.color)
+    const fontId = asString(value.fontId)
     return text && color && fontId ? { type: 'text', text, color, fontId } : null
   }
-  if (record.type === 'image') {
-    const src = asString(record.src)
-    const name = asString(record.name)
+  if (value.type === 'image') {
+    const src = asString(value.src)
+    const name = asString(value.name)
     if (!src || !name)
       return null
-    const photoId = asString(record.photoId)
+    const photoId = asString(value.photoId)
     return photoId ? { type: 'image', src, name, photoId } : { type: 'image', src, name }
   }
   return null
@@ -188,9 +186,10 @@ function asOriginal(value: unknown): StickerOriginal | null {
  * null, which is the legacy asset state: Erase, no Re-edit.
  */
 export function stickerRecipeFrom(value: unknown): StickerRecipe | null {
-  const record = asRecord(value)
-  const original = asOriginal(record?.original)
-  const style = asStyle(record?.style)
+  if (!isRecord(value))
+    return null
+  const original = asOriginal(value.original)
+  const style = asStyle(value.style)
   return original && style ? { original, style } : null
 }
 

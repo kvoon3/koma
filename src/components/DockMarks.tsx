@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode, RefCallback, RefObject } from 'react'
 import type { DockBox } from '../lib/dockHighlight'
 import type { DockHop, DockMarkEvent, DockMarks, DockOpenSnapshot, DockPointerFacts } from '../lib/dockMark'
 import { createContext, use, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { cssVars } from '../lib/cssVars'
 import { boxIn } from '../lib/dockBox'
 import { DOCK_FLIP_S } from '../lib/dockFlip'
 import { glideDelta, hopDelta, isStill, sameRowBand } from '../lib/dockHighlight'
@@ -32,7 +33,9 @@ const GLIDE_S = 0.12
 
 const NEUTRAL_FACTS: DockPointerFacts = { kind: 'plain', pointer: 'other', disabled: false, locked: false, aligned: true }
 
-const isDisabled = (el: Element) => (el as HTMLButtonElement).disabled === true || el.getAttribute('aria-disabled') === 'true'
+function isDisabled(el: Element) {
+  return (el instanceof HTMLButtonElement && el.disabled) || el.getAttribute('aria-disabled') === 'true'
+}
 
 function rectOf(el: Element): DockBox {
   const r = el.getBoundingClientRect()
@@ -40,10 +43,10 @@ function rectOf(el: Element): DockBox {
 }
 
 function hopStyle(hop: DockHop): CSSProperties {
-  return {
+  return cssVars({
     '--dock-hop-x': `${hop.x}px`,
     '--dock-hop-y': `${hop.y}px`,
-  } as CSSProperties
+  })
 }
 
 export interface DockMarkStore {
@@ -120,7 +123,7 @@ export function createDockMarkStore(): DockMarkStore {
       // would let the following click toggle the just-opened panel shut.
       if (e.pointerType !== 'mouse')
         return
-      const btn = (e.target as Element | null)?.closest<HTMLElement>('button')
+      const btn = e.target instanceof Element ? e.target.closest<HTMLElement>('button') : null
       if (!btn || !scroller.contains(btn)) {
         hover(null, NEUTRAL_FACTS, null)
         return
@@ -135,7 +138,7 @@ export function createDockMarkStore(): DockMarkStore {
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0)
         return
-      const btn = (e.target as Element | null)?.closest<HTMLButtonElement>('button')
+      const btn = e.target instanceof Element ? e.target.closest<HTMLButtonElement>('button') : null
       if (!btn || !scroller.contains(btn))
         return
       dispatch({ type: 'press', el: btn, disabled: isDisabled(btn) })

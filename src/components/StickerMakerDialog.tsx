@@ -70,6 +70,10 @@ const MATERIALS: { value: StickerMaterialType, label: TKey }[] = [
   { value: 'glitter', label: 'Glitter' },
 ]
 
+function isStickerMaterial(value: unknown): value is StickerMaterialType {
+  return MATERIALS.some(material => material.value === value)
+}
+
 type PaperTextureChoice = 'none' | StickerTexture
 
 // @x18n-keys
@@ -855,7 +859,10 @@ function MakerEffectsFields({
         label={t('Material')}
         value={material}
         items={MATERIALS.map(m => ({ value: m.value, label: t(m.label) }))}
-        onChange={v => onMaterial(v as StickerMaterialType)}
+        onChange={(v) => {
+          if (isStickerMaterial(v))
+            onMaterial(v)
+        }}
       />
       <div data-sticker-paper={texture ?? 'none'}>
         <SegmentedField

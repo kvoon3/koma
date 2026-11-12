@@ -23,11 +23,33 @@ interface ProgressEvent {
   file?: string
 }
 
+/** What one output tensor must carry for the matte pass. */
+interface ModelTensor {
+  data: Float32Array | Uint8Array
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isModelTensor(value: unknown): value is ModelTensor {
+  if (!isRecord(value))
+    return false
+  const { data } = value
+  return data instanceof Float32Array || data instanceof Uint8Array
+}
+
+/** The runner's output: one tensor per output name, every shape checked. */
+function isModelOutput(value: unknown): value is Record<string, ModelTensor> {
+  return isRecord(value) && Object.values(value).every(isModelTensor)
+}
+
 const MODEL_ID = 'BritishWerewolf/U-2-Netp'
 
 let transformersPromise: Promise<TransformersModule> | null = null
 
 function loadTransformers(vendorBaseUrl: string) {
+  // eslint-disable-next-line ts/consistent-type-assertions -- the vendored transformers bundle has no static module type, so its dynamic import is narrowed once here
   transformersPromise ??= import(/* @vite-ignore */ `${vendorBaseUrl}transformers.min.js`) as Promise<TransformersModule>
   return transformersPromise
 }
@@ -137,10 +159,9 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
     }
     const pixelValues = new Tensor('float32', normalized, [1, 3, inputSize, inputSize])
     const rawPrediction: unknown = await model({ 'input.1': pixelValues })
-    const prediction = rawPrediction as Record<
-      string,
-      { data: Float32Array | Uint8Array, dims: number[] }
-    >
+    if (!isModelOutput(rawPrediction))
+      throw new Error('The model returned no output tensors')
+    const prediction = rawPrediction
     const composite = prediction['1959'] ?? Object.values(prediction)[0]
     if (!composite)
       throw new Error('The model returned no foreground mask')

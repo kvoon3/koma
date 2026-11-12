@@ -94,6 +94,10 @@ export function needless(value: string): string {
   return value as string
 }
 
+export function cast(value: unknown): string {
+  return value as string
+}
+
 export function floating(): void {
   Promise.resolve()
 }
@@ -122,6 +126,7 @@ const compilerGates = [
 ] as const
 
 const lintGates = [
+  'ts/consistent-type-assertions',
   'ts/no-explicit-any',
   'ts/no-floating-promises',
   'ts/no-misused-promises',

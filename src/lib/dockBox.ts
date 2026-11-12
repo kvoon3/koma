@@ -22,7 +22,9 @@ export function boxIn(container: HTMLElement, child: HTMLElement): { x: number, 
 
 export function captureChildBoxes(container: HTMLElement): Map<HTMLElement, { x: number, y: number }> {
   const boxes = new Map<HTMLElement, { x: number, y: number }>()
-  for (const child of container.children)
-    boxes.set(child as HTMLElement, boxIn(container, child as HTMLElement))
+  for (const child of container.children) {
+    if (child instanceof HTMLElement)
+      boxes.set(child, boxIn(container, child))
+  }
   return boxes
 }

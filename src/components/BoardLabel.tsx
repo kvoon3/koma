@@ -37,11 +37,8 @@ export function LabelIconGlyph({ node, size = `${LABEL_ICON_EM}em` }: { node: Ic
       strokeLinejoin="round"
       className="flex-none"
     >
-      {node.map(([tag, attrs], i) => {
-        const Tag = tag as 'path'
-        // eslint-disable-next-line react/no-array-index-key -- icon nodes are static and never reorder
-        return <Tag key={i} {...(attrs)} />
-      })}
+      {/* eslint-disable-next-line react/no-array-index-key -- icon nodes are static and never reorder */}
+      {node.map(([, attrs], i) => <path key={i} {...(attrs)} />)}
     </svg>
   )
 }
@@ -141,7 +138,7 @@ export function RotationHandle({ rot, shown, onChange }: {
   const t = useT()
   const gestureRef = useRef<{ cx: number, cy: number, a0: number, r0: number } | null>(null)
 
-  const onDown = (e: React.PointerEvent) => {
+  const onDown = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (e.button !== 0)
       return
     e.stopPropagation()
@@ -149,13 +146,13 @@ export function RotationHandle({ rot, shown, onChange }: {
     // empty rect, which parked the pivot at (0,0) and made label rotation
     // feel sticky. Stickers nest the handle directly in the box, so they
     // were already 1:1; labels need the same visual-box center.
-    let node: HTMLElement | null = (e.currentTarget as HTMLElement).parentElement
+    let node: HTMLElement | null = e.currentTarget.parentElement
     while (node && getComputedStyle(node).display === 'contents')
       node = node.parentElement
     const box = node?.getBoundingClientRect()
     if (!box || (box.width === 0 && box.height === 0))
       return
-    const el = e.currentTarget as HTMLElement
+    const el = e.currentTarget
     el.setPointerCapture(e.pointerId)
     const cx = box.left + box.width / 2
     const cy = box.top + box.height / 2
@@ -275,14 +272,14 @@ function LabelEditor({ text, align, onDone }: { text: string, align: LabelAlign,
     onDone(normalizeLabelText(raw))
   }
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     // IME composition owns Enter: committing there would eat a candidate.
     if (e.nativeEvent.isComposing)
       return
     // Keep both keys from reaching the global handler (Esc would deselect).
     e.stopPropagation()
     if (e.key === 'Escape') {
-      ;(e.currentTarget as HTMLElement).blur()
+      e.currentTarget.blur()
       return
     }
     if (e.key !== 'Enter')
@@ -349,7 +346,7 @@ function useLabelGesture({
     s0: number
   } | null>(null)
 
-  const onBoxDown = (e: React.PointerEvent) => {
+  const onBoxDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation()
     // A right-click on the label must not steal focus: the swap item in the
     // pane's context menu targets the focused pane, so the pane must stay
@@ -358,7 +355,7 @@ function useLabelGesture({
       return
     onFocus(labelId)
     selectLabel(labelId)
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    e.currentTarget.setPointerCapture(e.pointerId)
     gestureRef.current = { mode: 'move', cx: 0, cy: 0, d0: 0, s0: lab.size }
   }
   const onBoxMove = (e: React.PointerEvent) => {
@@ -375,13 +372,12 @@ function useLabelGesture({
     })
   }
 
-  const onSizeDown = (e: React.PointerEvent) => {
+  const onSizeDown = (e: React.PointerEvent<HTMLSpanElement>) => {
     e.stopPropagation()
     const r = elRef.current?.getBoundingClientRect()
     if (!r)
       return
-    const target = e.currentTarget as HTMLElement
-    target.setPointerCapture(e.pointerId)
+    e.currentTarget.setPointerCapture(e.pointerId)
     const cx = r.left + lab.x * r.width
     const cy = r.top + lab.y * r.height
     gestureRef.current = {
@@ -450,7 +446,7 @@ function LabelChrome({
   selected: boolean
   setLabel: (id: string, patch: Partial<PaneLabel>) => void
   onRemove: () => void
-  onSizeDown: (e: React.PointerEvent) => void
+  onSizeDown: (e: React.PointerEvent<HTMLSpanElement>) => void
   onSizeMove: (e: React.PointerEvent) => void
   endGesture: () => void
 }) {

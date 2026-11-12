@@ -251,6 +251,7 @@ export async function loadSession(): Promise<{ meta: SessionMeta, photos: Sessio
   try {
     const tx = db.transaction(['meta', 'photos'], 'readonly')
     const meta: unknown = await reqToPromise(tx.objectStore('meta').get(META_KEY))
+    // eslint-disable-next-line ts/consistent-type-assertions -- IndexedDB stores this app's own session schema; a full record parser is a separate change
     const photos = (await reqToPromise(tx.objectStore('photos').getAll())) as SessionPhotoRecord[]
     if (!meta || !Array.isArray(photos)) {
       // Mark anything we already wrote in this session so saveSession skips it.
@@ -260,6 +261,7 @@ export async function loadSession(): Promise<{ meta: SessionMeta, photos: Sessio
     }
     for (const p of photos)
       writtenIds.set(p.id, recordSignature(p))
+    // eslint-disable-next-line ts/consistent-type-assertions -- see the record above
     return { meta: meta as SessionMeta, photos }
   }
   catch (err) {

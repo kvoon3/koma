@@ -20,12 +20,15 @@ export const GRID_CELL_RATIO: GridCellRatio = '1:1'
 
 /** Width / height of a cell aspect. */
 export function cellRatioValue(r: GridCellRatio): number {
-  const [w, h] = r.split(':').map(Number) as [number, number]
+  const [w, h] = r.split(':').map(Number)
+  if (w === undefined || h === undefined)
+    throw new Error(`Invalid grid cell ratio: ${r}`)
   return w / h
 }
 
 export function isGridCellRatio(v: unknown): v is GridCellRatio {
-  return GRID_CELL_RATIOS.includes(v as GridCellRatio)
+  const ratios: readonly string[] = GRID_CELL_RATIOS
+  return typeof v === 'string' && ratios.includes(v)
 }
 
 /**

@@ -37,7 +37,7 @@ Where a note conflicts with a poteto default, the note wins.
 | Rule | What fails the gate |
 | --- | --- |
 | No explicit `any`, no property or call on an `any` value | `ts/no-explicit-any`, `ts/no-unsafe-*` |
-| No non-null assertion in app code, no assertion that changes no type | `ts/no-non-null-assertion` (tests and `src/vendor` exempt), `ts/no-unnecessary-type-assertion` |
+| No non-null or `as` assertion in app code, no assertion that changes no type | `ts/no-non-null-assertion`, `ts/consistent-type-assertions` (`as const` allowed; tests and `src/vendor` exempt), `ts/no-unnecessary-type-assertion` |
 | No floating or misused promise | `ts/no-floating-promises`, `ts/no-misused-promises` |
 | Throw only an `Error` | `ts/only-throw-error`; TanStack redirects disable it on the line |
 | Every union switch is exhaustive | `ts/switch-exhaustiveness-check` |
@@ -46,7 +46,7 @@ Where a note conflicts with a poteto default, the note wins.
 Type-aware lint covers `src` and `routes`; `scripts` are excluded from the
 type-aware pass and from the non-null rule. `bun run ci` runs
 `bun run check-gates` and `bun run check-parity` after lint, test, i18n and
-build. The probe writes a bad fixture, proves every compiler flag and all 12
+build. The probe writes a bad fixture, proves every compiler flag and all 13
 lint rules still reject it, then deletes the fixture. The parity harnesses in
 `scripts/parity` reimplement the old algorithms and recheck the distance
 transform, the district lookup, and the holographic colors. They are excluded

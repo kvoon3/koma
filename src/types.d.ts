@@ -1,3 +1,10 @@
+declare global {
+  interface Window {
+    /** The debug handle `installDebugHandle` installs (see src/debug.ts). */
+    __collage?: Record<string, unknown>
+  }
+}
+
 declare module 'react' {
   interface InputHTMLAttributes<T> {
     webkitdirectory?: string | undefined

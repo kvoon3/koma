@@ -597,10 +597,11 @@ function useDockFlipAnimation({
       return
     const from = new Map<HTMLElement, FlipFrom>()
     for (const child of el.children) {
-      const h = child as HTMLElement
-      const box = flipBox(h.getBoundingClientRect())
-      const translate = parseTranslate(getComputedStyle(h).transform)
-      from.set(h, { box, translate, visible: isBoxVisible(box, view) })
+      if (!(child instanceof HTMLElement))
+        continue
+      const box = flipBox(child.getBoundingClientRect())
+      const translate = parseTranslate(getComputedStyle(child).transform)
+      from.set(child, { box, translate, visible: isBoxVisible(box, view) })
     }
     flipFromRef.current = from
   }, [innerRef, toolsView])
@@ -616,17 +617,19 @@ function useDockFlipAnimation({
     flipRunRef.current++
     if (el) {
       for (const child of el.children) {
-        const h = child as HTMLElement
-        const cs = getComputedStyle(h)
-        carry.set(h, { translate: parseTranslate(cs.transform), opacity: Number(cs.opacity) })
+        if (!(child instanceof HTMLElement))
+          continue
+        const cs = getComputedStyle(child)
+        carry.set(child, { translate: parseTranslate(cs.transform), opacity: Number(cs.opacity) })
       }
     }
     stopFlips(flipAnimsRef.current)
     if (el) {
       for (const child of el.children) {
-        const h = child as HTMLElement
-        h.style.transform = ''
-        h.style.opacity = ''
+        if (!(child instanceof HTMLElement))
+          continue
+        child.style.transform = ''
+        child.style.opacity = ''
       }
     }
     return carry
@@ -640,9 +643,10 @@ function useDockFlipAnimation({
     if (!el)
       return
     for (const child of el.children) {
-      const h = child as HTMLElement
-      h.style.transform = ''
-      h.style.opacity = ''
+      if (!(child instanceof HTMLElement))
+        continue
+      child.style.transform = ''
+      child.style.opacity = ''
     }
   }, [innerRef])
 
@@ -665,8 +669,8 @@ function useDockFlipAnimation({
     const run = flipRunRef.current
     // Read the targets and resting opacities first: no animation starts (a
     // style write) until every rect is known, so one layout pass does it all.
-    const targets = [...el.children].map(child => ({
-      h: child as HTMLElement,
+    const targets = [...el.children].filter((child): child is HTMLElement => child instanceof HTMLElement).map(child => ({
+      h: child,
       to: flipBox(child.getBoundingClientRect()),
       // After `detachFlip` the computed opacity is the resting one again: the
       // disabled tools sit below 1 and the fade must land there (see flipTool).
@@ -857,10 +861,11 @@ function useDockBand({
     const endpoints = endpointsRef.current
     const picked: { el: HTMLElement, boxes: DockToolBoxes }[] = []
     for (const child of el.children) {
-      const h = child as HTMLElement
-      const boxes = endpoints.get(h)
+      if (!(child instanceof HTMLElement))
+        continue
+      const boxes = endpoints.get(child)
       if (boxes)
-        picked.push({ el: h, boxes })
+        picked.push({ el: child, boxes })
     }
     if (picked.length === 0)
       return null
@@ -1061,8 +1066,8 @@ function useDockToolList({
     const boxes = new WeakMap<Element, { x: number, y: number }>()
     const snapshot = () => {
       for (const c of el.children) {
-        const h = c as HTMLElement
-        boxes.set(c, { x: h.offsetLeft, y: h.offsetTop })
+        if (c instanceof HTMLElement)
+          boxes.set(c, { x: c.offsetLeft, y: c.offsetTop })
       }
     }
     snapshot()
@@ -1114,29 +1119,31 @@ function useDockToolList({
           settleSwap()
       }
       if (plan.ghost && prevScroller) {
-        const ghost = scroller.cloneNode(false) as HTMLElement
-        ghost.innerHTML = prevScroller
-        ghost.setAttribute('data-dock-swap-ghost', '')
-        ghost.setAttribute('aria-hidden', 'true')
-        ghost.setAttribute('inert', '')
-        // The snapshot repeats the live list's ids (popover anchors,
-        // aria-controls): drop them so the real buttons keep them.
-        for (const n of ghost.querySelectorAll<HTMLElement>('[id]')) n.removeAttribute('id')
-        // The hover box is a scroller sibling, so it clones in too; the ghost
-        // must not paint a second box over its own faded row.
-        for (const n of ghost.querySelectorAll('[data-dock-highlight]')) n.remove()
-        Object.assign(ghost.style, {
-          position: 'absolute',
-          inset: '0',
-          margin: '0',
-          pointerEvents: 'none',
-          willChange: 'transform, opacity',
-        })
-        host.append(ghost)
-        // After insertion, or the box has no scroll range yet to clamp to.
-        ghost.scrollLeft = scroller.scrollLeft
-        ghost.scrollTop = scroller.scrollTop
-        ghostEl = ghost
+        const ghost = scroller.cloneNode(false)
+        if (ghost instanceof HTMLElement) {
+          ghost.innerHTML = prevScroller
+          ghost.setAttribute('data-dock-swap-ghost', '')
+          ghost.setAttribute('aria-hidden', 'true')
+          ghost.setAttribute('inert', '')
+          // The snapshot repeats the live list's ids (popover anchors,
+          // aria-controls): drop them so the real buttons keep them.
+          for (const n of ghost.querySelectorAll<HTMLElement>('[id]')) n.removeAttribute('id')
+          // The hover box is a scroller sibling, so it clones in too; the ghost
+          // must not paint a second box over its own faded row.
+          for (const n of ghost.querySelectorAll('[data-dock-highlight]')) n.remove()
+          Object.assign(ghost.style, {
+            position: 'absolute',
+            inset: '0',
+            margin: '0',
+            pointerEvents: 'none',
+            willChange: 'transform, opacity',
+          })
+          host.append(ghost)
+          // After insertion, or the box has no scroll range yet to clamp to.
+          ghost.scrollLeft = scroller.scrollLeft
+          ghost.scrollTop = scroller.scrollTop
+          ghostEl = ghost
+        }
       }
       if (plan.enter) {
         swapAnim = animate(scroller, { x: [DOCK_SWAP_PX, 0], opacity: [0, 1] }, { duration: DOCK_SWAP_S, ease: DOCK_SWAP_EASE })
@@ -1181,13 +1188,12 @@ function useDockToolList({
         return
       const reorder = records.some(r => r.type === 'attributes' && r.target.parentElement === el)
       if (reorder && !reduceRef.current) {
-        for (const c of el.children) {
-          const h = c as HTMLElement
+        for (const c of [...el.children].filter((child): child is HTMLElement => child instanceof HTMLElement)) {
           const prev = boxes.get(c)
-          const dx = prev ? prev.x - h.offsetLeft : 0
-          const dy = prev ? prev.y - h.offsetTop : 0
+          const dx = prev ? prev.x - c.offsetLeft : 0
+          const dy = prev ? prev.y - c.offsetTop : 0
           if (dx || dy)
-            animate(h, { x: [dx, 0], y: [dy, 0] }, SPRING)
+            animate(c, { x: [dx, 0], y: [dy, 0] }, SPRING)
         }
       }
       // Reduced motion skips the spring, but the layout still moves the tools
@@ -1310,7 +1316,7 @@ function useDockGesture({
       return
     // The whole sheet is a grab surface; only a scroller that can still move
     // in the drag's direction keeps the gesture (see lib/dockPhysics).
-    const scroller = (e.target as HTMLElement).closest<HTMLElement>('[data-dock-fade]')
+    const scroller = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-dock-fade]') : null
     dragRef.current = {
       id: e.pointerId,
       x: e.clientX,
@@ -1400,6 +1406,13 @@ function useDockGesture({
   }
 
   return { onPointerDown, onPointerMove, endDrag, suppressClickRef }
+}
+
+/** The sheet's style: the dock surface, its height, and the drag MotionValue read by its ref. */
+function sheetStyle(style: CSSProperties, height: number, y: MotionValue<number>): CSSProperties {
+  const out: CSSProperties = { ...style, height }
+  Object.assign(out, { y })
+  return out
 }
 
 function DockSheet({ hidden, contextKey, compact, innerRef: setInner, onMetrics, onCapacity }: {
@@ -1505,6 +1518,8 @@ function DockSheet({ hidden, contextKey, compact, innerRef: setInner, onMetrics,
       return
     const left = scroller.getBoundingClientRect().left
     for (const child of el.children) {
+      if (!(child instanceof HTMLElement))
+        continue
       // Subtract an in-flight flip's translate: the anchor is a layout offset,
       // and a tool interrupted mid-glide still reports its transform here.
       const t = parseTranslate(getComputedStyle(child).transform)
@@ -1512,7 +1527,7 @@ function DockSheet({ hidden, contextKey, compact, innerRef: setInner, onMetrics,
       if (r.right - t.x > left + 1) {
         // Screen offset: the row's scroll position at save time is not part of
         // it, so a clamp in between (the wrapped list cannot scroll) is undone.
-        anchorRef.current = { el: child as HTMLElement, dx: r.left - t.x - left }
+        anchorRef.current = { el: child, dx: r.left - t.x - left }
         return
       }
     }
@@ -1800,6 +1815,7 @@ function DockSheet({ hidden, contextKey, compact, innerRef: setInner, onMetrics,
   const intent = dockHandleIntent(mode, cap)
   const handleIcon = INTENT_ICON[intent]
   const handleLabel = t(INTENT_LABEL[intent])
+  const surfaceStyle = sheetStyle(surface.style, toolsMaxH, y)
 
   return (
     <div
@@ -1822,7 +1838,7 @@ function DockSheet({ hidden, contextKey, compact, innerRef: setInner, onMetrics,
             /* The band is in flight: the lists freeze (scrollLockCls). */
             data-dock-band={band.active || undefined}
             ref={popupRef}
-            style={{ ...surface.style, height: toolsMaxH, y } as CSSProperties & { y: typeof y }}
+            style={surfaceStyle}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}

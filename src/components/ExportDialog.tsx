@@ -134,7 +134,7 @@ async function shareAllItems(list: ExportItem[] | null, t: Translate): Promise<v
     await navigator.share({ files: itemFiles(list) })
   }
   catch (e) {
-    if ((e as Error).name !== 'AbortError')
+    if (!(e instanceof Error && e.name === 'AbortError'))
       say(t('Sharing failed, use Download all instead'))
   }
 }

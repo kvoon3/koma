@@ -208,7 +208,7 @@ let loaded: Promise<GeoIndex | null> | null = null
 export function loadDistricts(): Promise<GeoIndex | null> {
   loaded ??= (async () => {
     try {
-      const modules = import.meta.glob('../data/districts.json') as Record<string, () => Promise<{ default: DistrictRow[] }>>
+      const modules = import.meta.glob<{ default: DistrictRow[] }>('../data/districts.json')
       const load = modules['../data/districts.json']
       if (!load)
         return null

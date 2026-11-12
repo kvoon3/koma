@@ -35,8 +35,9 @@ interface KeyUi {
 export type RouteKeyChrome = Omit<KeyUi, 'goGrid'>
 
 function isTypingTarget(e: KeyboardEvent) {
-  const t = e.target as HTMLElement
-  return t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable
+  const t = e.target
+  return t instanceof HTMLElement
+    && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
 }
 
 /**
@@ -166,7 +167,7 @@ function handleEditKey(e: KeyboardEvent, k: string, s: StoreState, ui: KeyUi) {
       // A dialog owns Tab while it is open: the settings drawer's tab list and
       // its controls sit in the focus trap, so leave the browser's focus
       // movement alone instead of cycling panes behind the dialog.
-      if (!(e.target as HTMLElement).closest('[role="dialog"]')) {
+      if (!(e.target instanceof Element && e.target.closest('[role="dialog"]'))) {
         e.preventDefault()
         focusNextLeaf(s, ws)
       }

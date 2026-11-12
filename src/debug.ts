@@ -13,8 +13,7 @@ import * as stickerRecipe from './lib/stickerRecipe'
 import { useStore } from './store'
 
 export function installDebugHandle() {
-  const g = globalThis as typeof globalThis & { __collage?: Record<string, unknown> }
-  g.__collage = {
+  window.__collage = {
     useStore,
     store: () => useStore.getState(),
     imageStore,

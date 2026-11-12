@@ -467,7 +467,7 @@ export type HistoryLabel = { kind: 'key', key: TKey } | { kind: 'text', text: st
 export function historyLabel(tag: string | null): HistoryLabel {
   if (tag == null)
     return { kind: 'key', key: LABELS.edit }
-  const [base, rest] = tag.split(/:(.*)/s) as [string, string?]
+  const [base = '', rest] = tag.split(/:(.*)/s)
   if (base === 'patch' && rest) {
     for (const key of rest.split(',')) {
       const label: TKey | undefined = PATCH_LABELS[key]

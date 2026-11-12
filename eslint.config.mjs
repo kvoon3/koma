@@ -60,6 +60,7 @@ export default antfu({
     },
   },
   rules: {
+    'ts/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
     'ts/no-explicit-any': 'error',
     'ts/no-floating-promises': 'error',
     'ts/no-misused-promises': 'error',
@@ -76,8 +77,9 @@ export default antfu({
 }, {
   // Test fixtures assert their own shape, and vendored code mirrors its
   // upstream sample; the gate covers app code.
-  files: ['src/**/*.test.{ts,tsx}', 'src/vendor/**/*.{ts,tsx}'],
+  files: ['src/**/*.test.{ts,tsx}', 'routes/**/*.test.{ts,tsx}', 'src/vendor/**/*.{ts,tsx}'],
   rules: {
+    'ts/consistent-type-assertions': 'off',
     'ts/no-non-null-assertion': 'off',
   },
 }, {

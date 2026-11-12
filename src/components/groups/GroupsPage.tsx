@@ -1,4 +1,4 @@
-import type { CSSProperties, PointerEvent as ReactPointerEvent, RefObject } from 'react'
+import type { PointerEvent as ReactPointerEvent, RefObject } from 'react'
 import type { TilesLayout } from '../../lib/groupPage'
 import { DndContext, DragOverlay, MeasuringStrategy, useDroppable } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable'
@@ -8,6 +8,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useElementSize, useMediaQuery } from '../../hooks'
+import { cssVars } from '../../lib/cssVars'
 import { DELETE_ZONE_ID, deleteFirst } from '../../lib/deleteZone'
 import { cellRatioValue } from '../../lib/gridTools'
 import { TILE_EXIT_CATCHALL_MS, TILE_EXIT_MS, tilesLayout } from '../../lib/groupPage'
@@ -259,7 +260,7 @@ export function GroupsPage() {
         // A press on the page's own surface (not its buttons) would leave focus
         // on the body, and with it the page's key map. The browser blurs on the
         // press, so put focus back on the heading at the release.
-        if (!(e.target as HTMLElement).closest('button, a[href]'))
+        if (!(e.target instanceof Element && e.target.closest('button, a[href]')))
           headingRef.current?.focus({ preventScroll: true })
       }}
       onPointerCancel={() => {
@@ -276,7 +277,7 @@ export function GroupsPage() {
       <div
         data-groups-tiles=""
         className="absolute inset-0 z-[5]"
-        style={{ '--tile-exit-ms': `${TILE_EXIT_MS}ms` } as CSSProperties}
+        style={cssVars({ '--tile-exit-ms': `${TILE_EXIT_MS}ms` })}
       >
         <DndContext
           sensors={reorder.sensors}

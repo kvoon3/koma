@@ -1,3 +1,4 @@
+import type { DockBg } from '../store'
 import { Popover } from '@base-ui/react/popover'
 import { Switch } from '@base-ui/react/switch'
 import { Settings } from 'lucide'
@@ -10,6 +11,10 @@ import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
 import { useT } from '../lib/i18n'
 import { say } from '../lib/toast'
 import { DOCK_BG, DOCK_OPACITY, useStore } from '../store'
+
+function isDockBg(value: string): value is DockBg {
+  return value === 'solid' || value === 'frosted' || value === 'liquid'
+}
 
 const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
 const toggleThumb = 'block m-0.5 h-3.5 w-3.5 rounded-none border border-line-strong bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform duration-(--dur-fast) group-data-checked/switch:translate-x-3.5'
@@ -91,7 +96,10 @@ export function SettingsPanel({ open, onOpenChange, onTriggerEnter }: { open: bo
                   { value: 'frosted', label: t('Frosted glass') },
                   { value: 'liquid', label: t('Liquid glass') },
                 ]}
-                onChange={v => patch({ dockBg: v as typeof dockBg })}
+                onChange={(v) => {
+                  if (isDockBg(v))
+                    patch({ dockBg: v })
+                }}
               />
               <RangeField
                 label={t('Dock opacity')}

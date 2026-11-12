@@ -43,9 +43,13 @@ const DOCK_MODES: readonly ToolsDockMode[] = ['icons', 'row', 'expanded']
 /** The dropped icon-minimized display, still found in saved settings. */
 const LEGACY_DOCK_COLLAPSED = 'collapsed'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 /** Persisted-settings migration (zustand `persist`); pure for unit tests. */
 export function migrateSettings(persisted: unknown, version: number): Record<string, unknown> {
-  const p = { ...(persisted as Record<string, unknown> | null ?? {}) }
+  const p: Record<string, unknown> = isRecord(persisted) ? { ...persisted } : {}
   if (version < 1)
     p.blendCrossfade = BLEND_CROSSFADE
   // v2: dock background + opacity + handle icon, and the dock mode is now
@@ -65,7 +69,8 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
     p.gridCellRatio = GRID_CELL_RATIO
   // v4: the 'transparent' dock style is gone; it (and any unknown value)
   // falls back to the default below.
-  if (!DOCK_BGS.includes(p.dockBg as DockBg))
+  const dockBgs: readonly string[] = DOCK_BGS
+  if (typeof p.dockBg !== 'string' || !dockBgs.includes(p.dockBg))
     p.dockBg = DOCK_BG
   const op = Number(p.dockOpacity)
   p.dockOpacity = Number.isFinite(op) && p.dockOpacity != null ? Math.min(100, Math.max(0, op)) : DOCK_OPACITY
@@ -78,7 +83,8 @@ export function migrateSettings(persisted: unknown, version: number): Record<str
   // is corrected regardless of where it was saved.
   if (p.toolsDockMode === LEGACY_DOCK_COLLAPSED)
     p.toolsDockMode = 'icons'
-  if (!DOCK_MODES.includes(p.toolsDockMode as ToolsDockMode))
+  const dockModes: readonly string[] = DOCK_MODES
+  if (typeof p.toolsDockMode !== 'string' || !dockModes.includes(p.toolsDockMode))
     p.toolsDockMode = TOOLS_DOCK_MODE
   // v8: whole-collage background layers over the gap fill; off for old saves.
   if (version < 8) {
