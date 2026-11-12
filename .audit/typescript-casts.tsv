@@ -1,0 +1,7 @@
+ts	phase	decision	why	evidence	result
+2026-11-12T08:15:04Z	frame	counted 94 production as assertions and classified them: DOM event targets, CSS custom properties, data/model casts, collection widening, and two vendor boundaries	size the work before changing it	/tmp/koma-ts-audit/casts.txt	94 casts in 30 files
+2026-11-12T08:15:04Z	design	chose ts/consistent-type-assertions with assertionStyle never, exempting as const, tests and src/vendor	the rule flags real assertions and leaves const assertions alone	src/__cast_probe__.ts probe; eslint	rule verified
+2026-11-12T08:15:04Z	design	added src/lib/cssVars.ts to merge CSS custom properties without a cast	React's CSSProperties omits custom properties; one typed helper contains the gap	src/lib/cssVars.ts	tsc and eslint clean
+2026-11-12T08:15:04Z	design	spawned three disjoint file clusters for DOM, lib data, and core boundaries	separate files avoid concurrent write conflicts	branch wave29/ts-casts	in progress
+2026-11-12T08:25:03Z	review	reverted the sessionStore parser to a documented two-line exception	the parser changed IndexedDB load semantics and Bun cannot exercise the path; a full parser and tests are a separate change	src/lib/sessionStore.ts; 915-test suite has no IndexedDB coverage	2 documented casts
+2026-11-12T08:25:03Z	review	kept the local parsers in settingsStore, stickerRecipe, cutoutVariants, hubSeen, workspaceFile and musicLink after reviewing the diff	these are small, local guards with existing tests around the data	git diff src/lib	accepted
