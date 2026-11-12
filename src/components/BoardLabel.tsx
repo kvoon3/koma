@@ -8,7 +8,7 @@ import { Select } from '@base-ui/react/select'
 import { Switch } from '@base-ui/react/switch'
 import { AlignCenter, AlignLeft, AlignRight, Ban, Baseline, Blend, Check, ChevronDown, Contrast, MapPin, Moon, PaintBucket, RefreshCw, RotateCcw, Smile, Sparkles, Sun, Trash2, Type as TypeIcon, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
-import { useEffect, useRef, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import { removeChipCls } from '@/components/ui/buttonStyles'
 import { AppSlider, colorInputCls as fieldColorInputCls, RangeField } from '@/components/ui/field'
 import { ensureFonts, FONT_CATALOG, fontById } from '../lib/fonts'
@@ -38,7 +38,7 @@ export function LabelIconGlyph({ node, size = `${LABEL_ICON_EM}em` }: { node: Ic
       className="flex-none"
     >
       {/* eslint-disable-next-line react/no-array-index-key -- icon nodes are static and never reorder */}
-      {node.map(([, attrs], i) => <path key={i} {...(attrs)} />)}
+      {node.map(([tag, attrs], i) => createElement(tag, { key: i, ...attrs }))}
     </svg>
   )
 }
