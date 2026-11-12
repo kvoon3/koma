@@ -27,16 +27,17 @@ export interface SpotifyLink {
   url: string
 }
 
-export interface AppleLink {
+interface AppleLinkBase {
   provider: 'apple'
-  kind: MusicLinkKind
   collectionId: string
-  /** Present when the link carries `?i=`, i.e. it names one track. */
-  trackId?: string | undefined
   /** The storefront from the path segment, lowercased; `us` when absent. */
   country: string
   url: string
 }
+
+export type AppleLink
+  = | (AppleLinkBase & { kind: 'album' })
+    | (AppleLinkBase & { kind: 'track', trackId: string })
 
 export type MusicLink = SpotifyLink | AppleLink
 
@@ -156,9 +157,29 @@ function parseAppleUrl(url: URL): ParseMusicLink {
   const rawTrack = url.searchParams.get('i')
   if (rawTrack != null && !DIGITS.test(rawTrack))
     return invalid()
-  const trackId = rawTrack ?? undefined
-  const canonical = `https://music.apple.com/${country}/album/${slug}/${collectionId}${trackId ? `?i=${trackId}` : ''}`
-  return { ok: true, link: { provider: 'apple', kind: trackId ? 'track' : 'album', collectionId, trackId, country, url: canonical } }
+  if (rawTrack != null) {
+    return {
+      ok: true,
+      link: {
+        provider: 'apple',
+        kind: 'track',
+        collectionId,
+        trackId: rawTrack,
+        country,
+        url: `https://music.apple.com/${country}/album/${slug}/${collectionId}?i=${rawTrack}`,
+      },
+    }
+  }
+  return {
+    ok: true,
+    link: {
+      provider: 'apple',
+      kind: 'album',
+      collectionId,
+      country,
+      url: `https://music.apple.com/${country}/album/${slug}/${collectionId}`,
+    },
+  }
 }
 
 // ---- provider responses ----------------------------------------------------
@@ -327,17 +348,11 @@ export type ResolveMusic
 /** The one request each resolve makes; narrow so a test can stand in for it. */
 export type MusicFetch = (url: string) => Promise<Response>
 
-function appleTrackId(link: AppleLink): string {
-  if (link.trackId === undefined)
-    throw new Error('Apple track link without a trackId')
-  return link.trackId
-}
-
 /** The public endpoint each provider answers without a key or a server. */
 export function musicLookupUrl(link: MusicLink): string {
   if (link.provider === 'spotify')
     return `https://open.spotify.com/oembed?url=${encodeURIComponent(link.url)}`
-  const id = link.kind === 'track' ? appleTrackId(link) : link.collectionId
+  const id = link.kind === 'track' ? link.trackId : link.collectionId
   const entity = link.kind === 'track' ? 'song' : 'album'
   return `https://itunes.apple.com/lookup?id=${id}&entity=${entity}&country=${link.country}`
 }
