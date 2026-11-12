@@ -73,7 +73,15 @@ describe('parseWorkspaceFile', () => {
     await expect(parseWith(d => d.version = 2)).rejects.toThrow('Not a koma workspace file')
     await expect(parseWith(d => delete d.photos)).rejects.toThrow('Not a koma workspace file')
     await expect(parseWith(d => delete d.workspaces)).rejects.toThrow('Not a koma workspace file')
-    // An empty board array still parses: normalizeSlots fills the fresh nine.
+    // A photo entry without a data URL is rejected up front, not by the fetch inside dataUrlToFile.
+    await expect(parseWith(d => d.photos = [42])).rejects.toThrow('Not a koma workspace file')
+    await expect(parseWith((d) => {
+      const photos = d.photos as { data?: string }[]
+      const first = photos[0]
+      if (first)
+        delete first.data
+    })).rejects.toThrow('Not a koma workspace file')
+    // An empty board array still parses; the fresh-board fill is downstream's job.
     const empty = await parseWith(d => d.workspaces = [])
     expect(empty.doc.workspaces).toEqual([])
   })
