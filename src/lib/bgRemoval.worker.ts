@@ -48,9 +48,34 @@ const MODEL_ID = 'BritishWerewolf/U-2-Netp'
 
 let transformersPromise: Promise<TransformersModule> | null = null
 
-function loadTransformers(vendorBaseUrl: string) {
-  // eslint-disable-next-line ts/consistent-type-assertions -- the vendored transformers bundle has no static module type, so its dynamic import is narrowed once here
-  transformersPromise ??= import(/* @vite-ignore */ `${vendorBaseUrl}transformers.min.js`) as Promise<TransformersModule>
+/**
+ * The vendored bundle carries no static module type, so the dynamic import
+ * arrives as `unknown`. This guard proves every binding the worker
+ * destructures (and the `env.backends.onnx` path `createRemover` reads), so a
+ * bundle that lost or renamed an export fails here with one message instead of
+ * deep inside the pixel loops.
+ */
+export function isTransformersModule(value: unknown): value is TransformersModule {
+  if (!isRecord(value))
+    return false
+  const { AutoModel, env, RawImage, Tensor } = value
+  return typeof AutoModel === 'function'
+    && 'from_pretrained' in AutoModel
+    && isRecord(env)
+    && isRecord(env.backends)
+    && isRecord(env.backends.onnx)
+    && typeof RawImage === 'function'
+    && 'fromBlob' in RawImage
+    && typeof Tensor === 'function'
+}
+
+async function loadTransformers(vendorBaseUrl: string): Promise<TransformersModule> {
+  transformersPromise ??= (async () => {
+    const mod: unknown = await import(/* @vite-ignore */ `${vendorBaseUrl}transformers.min.js`)
+    if (!isTransformersModule(mod))
+      throw new Error('the vendored transformers bundle is missing the exports this worker uses')
+    return mod
+  })()
   return transformersPromise
 }
 
