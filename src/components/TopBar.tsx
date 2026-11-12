@@ -5,7 +5,7 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, Moon, Save, Shuffle, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import wordmark from '../assets/fonts/wordmark.json'
@@ -14,12 +14,11 @@ import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { boxIn } from '../lib/dockBox'
 import { glideDelta, isStill } from '../lib/dockHighlight'
 import { clearFilterCaches } from '../lib/filterCache'
-import { countFilledCells } from '../lib/gridTools'
 import { isTKey, setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
 import { leafList } from '../lib/panes'
-import { isGridPath, isGroupsPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
+import { isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
 import { paneAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
@@ -257,30 +256,8 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
   )
 }
 
-function ShuffleButton() {
-  const t = useT()
-  const filled = useStore(s => countFilledCells(s.workspaces))
-  return (
-    <Tip
-      label={t('Randomly reorder the cells with photos')}
-      trigger={(
-        <Button
-          variant="bar"
-          icon={Shuffle}
-          iconSize={15}
-          disabled={filled < 2}
-          aria-label={t('Shuffle')}
-          data-bar-chip=""
-          onClick={() => useStore.getState().shuffleWorkspaces()}
-        />
-      )}
-    />
-  )
-}
-
 function TopBarActions({
   grid,
-  shuffleRoute,
   settingsOpen,
   onSettingsOpenChange,
   onSettingsTriggerEnter,
@@ -292,7 +269,6 @@ function TopBarActions({
   dark,
 }: {
   grid: boolean
-  shuffleRoute: boolean
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
   onSettingsTriggerEnter: () => void
@@ -312,7 +288,6 @@ function TopBarActions({
         onOpenChange={onSettingsOpenChange}
         onTriggerEnter={onSettingsTriggerEnter}
       />
-      {shuffleRoute && <ShuffleButton />}
       <Tip
         label={grid ? t('Export every non-empty workspace · ⌘E') : t('Export image · ⌘E')}
         trigger={(
@@ -538,7 +513,6 @@ export function TopBar({
 
   const navigate = useNavigate()
   const grid = useRouterState({ select: s => isGridPath(s.location.pathname) })
-  const shuffleRoute = useRouterState({ select: s => isGridPath(s.location.pathname) || isGroupsPath(s.location.pathname) })
 
   const [saving, setSaving] = useState(false)
   /** Parsed doc awaiting the replace-current-board confirm. */
@@ -764,7 +738,6 @@ export function TopBar({
 
       <TopBarActions
         grid={grid}
-        shuffleRoute={shuffleRoute}
         settingsOpen={settingsOpen}
         onSettingsOpenChange={onSettingsOpenChange}
         onSettingsTriggerEnter={() => handOver('settings')}
