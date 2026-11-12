@@ -35,7 +35,7 @@ import { useFlow } from './lib/useFlow'
 import { viewTransitionOption } from './lib/viewTransition'
 import { useStore } from './store'
 import { initTheme } from './theme'
-import { usePersisted } from './usePersisted'
+import { usePersistedBoolean } from './usePersisted'
 import { useRouteKeys } from './useRouteKeys'
 
 /** The app chrome: it wraps every route and renders the active view in `<Outlet />`. */
@@ -60,8 +60,8 @@ function RootLayout() {
   const busy = exportBusy(exportSession)
   const run = exportItems(exportSession)
 
-  const [libOpen, setLibOpen] = usePersisted('libOpen', false)
-  const [settingsOpen, setSettingsOpen] = usePersisted('settingsOpen', false)
+  const [libOpen, setLibOpen] = usePersistedBoolean('libOpen', false)
+  const [settingsOpen, setSettingsOpen] = usePersistedBoolean('settingsOpen', false)
   const [helpOpen, setHelpOpen] = useState(false)
   // One music card dialog for the whole app: the stage dock and the library
   // header only flip this flag.
