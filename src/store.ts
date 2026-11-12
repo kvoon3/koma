@@ -115,19 +115,7 @@ export interface Workspace {
 }
 
 /** The pane contents the menu's copy / paste pair carries: everything a leaf holds. */
-export interface PaneClip {
-  photoId: string | null
-  zoom: number
-  cx: number
-  cy: number
-  /** Framing that travels with the photo: its turn, its mirrors, its texture. */
-  rot?: number
-  flipX?: boolean
-  flipY?: boolean
-  filter?: FilterValue
-  stickers: Sticker[]
-  label: PaneLabel | null
-}
+export type PaneClip = Pick<Leaf, 'photoId' | 'zoom' | 'cx' | 'cy' | 'rot' | 'flipX' | 'flipY' | 'filter' | 'stickers' | 'label'>
 
 /**
  * Everything the store holds. The visual settings the reload keeps are
@@ -208,7 +196,7 @@ interface State extends PersistedSettings {
   /** Cut-out photo id → the photo it was cut from (see lib/cutout); saved with the session. */
   cutouts: CutoutMap
   /** The one running pane cutout, for the pane's progress overlay. Session-only. */
-  cutoutJob: { paneId: string, phase: 'loading' | 'processing', progress?: number } | null
+  cutoutJob: { paneId: string, phase: 'loading' | 'processing', progress?: number | undefined } | null
   /**
    * Each cut's library variants, by SOURCE photo id (see `lib/cutoutVariants`):
    * the cutout PNG and, once asked for, the blurred composite. Saved with the
@@ -1117,7 +1105,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       if (leaf.photoId || k >= photoIds.length)
         continue
       next = updateLeafIn(next, leaf.id, {
-        photoId: photoIds[k++],
+        photoId: at(photoIds, k++),
         zoom: 1,
         cx: 0.5,
         cy: 0.5,

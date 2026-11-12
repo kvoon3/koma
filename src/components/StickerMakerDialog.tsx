@@ -126,7 +126,7 @@ function buildSource(
 /** Local U²-Netᵖ cutout; reports progress and hands back a PNG object URL. */
 async function cutoutBackground(
   imageSrc: string,
-  onJob: (job: { phase: 'loading' | 'processing', progress?: number } | null) => void,
+  onJob: (job: { phase: 'loading' | 'processing', progress?: number | undefined } | null) => void,
   onDone: (url: string) => void,
   onFail: (reason: string) => void,
 ) {
@@ -232,7 +232,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
 /** One background-removal job's progress report for the UI. */
 interface BgJob {
   phase: 'loading' | 'processing'
-  progress?: number
+  progress?: number | undefined
 }
 
 /** Frosted cutout progress over the raw pick while the local model runs. */
@@ -483,7 +483,7 @@ function useCutoutJob(onDone: (url: string) => void, auto: string | null = null)
  * `original()` is the picked File, or the stored data URL when nothing was
  * re-picked.
  */
-function useStickerImage(initial: { url: string, name: string, photoId?: string } | null = null) {
+function useStickerImage(initial: { url: string, name: string, photoId?: string | undefined } | null = null) {
   const [pick, setPick] = useState<{ url: string, name: string } | null>(initial ? { url: initial.url, name: initial.name } : null)
   const [cutoutUrl, setCutoutUrl] = useState<string | null>(null)
   /**
@@ -602,7 +602,7 @@ interface MakerSeed {
   displayLongEdge: number
   texture: StickerTexture | null
   /** The ORIGINAL a re-edit opens on (a recipe's stored picture), if any. */
-  image: { url: string, name: string, photoId?: string } | null
+  image: { url: string, name: string, photoId?: string | undefined } | null
 }
 
 /**

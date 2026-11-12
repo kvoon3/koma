@@ -32,7 +32,7 @@ export interface AppleLink {
   kind: MusicLinkKind
   collectionId: string
   /** Present when the link carries `?i=`, i.e. it names one track. */
-  trackId?: string
+  trackId?: string | undefined
   /** The storefront from the path segment, lowercased; `us` when absent. */
   country: string
   url: string

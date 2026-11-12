@@ -119,7 +119,7 @@ function PreviewLeaf({ leaf, rect, k, unit, fade, seam, crossfade, photoById }: 
   unit: number
   /** Blend feather width in cell px (0 turns the fade off). */
   fade: number
-  seam?: SeamSides
+  seam?: SeamSides | undefined
   crossfade: boolean
   photoById: Map<string, Photo>
 }) {

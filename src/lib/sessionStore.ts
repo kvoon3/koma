@@ -11,26 +11,26 @@ export interface SessionPhotoRecord {
   trueW: number
   trueH: number
   file: File
-  videoFile?: File
+  videoFile?: File | undefined
   /** Absent in sessions saved before stickers were an asset of their own. */
-  kind?: 'photo' | 'sticker' | 'music'
+  kind?: 'photo' | 'sticker' | 'music' | undefined
   /** Sticker folder; absent = Unsorted. */
-  folder?: string
+  folder?: string | undefined
   /** The track or album a music card was made from. */
-  music?: MusicMeta
+  music?: MusicMeta | undefined
   /** Manual tags (see lib/photoTags); absent in sessions saved before tagging. */
-  tags?: string[]
+  tags?: string[] | undefined
   /** Deleted asset a placed copy still draws (see lib/stickerLibrary). */
-  orphaned?: boolean
+  orphaned?: boolean | undefined
   /**
    * How a made sticker was drawn, so it reopens in the maker (see
    * lib/stickerRecipe). Absent on every sticker made before re-editing, and on
    * every photo: such an asset offers Erase only.
    */
-  recipe?: StickerRecipe
+  recipe?: StickerRecipe | undefined
   /** WGS-84 camera fix and EXIF capture time, so the EXIF block survives a reload. */
-  gps?: { lat: number, lng: number }
-  takenAt?: string
+  gps?: { lat: number, lng: number } | undefined
+  takenAt?: string | undefined
 }
 
 /** One board of nine, saved with the session (see `normalizeGrids`). */
@@ -77,7 +77,7 @@ export interface SessionMeta {
 
 /** The store slices a session is built from (see `sessionMeta`). */
 export interface SessionSource {
-  grids: { id: string, name: string, hidden?: boolean }[]
+  grids: { id: string, name: string, hidden?: boolean | undefined }[]
   activeGridId: string
   workspaces: Workspace[]
   activeId: string

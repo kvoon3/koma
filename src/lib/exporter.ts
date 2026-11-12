@@ -26,7 +26,7 @@ export interface ExportOptions {
   edgeFade: number
   edgeFadeStrength: number
   /** Opt-in overlap crossfade; default backdrop feather when false/omitted. */
-  blendCrossfade?: boolean
+  blendCrossfade?: boolean | undefined
   photos: Map<string, Photo>
   longSide: number
   /** Board-level stickers (canvas-normalized). */
@@ -795,7 +795,7 @@ export interface GridSnapshotOptions {
   edgeFade: number
   edgeFadeStrength: number
   /** Opt-in overlap crossfade; default backdrop feather when false/omitted. */
-  blendCrossfade?: boolean
+  blendCrossfade?: boolean | undefined
   photos: Map<string, Photo>
   /** Cell width / height (the grid's cell aspect); 1 = square. */
   cellRatio?: number

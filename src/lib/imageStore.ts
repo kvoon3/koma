@@ -12,41 +12,41 @@ export interface Photo {
    * produced, or a music card rendered from a streaming link. The library
    * views filter on it (see lib/stickerLibrary).
    */
-  kind?: 'photo' | 'sticker' | 'music'
+  kind?: 'photo' | 'sticker' | 'music' | undefined
   /** Sticker folder, one level deep; absent = Unsorted. Only set on stickers. */
-  folder?: string
+  folder?: string | undefined
   /**
    * The track or album a music card was made from, so the card can open its
    * source and the library can label its provider. Only set on music cards.
    */
-  music?: MusicMeta
+  music?: MusicMeta | undefined
   /**
    * Manual tags, in the order they were attached; absent = untagged. Many to a
    * photo (a sticker has one folder), and the tag list itself is session state
    * beside the photos (see lib/photoTags).
    */
-  tags?: string[]
+  tags?: string[] | undefined
   /**
    * Deleted from the library while a placed copy still draws it: hidden from
    * every list, kept until nothing references it, so a pane or board sticker
    * that outlives the asset keeps rendering (see lib/stickerLibrary).
    */
-  orphaned?: boolean
+  orphaned?: boolean | undefined
   /**
    * How the maker drew this sticker: its subject and the controls it was saved
    * with, so the sticker page can reopen it (see lib/stickerRecipe). Absent on
    * every sticker made before re-editing existed; such an asset offers Erase
    * only.
    */
-  recipe?: StickerRecipe
+  recipe?: StickerRecipe | undefined
   /** Paired Live Photo video (IMG_1234.HEIC + IMG_1234.MOV), if one was dropped alongside. */
-  videoFile?: File
+  videoFile?: File | undefined
   trueW: number
   trueH: number
   /** WGS-84 camera fix read from the JPEG's EXIF; absent when it has none. */
-  gps?: { lat: number, lng: number }
+  gps?: { lat: number, lng: number } | undefined
   /** EXIF DateTimeOriginal as written by the camera; absent when it has none. */
-  takenAt?: string
+  takenAt?: string | undefined
 }
 
 export interface Dims {

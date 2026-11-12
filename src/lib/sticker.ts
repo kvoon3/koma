@@ -425,7 +425,7 @@ async function prepareArtwork(
     outlineWidth: number
     color: string
     perforation: PerforationDesign | null
-    displayLongEdge?: number
+    displayLongEdge?: number | undefined
     texture?: StickerTexture | null
   },
 ): Promise<PreparedArtwork> {

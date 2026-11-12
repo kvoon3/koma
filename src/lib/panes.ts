@@ -215,7 +215,7 @@ export interface PaneLabel {
    */
   glow?: boolean
   /** Leading icon id from `LABEL_ICONS`; absent means text only. */
-  icon?: string
+  icon?: string | undefined
   /** Board-normalized center in [0, 1] of the canvas (legacy Leaf.label: pane-normalized). */
   x: number
   y: number
@@ -238,11 +238,11 @@ export interface Leaf {
    * (see `rotationOf`). The dial in the tools drawer sets it; preview and
    * export both draw it through `paneTransform`.
    */
-  rot?: number
+  rot?: number | undefined
   /** Mirror the pane's photo left/right; absent means not flipped. */
-  flipX?: boolean
+  flipX?: boolean | undefined
   /** Mirror the pane's photo top/bottom; absent means not flipped. */
-  flipY?: boolean
+  flipY?: boolean | undefined
   /**
    * Tactile texture filter over the photo (see `lib/filters`); absent means
    * none. It travels with the photo like `rot` and the mirrors: it resets when
@@ -255,7 +255,7 @@ export interface Leaf {
    * from a build before knobs hydrates as that filter's defaults. Undo, copy and
    * paste treat the whole value atomically.
    */
-  filter?: FilterValue
+  filter?: FilterValue | undefined
   /**
    * Legacy per-pane stickers. New inserts live on `Workspace.stickers` (board
    * space). Kept so session / `.koma.json` files migrate without data loss.
@@ -333,10 +333,10 @@ export function newLabel(x = 0.5, y = 0.5): PaneLabel {
  *  saved before rotation existed simply have no field, the same tolerance
  *  `labelColors()` shows for an unknown theme.
  */
-export const rotationOf = (box: { rot?: number }) => box.rot ?? 0
+export const rotationOf = (box: { rot?: number | undefined }) => box.rot ?? 0
 
 /** The CSS `rotate()` a sticker/label box draws with. */
-export const rotationCss = (box: { rot?: number }) => `rotate(${rotationOf(box)}rad)`
+export const rotationCss = (box: { rot?: number | undefined }) => `rotate(${rotationOf(box)}rad)`
 
 const TAU = Math.PI * 2
 
@@ -820,7 +820,7 @@ export function clampLeaf(leaf: Leaf, cell: Rect, iw: number, ih: number): Leaf 
 }
 
 /** Which way a pane's photo is mirrored (absent means neither). */
-export const paneFlipped = (leaf: { flipX?: boolean, flipY?: boolean }) => ({ x: !!leaf.flipX, y: !!leaf.flipY })
+export const paneFlipped = (leaf: { flipX?: boolean | undefined, flipY?: boolean | undefined }) => ({ x: !!leaf.flipX, y: !!leaf.flipY })
 
 /** The pane-photo transform preview and export share: flip, cover-scale, then turn. */
 export interface PaneTransform {
@@ -856,7 +856,7 @@ export function rotationCoverScale(rot: number, w: number, h: number): number {
  */
 export function paneTransform(
   cell: { w: number, h: number },
-  leaf: { rot?: number, flipX?: boolean, flipY?: boolean },
+  leaf: { rot?: number | undefined, flipX?: boolean | undefined, flipY?: boolean | undefined },
 ): PaneTransform {
   const rot = wrapAngle(rotationOf(leaf))
   const cover = rotationCoverScale(rot, cell.w, cell.h)

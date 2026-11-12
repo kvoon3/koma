@@ -938,7 +938,7 @@ function SwatchGrid({ value, label, onChange }: { value: string, label: string, 
  * layout: the buttons are flex items of the dock's row / wrapped container, so
  * they carry the sheet's display mode and geometry rather than their own.
  */
-export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocation }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void, onInsertLocation?: () => void }) {
+export function LabelDockTools({ labelId, lab, setLabel, onDelete, onInsertLocation }: Omit<LabelControlProps, 'selectLabel'> & { onDelete: () => void, onInsertLocation?: (() => void) | undefined }) {
   const iconFadeRef = useScrollFade<HTMLDivElement>()
   const t = useT()
   const opacityPct = Math.round(labelBgAlpha(lab) * 100)

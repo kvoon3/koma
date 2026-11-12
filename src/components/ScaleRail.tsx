@@ -532,7 +532,7 @@ export function ScaleRail({ nudge = 0 }: {
             translate: `0 ${lift}px`,
           }}
         >
-          <NumberFlow value={railValue(value, target.format)} format={{ useGrouping: false }} suffix={target.format === 'percent' ? '%' : undefined} willChange />
+          <NumberFlow value={railValue(value, target.format)} format={{ useGrouping: false }} {...(target.format === 'percent' ? { suffix: '%' } : {})} willChange />
         </span>
       </div>
     </>

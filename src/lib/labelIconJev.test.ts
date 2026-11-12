@@ -32,7 +32,7 @@ function commit(text: string): string {
   return id
 }
 
-const wire: { body?: Record<string, unknown>, init?: RequestInit } = {}
+const wire: { body?: Record<string, unknown> | undefined, init?: RequestInit | undefined } = {}
 
 function resetWire() {
   wire.body = undefined

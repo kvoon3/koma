@@ -100,7 +100,7 @@ interface ToolOption {
   /** This row is what the pane already shows: a check, `aria-pressed`. */
   active?: boolean
   /** Why the row is off, said in the row itself rather than only in a tooltip. */
-  reason?: string
+  reason?: string | undefined
 }
 
 const toolDisabledCls = 'disabled:cursor-default disabled:opacity-35 disabled:active:scale-100 disabled:hover:bg-transparent'

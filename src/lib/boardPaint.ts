@@ -173,7 +173,7 @@ const STAGE_SEAT_GAP = 8
 const STAGE_SEAT_INSET = 10
 
 /** Whether a focused pane shows its minimap, given where the chip would sit. */
-export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, previewUrl?: string, boxWidth: number }): boolean {
+export function minimapVisible(o: { placement: 'pane' | 'stage', zoom: number, previewUrl?: string | undefined, boxWidth: number }): boolean {
   if (o.zoom <= MINIMAP_ZOOM || !o.previewUrl)
     return false
   return o.placement === 'stage' || o.boxWidth >= MINIMAP_MIN_BOX

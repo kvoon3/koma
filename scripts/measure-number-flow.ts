@@ -20,7 +20,7 @@ const port = process.argv[2] ?? '5211'
 const exe = process.env.PW_CHROMIUM
 const url = `https://127.0.0.1:${port}/`
 
-const browser = await chromium.launch({ executablePath: exe, headless: true })
+const browser = await chromium.launch({ ...(exe === undefined ? {} : { executablePath: exe }), headless: true })
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, ignoreHTTPSErrors: true })
 await page.goto(url, { waitUntil: 'networkidle' })
 

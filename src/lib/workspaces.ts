@@ -83,7 +83,7 @@ export interface GridGroup {
    * place in the row, stays swipable and openable, and only reads as dimmed
    * (the groups page shows the eye and the delete `x` on it).
    */
-  hidden?: boolean
+  hidden?: boolean | undefined
 }
 
 /**
@@ -111,12 +111,12 @@ export interface SavedGrid<T> {
 /** Everything a session (or a board file) hands the store when a board loads. */
 export interface SavedGrids<T> {
   /** Groups, written by a session saved after the dual grid. */
-  grids?: readonly (SavedGrid<T> | null | undefined)[] | null
+  grids?: readonly (SavedGrid<T> | null | undefined)[] | null | undefined
   /** The single board older sessions saved, before groups existed. */
-  workspaces?: readonly T[] | null
+  workspaces?: readonly T[] | null | undefined
   /** The group that was open. */
-  activeGridId?: string | null
-  activeId?: string | null
+  activeGridId?: string | null | undefined
+  activeId?: string | null | undefined
 }
 
 /** The store's group state, hydrated: the open board plus the parked ones. */

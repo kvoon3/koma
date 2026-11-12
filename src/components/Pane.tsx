@@ -63,9 +63,9 @@ function PanePhotoContent({
   /** The photo's placement, from `transformOf` (see lib/boardPaint). */
   transform: string | null
   photoId: string | null
-  mask?: React.CSSProperties
+  mask?: React.CSSProperties | undefined
   radius: number | string
-  crossfade?: boolean
+  crossfade?: boolean | undefined
   onPick: () => void
   /** The photo is being carried as the swap/Move ghost: dim the original. */
   carried: boolean
@@ -673,14 +673,14 @@ interface Props {
   /** Visual box (expanded into seams when crossfade is on). */
   rect: Rect
   /** Pre-overlap layout cell for photo placement; defaults to `rect`. */
-  layoutRect?: Rect
+  layoutRect?: Rect | undefined
   /** When true, seam masks use plus-lighter compositing. */
-  crossfade?: boolean
+  crossfade?: boolean | undefined
   radius: number
   gap: number
   bordered: boolean
   fade: number
-  seam?: SeamSides
+  seam?: SeamSides | undefined
   unit: number
   photo: Photo | null
   photoById: Map<string, Photo>
@@ -707,8 +707,8 @@ function PaneLivePhoto({
   photo: Photo | null
   /** The placed photo's box in pane-local px (see `photoBoxStyle`). */
   box: { left: number, top: number, width: number, height: number }
-  mask?: React.CSSProperties
-  crossfade?: boolean
+  mask?: React.CSSProperties | undefined
+  crossfade?: boolean | undefined
   live: boolean
   /** The pane's turn and mirrors, so the video plays in the photo's frame. */
   turn: string | null
