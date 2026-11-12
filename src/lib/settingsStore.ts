@@ -38,7 +38,7 @@ export const TOOLS_DOCK_MODE: ToolsDockMode = 'row'
  */
 export const SETTINGS_VERSION = 9
 
-const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
+export const DOCK_BGS: readonly DockBg[] = ['solid', 'frosted', 'liquid']
 const DOCK_MODES: readonly ToolsDockMode[] = ['icons', 'row', 'expanded']
 /** The dropped icon-minimized display, still found in saved settings. */
 const LEGACY_DOCK_COLLAPSED = 'collapsed'

@@ -9,11 +9,13 @@ import { fieldLabelCls, fieldRowCls, RangeField, SelectField } from '@/component
 import { Tip } from '@/components/ui/tip'
 import { mirrorEnabled, setMirrorEnabled } from '../lib/fonts'
 import { useT } from '../lib/i18n'
+import { DOCK_BGS } from '../lib/settingsStore'
 import { say } from '../lib/toast'
 import { DOCK_BG, DOCK_OPACITY, useStore } from '../store'
 
 function isDockBg(value: string): value is DockBg {
-  return value === 'solid' || value === 'frosted' || value === 'liquid'
+  const bgs: readonly string[] = DOCK_BGS
+  return bgs.includes(value)
 }
 
 const toggle = 'group/switch relative box-border col-start-2 row-start-1 inline-flex h-5 w-[34px] cursor-pointer items-center justify-self-end rounded-none border border-line-strong bg-line-strong p-0 transition-[background-color,border-color,color,scale] duration-(--dur-fast) active:scale-[0.97] pointer-coarse:h-6 data-checked:border-accent data-checked:bg-accent focus-visible:outline-1 focus-visible:outline-accent focus-visible:outline-offset-2 sm:col-start-3'
