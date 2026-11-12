@@ -541,7 +541,7 @@ const ja: Record<TKey, string> = {
   'Cell aspect ratio': 'セルの縦横比',
   'Clear all cells?': 'すべてのセルを消去しますか？',
   'Snapshot: each cell plus the whole grid': 'スナップショット：各セルとグリッド全体',
-  'Randomly reorder the cells with photos': '写真のあるセルをランダムに並べ替え',
+  'Randomly reorder every cell': 'すべてのセルをランダムに並べ替え',
   'Remove all photos from the cells': 'セルからすべての写真を削除',
   'Share all ({n})': 'すべて共有（{n}）',
   'Sharing failed, use Download all instead': '共有に失敗しました。「すべてダウンロード」をお使いください',

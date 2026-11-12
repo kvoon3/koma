@@ -542,7 +542,7 @@ const zhHant: Record<TKey, string> = {
   'Cell aspect ratio': '格子比例',
   'Clear all cells?': '清空所有格子？',
   'Snapshot: each cell plus the whole grid': '快照：每個格子加整張九宮格',
-  'Randomly reorder the cells with photos': '隨機打亂有照片的格子',
+  'Randomly reorder every cell': '隨機打亂所有格子',
   'Remove all photos from the cells': '移除格子中的所有照片',
   'Share all ({n})': '全部分享（{n}）',
   'Sharing failed, use Download all instead': '分享失敗，請改用「全部下載」',

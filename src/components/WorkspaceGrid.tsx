@@ -311,8 +311,7 @@ export function WorkspaceGrid() {
                 </div>
                 {/* The board carries the pager's pan; the grid inside carries
                     the falloff, whose shrink keeps its own centre origin. */}
-                <div ref={boardRef} data-board="" className="relative" style={{ width: boardW }}>
-                  <div data-grid-trail="" aria-hidden className="pointer-events-none absolute inset-0 z-[-1] overflow-visible motion-reduce:hidden" />
+                <div ref={boardRef} data-board="" style={{ width: boardW }}>
                   <div
                     ref={boardFalloffRef}
                     data-board-grid=""
@@ -441,15 +440,16 @@ export function WorkspaceGrid() {
 function ShuffleGridButton() {
   const t = useT()
   const filled = useStore(s => countFilledCells(s.workspaces))
+  const cells = useStore(s => s.workspaces.length)
   return (
     <Tip
-      label={t('Randomly reorder the cells with photos')}
+      label={t('Randomly reorder every cell')}
       trigger={(
         <Button
           variant="float"
           icon={Shuffle}
           iconSize={15}
-          disabled={filled < 2}
+          disabled={filled < 1 || cells < 2}
           aria-label={t('Shuffle')}
           onClick={() => useStore.getState().shuffleWorkspaces()}
         />

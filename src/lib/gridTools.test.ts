@@ -1,25 +1,27 @@
 /// <reference types="bun" />
 import type { Leaf, Node, Split } from './panes'
 import { describe, expect, test } from 'bun:test'
-import { cellRatioValue, clearTreePhotos, gridCellBox, gridCellFileName, isGridCellRatio, mulberry32, shuffleFilled } from './gridTools'
+import { cellRatioValue, clearTreePhotos, gridCellBox, gridCellFileName, isGridCellRatio, mulberry32, shuffleAll } from './gridTools'
 
-describe('shuffleFilled', () => {
+describe('shuffleAll', () => {
   const list = ['a', '', 'b', 'c', '', 'd']
-  const filled = (s: string) => s !== ''
-  test('empty slots stay put; filled items are a permutation', () => {
-    const out = shuffleFilled(list, filled, mulberry32(1))
-    expect(out[1]).toBe('')
-    expect(out[4]).toBe('')
-    expect(out.filter(filled).sort()).toEqual(['a', 'b', 'c', 'd'])
+  test('every item is a permutation, blanks included', () => {
+    const out = shuffleAll(list, mulberry32(1))
+    expect([...out].sort()).toEqual([...list].sort())
+    expect(out.filter(x => x === '').length).toBe(2)
     expect(list).toEqual(['a', '', 'b', 'c', '', 'd'])
   })
   test('deterministic with a seed, varies across seeds', () => {
-    expect(shuffleFilled(list, filled, mulberry32(42))).toEqual(shuffleFilled(list, filled, mulberry32(42)))
-    const seen = new Set(Array.from({ length: 20 }, (_, i) => shuffleFilled(list, filled, mulberry32(i)).join(',')))
+    expect(shuffleAll(list, mulberry32(42))).toEqual(shuffleAll(list, mulberry32(42)))
+    const seen = new Set(Array.from({ length: 20 }, (_, i) => shuffleAll(list, mulberry32(i)).join(',')))
     expect(seen.size).toBeGreaterThan(5)
   })
-  test('0 or 1 filled → unchanged order', () => {
-    expect(shuffleFilled(['', 'x', ''], filled, mulberry32(3))).toEqual(['', 'x', ''])
+  test('a seeded run moves the blanks out of their slots', () => {
+    expect(shuffleAll(['a', '', 'b', ''], mulberry32(7))).not.toEqual(['a', '', 'b', ''])
+  })
+  test('0 or 1 item → unchanged order', () => {
+    expect(shuffleAll(['x'], mulberry32(3))).toEqual(['x'])
+    expect(shuffleAll([], mulberry32(3))).toEqual([])
   })
 })
 

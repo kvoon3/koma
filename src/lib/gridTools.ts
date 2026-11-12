@@ -54,20 +54,14 @@ export function mulberry32(seed: number): () => number {
 }
 
 /**
- * Shuffle only the filled items among their own slots (Fisher–Yates);
- * empty slots keep their positions. Returns a new array.
+ * Shuffle every item (Fisher–Yates), blanks included. Returns a new array.
  */
-export function shuffleFilled<T>(list: readonly T[], isFilled: (t: T) => boolean, rng: () => number = Math.random): T[] {
-  const slots = list.map((t, i) => (isFilled(t) ? i : -1)).filter(i => i >= 0)
-  const picked = slots.map(i => list[i]!)
-  for (let i = picked.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1))
-    ;[picked[i], picked[j]] = [picked[j]!, picked[i]!]
-  }
+export function shuffleAll<T>(list: readonly T[], rng: () => number = Math.random): T[] {
   const out = [...list]
-  slots.forEach((slot, k) => {
-    out[slot] = picked[k]!
-  })
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[out[i], out[j]] = [out[j]!, out[i]!]
+  }
   return out
 }
 
