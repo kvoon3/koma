@@ -43,6 +43,9 @@ Where a note conflicts with a poteto default, the note wins.
 | Every union switch is exhaustive | `ts/switch-exhaustiveness-check` |
 | Indexed reads are total, absent differs from `undefined` | the two compiler flags |
 
+The only inline exceptions are the vendored transformers import and the two
+IndexedDB session reads, each with a reason on the line.
+
 Type-aware lint covers `src` and `routes`; `scripts` are excluded from the
 type-aware pass and from the non-null rule. `bun run ci` runs
 `bun run check-gates` and `bun run check-parity` after lint, test, i18n and
