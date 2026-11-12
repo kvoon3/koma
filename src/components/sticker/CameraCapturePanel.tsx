@@ -185,7 +185,7 @@ export function CameraCapturePanel({ onCapture, onCancel }: {
 
       <div className="flex flex-none items-center justify-end gap-[6px] border-t border-line-strong bg-panel px-2 py-1.5">
         <Button variant="flat" data-camera-cancel="" onClick={onCancel}>{t('Cancel')}</Button>
-        <Button variant="strong" data-camera-capture="" disabled={state.status !== 'ready'} onClick={takePhoto}>
+        <Button variant="strong" data-camera-capture="" disabled={state.status !== 'ready'} onClick={() => void takePhoto()}>
           {t('Use photo')}
         </Button>
       </div>

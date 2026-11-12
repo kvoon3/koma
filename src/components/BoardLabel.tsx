@@ -40,7 +40,7 @@ export function LabelIconGlyph({ node, size = `${LABEL_ICON_EM}em` }: { node: Ic
       {node.map(([tag, attrs], i) => {
         const Tag = tag as 'path'
         // eslint-disable-next-line react/no-array-index-key -- icon nodes are static and never reorder
-        return <Tag key={i} {...(attrs as React.SVGProps<SVGPathElement>)} />
+        return <Tag key={i} {...(attrs)} />
       })}
     </svg>
   )

@@ -57,7 +57,7 @@ export function AppSlider({ value, min = 0, max, step, label, onChange, classNam
       max={max}
       {...(step === undefined ? {} : { step })}
       value={value}
-      onValueChange={v => onChange(v as number)}
+      onValueChange={v => onChange(v)}
     >
       <Slider.Control className={`flex h-full touch-none select-none items-center ${dense ? 'px-1' : 'px-1.5 py-2 sm:px-0'}`}>
         <Slider.Track className="relative h-1.5 w-full bg-panel-2 shadow-[inset_0_0_0_1px_var(--line)] select-none">
@@ -183,7 +183,7 @@ export function SegmentedField<V extends string>({ label, value, items, onChange
         className={`${fieldControlCls} col-span-2 flex sm:col-span-2`}
         aria-label={label}
         value={value}
-        onValueChange={v => onChange(v as V)}
+        onValueChange={v => onChange(v)}
       >
         {items.map(item => (
           <Radio.Root key={item.value} value={item.value} className={segmentCls}>{item.label}</Radio.Root>

@@ -93,10 +93,10 @@ function acquireFull(file: File, photoId: string, priority: 0 | 1): { job: Promi
       if (released)
         return
       released = true
-      entry!.refs--
-      if (entry!.refs <= 0) {
+      entry.refs--
+      if (entry.refs <= 0) {
         fullJobs.delete(photoId)
-        void entry!.promise.then(f => (f?.src as ImageBitmap).close?.())
+        void entry.promise.then(f => (f?.src as ImageBitmap).close?.())
       }
     },
   }

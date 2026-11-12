@@ -540,7 +540,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     const added = state().addGrid()
     expect(added).not.toBeNull()
     expect(state().grids.map(g => g.name)).toEqual(['1', '2'])
-    expect(state().activeGridId).toBe(added!)
+    expect(state().activeGridId).toBe(added)
     // split + assign + the copy-carrying add: one step each.
     expect(stepsOf()).toBe(3)
 
@@ -567,12 +567,12 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
     expect(state().parkedBoards).toEqual({})
     state().redo()
     expect(state().grids).toHaveLength(2)
-    expect(state().activeGridId).toBe(added!)
+    expect(state().activeGridId).toBe(added)
   })
 
   test('switching groups is navigation: it pushes no undo entry', () => {
     const firstId = state().activeGridId
-    const added = state().addGrid()!
+    const added = state().addGrid()
     const steps = stepsOf()
     state().switchGrid(firstId)
     state().switchGrid(added)
@@ -581,7 +581,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
 
   test('adding and renaming a group are one undo step each', () => {
     const firstId = state().activeGridId
-    const added = state().addGrid()!
+    const added = state().addGrid()
     expect(stepsOf()).toBe(1)
     state().renameGrid(added, 'Variant 2')
     expect(state().grids.map(g => g.name)).toEqual(['1', 'Variant 2'])
@@ -600,7 +600,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
 
   test('a deleted group comes back with its board on undo', () => {
     const firstId = state().activeGridId
-    const added = state().addGrid()!
+    const added = state().addGrid()
     state().assign(ws().focusId, 'photo-b')
     const boardB = state().workspaces
 
@@ -620,8 +620,8 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
 
   test('a reorder moves one group, undoes, and pushes no step for a no-op', () => {
     const firstId = state().activeGridId
-    const second = state().addGrid()!
-    const third = state().addGrid()!
+    const second = state().addGrid()
+    const third = state().addGrid()
     expect(state().grids.map(g => g.id)).toEqual([firstId, second, third])
     expect(state().activeGridId).toBe(third)
 
@@ -675,7 +675,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
 
   test('tucking away is one undo step; the root never pages a tucked group', () => {
     const firstId = state().activeGridId
-    const added = state().addGrid()!
+    const added = state().addGrid()
     const ids = state().grids.map(g => g.id)
 
     // Tucking a parked group keeps the open group and the row order.
@@ -735,7 +735,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
 
   test('a legacy session (one board, no groups) hydrates as group 1', () => {
     const saved = Array.from({ length: 3 }, (_, i) => ({ ...state().workspaces[0]!, id: `legacy${i}` }))
-    saved[1] = { ...saved[1]!, root: { ...saved[1]!.root, id: 'pane-1' } as typeof saved[1]['root'] }
+    saved[1] = { ...saved[1]!, root: { ...saved[1]!.root, id: 'pane-1' } }
     state().hydrate({
       meta: {
         workspaces: saved,
@@ -801,7 +801,7 @@ describe('grid groups (boards switched from the workspace switcher)', () => {
       },
       photos: [],
     })
-    const hydrated = state().workspaces[0]!.labels![0]!
+    const hydrated = state().workspaces[0]!.labels[0]!
     expect(hydrated.id).toBe('legacy-glow')
     expect(hydrated.theme).toBe('dark')
     expect(hydrated.glow).toBe(true)
@@ -853,7 +853,7 @@ describe('sticker management (a library surface, outside the board history)', ()
         quality: 0.92,
         ...meta,
       } as never,
-      photos: photos as never,
+      photos,
     })
   }
 
@@ -970,7 +970,7 @@ describe('photo management (tags, usage, delete)', () => {
    */
   function hydrateWith(
     photos: ReturnType<typeof photo>[],
-    { meta = {}, drawn = 'p1' as string | null, boardSticker = null as string | null } = {},
+    { meta = {}, drawn = 'p1', boardSticker = null as string | null } = {},
   ) {
     const cell = state().workspaces[0]!
     const root = {
@@ -992,7 +992,7 @@ describe('photo management (tags, usage, delete)', () => {
         quality: 0.92,
         ...meta,
       } as never,
-      photos: photos as never,
+      photos,
     })
   }
 

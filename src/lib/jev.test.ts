@@ -200,9 +200,9 @@ describe('the pick is one fetch with one timeout', () => {
     expect(headers['Content-Type']).toBe('application/json')
     expect(headers.Accept).toBe('application/json')
     expect(headers['TypeSafe-Danger-Zone-Images']).toBeUndefined()
-    const body = JSON.parse(String(sent.init?.body))
-    expect(body.state).toBe('生日蛋糕')
-    expect(body.assets).toBeUndefined()
+    const body: unknown = JSON.parse(String(sent.init?.body))
+    expect(body).toMatchObject({ state: '生日蛋糕' })
+    expect(body).not.toHaveProperty('assets')
   })
 
   test('a network failure is reported, not thrown', async () => {

@@ -441,7 +441,7 @@ describe('halftone', () => {
       const want = 2 * 0.5641895835477563 * p * Math.sqrt(1 - 190 / 255)
       expect([size, Math.abs(width - want) <= 1.5]).toEqual([size, true])
     }
-    expect(runsPerRow[0]).toBe(runsPerRow[1]!)
+    expect(runsPerRow[0]).toBe(runsPerRow[1])
   })
 
   it('prints one ink in mono and two in duotone', () => {
@@ -455,7 +455,7 @@ describe('halftone', () => {
     expect(duo.data).not.toEqual(mono.data)
     // The duotone's paper is warm and its dots are not the mono ink.
     const paper = rgbAt(duo, 0, 0)
-    expect(paper[0]).toBeGreaterThan(paper[2]!)
+    expect(paper[0]).toBeGreaterThan(paper[2])
     expect(rgbAt(duo, 10, 10)).not.toEqual(rgbAt(mono, 10, 10))
     // Down a luma ramp, the dot colour moves between the two inks.
     const ramp = lumaRamp(BASE, BASE)
