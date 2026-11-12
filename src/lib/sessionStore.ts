@@ -4,6 +4,8 @@ import type { CutoutMap } from './cutout'
 import type { CutoutSets } from './cutoutVariants'
 import type { MusicMeta } from './musicLink'
 import type { StickerRecipe } from './stickerRecipe'
+import { readMusicMeta } from './musicLink'
+import { stickerRecipeFrom } from './stickerRecipe'
 
 export interface SessionPhotoRecord {
   id: string
@@ -238,6 +240,188 @@ export async function saveSession(meta: SessionMeta, photos: SessionPhotoRecord[
   }
 }
 
+// ---- The read boundary ------------------------------------------------------
+//
+// IndexedDB hands back whatever a past page put there. The parsers below prove
+// the required fields (absent or wrong kind reads as "no session") and read a
+// wrong-kind optional as absent, exactly what an older build's session carries.
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function textOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function stringArrayOrUndefined(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every(v => typeof v === 'string') ? value : undefined
+}
+
+function stringRecordOrUndefined(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value))
+    return undefined
+  const out: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry !== 'string')
+      return undefined
+    out[key] = entry
+  }
+  return out
+}
+
+function cutoutSetsOrUndefined(value: unknown): CutoutSets | undefined {
+  if (!isRecord(value))
+    return undefined
+  const out: CutoutSets = {}
+  for (const [key, entry] of Object.entries(value)) {
+    if (!isRecord(entry) || typeof entry.cutout !== 'string')
+      return undefined
+    if (typeof entry.blurred === 'string')
+      out[key] = { cutout: entry.cutout, blurred: entry.blurred }
+    else
+      out[key] = { cutout: entry.cutout }
+  }
+  return out
+}
+
+/**
+ * A board entry. The parse proves the one field hydration's contract reads
+ * (`normalizeSlots` keeps an entry only when its `id` is a string); the pane
+ * tree inside is migrated downstream (`migrateWorkspaceInserts`,
+ * `normalizeLabelGlow`), as it already is for an imported file.
+ */
+function isBoardEntry(value: unknown): value is Workspace {
+  return isRecord(value) && typeof value.id === 'string'
+}
+
+function boardArrayOrUndefined(value: unknown): Workspace[] | undefined {
+  if (!Array.isArray(value))
+    return undefined
+  const out: Workspace[] = []
+  for (const entry of value) {
+    if (!isBoardEntry(entry))
+      return undefined
+    out.push(entry)
+  }
+  return out
+}
+
+function bgImageOf(value: unknown): BgImage | null | undefined {
+  if (value === null)
+    return null
+  if (!isRecord(value) || typeof value.photoId !== 'string' || typeof value.blur !== 'boolean')
+    return undefined
+  return { photoId: value.photoId, blur: value.blur }
+}
+
+/**
+ * A photo record read back from IndexedDB, or null when it is not one of ours.
+ * `music` and `recipe` have parsers of their own and go through them again
+ * rather than being trusted.
+ */
+export function parseSessionPhotoRecord(value: unknown): SessionPhotoRecord | null {
+  if (!isRecord(value))
+    return null
+  const { id, name, file } = value
+  const trueW = finiteNumber(value.trueW)
+  const trueH = finiteNumber(value.trueH)
+  if (typeof id !== 'string' || typeof name !== 'string')
+    return null
+  if (trueW === undefined || trueH === undefined || !(file instanceof File))
+    return null
+  const kind = value.kind === 'photo' || value.kind === 'sticker' || value.kind === 'music'
+    ? value.kind
+    : undefined
+  const lat = isRecord(value.gps) ? finiteNumber(value.gps.lat) : undefined
+  const lng = isRecord(value.gps) ? finiteNumber(value.gps.lng) : undefined
+  return {
+    id,
+    name,
+    trueW,
+    trueH,
+    file,
+    videoFile: value.videoFile instanceof File ? value.videoFile : undefined,
+    kind,
+    folder: textOrUndefined(value.folder),
+    music: readMusicMeta(value.music) ?? undefined,
+    tags: stringArrayOrUndefined(value.tags),
+    orphaned: value.orphaned === true ? true : undefined,
+    recipe: stickerRecipeFrom(value.recipe) ?? undefined,
+    gps: lat !== undefined && lng !== undefined ? { lat, lng } : undefined,
+    takenAt: textOrUndefined(value.takenAt),
+  }
+}
+
+/** The session meta read back from IndexedDB, or null when it is not one of ours. */
+export function parseSessionMeta(value: unknown): SessionMeta | null {
+  if (!isRecord(value))
+    return null
+  const gap = finiteNumber(value.gap)
+  const radius = finiteNumber(value.radius)
+  const longSide = finiteNumber(value.longSide)
+  const quality = finiteNumber(value.quality)
+  const workspaces = boardArrayOrUndefined(value.workspaces)
+  if (
+    workspaces === undefined
+    || typeof value.activeId !== 'string'
+    || typeof value.bg !== 'string'
+    || gap === undefined
+    || radius === undefined
+    || longSide === undefined
+    || quality === undefined
+    || (value.format !== 'image/jpeg' && value.format !== 'image/png')
+  ) {
+    return null
+  }
+  const grids = Array.isArray(value.grids)
+    ? value.grids.flatMap((g): SessionGrid[] => {
+        if (!isRecord(g) || typeof g.id !== 'string' || typeof g.name !== 'string' || typeof g.activeId !== 'string')
+          return []
+        const boards = boardArrayOrUndefined(g.workspaces)
+        if (boards === undefined)
+          return []
+        return [{
+          id: g.id,
+          name: g.name,
+          ...(typeof g.hidden === 'boolean' ? { hidden: g.hidden } : {}),
+          workspaces: boards,
+          activeId: g.activeId,
+        }]
+      })
+    : undefined
+  const activeGridId = textOrUndefined(value.activeGridId)
+  const cutouts = stringRecordOrUndefined(value.cutouts)
+  const cutoutSets = cutoutSetsOrUndefined(value.cutoutSets)
+  const stickerFolders = stringArrayOrUndefined(value.stickerFolders)
+  const photoTags = stringArrayOrUndefined(value.photoTags)
+  const bgGradient
+    = typeof value.bgGradient === 'string' || value.bgGradient === null ? value.bgGradient : undefined
+  const bgImage = bgImageOf(value.bgImage)
+  return {
+    ...(grids !== undefined ? { grids } : {}),
+    ...(activeGridId !== undefined ? { activeGridId } : {}),
+    workspaces,
+    activeId: value.activeId,
+    gap,
+    radius,
+    bg: value.bg,
+    ...(cutouts !== undefined ? { cutouts } : {}),
+    ...(cutoutSets !== undefined ? { cutoutSets } : {}),
+    ...(stickerFolders !== undefined ? { stickerFolders } : {}),
+    ...(photoTags !== undefined ? { photoTags } : {}),
+    ...(bgGradient !== undefined ? { bgGradient } : {}),
+    ...(bgImage !== undefined ? { bgImage } : {}),
+    longSide,
+    format: value.format,
+    quality,
+  }
+}
+
 export async function loadSession(): Promise<{ meta: SessionMeta, photos: SessionPhotoRecord[] } | null> {
   let db: IDBDatabase
   try {
@@ -250,19 +434,22 @@ export async function loadSession(): Promise<{ meta: SessionMeta, photos: Sessio
 
   try {
     const tx = db.transaction(['meta', 'photos'], 'readonly')
-    const meta: unknown = await reqToPromise(tx.objectStore('meta').get(META_KEY))
-    // eslint-disable-next-line ts/consistent-type-assertions -- IndexedDB stores this app's own session schema; a full record parser is a separate change
-    const photos = (await reqToPromise(tx.objectStore('photos').getAll())) as SessionPhotoRecord[]
-    if (!meta || !Array.isArray(photos)) {
-      // Mark anything we already wrote in this session so saveSession skips it.
-      for (const p of photos)
-        writtenIds.set(p.id, recordSignature(p))
-      return null
-    }
+    const rawMeta: unknown = await reqToPromise(tx.objectStore('meta').get(META_KEY))
+    const rawPhotos: unknown = await reqToPromise(tx.objectStore('photos').getAll())
+    // One corrupt photo drops while the rest of the board still opens.
+    const photos = Array.isArray(rawPhotos)
+      ? rawPhotos.flatMap((p) => {
+          const record = parseSessionPhotoRecord(p)
+          return record ? [record] : []
+        })
+      : []
+    const meta = parseSessionMeta(rawMeta)
+    // Mark anything we already wrote in this session so saveSession skips it.
     for (const p of photos)
       writtenIds.set(p.id, recordSignature(p))
-    // eslint-disable-next-line ts/consistent-type-assertions -- see the record above
-    return { meta: meta as SessionMeta, photos }
+    if (!meta)
+      return null
+    return { meta, photos }
   }
   catch (err) {
     warn('load', err)
