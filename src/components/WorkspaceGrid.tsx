@@ -7,7 +7,7 @@ import { DndContext, DragOverlay, MeasuringStrategy, useDroppable } from '@dnd-k
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from '@tanstack/react-router'
-import { Camera, Image, Square, Type } from 'lucide'
+import { Camera, Image, Shuffle, Square, Type } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useDockRestBand, useElementSize, useMediaQuery, useStageZoom } from '../hooks'
@@ -16,7 +16,7 @@ import { viewTransform } from '../lib/canvasView'
 import { DELETE_ZONE_ID, deleteFirst } from '../lib/deleteZone'
 import { dockBand } from '../lib/dockMetrics'
 import { GRID_CELL_MAX } from '../lib/exporter'
-import { cellRatioValue, gridCellBox } from '../lib/gridTools'
+import { cellRatioValue, countFilledCells, gridCellBox } from '../lib/gridTools'
 import { pageTravel } from '../lib/groupPage'
 import { useT } from '../lib/i18n'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
@@ -289,7 +289,7 @@ export function WorkspaceGrid() {
                   pointerEvents: gestures.panning ? 'none' : undefined,
                 }}
               >
-                <div className="flex items-center justify-center" style={{ width: boardW, height: CAPTION_H }}>
+                <div className="flex items-center justify-center gap-1.5" style={{ width: boardW, height: CAPTION_H }}>
                   <Tip
                     label={t('Snapshot: each cell plus the whole grid')}
                     trigger={(
@@ -307,6 +307,7 @@ export function WorkspaceGrid() {
                       />
                     )}
                   />
+                  <ShuffleGridButton />
                 </div>
                 {/* The board carries the pager's pan; the grid inside carries
                     the falloff, whose shrink keeps its own centre origin. */}
@@ -434,6 +435,26 @@ export function WorkspaceGrid() {
         <DockToolset route="grid" />
       </ToolsDock>
     </div>
+  )
+}
+
+function ShuffleGridButton() {
+  const t = useT()
+  const filled = useStore(s => countFilledCells(s.workspaces))
+  return (
+    <Tip
+      label={t('Randomly reorder the cells with photos')}
+      trigger={(
+        <Button
+          variant="float"
+          icon={Shuffle}
+          iconSize={15}
+          disabled={filled < 2}
+          aria-label={t('Shuffle')}
+          onClick={() => useStore.getState().shuffleWorkspaces()}
+        />
+      )}
+    />
   )
 }
 
