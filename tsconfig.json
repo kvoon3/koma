@@ -27,5 +27,6 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src", "scripts", ".storybook"]
+  "include": ["src", "scripts", ".storybook"],
+  "exclude": ["scripts/parity"]
 }
