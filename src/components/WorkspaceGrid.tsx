@@ -312,7 +312,7 @@ export function WorkspaceGrid() {
                 {/* The board carries the pager's pan; the grid inside carries
                     the falloff, whose shrink keeps its own centre origin. */}
                 <div ref={boardRef} data-board="" className="relative" style={{ width: boardW }}>
-                  <div data-grid-trail="" aria-hidden className="pointer-events-none absolute inset-0 z-[-1] overflow-visible motion-reduce:hidden" />
+                  <div data-grid-trail="" aria-hidden className="pointer-events-none absolute inset-0 z-10 overflow-visible motion-reduce:hidden" />
                   <div
                     ref={boardFalloffRef}
                     data-board-grid=""
