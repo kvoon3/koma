@@ -271,7 +271,6 @@ function useWheelZoom(
   }, [canvasRef, ready, viewRef, display])
 }
 
-/** The mask layer's 2D context. A mask canvas without one is a broken page. */
 function maskContext(mask: HTMLCanvasElement) {
   const context = mask.getContext('2d', { willReadFrequently: true })
   if (!context)

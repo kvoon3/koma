@@ -255,7 +255,6 @@ async function renderImageSource(source: StickerImageSource, padding: number) {
   return { canvas, hasTransparency }
 }
 
-/** A typed-array read for an index the caller has proved in range. */
 function pixelAt(values: Uint8ClampedArray | Float32Array, index: number): number {
   const value = values[index]
   if (value === undefined)

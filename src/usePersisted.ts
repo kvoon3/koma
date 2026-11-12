@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 
-/** A boolean preference: the only shape this hook persists. */
 export function usePersistedBoolean(key: string, initial: boolean) {
   const [value, setValue] = useState<boolean>(() => {
     try {

@@ -105,7 +105,6 @@ export function compositeMasked(
   context.globalCompositeOperation = 'source-over'
 }
 
-/** Extend the current path: the first point moves, the rest line. */
 function tracePolyline(context: CanvasRenderingContext2D, points: readonly MaskPoint[]) {
   let started = false
   for (const point of points) {

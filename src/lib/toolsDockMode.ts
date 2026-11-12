@@ -12,7 +12,6 @@ export type DockEvent
     | { type: 'snap', mode: ToolsDockMode }
     | { type: 'dismiss' }
 
-/** A list entry a mode index names. An out-of-range read is a broken dock order. */
 function entryAt<T>(list: readonly T[], i: number): T {
   const value = list[i]
   if (value === undefined)

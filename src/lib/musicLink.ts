@@ -327,7 +327,6 @@ export type ResolveMusic
 /** The one request each resolve makes; narrow so a test can stand in for it. */
 export type MusicFetch = (url: string) => Promise<Response>
 
-/** A track link names its track; the parser only omits the id for an album. */
 function appleTrackId(link: AppleLink): string {
   if (link.trackId === undefined)
     throw new Error('Apple track link without a trackId')

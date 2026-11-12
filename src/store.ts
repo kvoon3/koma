@@ -253,12 +253,6 @@ export const MAX_ZOOM = 8
 
 export type { DockBg, PersistedSettings, ToolsDockMode } from './lib/settingsStore'
 
-/**
- * A total read from a list the domain keeps non-empty: a board holds at least
- * one workspace, a layout tree at least one leaf, and the group row at least
- * one group. Throws instead of returning `undefined`, so a broken invariant
- * fails at the read.
- */
 function at<T>(list: readonly T[], i: number): T {
   const item = list[i]
   if (item === undefined)

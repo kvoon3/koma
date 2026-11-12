@@ -56,7 +56,6 @@ function findExifSegment(bytes: Uint8Array, v: DataView): { tiff: number, end: n
       p++
       continue
     }
-    // The loop bound keeps the marker byte in range; 0 is not a JPEG marker.
     const marker = bytes[p + 1] ?? 0
     // Standalone markers: SOI, TEM, RSTn carry no length field.
     if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
