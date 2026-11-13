@@ -63,9 +63,9 @@ function PanePhotoContent({
   /** The photo's placement, from `transformOf` (see lib/boardPaint). */
   transform: string | null
   photoId: string | null
-  mask?: React.CSSProperties
+  mask?: React.CSSProperties | undefined
   radius: number | string
-  crossfade?: boolean
+  crossfade?: boolean | undefined
   onPick: () => void
   /** The photo is being carried as the swap/Move ghost: dim the original. */
   carried: boolean
@@ -673,14 +673,14 @@ interface Props {
   /** Visual box (expanded into seams when crossfade is on). */
   rect: Rect
   /** Pre-overlap layout cell for photo placement; defaults to `rect`. */
-  layoutRect?: Rect
+  layoutRect?: Rect | undefined
   /** When true, seam masks use plus-lighter compositing. */
-  crossfade?: boolean
+  crossfade?: boolean | undefined
   radius: number
   gap: number
   bordered: boolean
   fade: number
-  seam?: SeamSides
+  seam?: SeamSides | undefined
   unit: number
   photo: Photo | null
   photoById: Map<string, Photo>
@@ -707,8 +707,8 @@ function PaneLivePhoto({
   photo: Photo | null
   /** The placed photo's box in pane-local px (see `photoBoxStyle`). */
   box: { left: number, top: number, width: number, height: number }
-  mask?: React.CSSProperties
-  crossfade?: boolean
+  mask?: React.CSSProperties | undefined
+  crossfade?: boolean | undefined
   live: boolean
   /** The pane's turn and mirrors, so the video plays in the photo's frame. */
   turn: string | null
@@ -1239,6 +1239,14 @@ function armSwapHold(rt: PaneGestureRuntime) {
   }, SWAP_HOLD_MS)
 }
 
+/** The first two live pointers; a pinch runs only with at least two. */
+function pinchPointers(rt: PaneGestureRuntime): [{ x: number, y: number }, { x: number, y: number }] {
+  const [a, b] = [...rt.pointersRef.current.values()]
+  if (!a || !b)
+    throw new Error('pinch needs at least two pointers')
+  return [a, b]
+}
+
 function beginPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
   // Only the primary button focuses or starts a gesture. A right-click must
   // leave focus alone so the menu's swap item can target the focused pane.
@@ -1271,7 +1279,7 @@ function beginPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     rt.clearSwapHold()
     rt.swapArmedRef.current = false
     rt.setSwapArmed(false)
-    const [a, b] = [...rt.pointersRef.current.values()]
+    const [a, b] = pinchPointers(rt)
     rt.gestureRef.current = {
       mode: 'pinch',
       lastX: 0,
@@ -1312,7 +1320,7 @@ function movePointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     return
   }
   if (g.mode === 'pinch' && rt.pointersRef.current.size >= 2 && rt.iw && rt.ih) {
-    const [a, b] = [...rt.pointersRef.current.values()]
+    const [a, b] = pinchPointers(rt)
     const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y))
     const mid = rt.local((a.x + b.x) / 2, (a.y + b.y) / 2)
     const ratio = dist / g.startDist
@@ -1357,6 +1365,8 @@ function endPointer(rt: PaneGestureRuntime, e: React.PointerEvent) {
     rt.swapArmedRef.current = false
     rt.setSwapArmed(false)
     const only = [...rt.pointersRef.current.values()][0]
+    if (!only)
+      return
     const p = rt.local(only.x, only.y)
     rt.downAtRef.current = { x: only.x, y: only.y }
     rt.gestureRef.current = { mode: 'pan', lastX: p.x, lastY: p.y, startDist: 0, base: { ...rt.leaf } }

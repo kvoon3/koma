@@ -364,7 +364,7 @@ export function stepCount<T>(history: History<T>): number {
  * strings are i18n keys, so they are typed against the key universe.
   * @x18n-keys
   */
-const LABELS: Record<string, TKey> = {
+const LABELS: Record<string, TKey> & { edit: TKey } = {
   start: 'Start',
   // pane tree
   split: 'Split pane',

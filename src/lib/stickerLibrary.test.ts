@@ -73,8 +73,11 @@ describe('hydration of legacy sessions', () => {
 
   test('a sticker keeps its kind and its folder', () => {
     const out = normalizePhotoKinds([sticker('s', 'Faces')])
-    expect(out[0].kind).toBe('sticker')
-    expect(out[0].folder).toBe('Faces')
+    const [first] = out
+    if (!first)
+      throw new Error('normalizePhotoKinds returned no photos')
+    expect(first.kind).toBe('sticker')
+    expect(first.folder).toBe('Faces')
   })
 
   test('the retired marker survives hydration, and nothing else is touched', () => {
@@ -197,7 +200,10 @@ describe('delete keeps placed copies', () => {
     const photos = [sticker('s1'), photo('p1')]
     const out = retirePhoto(photos, 's1', new Set(['s1']))
     expect(out.map(p => p.id)).toEqual(['s1', 'p1'])
-    expect(out[0].orphaned).toBe(true)
+    const [first] = out
+    if (!first)
+      throw new Error('retirePhoto returned no photos')
+    expect(first.orphaned).toBe(true)
     // Still resolvable by the photos map the preview and the exporter read.
     expect(out.some(p => p.id === 's1')).toBe(true)
     expect(stickerAssetsOf(out)).toEqual([])

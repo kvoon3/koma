@@ -641,10 +641,13 @@ export function TopBar({
     clearFilterCaches()
     void clearSession()
     const workspaces = normalizeWorkspaces(doc.workspaces).map(w => migrateWorkspaceInserts(w, photos))
+    const [firstWorkspace] = workspaces
+    if (!firstWorkspace)
+      throw new Error('loaded board has no workspaces')
     useStore.setState({
       photos,
       workspaces,
-      activeId: workspaces.some(w => w.id === doc.activeId) ? doc.activeId : workspaces[0].id,
+      activeId: workspaces.some(w => w.id === doc.activeId) ? doc.activeId : firstWorkspace.id,
       gap: doc.settings.gap,
       radius: doc.settings.radius,
       bg: doc.settings.bg,

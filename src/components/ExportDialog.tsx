@@ -29,7 +29,7 @@ export interface ExportItem {
   w: number
   h: number
   /** Set on a batch: the 1-based grid position of the workspace it came from. */
-  group?: number
+  group?: number | undefined
   /** A video recorded from the still before it (a Live Photo's motion). */
   live?: boolean
 }
@@ -43,7 +43,8 @@ type Translate = ReturnType<typeof useT>
  * format tag.
  */
 function formatOf(blob: Blob): string {
-  return (blob.type.split(';')[0].split('/')[1] ?? '').toUpperCase()
+  const [type = ''] = blob.type.split(';')
+  return (type.split('/')[1] ?? '').toUpperCase()
 }
 
 function fileSize(bytes: number): string {

@@ -29,12 +29,14 @@ import { useFlow } from '../lib/useFlow'
 import { CameraCapturePanel } from './sticker/CameraCapturePanel'
 import { LibraryPickPanel } from './sticker/LibraryPickPanel'
 
+interface Font { id: string, label: TKey, stack: string, weight: number }
+
 /**
  * Text font choices: a small set of system stacks (no webfont download, so the
  * preview matches the export instantly). The rounded one is the "sticker" pick.
   * @x18n-keys
   */
-const FONTS: { id: string, label: TKey, stack: string, weight: number }[] = [
+const FONTS: [Font, ...Font[]] = [
   {
     id: 'system',
     label: 'System',
@@ -124,7 +126,7 @@ function buildSource(
 /** Local U²-Netᵖ cutout; reports progress and hands back a PNG object URL. */
 async function cutoutBackground(
   imageSrc: string,
-  onJob: (job: { phase: 'loading' | 'processing', progress?: number } | null) => void,
+  onJob: (job: { phase: 'loading' | 'processing', progress?: number | undefined } | null) => void,
   onDone: (url: string) => void,
   onFail: (reason: string) => void,
 ) {
@@ -230,7 +232,7 @@ function StickerPreview({ source, outlineWidth, outlineColor, material, perforat
 /** One background-removal job's progress report for the UI. */
 interface BgJob {
   phase: 'loading' | 'processing'
-  progress?: number
+  progress?: number | undefined
 }
 
 /** Frosted cutout progress over the raw pick while the local model runs. */
@@ -481,7 +483,7 @@ function useCutoutJob(onDone: (url: string) => void, auto: string | null = null)
  * `original()` is the picked File, or the stored data URL when nothing was
  * re-picked.
  */
-function useStickerImage(initial: { url: string, name: string, photoId?: string } | null = null) {
+function useStickerImage(initial: { url: string, name: string, photoId?: string | undefined } | null = null) {
   const [pick, setPick] = useState<{ url: string, name: string } | null>(initial ? { url: initial.url, name: initial.name } : null)
   const [cutoutUrl, setCutoutUrl] = useState<string | null>(null)
   /**
@@ -600,7 +602,7 @@ interface MakerSeed {
   displayLongEdge: number
   texture: StickerTexture | null
   /** The ORIGINAL a re-edit opens on (a recipe's stored picture), if any. */
-  image: { url: string, name: string, photoId?: string } | null
+  image: { url: string, name: string, photoId?: string | undefined } | null
 }
 
 /**
@@ -641,8 +643,10 @@ function baseNameOf(reEdit: { photo: Photo } | null, tab: 'text' | 'image', text
   if (reEdit)
     return editedStickerMeta(reEdit.photo, 'rebaked').baseName
   // Text stickers take their name from the first line, not a leftover image pick.
-  if (tab === 'text')
-    return text.trim().split('\n')[0].slice(0, 24) || 'sticker'
+  if (tab === 'text') {
+    const [firstLine = ''] = text.trim().split('\n')
+    return firstLine.slice(0, 24) || 'sticker'
+  }
   return imageName.replace(/\.[^.]+$/, '') || 'sticker'
 }
 

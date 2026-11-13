@@ -26,7 +26,7 @@ import BgWorker from './bgRemoval.worker?worker&inline'
 
 export interface BgRemovalProgress {
   phase: 'loading' | 'processing'
-  progress?: number
+  progress?: number | undefined
 }
 
 interface WorkerProgressMessage {
@@ -55,7 +55,7 @@ type WorkerResponse = WorkerProgressMessage | WorkerResultMessage | WorkerErrorM
 interface PendingRequest {
   resolve: (blob: Blob) => void
   reject: (error: Error) => void
-  onProgress?: (progress: BgRemovalProgress) => void
+  onProgress?: ((progress: BgRemovalProgress) => void) | undefined
 }
 
 const WORKER_IDLE_TIMEOUT = 60_000

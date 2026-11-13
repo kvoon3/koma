@@ -56,7 +56,8 @@ function findExifSegment(bytes: Uint8Array, v: DataView): { tiff: number, end: n
       p++
       continue
     }
-    const marker = bytes[p + 1]
+    // The loop bound keeps the marker byte in range; 0 is not a JPEG marker.
+    const marker = bytes[p + 1] ?? 0
     // Standalone markers: SOI, TEM, RSTn carry no length field.
     if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
       p += 2
@@ -242,9 +243,11 @@ function parseTiff(v: DataView, tiff: number, end: number): ExifData | null {
 
 /** Degrees + minutes/60 + seconds/3600, negated for S / W. */
 function dms(parts: number[] | null, ref: string | null): number | null {
-  if (!parts || parts.length < 3 || !ref)
+  if (!parts || !ref)
     return null
   const [d, m, s] = parts
+  if (d === undefined || m === undefined || s === undefined)
+    return null
   if (d < 0 || m < 0 || m >= 60 || s < 0 || s >= 60)
     return null
   const value = d + m / 60 + s / 3600

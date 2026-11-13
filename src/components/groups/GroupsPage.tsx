@@ -299,41 +299,43 @@ export function GroupsPage() {
                   shrink is off: the content keeps its height and the
                   scroller, not the flex line, owns the overflow. */}
               <div className="relative m-auto w-full shrink-0" style={{ height: layout.contentH }}>
-                {layout.tiles.map((box, i) => (
-                  leaving.has(grids[i].id)
-                    ? null
-                    : (
-                        <PageTile
-                          key={grids[i].id}
-                          group={grids[i]}
-                          board={boardOf(i)}
-                          box={box}
-                          layout={layout}
-                          named={i === activeIndex}
-                          hidden={grids[i].hidden === true}
-                          entering={enteringIds.has(grids[i].id)}
-                          photoById={photoById}
-                          transparent={transparent}
-                          canDelete={grids.length > 1}
-                          onOpen={openTile}
-                          onDelete={deleteGroup}
-                          onToggle={toggleGridHidden}
-                        />
-                      )
-                ))}
+                {grids.map((group, i) => {
+                  const box = layout.tiles[i]
+                  if (!box || leaving.has(group.id))
+                    return null
+                  return (
+                    <PageTile
+                      key={group.id}
+                      group={group}
+                      board={boardOf(i)}
+                      box={box}
+                      layout={layout}
+                      named={i === activeIndex}
+                      hidden={group.hidden === true}
+                      entering={enteringIds.has(group.id)}
+                      photoById={photoById}
+                      transparent={transparent}
+                      canDelete={grids.length > 1}
+                      onOpen={openTile}
+                      onDelete={deleteGroup}
+                      onToggle={toggleGridHidden}
+                    />
+                  )
+                })}
                 {[...leaving.keys()].map((id) => {
                   const i = grids.findIndex(g => g.id === id)
-                  const box = i >= 0 ? layout.tiles[i] : undefined
-                  if (!box)
+                  const group = grids[i]
+                  const box = layout.tiles[i]
+                  if (!group || !box)
                     return null
                   return (
                     <LeavingTile
                       key={id}
-                      group={grids[i]}
+                      group={group}
                       board={boardOf(i)}
                       box={box}
                       layout={layout}
-                      hidden={grids[i].hidden === true}
+                      hidden={group.hidden === true}
                       dimmed={leaving.get(id) === true}
                       photoById={photoById}
                       transparent={transparent}

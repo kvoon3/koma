@@ -103,10 +103,14 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
     const standardDeviation = [0.229, 0.224, 0.225]
     const planeSize = inputSize * inputSize
     const normalized = new Float32Array(planeSize * 3)
-    for (let pixel = 0; pixel < planeSize; pixel += 1) {
-      for (let channel = 0; channel < 3; channel += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const channelMean = mean[channel]
+      const channelDeviation = standardDeviation[channel]
+      if (channelMean === undefined || channelDeviation === undefined)
+        continue
+      for (let pixel = 0; pixel < planeSize; pixel += 1) {
         normalized[channel * planeSize + pixel]
-          = (prepared.data[pixel * 3 + channel] / 255 - mean[channel]) / standardDeviation[channel]
+          = (prepared.data[pixel * 3 + channel] / 255 - channelMean) / channelDeviation
       }
     }
     const pixelValues = new Tensor('float32', normalized, [1, 3, inputSize, inputSize])
@@ -139,8 +143,11 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
     const mask = await croppedMask.resize(image.width, image.height)
     image.rgba()
     for (let index = 0; index < mask.data.length; index += 1) {
+      const sourcePixel = image.data[index * 4 + 3]
+      if (sourcePixel === undefined)
+        continue
       const cleanedAlpha = cleanMatteAlpha(mask.data[index])
-      const sourceAlpha = image.data[index * 4 + 3] / 255
+      const sourceAlpha = sourcePixel / 255
       mask.data[index] = Math.round(cleanedAlpha * sourceAlpha * 255)
     }
     return image.putAlpha(mask)

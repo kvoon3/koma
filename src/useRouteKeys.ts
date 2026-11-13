@@ -90,7 +90,9 @@ function focusNextLeaf(s: StoreState, ws: ActiveWorkspace) {
   if (!leaves.length)
     return
   const i = leaves.findIndex(l => l.id === ws.focusId)
-  s.focus(leaves[(i + 1 + leaves.length) % leaves.length].id)
+  const next = leaves[(i + 1 + leaves.length) % leaves.length]
+  if (next)
+    s.focus(next.id)
 }
 
 function handleEscapeKey(s: StoreState, ui: KeyUi) {

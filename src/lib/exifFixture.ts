@@ -53,7 +53,7 @@ export function exifJpeg(opts: ExifJpegOptions = {}): Uint8Array<ArrayBuffer> {
   const bytes: number[] = []
   const base = baseJpeg()
   // SOI
-  bytes.push(base[0], base[1])
+  bytes.push(...base.subarray(0, 2))
 
   const tiff: number[] = []
   const u16 = (n: number) => {

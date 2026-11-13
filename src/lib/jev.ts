@@ -57,9 +57,9 @@ export interface JevConfig {
 
 export interface JevEnv {
   /** True for `vite build`, false for the dev server. */
-  readonly PROD?: boolean
-  readonly VITE_JEV_API_URL?: string
-  readonly VITE_JEV_API_KEY?: string
+  readonly PROD?: boolean | undefined
+  readonly VITE_JEV_API_URL?: string | undefined
+  readonly VITE_JEV_API_KEY?: string | undefined
 }
 
 /**

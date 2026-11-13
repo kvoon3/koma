@@ -59,7 +59,11 @@ function prepareRing(points: Ring): PreparedRing | null {
   let minLat = Infinity
   let maxLng = -Infinity
   let maxLat = -Infinity
-  for (const [lng, lat] of points) {
+  for (const point of points) {
+    const lng = point[0]
+    const lat = point[1]
+    if (lng === undefined || lat === undefined)
+      return null
     if (lng < minLng)
       minLng = lng
     if (lng > maxLng)
@@ -143,14 +147,26 @@ function ringContains(r: PreparedRing, lng: number, lat: number): boolean {
   if (lng < r.minLng || lng > r.maxLng || lat < r.minLat || lat > r.maxLat)
     return false
   const pts = r.points
+  const last = pts[pts.length - 1]
+  if (last === undefined)
+    return false
+  let xj = last[0]
+  let yj = last[1]
+  if (xj === undefined || yj === undefined)
+    return false
   let inside = false
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const xi = pts[i][0]
-    const yi = pts[i][1]
-    const xj = pts[j][0]
-    const yj = pts[j][1]
+  for (let i = 0; i < pts.length; i += 1) {
+    const point = pts[i]
+    if (point === undefined)
+      return false
+    const xi = point[0]
+    const yi = point[1]
+    if (xi === undefined || yi === undefined)
+      return false
     if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
       inside = !inside
+    xj = xi
+    yj = yi
   }
   return inside
 }
@@ -166,7 +182,7 @@ export function lookupDistrict(index: GeoIndex, lat: number, lng: number): strin
   let bestDepth = -1
   for (const idx of candidates) {
     const row = index.rows[idx]
-    if (row.depth <= bestDepth)
+    if (row === undefined || row.depth <= bestDepth)
       continue
     let inside = false
     for (const ring of row.rings) {

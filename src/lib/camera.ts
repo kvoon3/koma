@@ -8,7 +8,7 @@ type CameraSupport = 'ready' | 'insecure' | 'unsupported'
 
 /** The pieces of the environment the decision needs; structural so tests can pass plain objects. */
 interface CameraScope {
-  readonly isSecureContext?: boolean
+  readonly isSecureContext?: boolean | undefined
   readonly mediaDevices?: { readonly getUserMedia?: unknown } | null
 }
 

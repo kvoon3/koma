@@ -133,10 +133,13 @@ describe('layoutTree', () => {
     for (const gap of [26, 30]) {
       const { leaves, dividers } = layoutTree(split('s', leaf('a'), leaf('b')), 80, 80, gap)
       const [a, b] = leaves.map(l => l.rect)
+      const divider = dividers[0]
+      if (!a || !b || !divider)
+        throw new Error('layoutTree returned fewer than two panes')
       expect(a.w).toBeGreaterThan(0)
       expect(b.w).toBeGreaterThan(0)
-      expect(a.w + b.w + dividers[0].gap).toBeCloseTo(80 - gap * 2, 12)
-      expect(b.x - (a.x + a.w)).toBeCloseTo(dividers[0].gap, 12)
+      expect(a.w + b.w + divider.gap).toBeCloseTo(80 - gap * 2, 12)
+      expect(b.x - (a.x + a.w)).toBeCloseTo(divider.gap, 12)
     }
   })
 

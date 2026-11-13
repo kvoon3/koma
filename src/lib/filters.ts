@@ -1163,13 +1163,13 @@ function ditherDiffuse(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number
       const x1 = Math.min(w, x0 + p)
       // Indexed from `u + 1`: the margin absorbs the out-of-range spreads, so
       // the kernel runs without edge guards.
-      const v = blockMean(src, w, x0, y0, x1, y1) + err[cur + u + 1]!
+      const v = blockMean(src, w, x0, y0, x1, y1) + (err[cur + u + 1] ?? 0)
       const on = v < mid
       const e = v - (on ? DIFFUSE_INK_L : DIFFUSE_PAPER_L)
-      err[cur + u + 2] += e * 0.4375
-      err[nxt + u] += e * 0.1875
-      err[nxt + u + 1] += e * 0.3125
-      err[nxt + u + 2] += e * 0.0625
+      err[cur + u + 2] = (err[cur + u + 2] ?? 0) + e * 0.4375
+      err[nxt + u] = (err[nxt + u] ?? 0) + e * 0.1875
+      err[nxt + u + 1] = (err[nxt + u + 1] ?? 0) + e * 0.3125
+      err[nxt + u + 2] = (err[nxt + u + 2] ?? 0) + e * 0.0625
       fillBlock(dst, w, x0, y0, x1, y1, on ? SCREEN_INK : SCREEN_PAPER)
     }
   }

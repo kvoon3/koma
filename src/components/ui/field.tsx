@@ -43,7 +43,7 @@ export function AppSlider({ value, min = 0, max, step, label, onChange, classNam
   value: number
   min?: number
   max: number
-  step?: number
+  step?: number | undefined
   label: string
   onChange: (value: number) => void
   className?: string
@@ -55,7 +55,7 @@ export function AppSlider({ value, min = 0, max, step, label, onChange, classNam
       className={dense ? 'box-border h-full w-full' : className}
       min={min}
       max={max}
-      step={step}
+      {...(step === undefined ? {} : { step })}
       value={value}
       onValueChange={v => onChange(v as number)}
     >

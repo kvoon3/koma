@@ -19,7 +19,7 @@ export type LibraryType = (typeof LIBRARY_KINDS)[number]['type']
 export type LibraryFilter = 'all' | LibraryType
 /** null = every asset, '' = Untagged/Unsorted, else the tag/folder name. */
 export type GroupPick = null | '' | string
-export interface LibrarySearch { type?: LibraryType }
+export interface LibrarySearch { type?: LibraryType | undefined }
 
 export function parseLibraryType(raw: unknown): LibraryType | undefined {
   return typeof raw === 'string' && LIBRARY_KINDS.some(kind => kind.type === raw)

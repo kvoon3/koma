@@ -10,7 +10,7 @@ describe('addSlot', () => {
   it('appends a fresh cell at the end', () => {
     const next = addSlot(make(8), fresh)
     expect(next).toHaveLength(9)
-    expect(next[8].v).toBe(0)
+    expect(next[8]?.v).toBe(0)
     expect(next.slice(0, 8)).toEqual(make(8))
   })
   it('is a no-op at the max', () => {
@@ -149,18 +149,18 @@ describe('normalizeGrids (session migration)', () => {
     const saved = makeGrid(9)
     const out = normalizeGrids({ workspaces: saved, activeId: 'w4' }, fresh, newGridId)
     expect(out.grids).toHaveLength(1)
-    expect(out.grids[0].name).toBe('1')
+    expect(out.grids[0]?.name).toBe('1')
     expect(out.workspaces).toEqual(saved)
     expect(out.activeId).toBe('w4')
     // One group means nothing is parked.
     expect(out.parked).toEqual({})
-    expect(out.activeGridId).toBe(out.grids[0].id)
+    expect(out.grids[0]?.id).toBe(out.activeGridId)
   })
 
   it('hydrates a legacy session without cells as a default board', () => {
     const out = normalizeGrids({ activeId: 'nope' }, fresh, newGridId)
     expect(out.workspaces).toHaveLength(DEFAULT_WORKSPACES)
-    expect(out.activeId).toBe(out.workspaces[0].id)
+    expect(out.workspaces[0]?.id).toBe(out.activeId)
   })
 
   it('hydrates groups: the saved open one keeps the view, the rest park', () => {

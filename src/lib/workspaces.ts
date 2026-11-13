@@ -45,7 +45,7 @@ export function resetSlot<T extends { id: string }>(list: T[], id: string, fresh
  * lists get the default board; anything past nine is dropped; duplicate ids
  * keep the first.
  */
-export function normalizeSlots<T extends { id: string }>(list: T[] | null | undefined, fresh: () => T): T[] {
+export function normalizeSlots<T extends { id: string }>(list: readonly T[] | null | undefined, fresh: () => T): T[] {
   const seen = new Set<string>()
   const out = (list ?? []).filter((w) => {
     if (!w || typeof w.id !== 'string' || seen.has(w.id))
@@ -61,7 +61,8 @@ export function activeAfterRemove<T extends { id: string }>(before: T[], after: 
   if (after.some(w => w.id === activeId))
     return activeId
   const i = Math.max(0, before.findIndex(w => w.id === activeId))
-  return after[Math.min(i, after.length - 1)].id
+  const next = after[Math.min(i, after.length - 1)]
+  return next === undefined ? activeId : next.id
 }
 
 /**
@@ -82,7 +83,7 @@ export interface GridGroup {
    * place in the row, stays swipable and openable, and only reads as dimmed
    * (the groups page shows the eye and the delete `x` on it).
    */
-  hidden?: boolean
+  hidden?: boolean | undefined
 }
 
 /**
@@ -110,12 +111,12 @@ export interface SavedGrid<T> {
 /** Everything a session (or a board file) hands the store when a board loads. */
 export interface SavedGrids<T> {
   /** Groups, written by a session saved after the dual grid. */
-  grids?: readonly (SavedGrid<T> | null | undefined)[] | null
+  grids?: readonly (SavedGrid<T> | null | undefined)[] | null | undefined
   /** The single board older sessions saved, before groups existed. */
-  workspaces?: readonly T[] | null
+  workspaces?: readonly T[] | null | undefined
   /** The group that was open. */
-  activeGridId?: string | null
-  activeId?: string | null
+  activeGridId?: string | null | undefined
+  activeId?: string | null | undefined
 }
 
 /** The store's group state, hydrated: the open board plus the parked ones. */
@@ -226,14 +227,22 @@ export function normalizeGrids<T extends { id: string }>(
   const boards = entries.map((entry) => {
     const group = { id: entry.id, name: entry.name || nextGridName(grids), hidden: entry.hidden || undefined }
     grids.push(group)
-    const workspaces = normalizeSlots(entry.workspaces as T[] | null | undefined, fresh)
-    const activeId = workspaces.some(w => w.id === entry.activeId) ? entry.activeId as string : workspaces[0].id
+    const workspaces = normalizeSlots(entry.workspaces, fresh)
+    const [first] = workspaces
+    if (first === undefined)
+      throw new Error('normalizeSlots returned an empty board')
+    const savedActive = entry.activeId
+    const activeId = savedActive != null && workspaces.some(w => w.id === savedActive)
+      ? savedActive
+      : first.id
     return { group, workspaces, activeId }
   })
 
   // The group that was open keeps the view; anything unknown opens the first.
   const open = Math.max(0, boards.findIndex(b => b.group.id === saved.activeGridId))
   const active = boards[open]
+  if (active === undefined)
+    throw new Error('normalizeGrids produced no boards')
   const parked: Record<string, ParkedBoard<T>> = {}
   for (const board of boards) {
     if (board !== active)

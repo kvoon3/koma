@@ -14,32 +14,39 @@ function view(leaves: { node: Leaf, rect: Rect }[], gap = 0, fade = 8): Derived 
 const NO_SEAMS = new Map<string, SeamSides>()
 const CELL: Rect = { x: 100, y: 50, w: 400, h: 300 }
 
+function firstDraw(draws: ReturnType<typeof paneDraws>) {
+  const [first] = draws
+  if (!first)
+    throw new Error('paneDraws returned no draws')
+  return first
+}
+
 describe('paneDraws', () => {
   it('draws the cell itself when the crossfade is off', () => {
-    const draws = paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 8, 100)
-    expect(draws[0].draw).toBe(CELL)
-    expect(draws[0].fade).toBe(8)
+    const draw = firstDraw(paneDraws(view([{ node: leaf('a'), rect: CELL }]), NO_SEAMS, false, 8, 100))
+    expect(draw.draw).toBe(CELL)
+    expect(draw.fade).toBe(8)
   })
 
   it('grows a photo pane into its seams when the crossfade is on', () => {
     const seams = new Map([['a', { left: true, right: false, top: false, bottom: false }]])
-    const draws = paneDraws(view([{ node: leaf('a'), rect: CELL }]), seams, true, 8, 100)
-    expect(draws[0].draw.x).toBeLessThan(CELL.x)
-    expect(draws[0].draw.w).toBeGreaterThan(CELL.w)
-    expect(draws[0].fade).toBeGreaterThan(0)
-    expect(draws[0].seam).toEqual(seams.get('a'))
+    const draw = firstDraw(paneDraws(view([{ node: leaf('a'), rect: CELL }]), seams, true, 8, 100))
+    expect(draw.draw.x).toBeLessThan(CELL.x)
+    expect(draw.draw.w).toBeGreaterThan(CELL.w)
+    expect(draw.fade).toBeGreaterThan(0)
+    expect(draw.seam).toEqual(seams.get('a'))
   })
 
   it('leaves an empty pane unfeathered under the crossfade, and unexpanded', () => {
     const seams = new Map([['a', { left: true, right: true, top: true, bottom: true }]])
-    const draws = paneDraws(view([{ node: leaf('a', null), rect: CELL }]), seams, true, 8, 100)
-    expect(draws[0].draw).toBe(CELL)
-    expect(draws[0].fade).toBe(0)
+    const draw = firstDraw(paneDraws(view([{ node: leaf('a', null), rect: CELL }]), seams, true, 8, 100))
+    expect(draw.draw).toBe(CELL)
+    expect(draw.fade).toBe(0)
   })
 
   it('feathers nothing when an intentional gutter turns the blend off', () => {
-    const draws = paneDraws(view([{ node: leaf('a'), rect: CELL }], 12), NO_SEAMS, true, 8, 100)
-    expect(draws[0].fade).toBe(0)
+    const draw = firstDraw(paneDraws(view([{ node: leaf('a'), rect: CELL }], 12), NO_SEAMS, true, 8, 100))
+    expect(draw.fade).toBe(0)
   })
 })
 

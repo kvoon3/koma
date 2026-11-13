@@ -75,7 +75,7 @@ export type StickerOriginal
     src: string
     name: string
     /** The library photo it was picked from, when it was one (provenance). */
-    photoId?: string
+    photoId?: string | undefined
   }
 
 export interface StickerRecipe {
@@ -92,8 +92,8 @@ export interface StickerRecipe {
  */
 export type StickerOriginalInput
   = | { type: 'text', text: string, color: string, fontId: string }
-    | { type: 'image', file: File, name: string, photoId?: string }
-    | { type: 'image', src: string, name: string, photoId?: string }
+    | { type: 'image', file: File, name: string, photoId?: string | undefined }
+    | { type: 'image', src: string, name: string, photoId?: string | undefined }
 
 /** A recipe read from untrusted input is only a recipe when every field is there. */
 function asRecord(value: unknown): Record<string, unknown> | null {
