@@ -5,7 +5,6 @@ import { parseWorkspaceFile } from './workspaceFile'
 /** Any data URL works: the parser only re-materialises bytes, it never decodes. */
 const still = (payload: string) => `data:text/plain;base64,${btoa(payload)}`
 
-/** A doc with one plain photo and one sticker with a video pair and a source. */
 function docFile() {
   const doc = {
     version: 1,
@@ -37,7 +36,6 @@ function docFile() {
   return new File([JSON.stringify(doc)], 'board.koma.json', { type: 'application/json' })
 }
 
-/** The same doc with one top-level field replaced. */
 async function parseWith(patch: (doc: Record<string, unknown>) => void) {
   const doc = JSON.parse(await docFile().text()) as Record<string, unknown>
   patch(doc)

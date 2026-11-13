@@ -292,8 +292,7 @@ function cutoutSetsOrUndefined(value: unknown): CutoutSets | undefined {
 /**
  * A board entry, proved only to the depth the load path ever checks: the
  * string `id` `normalizeSlots` keeps. The pane tree inside is validated
- * nowhere on this path (the cast it replaced did not check it either), so a
- * corrupt tree surfaces at hydrate, as it always has.
+ * nowhere on this path, so a corrupt tree surfaces at hydrate.
  */
 function isBoardEntry(value: unknown): value is Workspace {
   return isRecord(value) && typeof value.id === 'string'
@@ -440,11 +439,8 @@ export async function loadSession(): Promise<{ meta: SessionMeta, photos: Sessio
     const tx = db.transaction(['meta', 'photos'], 'readonly')
     const rawMeta: unknown = await reqToPromise(tx.objectStore('meta').get(META_KEY))
     const rawPhotos: unknown = await reqToPromise(tx.objectStore('photos').getAll())
-    // A photos store that is not an array is not a session (the cast's old
-    // `Array.isArray` check), and no photo of it is salvageable.
     if (!Array.isArray(rawPhotos))
       return null
-    // One corrupt photo drops while the rest of the board still opens.
     const photos = rawPhotos.flatMap((p) => {
       const record = parseSessionPhotoRecord(p)
       return record ? [record] : []

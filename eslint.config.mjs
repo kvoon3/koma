@@ -49,9 +49,8 @@ export default antfu({
   // file, not source. Linting it parses the whole array as code.
   ignores: ['src/data/districts.json', 'scripts/parity'],
 }, {
-  // Type-aware rules: the type checker catches assertions and promises that a
-  // syntax-only pass cannot judge. Scoped to app code; the measurement scripts
-  // assert against their own fixtures on purpose.
+  // Scoped to app code; the measurement scripts assert against their own
+  // fixtures on purpose.
   files: ['src/**/*.{ts,tsx}', 'routes/**/*.{ts,tsx}'],
   languageOptions: {
     parserOptions: {

@@ -39,7 +39,6 @@ function isModelTensor(value: unknown): value is ModelTensor {
   return data instanceof Float32Array || data instanceof Uint8Array
 }
 
-/** The runner's output: one tensor per output name, every shape checked. */
 function isModelOutput(value: unknown): value is Record<string, ModelTensor> {
   return isRecord(value) && Object.values(value).every(isModelTensor)
 }

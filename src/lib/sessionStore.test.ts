@@ -83,8 +83,6 @@ describe('sessionMeta', () => {
   })
 })
 
-// ---- The read boundary ------------------------------------------------------
-
 const file = () => new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' })
 
 /** A complete recipe, the shape `stickerRecipeFrom` accepts. */
@@ -218,13 +216,10 @@ describe('parseSessionMeta', () => {
 
   it('drops a bad board cell alone, the filter normalizeSlots applies', () => {
     const saved = sessionMeta(source())
-    // A cell without a string id costs itself, not the board (normalizeSlots
-    // filters the same way at hydrate; an all-bad board becomes the fresh nine).
     const one = parseSessionMeta({ ...saved, workspaces: [{ id: 4 }, ...board('b', 2)] })
     expect(one?.workspaces.map(w => w.id)).toEqual(['b0', 'b1'])
     const all = parseSessionMeta({ ...saved, workspaces: [{ id: 4 }] })
     expect(all?.workspaces).toEqual([])
-    // Inside a saved group, one bad cell keeps the group with its good cells.
     const grid = parseSessionMeta({
       ...saved,
       grids: [{ id: 'gA', name: 'Cover', workspaces: [{ id: 7 }, ...board('a', 3)], activeId: 'a2' }],
