@@ -320,15 +320,21 @@ function mapActive(s: State, fn: (w: Workspace) => Workspace): Workspace[] {
 }
 
 /**
- * The undoable slices of `s` as one shallow snapshot (see UndoSnapshot): a
- * shallow copy of exactly `UNDO_SLICES`, so a slice added to that list is in
- * the snapshot without a second edit.
+ * The undoable slices of `s` as one shallow snapshot (see UndoSnapshot). The
+ * literal is the snapshot's whole shape, so the compiler fails here when
+ * `UNDO_SLICES` grows a slice the copy has not learned yet.
  */
 function snapshotOf(s: State): UndoSnapshot {
-  const snap: UndoSnapshot = {} as UndoSnapshot
-  for (const key of UNDO_SLICES)
-    Object.assign(snap, { [key]: s[key] })
-  return snap
+  return {
+    workspaces: s.workspaces,
+    activeId: s.activeId,
+    grids: s.grids,
+    activeGridId: s.activeGridId,
+    parkedBoards: s.parkedBoards,
+    bg: s.bg,
+    bgGradient: s.bgGradient,
+    bgImage: s.bgImage,
+  }
 }
 
 /**
@@ -356,8 +362,8 @@ function restoreSnapshot(s: State, snap: UndoSnapshot): Partial<State> {
  * navigation: `patch({ activeId })` must not commit, or entering a cell would
  * push an undo step (see `enter` in WorkspaceGrid).
  */
-const NAVIGATION_SLICES = ['activeId', 'activeGridId'] as const
-const UNDOABLE_PATCH_KEYS = UNDO_SLICES.filter(k => !(NAVIGATION_SLICES as readonly string[]).includes(k))
+const NAVIGATION_SLICES: readonly string[] = ['activeId', 'activeGridId']
+const UNDOABLE_PATCH_KEYS: readonly string[] = UNDO_SLICES.filter(k => !NAVIGATION_SLICES.includes(k))
 
 /**
  * Every photo id the session still draws or could draw again: the boards of
@@ -1236,7 +1242,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
    * keeps a colour picked by dragging the swatch a single undo step.
    */
   patch: (p) => {
-    const undoable = Object.keys(p).filter(k => (UNDOABLE_PATCH_KEYS as readonly string[]).includes(k))
+    const undoable = Object.keys(p).filter(k => UNDOABLE_PATCH_KEYS.includes(k))
     if (undoable.length)
       commit(`patch:${undoable.sort().join(',')}`)
     set(p)

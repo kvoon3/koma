@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { DockBg } from '../store'
+import { cssVars } from './cssVars'
 
 /**
  * Can `backdrop-filter: url(#svg)` actually refract? Only Chromium renders
@@ -29,7 +30,7 @@ export const DOCK_GLASS_CLS: Record<DockBg, string> = {
  */
 export function dockSurface(bg: DockBg, opacity: number): { className: string, style: CSSProperties } {
   const o = Math.min(100, Math.max(0, Math.round(Number.isFinite(opacity) ? opacity : 0)))
-  const style = { '--glass-tint': 'var(--drawerBg)', '--glass-opacity': `${o}%` } as CSSProperties
+  const style = cssVars({ '--glass-tint': 'var(--drawerBg)', '--glass-opacity': `${o}%` })
   return { className: DOCK_GLASS_CLS[bg], style }
 }
 

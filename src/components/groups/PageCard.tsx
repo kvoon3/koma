@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import type { BoardCell } from '../../lib/boardPreview'
 import type { PageBox, TilesLayout } from '../../lib/groupPage'
 import type { Photo } from '../../lib/imageStore'
@@ -7,6 +6,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Eye, EyeOff, X } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
+import { cssVars } from '../../lib/cssVars'
 import { tileWiggle } from '../../lib/groupPage'
 import { useT } from '../../lib/i18n'
 import { MAX_WORKSPACES } from '../../lib/workspaces'
@@ -129,11 +129,13 @@ export function PageTile({ group, board, box, layout, named, hidden, entering, p
           never changes, so a reorder never restarts it. */}
       <div
         className="tile-wiggle relative"
-        style={{
-          '--wiggle-dur': `${wiggle.duration}ms`,
-          '--wiggle-delay': `${wiggle.delay}ms`,
-          'animationPlayState': isDragging ? 'paused' : undefined,
-        } as CSSProperties}
+        style={cssVars(
+          {
+            '--wiggle-dur': `${wiggle.duration}ms`,
+            '--wiggle-delay': `${wiggle.delay}ms`,
+          },
+          { animationPlayState: isDragging ? 'paused' : undefined },
+        )}
       >
         <button
           type="button"
@@ -230,10 +232,10 @@ export function LeavingTile({ group, board, box, layout, hidden, dimmed, photoBy
     >
       <div
         className="tile-wiggle relative"
-        style={{
+        style={cssVars({
           '--wiggle-dur': `${wiggle.duration}ms`,
           '--wiggle-delay': `${wiggle.delay}ms`,
-        } as CSSProperties}
+        })}
       >
         <span className={`relative block select-none ${TILE_SHADOW}${hidden ? ' opacity-45' : ''}`}>
           <TileBoard board={board} cell={layout.cell} gap={layout.boardGap} photoById={photoById} transparent={transparent} dimmed={dimmed} />

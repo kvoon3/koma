@@ -136,7 +136,14 @@ export function SelectField({ label, value, items, onChange }: {
   return (
     <div className={fieldRowCls}>
       <span className={fieldLabelCls}>{label}</span>
-      <Select.Root items={items} value={value} onValueChange={v => onChange(v as string)}>
+      <Select.Root
+        items={items}
+        value={value}
+        onValueChange={(v) => {
+          if (typeof v === 'string')
+            onChange(v)
+        }}
+      >
         <Select.Trigger className={`${fieldControlCls} ${selectTriggerCls}`} aria-label={label}>
           <Select.Value />
           <Select.Icon className="flex flex-none text-dim">

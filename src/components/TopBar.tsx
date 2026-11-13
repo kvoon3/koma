@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import type { DockBox } from '../lib/dockHighlight'
 import type { Lang } from '../lib/i18n'
 import type { WorkspaceDocV1 } from '../lib/workspaceFile'
@@ -10,6 +10,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import wordmark from '../assets/fonts/wordmark.json'
 import { useMediaQuery } from '../hooks'
+import { cssVars } from '../lib/cssVars'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { boxIn } from '../lib/dockBox'
 import { glideDelta, isStill } from '../lib/dockHighlight'
@@ -87,7 +88,7 @@ function useBarHighlight() {
     const bar = barRef.current
     if (!box || !bar)
       return
-    if (!el.isConnected || el.getClientRects().length === 0 || (el as HTMLButtonElement).disabled) {
+    if (!el.isConnected || el.getClientRects().length === 0 || (el instanceof HTMLButtonElement && el.disabled)) {
       clear()
       return
     }
@@ -174,6 +175,20 @@ const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel 
 
 /** The top bar's dropdowns: they trade the open panel with each other on hover. */
 type HeaderMenuId = 'workspace' | 'photo' | 'help' | 'lang'
+type HeaderTarget = HeaderMenuId | 'settings'
+
+function isHeaderTarget(value: string): value is HeaderTarget {
+  switch (value) {
+    case 'workspace':
+    case 'photo':
+    case 'help':
+    case 'lang':
+    case 'settings':
+      return true
+    default:
+      return false
+  }
+}
 
 /** What one dropdown trigger needs from the hand-over: its state and hover hook. */
 interface MenuWiring {
@@ -197,7 +212,7 @@ function CatMenu({ label, icon, hop, open, onOpenChange, onTriggerEnter, childre
       />
       <Menu.Portal>
         <Menu.Positioner sideOffset={4} align="start" className="z-[260] select-none outline-0">
-          <Menu.Popup className={popupCls} style={{ '--menu-hop': `${hop}px` } as CSSProperties}>{children}</Menu.Popup>
+          <Menu.Popup className={popupCls} style={cssVars({ '--menu-hop': `${hop}px` })}>{children}</Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.Root>
@@ -211,6 +226,10 @@ const LANG_ITEMS: [Lang, string][] = [
   ['zh-Hant', '繁體中文'],
   ['ja', '日本語'],
 ]
+
+function isLang(value: unknown): value is Lang {
+  return LANG_ITEMS.some(([lang]) => lang === value)
+}
 
 /**
  * The interface language, a two-row popup under the top bar next to the theme
@@ -239,7 +258,13 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
       <Menu.Portal>
         <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
           <Menu.Popup className={popupCls}>
-            <Menu.RadioGroup value={lang} onValueChange={v => setLang(v as Lang)}>
+            <Menu.RadioGroup
+              value={lang}
+              onValueChange={(v) => {
+                if (isLang(v))
+                  setLang(v)
+              }}
+            >
               {LANG_ITEMS.map(([value, name]) => (
                 <Menu.RadioItem key={value} className={itemCls} value={value} closeOnClick>
                   {name}
@@ -589,8 +614,9 @@ export function TopBar({
     for (const el of document.querySelectorAll<HTMLElement>('[data-bar-chip]')) {
       const r = el.getBoundingClientRect()
       if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-        if (el.dataset.barTrigger)
-          handOver(el.dataset.barTrigger as HeaderMenuId | 'settings')
+        const trigger = el.dataset.barTrigger
+        if (trigger && isHeaderTarget(trigger))
+          handOver(trigger)
         bar.place(el)
         return
       }
@@ -622,7 +648,7 @@ export function TopBar({
       say(t('Workspace file saved'))
     }
     catch (e) {
-      say(t('Failed to save workspace: {msg}', { msg: (e as Error).message }))
+      say(t('Failed to save workspace: {msg}', { msg: e instanceof Error ? e.message : String(e) }))
     }
     finally {
       setSaving(false)

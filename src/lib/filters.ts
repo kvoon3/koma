@@ -66,7 +66,8 @@ export const FILTER_IDS = [
 export type FilterId = (typeof FILTER_IDS)[number]
 
 export function isFilterId(v: unknown): v is FilterId {
-  return typeof v === 'string' && (FILTER_IDS as readonly string[]).includes(v)
+  const ids: readonly string[] = FILTER_IDS
+  return typeof v === 'string' && ids.includes(v)
 }
 
 /**

@@ -127,15 +127,20 @@ export function dropCutoutSetRefs(sets: CutoutSets, photoId: string): CutoutSets
   return next
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 /** Validate the table from a session or a `.koma.json`; anything malformed is dropped. */
 export function normalizeCutoutSets(raw: unknown): CutoutSets {
-  if (!raw || typeof raw !== 'object')
+  if (!isRecord(raw))
     return {}
   const next: CutoutSets = {}
-  for (const [sourceId, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!sourceId || !value || typeof value !== 'object')
+  for (const [sourceId, value] of Object.entries(raw)) {
+    if (!sourceId || !isRecord(value))
       continue
-    const { cutout, blurred } = value as { cutout?: unknown, blurred?: unknown }
+    const cutout = value.cutout
+    const blurred = value.blurred
     if (typeof cutout !== 'string' || !cutout)
       continue
     next[sourceId] = typeof blurred === 'string' && blurred ? { cutout, blurred } : { cutout }

@@ -225,7 +225,7 @@ function useSpacePan() {
     const down = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat)
         return
-      const target = e.target as HTMLElement | null
+      const target = e.target instanceof HTMLElement ? e.target : null
       if (target && /^(?:INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
         return
       spaceRef.current = true

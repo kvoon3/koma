@@ -220,11 +220,11 @@ export function useStageZoom(
     if (!stage || !enabled)
       return
     const onWheel = (e: WheelEvent) => {
-      if (e.defaultPrevented || canvasRef.current?.contains(e.target as Node))
+      if (e.defaultPrevented || (e.target instanceof Node && canvasRef.current?.contains(e.target)))
         return
       const pinch = e.ctrlKey || e.metaKey
       // The rail owns a plain wheel over itself: it steps what it is sizing.
-      if (!pinch && (e.target as Element | null)?.closest?.('[role="slider"]'))
+      if (!pinch && (e.target instanceof Element && e.target.closest('[role="slider"]')))
         return
       // The air is ours: never let the browser zoom or scroll the page instead.
       e.preventDefault()
@@ -240,7 +240,7 @@ export function useStageZoom(
 
   /** A double-click on the air (never on the canvas itself) puts the stage back. */
   const onStageDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (canvasRef.current?.contains(e.target as Node))
+    if (e.target instanceof Node && canvasRef.current?.contains(e.target))
       return
     fit()
     fitCanvas?.()

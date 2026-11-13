@@ -22,8 +22,9 @@ const LEGACY_ZH = 'zh' as const
 function migrateLegacy(stored: string | null): Lang | null {
   if (!stored)
     return null
-  if ((ALL_LANGS as readonly string[]).includes(stored))
-    return stored as Lang
+  const known = ALL_LANGS.find(candidate => candidate === stored)
+  if (known)
+    return known
   if (stored === LEGACY_ZH)
     return prefersTraditional() ? 'zh-Hant' : 'zh-Hans'
   return null

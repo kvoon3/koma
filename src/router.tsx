@@ -118,7 +118,7 @@ function RootLayout() {
         sendExport({ type: 'failed' })
     }
     catch (e) {
-      say(t('Export failed: {msg}', { msg: (e as Error).message }))
+      say(t('Export failed: {msg}', { msg: e instanceof Error ? e.message : String(e) }))
       sendExport({ type: 'failed' })
     }
   }, [grid, showRun, sendExport])
@@ -135,7 +135,7 @@ function RootLayout() {
         sendExport({ type: 'failed' })
     }
     catch (e) {
-      say(t('Export failed: {msg}', { msg: (e as Error).message }))
+      say(t('Export failed: {msg}', { msg: e instanceof Error ? e.message : String(e) }))
       sendExport({ type: 'failed' })
     }
   }, [showRun, sendExport])

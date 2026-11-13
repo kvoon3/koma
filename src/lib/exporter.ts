@@ -40,17 +40,14 @@ export interface ExportSize {
   H: number
 }
 
-export function computeExportSize(opts: ExportOptions): ExportSize {
+export function computeExportSize(opts: Pick<ExportOptions, 'ratio' | 'longSide'>): ExportSize {
   const ar = opts.ratio
   const L = opts.longSide
   return ar >= 1 ? { W: L, H: Math.round(L / ar) } : { W: Math.round(L * ar), H: L }
 }
 
 export function outputSizeFor(longSide: number, ratio: number) {
-  return computeExportSize({
-    longSide,
-    ratio,
-  } as ExportOptions)
+  return computeExportSize({ longSide, ratio })
 }
 
 function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {

@@ -49,12 +49,12 @@ function BoardStickerView({
   const r = boardStickerRect(board, st, aspect)
   const rot = rotationOf(st)
 
-  const onMoveDown = (e: React.PointerEvent) => {
+  const onMoveDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation()
     if (e.button !== 0)
       return
     selectSticker({ stickerId: st.id })
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    e.currentTarget.setPointerCapture(e.pointerId)
     gestureRef.current = { mode: 'move', ocX: 0, ocY: 0, d0: 0, s0: st.s }
   }
   const onMoveMove = (e: React.PointerEvent) => {
@@ -66,11 +66,11 @@ function BoardStickerView({
     useStore.getState().moveSticker(st.id, p.x / board.w, p.y / board.h)
   }
 
-  const onResizeDown = (e: React.PointerEvent) => {
+  const onResizeDown = (e: React.PointerEvent<HTMLSpanElement>) => {
     if (e.button !== 0)
       return
     e.stopPropagation()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    e.currentTarget.setPointerCapture(e.pointerId)
     const corner = toCanvas(e.clientX, e.clientY)
     const o = rotateOffset(-r.w / 2, -r.h / 2, rot)
     const ocX = r.x + r.w / 2 + o.x

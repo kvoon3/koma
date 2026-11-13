@@ -166,8 +166,10 @@ export async function bakeBlurredBackdrop(photo: Blob, cutout: Blob): Promise<Bl
     else
       ctx.drawImage(cut, op.rect.x, op.rect.y, op.rect.w, op.rect.h)
   }
-  ;(frame as ImageBitmap).close?.()
-  ;(cut as ImageBitmap).close?.()
+  if (frame instanceof ImageBitmap)
+    frame.close?.()
+  if (cut instanceof ImageBitmap)
+    cut.close?.()
   const blob = await encodePng(canvas)
   canvas.width = 0
   canvas.height = 0

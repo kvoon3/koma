@@ -22,20 +22,20 @@ export type GroupPick = null | '' | string
 export interface LibrarySearch { type?: LibraryType | undefined }
 
 export function parseLibraryType(raw: unknown): LibraryType | undefined {
-  return typeof raw === 'string' && LIBRARY_KINDS.some(kind => kind.type === raw)
-    ? raw as LibraryType
-    : undefined
+  if (typeof raw !== 'string')
+    return undefined
+  return LIBRARY_KINDS.find(kind => kind.type === raw)?.type
 }
 
 export function libraryAssets(photos: readonly Photo[]): Record<LibraryType, Photo[]> {
-  const out = {} as Record<LibraryType, Photo[]>
+  const out: Record<LibraryType, Photo[]> = { photo: [], sticker: [], music: [] }
   for (const kind of LIBRARY_KINDS)
     out[kind.type] = kind.assets(photos)
   return out
 }
 
 export function libraryCounts(assets: Readonly<Record<LibraryType, Photo[]>>): Record<LibraryType, number> {
-  const out = {} as Record<LibraryType, number>
+  const out: Record<LibraryType, number> = { photo: 0, sticker: 0, music: 0 }
   for (const kind of LIBRARY_KINDS)
     out[kind.type] = assets[kind.type].length
   return out

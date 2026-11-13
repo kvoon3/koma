@@ -43,7 +43,9 @@ export function useGridKeyboard({ workspaces, activeId, enter }: {
   // The handler only has to *use* the latest `enter` (and read the store); no
   // reason to re-subscribe the window listener when it changes identity.
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    const t = e.target as HTMLElement
+    const t = e.target
+    if (!(t instanceof HTMLElement))
+      return
     if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       return
     const k = e.key

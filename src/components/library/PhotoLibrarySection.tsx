@@ -293,8 +293,9 @@ function useTagPrompt(tags: string[], pick: GroupPick, setPick: (pick: GroupPick
   }
 
   const submit = (name: string): boolean => {
+    const from = typeof pick === 'string' ? pick : ''
     const res = prompt?.mode === 'rename'
-      ? renameTag(tags, pick as string, name)
+      ? renameTag(tags, from, name)
       : addTag(tags, name)
     if (!res.ok) {
       setError(res.reason === 'empty'
@@ -303,7 +304,7 @@ function useTagPrompt(tags: string[], pick: GroupPick, setPick: (pick: GroupPick
       return false
     }
     const done = prompt?.mode === 'rename'
-      ? renamePhotoTag(pick as string, name)
+      ? renamePhotoTag(from, name)
       : addPhotoTag(name)
     if (!done) {
       setError(t('That tag no longer exists'))

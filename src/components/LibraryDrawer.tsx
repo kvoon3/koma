@@ -77,8 +77,8 @@ export function LibraryDrawer({ open, onClose, onRequestClear }: { open: boolean
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape')
         return
-      const el = e.target as HTMLElement
-      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      const el = e.target instanceof HTMLElement ? e.target : null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable))
         return
       e.preventDefault()
       e.stopPropagation()

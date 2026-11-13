@@ -325,8 +325,9 @@ function useFolderPrompt(folders: string[], pick: GroupPick, setPick: (pick: Gro
   }
 
   const submit = (name: string): boolean => {
+    const from = typeof pick === 'string' ? pick : ''
     const res = prompt?.mode === 'rename'
-      ? renameFolder(folders, pick as string, name)
+      ? renameFolder(folders, from, name)
       : addFolder(folders, name)
     if (!res.ok) {
       setError(res.reason === 'empty'
@@ -335,7 +336,7 @@ function useFolderPrompt(folders: string[], pick: GroupPick, setPick: (pick: Gro
       return false
     }
     const done = prompt?.mode === 'rename'
-      ? renameStickerFolder(pick as string, name)
+      ? renameStickerFolder(from, name)
       : addStickerFolder(name)
     if (!done) {
       setError(t('That folder no longer exists'))

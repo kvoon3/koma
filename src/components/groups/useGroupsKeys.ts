@@ -12,7 +12,9 @@ export function useGroupsKeys({ onLeave }: {
   return useCallback((e) => {
     if (e.defaultPrevented)
       return
-    const target = e.target as HTMLElement
+    const target = e.target
+    if (!(target instanceof Element))
+      return
     if (target.closest('input, textarea, select, [contenteditable="true"], [role="menu"], [role="dialog"]'))
       return
     if (e.key !== 'Escape')

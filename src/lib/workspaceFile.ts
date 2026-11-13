@@ -67,7 +67,12 @@ export interface WorkspaceFileState {
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
+    reader.onload = () => {
+      if (typeof reader.result === 'string')
+        resolve(reader.result)
+      else
+        reject(reader.error ?? new Error('Failed to read file'))
+    }
     reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'))
     reader.readAsDataURL(file)
   })
@@ -148,10 +153,11 @@ export function downloadDoc(doc: WorkspaceDocV1): void {
 }
 
 function isWorkspaceDoc(v: unknown): v is WorkspaceDocV1 {
-  if (typeof v !== 'object' || v === null)
-    return false
-  const d = v as Record<string, unknown>
-  return d.version === 1 && d.app === 'koma' && Array.isArray(d.workspaces) && Array.isArray(d.photos)
+  return typeof v === 'object' && v !== null
+    && 'version' in v && v.version === 1
+    && 'app' in v && v.app === 'koma'
+    && 'workspaces' in v && Array.isArray(v.workspaces)
+    && 'photos' in v && Array.isArray(v.photos)
 }
 
 /** The one message both reject paths throw, a key once it reaches the UI. */
