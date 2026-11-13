@@ -85,5 +85,5 @@ export function canRun<P>(requires: Requirement, ctx: ActionContext<P>): boolean
     const t = (ctx.route ?? 'stage') === 'stage' ? ctx.pane : null
     return !!t && (requires === 'pane' || t.photo != null)
   }
-  return bindAction({ requires, run: () => {} } as Action<P>, ctx) != null
+  return bindAction({ requires, run: () => {} }, ctx) != null
 }

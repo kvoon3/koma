@@ -76,8 +76,11 @@ export function classifyCameraFailure(error: unknown): CameraErrorCode {
     return error.code
   if (typeof error === 'object' && error !== null) {
     const name = (error as { name?: unknown }).name
-    if (typeof name === 'string' && Object.hasOwn(FAILURE_CODES, name))
-      return FAILURE_CODES[name]!
+    if (typeof name === 'string' && Object.hasOwn(FAILURE_CODES, name)) {
+      const code = FAILURE_CODES[name]
+      if (code)
+        return code
+    }
   }
   return 'generic'
 }

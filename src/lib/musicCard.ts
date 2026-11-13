@@ -178,7 +178,11 @@ export function fitTitle(text: string, measure: Measure, options: TitleFitOption
   const kept = lines.slice(0, maxLines)
   // More lines than the composition allows: the last visible one always ends
   // in an ellipsis, even when the text itself would have fit the box.
-  kept[kept.length - 1] = forcedEllipsis(kept[kept.length - 1]!, minSize, maxWidth, measure)
+  const last = kept.length - 1
+  const lastLine = kept[last]
+  if (lastLine === undefined)
+    throw new Error('title wrapped to no lines')
+  kept[last] = forcedEllipsis(lastLine, minSize, maxWidth, measure)
   return { lines: kept, size: minSize }
 }
 

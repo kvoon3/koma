@@ -182,7 +182,7 @@ function ImageBackgroundField({ photos, bgImage, patch }: {
           className={`${fieldControlCls} col-span-2 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] sm:col-span-2`}
           aria-label={t('Background photo')}
           value={bgImage?.photoId ?? ''}
-          onValueChange={id => patch({ bgImage: id ? { photoId: id as string, blur: bgImage?.blur ?? true } : null })}
+          onValueChange={id => patch({ bgImage: id ? { photoId: id, blur: bgImage?.blur ?? true } : null })}
         >
           <button
             type="button"

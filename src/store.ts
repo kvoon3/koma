@@ -285,7 +285,7 @@ function cloneWorkspace(ws: Workspace): Workspace {
     ...ws,
     id: uid('w'),
     root,
-    focusId: leafList(root)[0]!.id,
+    focusId: at(leafList(root), 0).id,
     stickers: (ws.stickers ?? []).map(st => ({ ...st, id: uid('s') })),
     labels: (ws.labels ?? []).map(lab => ({ ...lab, id: uid('l') })),
   }
@@ -574,7 +574,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
       grids: addGroup(s.grids, () => group),
       activeGridId: group.id,
       workspaces,
-      activeId: workspaces[0]!.id,
+      activeId: at(workspaces, 0).id,
       parkedBoards: { ...s.parkedBoards, [s.activeGridId]: { workspaces: s.workspaces, activeId: s.activeId } },
       ...clearedSelection,
     })

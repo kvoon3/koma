@@ -144,7 +144,7 @@ function RootLayout() {
 
   // The chrome commands a menu deep in the tree may invoke (see CanvasMenu).
   const commands = useMemo<AppCommands>(() => ({
-    exportNow: doExport,
+    exportNow: () => { void doExport() },
     exportGridCells: doExportGridCells,
     showCrops: doCrops,
     setLibraryOpen: setLibOpen,
@@ -161,7 +161,7 @@ function RootLayout() {
     hub,
     groups,
     exportOpen: run != null,
-    onExport: doExport,
+    onExport: () => { void doExport() },
     chrome: { helpOpen, libOpen, settingsOpen, report, doCrops, setHelpOpen, setLibOpen, setSettingsOpen, setReport },
   })
 
@@ -216,7 +216,7 @@ function RootLayout() {
               setLibOpen(false)
           }}
           onToggleHelp={() => setHelpOpen(v => !v)}
-          onExport={doExport}
+          onExport={() => { void doExport() }}
           onCrops={doCrops}
           onClearAsk={() => setClearAsk(true)}
         />
@@ -333,6 +333,7 @@ const photoRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: PHOTOS_PATH,
   beforeLoad: () => {
+    // eslint-disable-next-line ts/only-throw-error -- TanStack Router redirects by throwing a control-flow object
     throw redirect({ to: LIBRARY_PATH, search: { type: 'photo' } })
   },
 })
@@ -341,6 +342,7 @@ const stickerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: STICKERS_PATH,
   beforeLoad: () => {
+    // eslint-disable-next-line ts/only-throw-error -- TanStack Router redirects by throwing a control-flow object
     throw redirect({ to: LIBRARY_PATH, search: { type: 'sticker' } })
   },
 })

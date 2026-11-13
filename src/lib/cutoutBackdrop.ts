@@ -129,7 +129,9 @@ function drawBlurred(ctx: CanvasRenderingContext2D, src: CanvasImageSource, rect
   const small = document.createElement('canvas')
   small.width = Math.max(1, Math.round(w / k))
   small.height = Math.max(1, Math.round(h / k))
-  const sc = small.getContext('2d')!
+  const sc = small.getContext('2d')
+  if (!sc)
+    throw new Error('Canvas 2D is unavailable.')
   sc.imageSmoothingQuality = 'high'
   sc.drawImage(src, 0, 0, small.width, small.height)
   ctx.drawImage(small, rect.x, rect.y, rect.w, rect.h)

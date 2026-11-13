@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
 
+import type { RawImage as RawImageType } from '@huggingface/transformers'
+
 type TransformersModule = typeof import('@huggingface/transformers')
 
 interface RemoveRequest {
@@ -57,6 +59,21 @@ function postProgress(id: number, phase: 'loading' | 'processing', progress?: nu
 
 async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: string) {
   const { AutoModel, env, RawImage, Tensor } = await loadTransformers(vendorBaseUrl)
+
+  // The package types `pad` and `crop` as `Promise<any>`; check the runtime
+  // class once here instead of letting `any` spread through the pixel loops.
+  const padImage = async (image: RawImageType, padding: [number, number, number, number]): Promise<RawImageType> => {
+    const padded: unknown = await image.pad(padding)
+    if (!(padded instanceof RawImage))
+      throw new Error('transformers pad returned no image')
+    return padded
+  }
+  const cropImage = async (image: RawImageType, box: [number, number, number, number]): Promise<RawImageType> => {
+    const cropped: unknown = await image.crop(box)
+    if (!(cropped instanceof RawImage))
+      throw new Error('transformers crop returned no image')
+    return cropped
+  }
   // Serve model files from the same origin so background removal works where
   // the Hugging Face Hub is unavailable. The path has to arrive absolute: the
   // bundled worker runs from a blob:/data: URL, which cannot resolve a
@@ -64,7 +81,10 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
   env.allowLocalModels = true
   env.allowRemoteModels = false
   env.localModelPath = modelBaseUrl
-  env.backends.onnx.wasm!.wasmPaths = {
+  const wasm = env.backends.onnx.wasm
+  if (!wasm)
+    throw new Error('the ONNX WASM backend is unavailable')
+  wasm.wasmPaths = {
     mjs: `${vendorBaseUrl}ort-wasm-simd-threaded.mjs`,
     wasm: `${vendorBaseUrl}ort-wasm-simd-threaded.wasm`,
   }
@@ -97,7 +117,7 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
     const top = Math.floor((inputSize - resizedHeight) / 2)
     const bottom = inputSize - resizedHeight - top
     const resized = await image.clone().rgb().resize(resizedWidth, resizedHeight)
-    const prepared = await resized.pad([left, right, top, bottom])
+    const prepared = await padImage(resized, [left, right, top, bottom])
 
     const mean = [0.485, 0.456, 0.406]
     const standardDeviation = [0.229, 0.224, 0.225]
@@ -109,8 +129,10 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
       if (channelMean === undefined || channelDeviation === undefined)
         continue
       for (let pixel = 0; pixel < planeSize; pixel += 1) {
-        normalized[channel * planeSize + pixel]
-          = (prepared.data[pixel * 3 + channel] / 255 - channelMean) / channelDeviation
+        const value = prepared.data[pixel * 3 + channel]
+        if (value === undefined)
+          continue
+        normalized[channel * planeSize + pixel] = (value / 255 - channelMean) / channelDeviation
       }
     }
     const pixelValues = new Tensor('float32', normalized, [1, 3, inputSize, inputSize])
@@ -134,7 +156,7 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
       maskPixels[index] = Math.round(((Number(composite.data[index]) - minimum) / range) * 255)
     }
     const paddedMask = new RawImage(maskPixels, inputSize, inputSize, 1)
-    const croppedMask = await paddedMask.crop([
+    const croppedMask = await cropImage(paddedMask, [
       left,
       top,
       left + resizedWidth - 1,
@@ -144,9 +166,10 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
     image.rgba()
     for (let index = 0; index < mask.data.length; index += 1) {
       const sourcePixel = image.data[index * 4 + 3]
-      if (sourcePixel === undefined)
+      const maskValue = mask.data[index]
+      if (sourcePixel === undefined || maskValue === undefined)
         continue
-      const cleanedAlpha = cleanMatteAlpha(mask.data[index])
+      const cleanedAlpha = cleanMatteAlpha(maskValue)
       const sourceAlpha = sourcePixel / 255
       mask.data[index] = Math.round(cleanedAlpha * sourceAlpha * 255)
     }
@@ -154,7 +177,7 @@ async function createRemover(id: number, modelBaseUrl: string, vendorBaseUrl: st
   }
 }
 
-globalThis.addEventListener('message', async (event: MessageEvent<RemoveRequest>) => {
+async function handleMessage(event: MessageEvent<RemoveRequest>) {
   const request = event.data
   if (request.type !== 'remove')
     return
@@ -188,6 +211,10 @@ globalThis.addEventListener('message', async (event: MessageEvent<RemoveRequest>
       message: error instanceof Error ? error.message : 'Background removal failed',
     })
   }
+}
+
+globalThis.addEventListener('message', (event: MessageEvent<RemoveRequest>) => {
+  void handleMessage(event)
 })
 
 export {}

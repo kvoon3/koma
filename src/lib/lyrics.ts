@@ -76,7 +76,7 @@ export async function fetchLyrics(title: string, artist: string): Promise<string
   if (by) {
     const exact = await getJson(`${LRCLIB}/get?${new URLSearchParams({ track_name: track, artist_name: by })}`)
     if (exact && typeof exact === 'object') {
-      const text = plainFrom(exact as LrcLibTrack)
+      const text = plainFrom(exact)
       if (text)
         return text
     }

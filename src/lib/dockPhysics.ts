@@ -83,6 +83,14 @@ export function dragOwner(surface: DragSurface, dx: number, dy: number): 'drawer
   return 'drawer'
 }
 
+/** A snap by index. The callers all pass an in-range index into a non-empty list. */
+function snapAt(offsets: readonly number[], i: number): number {
+  const value = offsets[i]
+  if (value === undefined)
+    throw new Error(`dock physics: no snap at ${i}`)
+  return value
+}
+
 /**
  * The index of the snap nearest `pos`: `pickSnap`'s inner search, extracted so
  * the drag's start snap and the release's pick cannot drift apart. A position
@@ -94,7 +102,7 @@ export function dragOwner(surface: DragSurface, dx: number, dy: number): 'drawer
 export function nearestSnapIndex(offsets: readonly number[], pos: number): number {
   let best = 0
   for (let i = 1; i < offsets.length; i++) {
-    if (Math.abs(offsets[i]! - pos) < Math.abs(offsets[best]! - pos))
+    if (Math.abs(snapAt(offsets, i) - pos) < Math.abs(snapAt(offsets, best) - pos))
       best = i
   }
   return best
@@ -109,16 +117,19 @@ export function nearestSnapIndex(offsets: readonly number[], pos: number): numbe
 export function pickSnap(offsets: readonly number[], pos: number, velocity: number, from: number): number {
   const projected = pos + velocity * PROJECT_S
   let best = nearestSnapIndex(offsets, projected)
-  if (Math.abs(velocity) >= FLICK_VELOCITY && offsets[best] === offsets[from]) {
-    const dir = Math.sign(velocity)
-    let next = -1
-    for (let i = 0; i < offsets.length; i++) {
-      const d = (offsets[i]! - offsets[from]!) * dir
-      if (d > 0 && (next < 0 || d < (offsets[next]! - offsets[from]!) * dir))
-        next = i
+  if (Math.abs(velocity) >= FLICK_VELOCITY) {
+    const fromSnap = snapAt(offsets, from)
+    if (snapAt(offsets, best) === fromSnap) {
+      const dir = Math.sign(velocity)
+      let next = -1
+      for (let i = 0; i < offsets.length; i++) {
+        const d = (snapAt(offsets, i) - fromSnap) * dir
+        if (d > 0 && (next < 0 || d < (snapAt(offsets, next) - fromSnap) * dir))
+          next = i
+      }
+      if (next >= 0)
+        best = next
     }
-    if (next >= 0)
-      best = next
   }
   return best
 }

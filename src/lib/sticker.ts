@@ -255,6 +255,14 @@ async function renderImageSource(source: StickerImageSource, padding: number) {
   return { canvas, hasTransparency }
 }
 
+/** A typed-array read for an index the caller has proved in range. */
+function pixelAt(values: Uint8ClampedArray | Float32Array, index: number): number {
+  const value = values[index]
+  if (value === undefined)
+    throw new Error('pixel index out of range')
+  return value
+}
+
 /**
  * The silhouette painter: the border band under the artwork, then the stamp
  * notches cut through both. Geometry comes from `lib/stickerFX` (the one
@@ -302,7 +310,7 @@ function applySilhouette(source: HTMLCanvasElement, outline: {
     const from = y * width
     const to = (y + pad) * frameWidth + pad
     for (let x = 0; x < width; x += 1)
-      alpha[to + x] = pixels[(from + x) * 4 + 3]! / 255
+      alpha[to + x] = pixelAt(pixels, (from + x) * 4 + 3) / 255
   }
 
   const result = composeSilhouette(alpha, frameWidth, frameHeight, {
@@ -318,7 +326,7 @@ function applySilhouette(source: HTMLCanvasElement, outline: {
       band.data[offset] = red
       band.data[offset + 1] = green
       band.data[offset + 2] = blue
-      band.data[offset + 3] = Math.round(result.coverage[pixel]! * 255)
+      band.data[offset + 3] = Math.round(pixelAt(result.coverage, pixel) * 255)
     }
     context.putImageData(band, 0, 0)
   }
@@ -328,7 +336,7 @@ function applySilhouette(source: HTMLCanvasElement, outline: {
   if (result.centers.length) {
     const notch = context.createImageData(frameWidth, frameHeight)
     for (let pixel = 0; pixel < size; pixel += 1)
-      notch.data[pixel * 4 + 3] = Math.round(result.punch[pixel]! * 255)
+      notch.data[pixel * 4 + 3] = Math.round(pixelAt(result.punch, pixel) * 255)
     context.globalCompositeOperation = 'destination-out'
     context.drawImage(imageDataCanvas(notch), 0, 0)
     context.globalCompositeOperation = 'source-over'

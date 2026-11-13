@@ -672,7 +672,10 @@ export function seamSides(
     for (const { node: b, rect: rb } of leaves) {
       if (a.id === b.id || !b.photoId)
         continue
-      markSides(out.get(a.id)!, ra, rb, tol)
+      const sides = out.get(a.id)
+      if (!sides)
+        throw new Error('seam map lost a leaf')
+      markSides(sides, ra, rb, tol)
     }
   }
   return out

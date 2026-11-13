@@ -88,8 +88,16 @@ function sampleGrain(field: GrainField, x: number, y: number): number {
   const y1 = Math.min(field.height - 1, y0 + 1)
   const tx = fx - x0
   const ty = fy - y0
-  const top = field.values[y0 * field.width + x0]! * (1 - tx) + field.values[y0 * field.width + x1]! * tx
-  const bottom = field.values[y1 * field.width + x0]! * (1 - tx) + field.values[y1 * field.width + x1]! * tx
+  const topRow = y0 * field.width
+  const bottomRow = y1 * field.width
+  const topLeft = field.values[topRow + x0]
+  const topRight = field.values[topRow + x1]
+  const bottomLeft = field.values[bottomRow + x0]
+  const bottomRight = field.values[bottomRow + x1]
+  if (topLeft === undefined || topRight === undefined || bottomLeft === undefined || bottomRight === undefined)
+    return Number.NaN
+  const top = topLeft * (1 - tx) + topRight * tx
+  const bottom = bottomLeft * (1 - tx) + bottomRight * tx
   return top * (1 - ty) + bottom * ty
 }
 
@@ -138,11 +146,13 @@ export function applyNewsprint(
       if (pixels[index + 3] === 0)
         continue
       const cell = Math.floor(u) * cellsV + (Math.floor(v) - cellV0)
-      sums[cell] = sums[cell]!
-        + 0.2126 * pixels[index]!
-        + 0.7152 * pixels[index + 1]!
-        + 0.0722 * pixels[index + 2]!
-      counts[cell] = counts[cell]! + 1
+      const red = pixels[index] ?? Number.NaN
+      const green = pixels[index + 1] ?? Number.NaN
+      const blue = pixels[index + 2] ?? Number.NaN
+      const sum = sums[cell] ?? Number.NaN
+      const count = counts[cell] ?? Number.NaN
+      sums[cell] = sum + 0.2126 * red + 0.7152 * green + 0.0722 * blue
+      counts[cell] = count + 1
     }
   }
 
@@ -166,7 +176,9 @@ export function applyNewsprint(
       const cu = Math.floor(u)
       const cv = Math.floor(v)
       const cell = cu * cellsV + (cv - cellV0)
-      const coverage = 1 - sums[cell]! / counts[cell]! / 255
+      const sum = sums[cell] ?? Number.NaN
+      const count = counts[cell] ?? Number.NaN
+      const coverage = 1 - sum / count / 255
       const radius = DOT_SPREAD * Math.sqrt(Math.max(0, Math.min(1, coverage)))
       const du = u - cu - 0.5
       const dv = v - cv - 0.5

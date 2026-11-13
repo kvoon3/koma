@@ -644,6 +644,7 @@ export function TopBar({
     const [firstWorkspace] = workspaces
     if (!firstWorkspace)
       throw new Error('loaded board has no workspaces')
+    const bgImage = doc.settings.bgImage
     useStore.setState({
       photos,
       workspaces,
@@ -660,7 +661,7 @@ export function TopBar({
       stickerFolders: doc.stickerFolders ?? [],
       bgGradient: doc.settings.bgGradient ?? null,
       // A saved photo id only applies if that photo came along in the file.
-      bgImage: doc.settings.bgImage && photos.some(p => p.id === doc.settings.bgImage!.photoId) ? doc.settings.bgImage : null,
+      bgImage: bgImage && photos.some(p => p.id === bgImage.photoId) ? bgImage : null,
       longSide: doc.settings.longSide,
       format: doc.settings.format,
       quality: doc.settings.quality,
@@ -676,6 +677,21 @@ export function TopBar({
     setOpenDoc(null)
     say(t('Workspace opened'))
     void navigate({ to: OVERVIEW_PATH })
+  }
+
+  const openWorkspaceFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f)
+      return
+    try {
+      const parsed = await parseWorkspaceFile(f)
+      setOpenDoc({ doc: parsed.doc, photos: parsed.photos })
+    }
+    catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      say(t('Failed to open workspace: {msg}', { msg: isTKey(msg) ? t(msg) : msg }))
+    }
   }
 
   return (
@@ -780,20 +796,7 @@ export function TopBar({
         type="file"
         accept=".json,.koma.json,application/json"
         hidden
-        onChange={async (e) => {
-          const f = e.target.files?.[0]
-          e.target.value = ''
-          if (!f)
-            return
-          try {
-            const parsed = await parseWorkspaceFile(f)
-            setOpenDoc({ doc: parsed.doc, photos: parsed.photos })
-          }
-          catch (err) {
-            const msg = (err as Error).message
-            say(t('Failed to open workspace: {msg}', { msg: isTKey(msg) ? t(msg) : msg }))
-          }
-        }}
+        onChange={e => void openWorkspaceFile(e)}
       />
 
       <ConfirmDialog

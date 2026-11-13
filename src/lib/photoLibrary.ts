@@ -52,7 +52,7 @@ export function importPhotoBatch(files: File[], kind: PhotoKind = 'photo'): Phot
   }
   const imgs = images.filter(f => f.type.startsWith('image/') || looksHeic(f))
   if (imgs.some(looksHeic))
-    warmHeicDecoder()
+    void warmHeicDecoder()
   imgs.sort((a, b) =>
     (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, {
       numeric: true,

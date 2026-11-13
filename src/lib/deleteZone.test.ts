@@ -13,7 +13,7 @@ function rect(x: number, y: number, w: number, h: number): Rect {
 }
 
 function container(id: string): Droppable {
-  return { id, key: id, data: { current: undefined }, disabled: false, node: { current: null }, rect: { current: null } } as Droppable
+  return { id, key: id, data: { current: undefined }, disabled: false, node: { current: null }, rect: { current: null } }
 }
 
 /** The shared shape: a delete strip across the top, sortable tiles below it.

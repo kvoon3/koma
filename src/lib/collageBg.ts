@@ -62,7 +62,7 @@ export function blurSize(W: number, H: number) {
 export const isTransparentBg = (bg: string) => bg === 'transparent'
 
 /** A gradient only applies over an opaque base color. */
-export function hasGradient(b: CollageBg): boolean {
+export function hasGradient(b: CollageBg): b is CollageBg & { gradient: string } {
   return !!b.gradient && b.bg !== 'transparent'
 }
 
@@ -79,7 +79,7 @@ export function paintCollageBg(ctx: CanvasRenderingContext2D, W: number, H: numb
   if (hasGradient(b)) {
     const g = ctx.createLinearGradient(0, 0, 0, H)
     g.addColorStop(0, b.bg)
-    g.addColorStop(1, b.gradient!)
+    g.addColorStop(1, b.gradient)
     ctx.fillStyle = g
     ctx.fillRect(0, 0, W, H)
   }
@@ -94,7 +94,9 @@ export function paintCollageBg(ctx: CanvasRenderingContext2D, W: number, H: numb
     const small = document.createElement('canvas')
     small.width = s.w
     small.height = s.h
-    const sc = small.getContext('2d')!
+    const sc = small.getContext('2d')
+    if (!sc)
+      throw new Error('Canvas 2D is unavailable.')
     sc.imageSmoothingQuality = 'high'
     sc.drawImage(img.src, c.sx, c.sy, c.sw, c.sh, 0, 0, s.w, s.h)
     ctx.drawImage(small, 0, 0, W, H)

@@ -250,7 +250,7 @@ export async function loadSession(): Promise<{ meta: SessionMeta, photos: Sessio
 
   try {
     const tx = db.transaction(['meta', 'photos'], 'readonly')
-    const meta = await reqToPromise(tx.objectStore('meta').get(META_KEY))
+    const meta: unknown = await reqToPromise(tx.objectStore('meta').get(META_KEY))
     const photos = (await reqToPromise(tx.objectStore('photos').getAll())) as SessionPhotoRecord[]
     if (!meta || !Array.isArray(photos)) {
       // Mark anything we already wrote in this session so saveSession skips it.

@@ -35,6 +35,14 @@ import { DockMarksProvider, useDockHighlight, useDockPopover } from './DockMarks
 import { Footer } from './Footer'
 import { dockBtnStateCls, dockPopupMotionCls, dockToolSurfaceCls, menuItemCls, menuSurfaceCls } from './ui/menu'
 
+/** A list entry an index names. A missing entry is a broken dock geometry. */
+function entryAt<T>(list: readonly T[], i: number): T {
+  const value = list[i]
+  if (value === undefined)
+    throw new Error(`tools dock: no entry at ${i}`)
+  return value
+}
+
 /**
  * The dock's tool button and its caption. Both follow the sheet's display mode
  * (`data-dock-mode` on the sheet, `group/dock`): in the icon-only row the
@@ -734,8 +742,8 @@ function bandAt(geom: DockGeometry, pos: number): number | null {
   const iExp = geom.order.indexOf('expanded')
   if (iRow < 0 || iExp < 0)
     return null
-  const lower = geom.heights[iRow]!
-  const upper = geom.heights[iExp]!
+  const lower = entryAt(geom.heights, iRow)
+  const upper = entryAt(geom.heights, iExp)
   if (upper - lower < 1)
     return null
   return bandProgress(geom.toolsMaxH - pos, lower, upper)
@@ -889,7 +897,7 @@ function useDockBand({
         el: h,
         dx: boxes.wrap.x - boxes.row.x + s0,
         dy: boxes.wrap.y - boxes.row.y,
-        slot: slots[i]!,
+        slot: entryAt(slots, i),
         clip,
         base: baseOf(h),
         wrote: '',
@@ -1382,7 +1390,7 @@ function useDockGesture({
     // design (see `dockDisplayAt`), so it cannot be the flick's origin.
     const from = modeRef.current
     const idx = pickSnap(offs, y.get(), velocity, d.startIdx)
-    const next = dockTransition(from, { type: 'snap', mode: order[idx]! }, cap)
+    const next = dockTransition(from, { type: 'snap', mode: entryAt(order, idx) }, cap)
     if (next === from) {
       animate(y, cur, reduce ? { duration: 0 } : { ...SPRING, velocity })
     }
@@ -1468,7 +1476,7 @@ function DockSheet({ hidden, contextKey, compact, innerRef: setInner, onMetrics,
   // the wrapped multi-row. Icons and labels are two heights of the same single
   // row, so the sheet's resting heights differ by the captions.
   const snapPoints = order.map(m => HANDLE_H + (m === 'icons' ? iconH : m === 'row' ? rowH : expH))
-  const snapPoint = snapPoints[order.indexOf(mode)] ?? snapPoints.at(-1)!
+  const snapPoint = snapPoints[order.indexOf(mode)] ?? entryAt(snapPoints, snapPoints.length - 1)
   const toolsMaxH = Math.max(...snapPoints)
 
   useDockToolList({

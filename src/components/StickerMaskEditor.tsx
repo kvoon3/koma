@@ -271,6 +271,14 @@ function useWheelZoom(
   }, [canvasRef, ready, viewRef, display])
 }
 
+/** The mask layer's 2D context. A mask canvas without one is a broken page. */
+function maskContext(mask: HTMLCanvasElement) {
+  const context = mask.getContext('2d', { willReadFrequently: true })
+  if (!context)
+    throw new Error('Canvas 2D is unavailable.')
+  return context
+}
+
 export function StickerMaskEditor({ src, onApply, onCancel, actions = 'inline', onReady, ref }: {
   src: string
   onApply: (dataUrl: string) => void
@@ -398,8 +406,10 @@ export function StickerMaskEditor({ src, onApply, onCancel, actions = 'inline', 
     // first one had started (they are different gestures, not a continuation).
     if (pointersRef.current.size === 2) {
       strokeRef.current = null
-      const [a, b] = [...pointersRef.current.values()]
-      pinchRef.current = { distance: Math.hypot(a!.x - b!.x, a!.y - b!.y), view: viewRef.current }
+      const [a, b] = pointersRef.current.values()
+      if (!a || !b)
+        return
+      pinchRef.current = { distance: Math.hypot(a.x - b.x, a.y - b.y), view: viewRef.current }
       return
     }
     if (spaceRef.current || e.button === 1) {
@@ -415,7 +425,7 @@ export function StickerMaskEditor({ src, onApply, onCancel, actions = 'inline', 
       pushUndo()
       // A tap paints here and not on release: the disc is what makes a click
       // visible at all, and it is also the joint that keeps a polyline smooth.
-      paintStroke(layers.mask.getContext('2d', { willReadFrequently: true })!, [maskPoint], mode, brushSize(layers))
+      paintStroke(maskContext(layers.mask), [maskPoint], mode, brushSize(layers))
       display()
     }
   }
@@ -432,13 +442,15 @@ export function StickerMaskEditor({ src, onApply, onCancel, actions = 'inline', 
 
     const pinch = pinchRef.current
     if (pointersRef.current.size >= 2 && pinch) {
-      const [a, b] = [...pointersRef.current.values()]
-      const distance = Math.hypot(a!.x - b!.x, a!.y - b!.y)
+      const [a, b] = pointersRef.current.values()
+      if (!a || !b)
+        return
+      const distance = Math.hypot(a.x - b.x, a.y - b.y)
       if (pinch.distance > 0) {
         viewRef.current = zoomView(
           pinch.view,
           distance / pinch.distance,
-          { x: (a!.x + b!.x) / 2, y: (a!.y + b!.y) / 2 },
+          { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
         )
       }
       display()
@@ -455,13 +467,15 @@ export function StickerMaskEditor({ src, onApply, onCancel, actions = 'inline', 
     if (!stroke)
       return
     const maskPoint = viewToMask(viewRef.current, point.x, point.y)
-    const last = stroke.points[stroke.points.length - 1]!
+    const last = stroke.points.at(-1)
+    if (!last)
+      return
     // Drop sub-pixel samples: a fast drag would otherwise pile up thousands.
     if (Math.abs(maskPoint.x - last.x) < 0.4 && Math.abs(maskPoint.y - last.y) < 0.4)
       return
     stroke.points.push(maskPoint)
     if (tool === 'brush')
-      paintStroke(layers.mask.getContext('2d', { willReadFrequently: true })!, [last, maskPoint], stroke.mode, brushSize(layers))
+      paintStroke(maskContext(layers.mask), [last, maskPoint], stroke.mode, brushSize(layers))
     display()
   }
 
@@ -475,7 +489,7 @@ export function StickerMaskEditor({ src, onApply, onCancel, actions = 'inline', 
     // drag actually enclosed something.
     if (tool === 'lasso') {
       pushUndo()
-      const filled = paintLasso(layers.mask.getContext('2d', { willReadFrequently: true })!, stroke.points, stroke.mode)
+      const filled = paintLasso(maskContext(layers.mask), stroke.points, stroke.mode)
       if (!filled) {
         undoRef.current = undoRef.current.slice(0, -1)
         setUndoDepth(undoRef.current.length)

@@ -30,10 +30,10 @@ export function usePreview(photo: Photo | null): Preview | null {
     }
     setUrl(null)
     let alive = true
-    getPreview(ph).then((r) => {
+    void getPreview(ph).then((r) => {
       if (alive && r)
         setUrl(r)
-    })
+    }).catch(() => {})
     return () => {
       alive = false
     }
@@ -89,11 +89,11 @@ export function usePanePreview(photo: Photo | null, filter: FilterValue | undefi
     }
     setShown(held => (held && held.photoId === id ? held : null))
     let alive = true
-    getFilteredPreview(source, spec).then((r) => {
+    void getFilteredPreview(source, spec).then((r) => {
       // A late render from an older setting must not replace the current one.
       if (alive && r && keyRef.current === key)
         setShown({ photoId: id, preview: r })
-    })
+    }).catch(() => {})
     return () => {
       alive = false
     }
@@ -139,10 +139,10 @@ export function useThumb(photo: Photo, visible: boolean): string | null {
     if (!visible)
       return
     let alive = true
-    getThumb(ref.current).then((u) => {
+    void getThumb(ref.current).then((u) => {
       if (alive && u)
         setUrl(u)
-    })
+    }).catch(() => {})
     return () => {
       alive = false
     }

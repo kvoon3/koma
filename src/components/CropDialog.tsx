@@ -24,7 +24,7 @@ export function CropDialog({ report, onClose }: { report: string | null, onClose
             <Dialog.Title className="m-0 text-[13.5px] font-semibold">{t('Per-pane crop parameters')}</Dialog.Title>
             <div className="flex gap-[5px]">
               <Button
-                onClick={() => navigator.clipboard?.writeText(report ?? '').then(() => say(t('Copied')))}
+                onClick={() => void navigator.clipboard?.writeText(report ?? '').then(() => say(t('Copied')))}
               >
                 {t('Copy')}
               </Button>

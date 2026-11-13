@@ -39,6 +39,10 @@ function resetWire() {
   wire.init = undefined
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /** Swap the global fetch for one request, typed the way Bun types its own. */
 function mockFetch(handler: (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>) {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => handler(input, init)) as typeof fetch
@@ -46,7 +50,10 @@ function mockFetch(handler: (input: RequestInfo | URL, init?: RequestInit) => Re
 
 function answerWith(choice: string, confidence = 0.9): void {
   mockFetch((_input, init) => {
-    wire.body = JSON.parse(String(init?.body ?? '{}'))
+    const body: unknown = JSON.parse(String(init?.body ?? '{}'))
+    if (!isRecord(body))
+      throw new Error('request body is not an object')
+    wire.body = body
     wire.init = init ?? {}
     return Response.json({
       model: 'jev-1.14.0',

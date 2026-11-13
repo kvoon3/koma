@@ -105,6 +105,18 @@ export function compositeMasked(
   context.globalCompositeOperation = 'source-over'
 }
 
+/** Extend the current path: the first point moves, the rest line. */
+function tracePolyline(context: CanvasRenderingContext2D, points: readonly MaskPoint[]) {
+  let started = false
+  for (const point of points) {
+    if (started)
+      context.lineTo(point.x, point.y)
+    else
+      context.moveTo(point.x, point.y)
+    started = true
+  }
+}
+
 /** One brush stroke: round-capped segments plus a disc per point (so a tap paints). */
 export function paintStroke(
   context: CanvasRenderingContext2D,
@@ -123,9 +135,7 @@ export function paintStroke(
   context.lineWidth = size
   if (points.length > 1) {
     context.beginPath()
-    context.moveTo(points[0]!.x, points[0]!.y)
-    for (let i = 1; i < points.length; i += 1)
-      context.lineTo(points[i]!.x, points[i]!.y)
+    tracePolyline(context, points)
     context.stroke()
   }
   const discs = strokeDiscs(points, size)
@@ -157,9 +167,7 @@ export function paintLasso(
   context.globalCompositeOperation = mode === 'remove' ? 'destination-out' : 'source-over'
   context.fillStyle = '#000000'
   context.beginPath()
-  context.moveTo(polygon[0]!.x, polygon[0]!.y)
-  for (let i = 1; i < polygon.length; i += 1)
-    context.lineTo(polygon[i]!.x, polygon[i]!.y)
+  tracePolyline(context, polygon)
   context.closePath()
   context.fill()
   context.restore()
@@ -179,9 +187,7 @@ export function traceLasso(
   context.lineWidth = 1.5 / Math.max(scale, 0.001)
   context.setLineDash([6 / Math.max(scale, 0.001), 4 / Math.max(scale, 0.001)])
   context.beginPath()
-  context.moveTo(points[0]!.x, points[0]!.y)
-  for (let i = 1; i < points.length; i += 1)
-    context.lineTo(points[i]!.x, points[i]!.y)
+  tracePolyline(context, points)
   context.stroke()
   context.restore()
 }

@@ -244,6 +244,14 @@ export interface PaintedBoard {
   grips: Map<string, HTMLElement>
 }
 
+/** A selected element's attribute value. The selector proves the attribute exists. */
+function attribute(el: HTMLElement, name: string): string {
+  const value = el.getAttribute(name)
+  if (value === null)
+    throw new Error(`board paint: element lacks ${name}`)
+  return value
+}
+
 /** Snapshot the elements a divider drag will move (they are stable for it). */
 export function collectBoard(root: HTMLElement | null): PaintedBoard {
   const panes = new Map<string, HTMLElement>()
@@ -252,10 +260,10 @@ export function collectBoard(root: HTMLElement | null): PaintedBoard {
   const grips = new Map<string, HTMLElement>()
   if (!root)
     return { panes, outlines, bands, grips }
-  for (const el of root.querySelectorAll<HTMLElement>('[data-pane-id]')) panes.set(el.dataset.paneId!, el)
-  for (const el of root.querySelectorAll<HTMLElement>('[data-pane-outline]')) outlines.set(el.dataset.paneOutline!, el)
-  for (const el of root.querySelectorAll<HTMLElement>('[data-divider-band]')) bands.set(el.dataset.dividerBand!, el)
-  for (const el of root.querySelectorAll<HTMLElement>('[data-divider-grip]')) grips.set(el.dataset.dividerGrip!, el)
+  for (const el of root.querySelectorAll<HTMLElement>('[data-pane-id]')) panes.set(attribute(el, 'data-pane-id'), el)
+  for (const el of root.querySelectorAll<HTMLElement>('[data-pane-outline]')) outlines.set(attribute(el, 'data-pane-outline'), el)
+  for (const el of root.querySelectorAll<HTMLElement>('[data-divider-band]')) bands.set(attribute(el, 'data-divider-band'), el)
+  for (const el of root.querySelectorAll<HTMLElement>('[data-divider-grip]')) grips.set(attribute(el, 'data-divider-grip'), el)
   return { panes, outlines, bands, grips }
 }
 

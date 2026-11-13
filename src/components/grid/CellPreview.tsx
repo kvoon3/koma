@@ -221,29 +221,32 @@ export function CellPreview({ root, canvasRatio, box, photoById, stickers = [], 
             photoById={photoById}
           />
         ))}
-        {labels.filter(lab => lab.text.trim()).map(lab => (
-          <span
-            key={lab.id}
-            className="absolute whitespace-pre leading-[normal]"
-            style={{
-              left: `${lab.x * 100}%`,
-              top: `${lab.y * 100}%`,
-              transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
-              fontSize: lab.size * unit,
-              fontFamily: fontById(lab.font).cssStack,
-              background: labelPaint(lab).fill,
-              color: labelPaint(lab).fg,
-              textShadow: labelTextShadow(lab),
-              padding: '0.22em 0.38em',
-              display: 'flex',
-              alignItems: 'center',
-              gap: `${LABEL_ICON_GAP_EM}em`,
-            }}
-          >
-            {labelIconNode(lab.icon) && <LabelIconGlyph node={labelIconNode(lab.icon)!} />}
-            <span style={{ display: 'block', whiteSpace: 'pre', textAlign: labelAlign(lab) }}>{lab.text}</span>
-          </span>
-        ))}
+        {labels.filter(lab => lab.text.trim()).map((lab) => {
+          const icon = labelIconNode(lab.icon)
+          return (
+            <span
+              key={lab.id}
+              className="absolute whitespace-pre leading-[normal]"
+              style={{
+                left: `${lab.x * 100}%`,
+                top: `${lab.y * 100}%`,
+                transform: `translate(-50%, -50%) ${rotationCss(lab)}`,
+                fontSize: lab.size * unit,
+                fontFamily: fontById(lab.font).cssStack,
+                background: labelPaint(lab).fill,
+                color: labelPaint(lab).fg,
+                textShadow: labelTextShadow(lab),
+                padding: '0.22em 0.38em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: `${LABEL_ICON_GAP_EM}em`,
+              }}
+            >
+              {icon && <LabelIconGlyph node={icon} />}
+              <span style={{ display: 'block', whiteSpace: 'pre', textAlign: labelAlign(lab) }}>{lab.text}</span>
+            </span>
+          )
+        })}
       </div>
     </div>
   )

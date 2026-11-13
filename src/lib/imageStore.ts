@@ -93,10 +93,10 @@ function acquireFull(file: File, photoId: string, priority: 0 | 1): { job: Promi
       if (released)
         return
       released = true
-      entry!.refs--
-      if (entry!.refs <= 0) {
+      entry.refs--
+      if (entry.refs <= 0) {
         fullJobs.delete(photoId)
-        void entry!.promise.then(f => (f?.src as ImageBitmap).close?.())
+        void entry.promise.then(f => (f?.src as ImageBitmap).close?.())
       }
     },
   }
@@ -162,7 +162,9 @@ function drawScaled(full: FullSource, max: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx)
+    throw new Error('Canvas 2D is unavailable.')
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(full.src, 0, 0, w, h)
   return canvas

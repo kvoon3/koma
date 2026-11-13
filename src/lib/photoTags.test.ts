@@ -116,8 +116,8 @@ describe('membership fan-out', () => {
     if (!first)
       throw new Error('retag returned no photos')
     expect(first.tags).toEqual(['Journey', 'Food'])
-    expect(out[1]).toBe(photos[1]!)
-    expect(out[2]).toBe(photos[2]!)
+    expect(out[1]).toBe(photos[1])
+    expect(out[2]).toBe(photos[2])
   })
 
   test('a delete takes the tag off every photo and nothing else', () => {
@@ -127,7 +127,7 @@ describe('membership fan-out', () => {
       throw new Error('untagAll returned fewer than two photos')
     expect(first.tags).toEqual(['Trip'])
     expect(second.tags).toBeUndefined()
-    expect(out[2]).toBe(photos[2]!)
+    expect(out[2]).toBe(photos[2])
   })
 
   test('per-tag counts are over the photos passed in', () => {

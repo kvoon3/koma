@@ -193,10 +193,14 @@ function dimsFromProps(idxs: number[], ispe: Map<number, Dims>, irot: Map<number
   let dims: Dims | null = null
   let rot = 0
   for (const k of idxs) {
-    if (!dims && ispe.has(k))
-      dims = ispe.get(k)!
-    if (irot.has(k))
-      rot = irot.get(k)!
+    if (!dims) {
+      const size = ispe.get(k)
+      if (size)
+        dims = size
+    }
+    const rotation = irot.get(k)
+    if (rotation !== undefined)
+      rot = rotation
   }
   return { dims, rot }
 }
@@ -261,8 +265,9 @@ export async function probeHeic(file: File): Promise<Dims | null> {
 let libPromise: Promise<typeof import('heic-to')> | null = null
 
 /** Kick the decoder's download/parse early, before the first pixels are needed. */
-export function warmHeicDecoder() {
+export function warmHeicDecoder(): Promise<typeof import('heic-to')> {
   libPromise ??= import('heic-to')
+  return libPromise
 }
 
 // heic-to decodes on one internal worker and clones the full-res ImageData
@@ -323,8 +328,7 @@ export async function decodeHeicBitmap(file: File, priority: Priority = 0): Prom
 
 async function decodeViaLibheif(file: File, priority: Priority): Promise<ImageBitmap | null> {
   try {
-    warmHeicDecoder()
-    const { heicTo } = await libPromise!
+    const { heicTo } = await warmHeicDecoder()
     return await queued(() => heicTo({ blob: file, type: 'bitmap' }), priority)
   }
   catch (e) {

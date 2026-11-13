@@ -862,7 +862,7 @@ function MakerEffectsFields({
           label={t('Paper texture')}
           value={texture ?? 'none'}
           items={PAPER_TEXTURES.map(item => ({ value: item.value, label: t(item.label) }))}
-          onChange={value => onTexture(value === 'none' ? null : value as StickerTexture)}
+          onChange={value => onTexture(value === 'none' ? null : value)}
         />
       </div>
     </div>
@@ -1069,7 +1069,7 @@ export function StickerMakerDialog({ open, target, onClose, reEdit = null }: {
             canInsert={canInsert}
             saveLabel={saveLabel}
             onClose={close}
-            onInsert={insert}
+            onInsert={() => void insert()}
             onReset={resetEffects}
           />
         </Dialog.Popup>

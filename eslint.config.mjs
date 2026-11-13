@@ -49,6 +49,38 @@ export default antfu({
   // file, not source. Linting it parses the whole array as code.
   ignores: ['src/data/districts.json'],
 }, {
+  // Type-aware rules: the type checker catches assertions and promises that a
+  // syntax-only pass cannot judge. Scoped to app code; the measurement scripts
+  // assert against their own fixtures on purpose.
+  files: ['src/**/*.{ts,tsx}', 'routes/**/*.{ts,tsx}'],
+  languageOptions: {
+    parserOptions: {
+      project: ['./tsconfig.json', './tsconfig.void.json'],
+      tsconfigRootDir: import.meta.dirname,
+    },
+  },
+  rules: {
+    'ts/no-explicit-any': 'error',
+    'ts/no-floating-promises': 'error',
+    'ts/no-misused-promises': 'error',
+    'ts/no-non-null-assertion': 'error',
+    'ts/no-unnecessary-type-assertion': 'error',
+    'ts/no-unsafe-argument': 'error',
+    'ts/no-unsafe-assignment': 'error',
+    'ts/no-unsafe-call': 'error',
+    'ts/no-unsafe-member-access': 'error',
+    'ts/no-unsafe-return': 'error',
+    'ts/only-throw-error': 'error',
+    'ts/switch-exhaustiveness-check': 'error',
+  },
+}, {
+  // Test fixtures assert their own shape, and vendored code mirrors its
+  // upstream sample; the gate covers app code.
+  files: ['src/**/*.test.{ts,tsx}', 'src/vendor/**/*.{ts,tsx}'],
+  rules: {
+    'ts/no-non-null-assertion': 'off',
+  },
+}, {
   name: 'local/no-chinese-comment',
   plugins: {
     local: { rules: { 'no-chinese-comment': noChineseComment } },
