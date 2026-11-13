@@ -83,7 +83,6 @@ export function dragOwner(surface: DragSurface, dx: number, dy: number): 'drawer
   return 'drawer'
 }
 
-/** A snap by index. The callers all pass an in-range index into a non-empty list. */
 function snapAt(offsets: readonly number[], i: number): number {
   const value = offsets[i]
   if (value === undefined)

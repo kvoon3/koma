@@ -244,7 +244,6 @@ export interface PaintedBoard {
   grips: Map<string, HTMLElement>
 }
 
-/** A selected element's attribute value. The selector proves the attribute exists. */
 function attribute(el: HTMLElement, name: string): string {
   const value = el.getAttribute(name)
   if (value === null)

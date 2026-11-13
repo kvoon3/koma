@@ -53,7 +53,6 @@ export function outputSizeFor(longSide: number, ratio: number) {
   } as ExportOptions)
 }
 
-/** The canvas's 2d context. A canvas that cannot provide one cannot export. */
 function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d')
   if (!ctx)
@@ -61,7 +60,6 @@ function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   return ctx
 }
 
-/** A glow layer by index. The reverse walk names one every step. */
 function entryAt<T>(list: readonly T[], i: number): T {
   const value = list[i]
   if (value === undefined)

@@ -12,7 +12,6 @@ interface LrcLibTrack {
   syncedLyrics?: string | null | undefined
 }
 
-/** The three fields this file reads, all absent-safe, from an untrusted body. */
 function readTrack(value: unknown): LrcLibTrack | null {
   if (typeof value !== 'object' || value === null)
     return null

@@ -119,7 +119,6 @@ function addNode<T>(
   return { nodes, root: history.root ?? id, cursor: id, seq: history.seq + 1 }
 }
 
-/** A node an id names. A missing one is a broken tree. */
 function nodeAt<T>(nodes: Record<string, HistoryNode<T>>, id: string): HistoryNode<T> {
   const node = nodes[id]
   if (!node)

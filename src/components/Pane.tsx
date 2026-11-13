@@ -1239,7 +1239,6 @@ function armSwapHold(rt: PaneGestureRuntime) {
   }, SWAP_HOLD_MS)
 }
 
-/** The first two live pointers; a pinch runs only with at least two. */
 function pinchPointers(rt: PaneGestureRuntime): [{ x: number, y: number }, { x: number, y: number }] {
   const [a, b] = [...rt.pointersRef.current.values()]
   if (!a || !b)

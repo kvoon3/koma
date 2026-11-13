@@ -35,7 +35,6 @@ import { DockMarksProvider, useDockHighlight, useDockPopover } from './DockMarks
 import { Footer } from './Footer'
 import { dockBtnStateCls, dockPopupMotionCls, dockToolSurfaceCls, menuItemCls, menuSurfaceCls } from './ui/menu'
 
-/** A list entry an index names. A missing entry is a broken dock geometry. */
 function entryAt<T>(list: readonly T[], i: number): T {
   const value = list[i]
   if (value === undefined)
