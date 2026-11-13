@@ -43,9 +43,14 @@ Where a note conflicts with a poteto default, the note wins.
 | Every union switch is exhaustive | `ts/switch-exhaustiveness-check` |
 | Indexed reads are total, absent differs from `undefined` | the two compiler flags |
 
-`bun run check-gates` writes a bad fixture, proves every compiler flag and lint
-rule above still rejects it, then deletes the fixture. Run it after changing
-`tsconfig.json` or the type-aware lint block.
+Type-aware lint covers `src` and `routes`; `scripts` are excluded from the
+type-aware pass and from the non-null rule. `bun run ci` runs
+`bun run check-gates` and `bun run check-parity` after lint, test, i18n and
+build. The probe writes a bad fixture, proves every compiler flag and all 12
+lint rules still reject it, then deletes the fixture. The parity harnesses in
+`scripts/parity` reimplement the old algorithms and recheck the distance
+transform, the district lookup, and the holographic colors. They are excluded
+from the app typecheck and lint; ci executes them.
 
 ## Gates
 

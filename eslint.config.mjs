@@ -47,7 +47,7 @@ export default antfu({
   jsdoc: false,
   // Generated district polygons (scripts/build-districts.mjs): a 5 MB data
   // file, not source. Linting it parses the whole array as code.
-  ignores: ['src/data/districts.json'],
+  ignores: ['src/data/districts.json', 'scripts/parity'],
 }, {
   // Type-aware rules: the type checker catches assertions and promises that a
   // syntax-only pass cannot judge. Scoped to app code; the measurement scripts

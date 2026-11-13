@@ -22,9 +22,10 @@
     "lint:fix": "eslint . --fix --cache --cache-strategy content --concurrency off",
     "check-types": "bun check && tsc -p tsconfig.void.json",
     "check-gates": "bun scripts/check-type-gates.ts",
+    "check-parity": "bun scripts/parity/stickerfx-parity.ts && bun scripts/parity/regeo-parity.ts && bun scripts/parity/color-parity.ts",
     "test": "bun test --check --isolate src routes",
     "test:shuffle": "bun test --check --isolate --randomize src routes",
-    "ci": "bun run --no-exit-on-error --parallel lint test i18n build",
+    "ci": "bun run --no-exit-on-error --parallel lint test i18n build && bun run check-gates && bun run check-parity",
     "up": "taze major -Ii",
     "prepare": "simple-git-hooks",
     "doctor": "bunx react-doctor@latest"

@@ -65,6 +65,27 @@ export function unsafe(value: any): unknown {
   return value.field
 }
 
+export function takesString(value: string): void {
+  void value
+}
+
+export function unsafeAssignment(value: any): void {
+  const copy = value
+  void copy
+}
+
+export function unsafeArgument(value: any): void {
+  takesString(value)
+}
+
+export function unsafeCall(value: any): void {
+  value()
+}
+
+export function unsafeReturn(value: any): string {
+  return value
+}
+
 export function asserted(value: string | undefined): string {
   return value!
 }
@@ -106,7 +127,11 @@ const lintGates = [
   'ts/no-misused-promises',
   'ts/no-non-null-assertion',
   'ts/no-unnecessary-type-assertion',
+  'ts/no-unsafe-argument',
+  'ts/no-unsafe-assignment',
+  'ts/no-unsafe-call',
   'ts/no-unsafe-member-access',
+  'ts/no-unsafe-return',
   'ts/only-throw-error',
   'ts/switch-exhaustiveness-check',
 ] as const
