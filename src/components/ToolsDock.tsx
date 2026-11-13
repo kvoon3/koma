@@ -1408,7 +1408,6 @@ function useDockGesture({
   return { onPointerDown, onPointerMove, endDrag, suppressClickRef }
 }
 
-/** The sheet's style: the dock surface, its height, and the drag MotionValue read by its ref. */
 function sheetStyle(style: CSSProperties, height: number, y: MotionValue<number>): CSSProperties {
   const out: CSSProperties = { ...style, height }
   Object.assign(out, { y })

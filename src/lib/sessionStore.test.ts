@@ -1,7 +1,10 @@
 /// <reference types="bun" />
 import type { Workspace } from '../store'
+import type { MusicMeta } from './musicLink'
+import type { SessionPhotoRecord } from './sessionStore'
+import type { StickerRecipe } from './stickerRecipe'
 import { describe, expect, it } from 'bun:test'
-import { sessionMeta } from './sessionStore'
+import { parseSessionMeta, parseSessionPhotoRecord, sessionMeta } from './sessionStore'
 import { normalizeGrids } from './workspaces'
 
 /** A cell of a board: only the id matters here, the boards are opaque. */
@@ -77,5 +80,181 @@ describe('sessionMeta', () => {
     expect(meta.grids?.map(g => g.hidden)).toEqual([false, false])
     const out = normalizeGrids(savedFrom(meta), () => cell('fresh'), () => 'gNew')
     expect(out.grids.map(g => g.hidden)).toEqual([undefined, undefined])
+  })
+})
+
+const file = () => new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' })
+
+/** A complete recipe, the shape `stickerRecipeFrom` accepts. */
+function recipe(): StickerRecipe {
+  return {
+    original: { type: 'text', text: 'hi', color: '#ffffff', fontId: 'round' },
+    style: {
+      outlineWidth: 4,
+      outlineColor: '#111111',
+      material: 'holographic',
+      baseName: 'sheet.png',
+      perforation: null,
+      displayLongEdge: 512,
+      texture: null,
+    },
+  }
+}
+
+/** A complete music source, the canonical form `readMusicMeta` accepts. */
+function music(): MusicMeta {
+  return {
+    provider: 'spotify',
+    title: 'T',
+    artist: 'A',
+    url: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC',
+  }
+}
+
+function fullRecord(): SessionPhotoRecord {
+  return {
+    id: 'p1',
+    name: 'IMG_1.png',
+    trueW: 4,
+    trueH: 4,
+    file: file(),
+    videoFile: file(),
+    kind: 'sticker',
+    folder: 'Faces',
+    music: music(),
+    tags: ['trip'],
+    orphaned: true,
+    recipe: recipe(),
+    gps: { lat: 35.6, lng: 139.7 },
+    takenAt: '2026-01-02T03:04:05Z',
+  }
+}
+
+describe('parseSessionPhotoRecord', () => {
+  it('reads a complete record back, every field kept', () => {
+    const saved = fullRecord()
+    const parsed = parseSessionPhotoRecord(saved)
+    expect(parsed).toStrictEqual(saved)
+  })
+
+  it('reads a legacy record with no optional fields', () => {
+    const parsed = parseSessionPhotoRecord({ id: 'p1', name: 'a.png', trueW: 4, trueH: 4, file: file() })
+    expect(parsed?.id).toBe('p1')
+    expect(parsed?.kind).toBeUndefined()
+    expect(parsed?.tags).toBeUndefined()
+    expect(parsed?.recipe).toBeUndefined()
+  })
+
+  it('rejects what is not one of our records', () => {
+    expect(parseSessionPhotoRecord(null)).toBeNull()
+    expect(parseSessionPhotoRecord('p1')).toBeNull()
+    expect(parseSessionPhotoRecord({ ...fullRecord(), id: 7 })).toBeNull()
+    expect(parseSessionPhotoRecord({ ...fullRecord(), name: null })).toBeNull()
+    expect(parseSessionPhotoRecord({ ...fullRecord(), trueW: Number.NaN })).toBeNull()
+    expect(parseSessionPhotoRecord({ ...fullRecord(), file: 'file.png' })).toBeNull()
+  })
+
+  it('reads a wrong-kind optional as absent, not as a failure', () => {
+    const parsed = parseSessionPhotoRecord({
+      ...fullRecord(),
+      tags: 'trip',
+      gps: { lat: 35.6 },
+      videoFile: 'x.mov',
+      orphaned: 'yes',
+      takenAt: 1234,
+    })
+    expect(parsed?.tags).toBeUndefined()
+    expect(parsed?.gps).toBeUndefined()
+    expect(parsed?.videoFile).toBeUndefined()
+    expect(parsed?.orphaned).toBeUndefined()
+    expect(parsed?.takenAt).toBeUndefined()
+    // The required half still opens the board.
+    expect(parsed?.id).toBe('p1')
+    expect(parsed?.file).toBeInstanceOf(File)
+  })
+
+  it('re-validates music and recipe instead of trusting them', () => {
+    const badMusic = parseSessionPhotoRecord({ ...fullRecord(), music: { ...music(), url: 'https://evil.example/t' } })
+    expect(badMusic?.music).toBeUndefined()
+    const badRecipe = parseSessionPhotoRecord({ ...fullRecord(), recipe: { ...recipe(), style: { outlineWidth: 4 } } })
+    expect(badRecipe?.recipe).toBeUndefined()
+  })
+})
+
+describe('parseSessionMeta', () => {
+  it('reads back what sessionMeta writes (the save → load round trip)', () => {
+    const saved = sessionMeta(source())
+    expect(parseSessionMeta(saved)).toStrictEqual(saved)
+  })
+
+  it('reads a legacy meta with no optional fields', () => {
+    const saved = {
+      workspaces: board('b', 2),
+      activeId: 'b1',
+      gap: 0,
+      radius: 0,
+      bg: '#000000',
+      longSide: 2048,
+      format: 'image/jpeg',
+      quality: 0.92,
+    }
+    const parsed = parseSessionMeta(saved)
+    expect(parsed?.activeId).toBe('b1')
+    expect(parsed && 'grids' in parsed).toBe(false)
+    expect(parsed && 'cutouts' in parsed).toBe(false)
+    expect(parsed && 'bgGradient' in parsed).toBe(false)
+  })
+
+  it('rejects what is not one of our sessions', () => {
+    expect(parseSessionMeta(null)).toBeNull()
+    expect(parseSessionMeta('x')).toBeNull()
+    expect(parseSessionMeta({ ...sessionMeta(source()), workspaces: 'nine cells' })).toBeNull()
+    expect(parseSessionMeta({ ...sessionMeta(source()), format: 'image/webp' })).toBeNull()
+    expect(parseSessionMeta({ ...sessionMeta(source()), gap: Number.NaN })).toBeNull()
+    expect(parseSessionMeta({ ...sessionMeta(source()), activeId: 3 })).toBeNull()
+  })
+
+  it('drops a bad board cell alone, the filter normalizeSlots applies', () => {
+    const saved = sessionMeta(source())
+    const one = parseSessionMeta({ ...saved, workspaces: [{ id: 4 }, ...board('b', 2)] })
+    expect(one?.workspaces.map(w => w.id)).toEqual(['b0', 'b1'])
+    const all = parseSessionMeta({ ...saved, workspaces: [{ id: 4 }] })
+    expect(all?.workspaces).toEqual([])
+    const grid = parseSessionMeta({
+      ...saved,
+      grids: [{ id: 'gA', name: 'Cover', workspaces: [{ id: 7 }, ...board('a', 3)], activeId: 'a2' }],
+    })
+    expect(grid?.grids?.[0]?.workspaces.map(w => w.id)).toEqual(['a0', 'a1', 'a2'])
+  })
+
+  it('keeps null distinct from absent for the background fields', () => {
+    const saved = sessionMeta(source())
+    expect(parseSessionMeta(saved)?.bgGradient).toBeNull()
+    expect(parseSessionMeta(saved)?.bgImage).toBeNull()
+    const absent = parseSessionMeta({ ...saved, bgGradient: undefined, bgImage: undefined })
+    expect(absent && 'bgGradient' in absent).toBe(false)
+    expect(absent && 'bgImage' in absent).toBe(false)
+    const filled = parseSessionMeta({ ...saved, bgGradient: 'warm', bgImage: { photoId: 'p1', blur: true } })
+    expect(filled?.bgGradient).toBe('warm')
+    expect(filled?.bgImage).toStrictEqual({ photoId: 'p1', blur: true })
+  })
+
+  it('drops a wrong-shape optional whole, and one bad grid entry alone', () => {
+    const saved = sessionMeta(source())
+    const has = (meta: unknown, key: string) => typeof meta === 'object' && meta !== null && key in meta
+    expect(has(parseSessionMeta({ ...saved, grids: 'one board' }), 'grids')).toBe(false)
+    expect(has(parseSessionMeta({ ...saved, cutouts: { c1: 7 } }), 'cutouts')).toBe(false)
+    expect(has(parseSessionMeta({ ...saved, stickerFolders: ['Faces', 2] }), 'stickerFolders')).toBe(false)
+    const twoGrids = {
+      ...saved,
+      grids: [
+        { id: 'gA', name: 'Cover', hidden: true, workspaces: board('a', 3), activeId: 'a2' },
+        { id: 'gB', name: 'Variant', workspaces: board('b', 2), activeId: 'b1' },
+      ],
+    }
+    const mixed = parseSessionMeta({ ...twoGrids, grids: [twoGrids.grids[0], { id: 'gC', name: 'Broken' }] })
+    expect(mixed?.grids?.map(g => g.id)).toEqual(['gA'])
+    const cutoutSets = parseSessionMeta({ ...saved, cutoutSets: { s1: { cutout: 'c.png' }, s2: { cutout: 'b.png', blurred: 'bl.png' } } })
+    expect(cutoutSets?.cutoutSets).toStrictEqual({ s1: { cutout: 'c.png' }, s2: { cutout: 'b.png', blurred: 'bl.png' } })
   })
 })

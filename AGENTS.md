@@ -43,8 +43,12 @@ Where a note conflicts with a poteto default, the note wins.
 | Every union switch is exhaustive | `ts/switch-exhaustiveness-check` |
 | Indexed reads are total, absent differs from `undefined` | the two compiler flags |
 
-The only inline exceptions are the vendored transformers import and the two
-IndexedDB session reads, each with a reason on the line.
+There are no inline exceptions. The two boundaries that used to cast now
+parse: the IndexedDB session reads go through `parseSessionMeta` /
+`parseSessionPhotoRecord` in `lib/sessionStore` (required fields prove the
+record, wrong-kind optionals read as absent, `music` and `recipe` re-validate
+through their own parsers), and the vendored transformers import through
+`isTransformersModule` in `lib/bgRemoval.worker`.
 
 Type-aware lint covers `src` and `routes`; `scripts` are excluded from the
 type-aware pass and from the non-null rule. `bun run ci` runs

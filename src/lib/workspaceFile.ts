@@ -152,12 +152,19 @@ export function downloadDoc(doc: WorkspaceDocV1): void {
   )
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 function isWorkspaceDoc(v: unknown): v is WorkspaceDocV1 {
   return typeof v === 'object' && v !== null
     && 'version' in v && v.version === 1
     && 'app' in v && v.app === 'koma'
     && 'workspaces' in v && Array.isArray(v.workspaces)
     && 'photos' in v && Array.isArray(v.photos)
+    // A photo entry without a data URL would fail inside `dataUrlToFile`'s
+    // fetch with an HTTP-shaped message; reject it here with the real one.
+    && v.photos.every(p => isRecord(p) && typeof p.data === 'string')
 }
 
 /** The one message both reject paths throw, a key once it reaches the UI. */

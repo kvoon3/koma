@@ -1,6 +1,7 @@
 # Lint, type-check, build and test every PR, and `main` on every push.
 #
-# `bun run ci` runs the same three scripts locally, in parallel on one machine.
+# `bun run ci` runs the same gates locally: the four scripts in parallel, then
+# the type-gate probe and the parity harnesses.
 #
 # ESLint is the only gate that keeps a cache: `--cache --cache-strategy content`
 # turns 11.7s of work into 3.0s, keyed on the commit so every run saves its own
@@ -46,7 +47,12 @@ jobs:
         # `test` asserts wall-clock budgets (an 80ms pixel-filter frame), so it
         # gets a machine to itself instead of sharing four vCPUs with ESLint's
         # single worker and the bundler. `build` type-checks before Vite runs.
-        gate: [lint, test, build]
+        # `check-gates` proves the strictness gates still fire (it writes a bad
+        # fixture, expects every compiler flag and lint rule to reject it, then
+        # deletes it); `check-parity` re-runs the frozen-algorithm harnesses;
+        # `i18n` keeps locale-key parity. The six together are what local
+        # `bun run ci` runs, so no gate is local-only.
+        gate: [lint, test, build, check-gates, check-parity, i18n]
     steps:
       - uses: actions/checkout@v7
 
