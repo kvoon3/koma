@@ -7,9 +7,25 @@
 const LRCLIB = 'https://lrclib.net/api'
 
 interface LrcLibTrack {
-  instrumental?: boolean
-  plainLyrics?: string | null
-  syncedLyrics?: string | null
+  instrumental?: boolean | undefined
+  plainLyrics?: string | null | undefined
+  syncedLyrics?: string | null | undefined
+}
+
+/** The three fields this file reads, all absent-safe, from an untrusted body. */
+function readTrack(value: unknown): LrcLibTrack | null {
+  if (typeof value !== 'object' || value === null)
+    return null
+  const instrumental = 'instrumental' in value ? value.instrumental : undefined
+  const plainLyrics = 'plainLyrics' in value ? value.plainLyrics : undefined
+  const syncedLyrics = 'syncedLyrics' in value ? value.syncedLyrics : undefined
+  if (instrumental !== undefined && typeof instrumental !== 'boolean')
+    return null
+  if (plainLyrics !== undefined && plainLyrics !== null && typeof plainLyrics !== 'string')
+    return null
+  if (syncedLyrics !== undefined && syncedLyrics !== null && typeof syncedLyrics !== 'string')
+    return null
+  return { instrumental, plainLyrics, syncedLyrics }
 }
 
 /** Strip LRC timestamps and section tags; drop blank lines. */
@@ -52,8 +68,9 @@ function firstWithLyrics(results: unknown): string | null {
   if (!Array.isArray(results))
     return null
   for (const item of results) {
-    if (item && typeof item === 'object') {
-      const text = plainFrom(item as LrcLibTrack)
+    const track = readTrack(item)
+    if (track) {
+      const text = plainFrom(track)
       if (text)
         return text
     }
@@ -75,8 +92,9 @@ export async function fetchLyrics(title: string, artist: string): Promise<string
     return null
   if (by) {
     const exact = await getJson(`${LRCLIB}/get?${new URLSearchParams({ track_name: track, artist_name: by })}`)
-    if (exact && typeof exact === 'object') {
-      const text = plainFrom(exact)
+    const exactTrack = readTrack(exact)
+    if (exactTrack) {
+      const text = plainFrom(exactTrack)
       if (text)
         return text
     }

@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 
-export function usePersisted<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
+/** A boolean preference: the only shape this hook persists. */
+export function usePersistedBoolean(key: string, initial: boolean) {
+  const [value, setValue] = useState<boolean>(() => {
     try {
       const raw = localStorage.getItem(`collage:${key}`)
-      return raw == null ? initial : (JSON.parse(raw) as T)
+      if (raw == null)
+        return initial
+      const parsed: unknown = JSON.parse(raw)
+      return typeof parsed === 'boolean' ? parsed : initial
     }
     catch {
       return initial
