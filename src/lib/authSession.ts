@@ -63,7 +63,6 @@ export function notifyAuthChanged(): void {
   void refetch()
 }
 
-/** Sign out through the lazily loaded better-auth client, then update the chip. */
 export async function signOut(): Promise<void> {
   const { auth } = await import('void/client/react')
   await auth.signOut()

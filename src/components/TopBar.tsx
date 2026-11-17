@@ -283,12 +283,7 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
   )
 }
 
-/**
- * The account chip: the signed-in user's email as the label, a popup with
- * Sign out; signed out, a chip that opens the auth screen's route. The
- * session lives in `lib/authSession`, so this module never pulls the auth
- * screen's chunk.
- */
+/** The account chip; session state comes from lib/authSession, so this module never pulls the auth screen's chunk. */
 function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: MenuWiring & { email: string | null, pending: boolean }) {
   const t = useT()
   const navigate = useNavigate()

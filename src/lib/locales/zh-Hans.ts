@@ -850,6 +850,8 @@ const zhHans = {
   'Have an account? Sign in': '已有账号？登录',
   'Sign in failed. Check your email and password.': '登录失败。请检查邮箱和密码。',
   'Too many attempts. Try again in a moment.': '尝试次数过多。请稍后再试。',
+  'Signed in as {email}': '已登录：{email}',
+  'Back to the board': '返回版面',
 } satisfies Record<string, string>
 
 export default zhHans

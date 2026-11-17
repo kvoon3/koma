@@ -844,6 +844,8 @@ const ja: Record<TKey, string> = {
   'Have an account? Sign in': 'アカウントをお持ちの場合：ログイン',
   'Sign in failed. Check your email and password.': 'ログインに失敗しました。メールアドレスとパスワードを確認してください。',
   'Too many attempts. Try again in a moment.': '試行回数が多すぎます。しばらくしてからもう一度お試しください。',
+  'Signed in as {email}': '{email} でログイン中',
+  'Back to the board': 'ボードに戻る',
 }
 
 export default ja

@@ -28,7 +28,7 @@ export const STICKERS_PATH = '/stickers'
 /** The launcher draft, kept off the main flow: routable, linked from nowhere. */
 export const LEGACY_INDEX_PATH = '/legacy-index'
 
-/** The sign-in / sign-up screen. Its component loads lazily (see router). */
+/** The sign-in / sign-up screen. */
 export const AUTH_PATH = '/auth'
 
 /** The 3×3 board overview, at the app's root. */

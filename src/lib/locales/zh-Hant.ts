@@ -848,6 +848,8 @@ const zhHant: Record<TKey, string> = {
   'Have an account? Sign in': '已有帳號？登入',
   'Sign in failed. Check your email and password.': '登入失敗。請檢查信箱和密碼。',
   'Too many attempts. Try again in a moment.': '嘗試次數過多。請稍後再試。',
+  'Signed in as {email}': '已登入：{email}',
+  'Back to the board': '返回版面',
 }
 
 export default zhHant

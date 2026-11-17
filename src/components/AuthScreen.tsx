@@ -1,33 +1,29 @@
 import type { FormEvent } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { auth } from 'void/client/react'
 
-import { AUTH_IDLE, authTransition, canSubmit } from '../lib/authFlow'
+import { AUTH_IDLE, authTransition } from '../lib/authFlow'
 import { notifyAuthChanged } from '../lib/authSession'
 import { useT } from '../lib/i18n'
+import { OVERVIEW_PATH } from '../lib/routes'
 import { useFlow } from '../lib/useFlow'
 import { Button } from './ui/button'
 import { dialogButton } from './ui/buttonStyles'
 
-/**
- * The sign-in / sign-up screen. One form, two actions: the primary button
- * switches between Sign in and Sign up, so a new visitor can create the
- * account they then sign into. The machine (`src/lib/authFlow`) owns the
- * attempt lifecycle; the auth client's own session state decides whether the
- * app counts as signed-in and lives outside this screen.
- */
+/** The sign-in / sign-up screen. */
 export function AuthScreen({ onSignedIn }: { onSignedIn?: (email: string) => void } = {}) {
   const t = useT()
-  const { state, send, latest } = useFlow(AUTH_IDLE, authTransition)
+  const navigate = useNavigate()
+  const { state, send } = useFlow(AUTH_IDLE, authTransition)
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    // `send` reads the machine synchronously, so a double submit in one frame
-    // cannot start a second request.
-    if (!canSubmit(latest()) || !send({ type: 'submit' }))
+    // `send` folds the event synchronously and returns false for a refusal.
+    if (!send({ type: 'submit' }))
       return
     try {
       const result = mode === 'signUp'
@@ -52,6 +48,17 @@ export function AuthScreen({ onSignedIn }: { onSignedIn?: (email: string) => voi
 
   const busy = state.phase === 'signingIn'
   const error = state.phase === 'error' ? state.message : null
+
+  if (state.phase === 'signedIn') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-panel px-6">
+        <p className="text-[15px] font-semibold text-txt">{t('Signed in as {email}', { email: state.email })}</p>
+        <Button variant="on" onClick={() => void navigate({ to: OVERVIEW_PATH })}>
+          {t('Back to the board')}
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 bg-panel px-6">

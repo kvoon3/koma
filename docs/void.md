@@ -103,7 +103,7 @@ migrate`, restart the dev server.
 ### Production (operator)
 
 The GitHub Actions deploy runs `wrangler deploy` directly, so void's
-deploy-time provisioning and migration apply do not fire. The workflow now
+deploy-time provisioning and migration apply do not fire. The workflow
 applies the pending migrations itself with
 `bunx wrangler d1 migrations apply DB --config dist/ssr/wrangler.json
 --remote` before the deploy step. Two operator steps are still manual, once,
