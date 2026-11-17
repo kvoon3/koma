@@ -2,7 +2,8 @@ import { projects } from '@schema'
 import { defineHandler } from 'void'
 import { requireAuth } from 'void/auth'
 import { and, db, eq, sql } from 'void/db'
-import { parseUpdateBody } from './_body'
+import { NEXT_UPDATED_AT_SQL } from '../../../src/lib/cloudLock'
+import { parseJsonBody, parseUpdateBody, writeBodyFailure } from './_body'
 
 /**
  * This user's project, or a 404. The id is another user's too: scoping on
@@ -31,10 +32,14 @@ export const GET = defineHandler(async (c) => {
  */
 export const PUT = defineHandler(async (c) => {
   const user = requireAuth(c)
-  const raw: unknown = await c.req.json()
-  const body = parseUpdateBody(raw)
-  if (!body)
+  const json = parseJsonBody(await c.req.text())
+  if (!json.ok)
     return c.json({ error: 'invalid-body' }, 400)
+  const body = parseUpdateBody(json.value)
+  if (!body.ok) {
+    const failure = writeBodyFailure(body.error)
+    return c.json(failure.body, failure.status)
+  }
   const id = c.req.param('id')
   if (!id)
     return c.json({ error: 'invalid-id' }, 400)
@@ -42,11 +47,11 @@ export const PUT = defineHandler(async (c) => {
   const [updated] = await db
     .update(projects)
     .set({
-      ...(body.name === undefined ? {} : { name: body.name }),
-      document: body.document,
-      updatedAt: sql`(datetime('now'))`,
+      ...(body.value.name === undefined ? {} : { name: body.value.name }),
+      document: body.value.document,
+      updatedAt: sql.raw(NEXT_UPDATED_AT_SQL),
     })
-    .where(and(scope, eq(projects.updatedAt, body.updatedAt)))
+    .where(and(scope, eq(projects.updatedAt, body.value.updatedAt)))
     .returning({
       id: projects.id,
       name: projects.name,
