@@ -112,10 +112,9 @@ curl -sS -o /dev/null -w '%{content_type} %{http_code}' \
   https://koma.kvoon.me/api/projects/00000000-0000-0000-0000-000000000000
 ```
 
-With a signed-in session cookie it must answer `application/json 404`. The
-same command without a session answers `application/json 401`. Either way the
-type is JSON, never `text/html`. The client sends `Accept: application/json`
-for the same reason, so local dev and production agree.
+With a signed-in session cookie it must answer `application/json 404`.
+Without a session the auth layer answers `401`, never `text/html`. The client
+sends `Accept: application/json`, so local dev and production agree.
 
 ### Production (operator)
 
