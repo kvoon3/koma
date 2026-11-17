@@ -74,6 +74,9 @@ export const POST = defineHandler(async (c) => {
     await read.body.cancel().catch(() => {})
     return c.json({ error: 'asset-id-taken' }, 409)
   }
+  // A failed first insert leaves an orphan object; a failed update must not
+  // delete the object its existing row already points at.
+  const hadRow = owner !== undefined
 
   const fields = {
     kind: read.head.kind,
@@ -112,7 +115,7 @@ export const POST = defineHandler(async (c) => {
     return c.json({ error: 'asset-id-taken' }, 409)
   }
   catch (error) {
-    if (stored)
+    if (stored && !hadRow)
       await storage.delete(key).catch(() => {})
     if (error instanceof AssetTooLargeError)
       return c.json({ error: 'too-large' }, 413)

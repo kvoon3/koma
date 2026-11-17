@@ -1,8 +1,7 @@
 /**
  * The upload wire format and its validation, kept out of the route so the
- * handler stays a thin shell around R2 and D1 (see
- * `principle-boundary-discipline`). This is the only place a client body,
- * header, or id becomes typed.
+ * handler stays a thin shell around R2 and D1. This is the only place a
+ * client body, header, or id becomes typed.
  *
  * A request is a UTF-8 JSON head, one newline, then the file's bytes. Metadata
  * rides in the body rather than a header because a sticker's `meta` carries its
@@ -11,10 +10,10 @@
  * separator: `JSON.stringify` escapes newlines inside strings, so the first
  * raw newline ends the head.
  */
-import { isAssetId } from '../../../src/lib/assetKeys'
+import { ASSET_MAX_MB, isAssetId } from '../../../src/lib/assetKeys'
 
 /** The per-file cap. Streaming into R2 keeps worker memory at one chunk. */
-export const MAX_ASSET_BYTES = 50 * 1024 * 1024
+export const MAX_ASSET_BYTES = ASSET_MAX_MB * 1024 * 1024
 
 /** The head cap: comfortably above a 1600px sticker original, far below memory risk. */
 export const MAX_HEAD_BYTES = 2 * 1024 * 1024
@@ -52,7 +51,7 @@ export type UploadRead
   = | { ok: true, head: UploadHead, body: ReadableStream<Uint8Array>, size: number }
     | { ok: false, status: 400 | 411 | 413, error: string }
 
-/** Raised by the stream when a body passes the cap after an honest length was absent. */
+/** Raised by the stream when more bytes arrive than the declared length allowed. */
 export class AssetTooLargeError extends Error {
   constructor() {
     super('asset too large')
