@@ -20,7 +20,7 @@ export type CloudOpenEvent
 export function cloudOpenTransition(state: CloudOpenState, event: CloudOpenEvent): CloudOpenState {
   switch (event.type) {
     case 'open':
-      return { phase: 'loading' }
+      return state.phase === 'loading' ? state : { phase: 'loading' }
     case 'loaded':
       return state.phase === 'loading' ? { phase: 'ready', projects: event.projects } : state
     case 'failed':

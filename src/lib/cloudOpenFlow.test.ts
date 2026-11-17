@@ -12,6 +12,10 @@ describe('cloudOpenTransition', () => {
     expect(cloudOpenTransition(loading, { type: 'failed', message: 'offline' })).toEqual({ phase: 'error', message: 'offline' })
   })
 
+  test('a second open while loading is refused', () => {
+    expect(cloudOpenTransition(loading, { type: 'open' })).toBe(loading)
+  })
+
   test('a retry starts from error, a stale result is refused', () => {
     const failed = cloudOpenTransition(loading, { type: 'failed', message: 'offline' })
     expect(cloudOpenTransition(failed, { type: 'open' })).toEqual(loading)
