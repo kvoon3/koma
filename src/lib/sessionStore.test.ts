@@ -4,6 +4,7 @@ import type { MusicMeta } from './musicLink'
 import type { SessionPhotoRecord } from './sessionStore'
 import type { StickerRecipe } from './stickerRecipe'
 import { describe, expect, it } from 'bun:test'
+import { parseCloudDocumentText, serializeCloudDocument } from './cloudSession'
 import { parseSessionMeta, parseSessionPhotoRecord, sessionMeta } from './sessionStore'
 import { normalizeGrids } from './workspaces'
 
@@ -80,6 +81,21 @@ describe('sessionMeta', () => {
     expect(meta.grids?.map(g => g.hidden)).toEqual([false, false])
     const out = normalizeGrids(savedFrom(meta), () => cell('fresh'), () => 'gNew')
     expect(out.grids.map(g => g.hidden)).toEqual([undefined, undefined])
+  })
+})
+
+describe('cloud document', () => {
+  it('round-trips a populated SessionMeta field for field', () => {
+    const meta = sessionMeta(source())
+    const document = parseCloudDocumentText(serializeCloudDocument(meta))
+    expect(document?.version).toBe(1)
+    expect(document?.session).toEqual(meta)
+  })
+
+  it('refuses a future version and unreadable text', () => {
+    expect(parseCloudDocumentText('{"version":2,"session":{}}')).toBeNull()
+    expect(parseCloudDocumentText('not json')).toBeNull()
+    expect(parseCloudDocumentText('{"version":1,"session":{}}')).toBeNull()
   })
 })
 

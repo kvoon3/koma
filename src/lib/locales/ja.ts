@@ -847,6 +847,22 @@ const ja: Record<TKey, string> = {
   'Too many attempts. Try again in a moment.': '試行回数が多すぎます。しばらくしてからもう一度お試しください。',
   'Signed in as {email}': '{email} でログイン中',
   'Back to the board': 'ボードに戻る',
+
+  // Cloud session (wave11/cloud-sessions): the account menu's save and open entries
+  'Save to cloud': 'クラウドに保存',
+  'Saving…': '保存中…',
+  'Saved to cloud': 'クラウドに保存しました',
+  'Cloud save failed. Try again.': 'クラウドへの保存に失敗しました。もう一度お試しください。',
+  'This session changed on another device. Reload it from the cloud.': 'このセッションは別のデバイスで変更されました。クラウドから再読み込みしてください。',
+  'Open from cloud…': 'クラウドから開く…',
+  'Cloud sessions': 'クラウドセッション',
+  'Loading…': '読み込み中…',
+  'Load': '読み込む',
+  'No cloud sessions yet.': 'クラウドセッションはまだありません。',
+  'Sign in to save to cloud': 'クラウドに保存するにはサインインしてください',
+  'Sign in to load from cloud': 'クラウドから読み込むにはサインインしてください',
+  'Could not open the cloud session.': 'クラウドセッションを開けませんでした。',
+  'Loaded from cloud': 'クラウドから読み込みました',
 }
 
 export default ja

@@ -205,6 +205,12 @@ interface State extends PersistedSettings {
    */
   cutoutSets: CutoutSets
   /**
+   * The cloud row this page loaded or last saved, with the `updatedAt` the
+   * server returned. Session-only; `lib/cloudIdentity` keeps the same pair
+   * across reloads, scoped to the signed-in email.
+   */
+  cloudProject: { id: string, updatedAt: string } | null
+  /**
    * Undo / redo over the workspace board as a tree of steps (see
    * `lib/history`): app-global and session-only, never persisted, and a reload
    * forgets it.
@@ -437,6 +443,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
   musicCardOpen: false,
   musicCardFor: null,
   cropMaskShown: false,
+  cloudProject: null,
   history: emptyHistory(),
 
   addPhotos: (files, autoFill = true, kind: PhotoKind = 'photo') => {
@@ -1618,6 +1625,7 @@ export const useStore = create<State & Actions>()(persist((set, get) => ({
 
   /** Forget the tree: a replaced board (session hydrate, opened file) starts clean. */
   resetHistory: () => set({ history: emptyHistory() }),
+  setCloudProject: project => set({ cloudProject: project }),
 }), {
   // Visual settings survive reloads; the rest of the state (workspaces,
   // photos) stays session-only.
@@ -1719,6 +1727,8 @@ interface Actions {
   jumpTo: (id: string) => void
   /** Drop the tree: a replaced board has nothing earlier to return to. */
   resetHistory: () => void
+  /** Record the cloud row this page loaded or saved; null forgets it. */
+  setCloudProject: (project: { id: string, updatedAt: string } | null) => void
   resetSettings: () => void
   setCanvasSize: (ratio: number, fill: number) => void
   setCanvasFill: (fill: number) => void
