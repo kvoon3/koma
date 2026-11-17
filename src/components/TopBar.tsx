@@ -10,7 +10,7 @@ import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import wordmark from '../assets/fonts/wordmark.json'
 import { useMediaQuery } from '../hooks'
-import { auth, useAuthEmail } from '../lib/authSession'
+import { signOut, useAuthEmail } from '../lib/authSession'
 import { cssVars } from '../lib/cssVars'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { boxIn } from '../lib/dockBox'
@@ -293,8 +293,8 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
   const t = useT()
   const navigate = useNavigate()
 
-  const signOut = async () => {
-    await auth.signOut()
+  const doSignOut = async () => {
+    await signOut()
     say(t('Signed out'))
   }
 
@@ -332,7 +332,7 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
         <Menu.Portal>
           <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
             <Menu.Popup className={popupCls}>
-              <Menu.Item className={itemCls} closeOnClick onClick={() => void signOut()}>
+              <Menu.Item className={itemCls} closeOnClick onClick={() => void doSignOut()}>
                 <MorphIcon icon={LogOut} size={13} strokeWidth={1.75} className="text-dim" />
                 {t('Sign out')}
               </Menu.Item>

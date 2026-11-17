@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { auth } from 'void/client/react'
 
 import { AUTH_IDLE, authTransition, canSubmit } from '../lib/authFlow'
+import { notifyAuthChanged } from '../lib/authSession'
 import { useT } from '../lib/i18n'
 import { useFlow } from '../lib/useFlow'
 import { Button } from './ui/button'
@@ -40,6 +41,7 @@ export function AuthScreen({ onSignedIn }: { onSignedIn?: (email: string) => voi
         return
       }
       send({ type: 'resolved', email: result.data.user.email })
+      notifyAuthChanged()
       onSignedIn?.(result.data.user.email)
     }
     catch {
