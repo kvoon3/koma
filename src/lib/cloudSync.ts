@@ -20,6 +20,9 @@ function client() {
   return clientModule
 }
 
+/** Every cloud call names JSON, so the dev server's HTML fallback never answers a missing id. */
+const JSON_ACCEPT = { Accept: 'application/json' }
+
 /** The HTTP status an ofetch error carries, without importing its class. */
 function httpStatus(error: unknown): number | undefined {
   if (typeof error !== 'object' || error === null || !('status' in error))
@@ -55,12 +58,14 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
           method: 'PUT',
           params: { id: identity.projectId },
           body: { document, updatedAt: identity.updatedAt },
+          headers: JSON_ACCEPT,
         }))
       }
       else {
         saved = parseProjectSummary(await fetch('/api/projects', {
           method: 'POST',
           body: { name: projectName(), document },
+          headers: JSON_ACCEPT,
         }))
       }
       if (!saved)
@@ -87,7 +92,7 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
 
   const listProjects = useCallback(async (): Promise<CloudProjectSummary[]> => {
     const { fetch } = await client()
-    return parseProjectSummaryList(await fetch('/api/projects'))
+    return parseProjectSummaryList(await fetch('/api/projects', { headers: JSON_ACCEPT }))
   }, [])
 
   const openProject = useCallback(async (id: string): Promise<boolean> => {
@@ -95,7 +100,7 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       return false
     try {
       const { fetch } = await client()
-      const project = parseProjectDetail(await fetch('/api/projects/:id', { params: { id } }))
+      const project = parseProjectDetail(await fetch('/api/projects/:id', { params: { id }, headers: JSON_ACCEPT }))
       const document = project ? parseCloudDocumentText(project.document) : null
       if (!project || !document) {
         say(t('Could not open the cloud session.'))
