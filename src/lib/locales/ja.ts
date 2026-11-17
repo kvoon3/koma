@@ -863,6 +863,12 @@ const ja: Record<TKey, string> = {
   'Sign in to load from cloud': 'クラウドから読み込むにはサインインしてください',
   'Could not open the cloud session.': 'クラウドセッションを開けませんでした。',
   'Loaded from cloud': 'クラウドから読み込みました',
+
+  // Assets (wave12/assets): upload progress and its failures in the account menu
+  'Uploading photos… {done} of {total}': '写真をアップロード中… {done}/{total}',
+  'Photos uploaded': '写真をアップロードしました',
+  'Upload failed. Try again.': 'アップロードに失敗しました。もう一度お試しください。',
+  'Photo too large. The limit is {mb} MB.': '写真が大きすぎます。上限は {mb} MB です。',
 }
 
 export default ja

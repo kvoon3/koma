@@ -1,4 +1,5 @@
 import type { CloudProjectDetail, CloudProjectSummary } from './cloudApi'
+import type { Node } from './panes'
 import type { SessionMeta } from './sessionStore'
 import { parseSessionMeta } from './sessionStore'
 
@@ -70,4 +71,49 @@ export function parseProjectDetail(value: unknown): CloudProjectDetail | null {
   if (!summary || !isRecord(value) || typeof value.userId !== 'string' || typeof value.document !== 'string')
     return null
   return { ...summary, userId: value.userId, document: value.document }
+}
+
+function collectNode(node: Node, ids: Set<string>): void {
+  if (node.type === 'leaf') {
+    if (node.photoId)
+      ids.add(node.photoId)
+    for (const sticker of node.stickers)
+      ids.add(sticker.photoId)
+    return
+  }
+  collectNode(node.a, ids)
+  collectNode(node.b, ids)
+}
+
+/**
+ * Every photo id the document can draw: panes, board stickers, both cutout
+ * tables and the collage background. A second device downloads exactly these
+ * assets, so another project's uploads do not fill this board's library.
+ */
+export function referencedPhotoIds(session: SessionMeta): string[] {
+  const ids = new Set<string>()
+  const addBoard = (workspace: SessionMeta['workspaces'][number]) => {
+    collectNode(workspace.root, ids)
+    for (const sticker of workspace.stickers ?? [])
+      ids.add(sticker.photoId)
+  }
+  for (const workspace of session.workspaces)
+    addBoard(workspace)
+  for (const grid of session.grids ?? []) {
+    for (const workspace of grid.workspaces)
+      addBoard(workspace)
+  }
+  for (const [cutout, source] of Object.entries(session.cutouts ?? {})) {
+    ids.add(cutout)
+    ids.add(source)
+  }
+  for (const [source, set] of Object.entries(session.cutoutSets ?? {})) {
+    ids.add(source)
+    ids.add(set.cutout)
+    if (set.blurred)
+      ids.add(set.blurred)
+  }
+  if (session.bgImage)
+    ids.add(session.bgImage.photoId)
+  return [...ids]
 }
