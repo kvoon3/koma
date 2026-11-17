@@ -5,7 +5,7 @@ import type { SessionMeta, SessionPhotoRecord } from './sessionStore'
 import type { UploadFlowEvent } from './uploadFlow'
 import { useCallback } from 'react'
 import { useStore } from '../store'
-import { isAssetId } from './assetKeys'
+import { ASSET_MAX_MB } from './assetKeys'
 import { parseAssetSummaryList, photoRecordFromAsset, sessionPhotoMeta } from './cloudAsset'
 import { clearCloudIdentity, loadCloudIdentity, saveCloudIdentity } from './cloudIdentity'
 import { parseCloudDocumentText, parseProjectDetail, parseProjectSummary, parseProjectSummaryList, referencedPhotoIds, serializeCloudDocument } from './cloudSession'
@@ -28,9 +28,6 @@ function client() {
 
 /** Every cloud call names JSON, so the dev server's HTML fallback never answers a missing id. */
 const JSON_ACCEPT = { Accept: 'application/json' }
-
-/** The server's per-file cap, shown in the too-large error. Keep in step with `routes/api/assets/_upload.ts`. */
-const ASSET_LIMIT_MB = 50
 
 /** The request body is raw bytes; the file's real type travels inside the head. */
 const ASSET_CONTENT_TYPE = 'application/octet-stream'
@@ -63,8 +60,6 @@ class UploadFailure extends Error {
  * the storage key, and scopes both to the caller.
  */
 async function uploadOne(photo: SessionPhotoRecord): Promise<void> {
-  if (!isAssetId(photo.id))
-    throw new AssetUploadError(400)
   const head = {
     id: photo.id,
     kind: photo.kind ?? 'photo',
@@ -97,7 +92,7 @@ async function uploadPending(
     }
     catch (error) {
       const message = error instanceof AssetUploadError && error.status === 413
-        ? t('Photo too large. The limit is {mb} MB.', { mb: ASSET_LIMIT_MB })
+        ? t('Photo too large. The limit is {mb} MB.', { mb: ASSET_MAX_MB })
         : t('Upload failed. Try again.')
       send({ type: 'failed', message })
       throw new UploadFailure(message)
@@ -109,11 +104,16 @@ async function uploadPending(
 }
 
 async function downloadOne(asset: CloudAssetSummary): Promise<SessionPhotoRecord | null> {
-  const response = await globalThis.fetch(`/api/assets/${encodeURIComponent(asset.id)}`)
-  if (!response.ok)
+  try {
+    const response = await globalThis.fetch(`/api/assets/${encodeURIComponent(asset.id)}`)
+    if (!response.ok)
+      return null
+    const blob = await response.blob()
+    return photoRecordFromAsset(asset, new File([blob], asset.name, { type: blob.type || ASSET_CONTENT_TYPE }))
+  }
+  catch {
     return null
-  const blob = await response.blob()
-  return photoRecordFromAsset(asset, new File([blob], asset.name, { type: blob.type || ASSET_CONTENT_TYPE }))
+  }
 }
 
 /**

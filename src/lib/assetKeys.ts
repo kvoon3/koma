@@ -10,6 +10,9 @@
  * be, and the serve route never has to store or trust a second location.
  */
 
+/** The per-file upload cap, shown in the too-large error and enforced by the route. */
+export const ASSET_MAX_MB = 50
+
 /** Ids this app generates: timestamp/random photo ids and Better Auth user ids. */
 const PART = /^[\w-]{1,128}$/
 
