@@ -12,6 +12,7 @@ import * as sticker from './lib/sticker'
 import * as stickerMakerFlow from './lib/stickerMakerFlow'
 import * as stickerRecipe from './lib/stickerRecipe'
 import * as syncFlow from './lib/syncFlow'
+import * as uploadFlow from './lib/uploadFlow'
 import { useStore } from './store'
 
 export function installDebugHandle() {
@@ -28,6 +29,6 @@ export function installDebugHandle() {
     bgRemoval,
     // The pure lifecycle machines, so an agent can read or drive a flow
     // without a browser (see docs/state-machines.md).
-    flows: { exportSession, librarySelection, musicCardFlow, stickerMakerFlow, syncFlow, cloudOpenFlow },
+    flows: { exportSession, librarySelection, musicCardFlow, stickerMakerFlow, syncFlow, cloudOpenFlow, uploadFlow },
   }
 }

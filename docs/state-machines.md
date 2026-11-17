@@ -43,6 +43,7 @@ agent can inspect or drive them without a browser.
 | Library multi-select | `src/lib/librarySelection.ts` | pick order plus range anchor | A range anchored on a photo the list no longer has; a plain click leaving a batch behind |
 | Cloud save | `src/lib/syncFlow.ts` | `idle -> saving -> saved`, plus `conflict` and `error` | A second save while one runs; overwriting a row another device moved; a retry after a conflict that can only conflict again |
 | Cloud open list | `src/lib/cloudOpenFlow.ts` | `idle -> loading -> ready / error -> idle` | A stale list landing after the dialog closed; a retry showing the previous error |
+| Cloud asset upload | `src/lib/uploadFlow.ts` | `idle -> running -> done`, plus `failed` and retry from it | A second save uploading while one runs; progress after the run failed |
 
 ## Already explicit
 
