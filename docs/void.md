@@ -83,9 +83,11 @@ supported.
 
 Auth (Better Auth through void) and the app's tables live in one D1 database
 behind the `DB` binding. Void infers the binding from the `void/auth` /
-`void/db` imports; there is no database id in `void.config.ts`, and none is
-needed for local development: the dev server owns a local database under
-`.void/` and creates the auth tables in it on first start.
+`void/db` imports; the `d1_databases` entry in `void.config.ts` pins only
+`migrations_dir: './db/migrations'`, which void rebases into the generated
+`dist/ssr/wrangler.json` as `../../db/migrations`. Without that entry the
+generated config points at `<repo>/migrations`, and the deploy's migration
+step fails with "No migrations present".
 
 ### Local database
 
@@ -106,28 +108,36 @@ The GitHub Actions deploy runs `wrangler deploy` directly, so void's
 deploy-time provisioning and migration apply do not fire. The workflow
 applies the pending migrations itself with
 `bunx wrangler d1 migrations apply DB --config dist/ssr/wrangler.json
---remote` before the deploy step. Two operator steps are still manual, once,
-from a logged-in machine:
+--remote` before the deploy step, using the `migrations_dir` the config
+pins. Two operator steps are still manual, once, from a logged-in machine:
 
-1. Provision the production D1 database. Either void's path
-   (`bunx void deploy --platform cloudflare --provision`, which also writes
-   the resolved id into `void.lock.json`) or wrangler's
-   (`bunx wrangler d1 create koma`, then paste the id into
-   `cloudflare.d1_databases` in `void.config.ts` as
-   `{ binding: 'DB', database_name: 'koma', database_id: '<id>' }`).
-   Verify with `bunx void db status`, which prints the remote target.
+1. Provision the production D1 database, then record its id so CI emits a
+   deployable binding. Either path works:
+   `bunx void deploy --platform cloudflare --provision` (void provisions the
+   database and writes the resolved id into `void.lock.json`), or
+   `bunx wrangler d1 create koma`.
+   In both cases, add that id to the entry in `void.config.ts`:
+   `{ binding: 'DB', database_name: 'default', database_id: '<id>', migrations_dir: './db/migrations' }`,
+   and commit `void.config.ts` with `void.lock.json`. CI builds from the
+   committed tree, so the generated config carries the id only after that
+   commit. Verify with `bunx void db status`, which prints the remote target.
 2. Set the auth secret: `bunx void secret put BETTER_AUTH_SECRET` (void
    preserves it on later deploys) or, against the worker directly,
    `bunx wrangler secret put BETTER_AUTH_SECRET --config dist/ssr/wrangler.json`.
    Deploys through GitHub Actions never auto-create it, because the wrangler
    path bypasses void's deploy checks.
 
-The first production deploy also runs the new workflow step; watch its log
-line "Apply D1 migrations" for the applied count. A rollback does not reverse
-migrations; `void db restore --bookmark <printed-by-deploy>` undoes them
-within 7 days on Workers Free (30 on Workers Paid), and only the void deploy
-path prints a bookmark. After a CI wrangler deploy, a migration rollback is
-manual: write a reversing migration instead.
+Before merging, prove the step locally with the same command CI runs, minus
+the remote flag and the id:
+`bunx wrangler d1 migrations list DB --config dist/ssr/wrangler.json --local`
+It must list the migration instead of "No migrations present".
+
+The first production deploy runs the workflow's migration step; watch its
+log line "Apply D1 migrations" for the applied count. A rollback does not
+reverse migrations; `void db restore --bookmark <printed-by-deploy>` undoes
+them within 7 days on Workers Free (30 on Workers Paid), and only the void
+deploy path prints a bookmark. After a CI wrangler deploy, a migration
+rollback is manual: write a reversing migration instead.
 
 ## Run the server code locally
 
