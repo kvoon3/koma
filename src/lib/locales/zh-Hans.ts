@@ -853,6 +853,22 @@ const zhHans = {
   'Too many attempts. Try again in a moment.': '尝试次数过多。请稍后再试。',
   'Signed in as {email}': '已登录：{email}',
   'Back to the board': '返回版面',
+
+  // Cloud session (wave11/cloud-sessions): the account menu's save and open entries
+  'Save to cloud': '保存到云端',
+  'Saving…': '正在保存…',
+  'Saved to cloud': '已保存到云端',
+  'Cloud save failed. Try again.': '云端保存失败。请重试。',
+  'This session changed on another device. Reload it from the cloud.': '此会话已在另一台设备上更改。请从云端重新载入。',
+  'Open from cloud…': '从云端打开…',
+  'Cloud sessions': '云端会话',
+  'Loading…': '正在载入…',
+  'Load': '载入',
+  'No cloud sessions yet.': '还没有云端会话。',
+  'Sign in to save to cloud': '登录后可保存到云端',
+  'Sign in to load from cloud': '登录后可从此云端载入',
+  'Could not open the cloud session.': '无法打开云端会话。',
+  'Loaded from cloud': '已从云端载入',
 } satisfies Record<string, string>
 
 export default zhHans

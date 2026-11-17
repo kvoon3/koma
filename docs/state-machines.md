@@ -41,6 +41,8 @@ agent can inspect or drive them without a browser.
 | Music card | `src/lib/musicCardFlow.ts` | `idle -> resolving -> ready -> adding`, plus a lyrics sub-state | Adding the previous track while the next link resolves; starting a resolve mid-add; two lyric lookups |
 | Sticker maker shell | `src/lib/stickerMakerFlow.ts` | tab, one of `stage/camera/library/mask`, `saving` | Insert while the mask editor or library picker covers the stage; a second bake; a stale panel after a tab change or reopen |
 | Library multi-select | `src/lib/librarySelection.ts` | pick order plus range anchor | A range anchored on a photo the list no longer has; a plain click leaving a batch behind |
+| Cloud save | `src/lib/syncFlow.ts` | `idle -> saving -> saved`, plus `conflict` and `error` | A second save while one runs; overwriting a row another device moved; a retry after a conflict that can only conflict again |
+| Cloud open list | `src/lib/cloudOpenFlow.ts` | `idle -> loading -> ready / error -> idle` | A stale list landing after the dialog closed; a retry showing the previous error |
 
 ## Already explicit
 

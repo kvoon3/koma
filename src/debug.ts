@@ -1,4 +1,5 @@
 import * as bgRemoval from './lib/bgRemoval'
+import * as cloudOpenFlow from './lib/cloudOpenFlow'
 import * as exporter from './lib/exporter'
 import * as exportSession from './lib/exportSession'
 import * as imageStore from './lib/imageStore'
@@ -10,6 +11,7 @@ import * as regeo from './lib/regeo'
 import * as sticker from './lib/sticker'
 import * as stickerMakerFlow from './lib/stickerMakerFlow'
 import * as stickerRecipe from './lib/stickerRecipe'
+import * as syncFlow from './lib/syncFlow'
 import { useStore } from './store'
 
 export function installDebugHandle() {
@@ -26,6 +28,6 @@ export function installDebugHandle() {
     bgRemoval,
     // The pure lifecycle machines, so an agent can read or drive a flow
     // without a browser (see docs/state-machines.md).
-    flows: { exportSession, librarySelection, musicCardFlow, stickerMakerFlow },
+    flows: { exportSession, librarySelection, musicCardFlow, stickerMakerFlow, syncFlow, cloudOpenFlow },
   }
 }
