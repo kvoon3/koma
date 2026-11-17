@@ -40,9 +40,10 @@ export function AuthScreen({ onSignedIn }: { onSignedIn?: (email: string) => voi
         send({ type: 'failed', message })
         return
       }
-      send({ type: 'resolved', email: result.data.user.email })
+      const resolvedEmail = result.data.user.email
+      send({ type: 'resolved', email: resolvedEmail })
       notifyAuthChanged()
-      onSignedIn?.(result.data.user.email)
+      onSignedIn?.(resolvedEmail)
     }
     catch {
       send({ type: 'failed', message: t('Sign in failed. Check your email and password.') })
