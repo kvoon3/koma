@@ -839,6 +839,7 @@ const ja: Record<TKey, string> = {
   'Sign up': '登録',
   'Sign out': 'ログアウト',
   'Signed out': 'ログアウトしました',
+  'Sign out failed. Try again.': 'ログアウトに失敗しました。もう一度お試しください。',
   'Account': 'アカウント',
   'Need an account? Sign up': 'アカウントをお持ちでない場合：登録',
   'Have an account? Sign in': 'アカウントをお持ちの場合：ログイン',

@@ -843,6 +843,7 @@ const zhHant: Record<TKey, string> = {
   'Sign up': '註冊',
   'Sign out': '登出',
   'Signed out': '已登出',
+  'Sign out failed. Try again.': '登出失敗。請重試。',
   'Account': '帳號',
   'Need an account? Sign up': '還沒有帳號？註冊',
   'Have an account? Sign in': '已有帳號？登入',

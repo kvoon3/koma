@@ -63,8 +63,15 @@ export function notifyAuthChanged(): void {
   void refetch()
 }
 
-export async function signOut(): Promise<void> {
+/**
+ * Sign out. Returns false when the server refuses, so the caller can report
+ * it; the chip keeps the signed-in email until the request succeeds.
+ */
+export async function signOut(): Promise<boolean> {
   const { auth } = await import('void/client/react')
-  await auth.signOut()
+  const result = await auth.signOut()
+  if (result.error)
+    return false
   publish({ email: null, pending: false })
+  return true
 }

@@ -845,6 +845,7 @@ const zhHans = {
   'Sign up': '注册',
   'Sign out': '退出登录',
   'Signed out': '已退出登录',
+  'Sign out failed. Try again.': '退出登录失败。请重试。',
   'Account': '账号',
   'Need an account? Sign up': '还没有账号？注册',
   'Have an account? Sign in': '已有账号？登录',

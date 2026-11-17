@@ -99,7 +99,10 @@ export function AuthScreen({ onSignedIn }: { onSignedIn?: (email: string) => voi
           <button
             type="button"
             className={`${dialogButton} border-0 bg-transparent text-txt hover:bg-chip-hover`}
-            onClick={() => setMode(m => (m === 'signIn' ? 'signUp' : 'signIn'))}
+            onClick={() => {
+              send({ type: 'dismissed' })
+              setMode(m => (m === 'signIn' ? 'signUp' : 'signIn'))
+            }}
           >
             {mode === 'signIn' ? t('Need an account? Sign up') : t('Have an account? Sign in')}
           </button>

@@ -289,9 +289,29 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
   const navigate = useNavigate()
 
   const doSignOut = async () => {
-    await signOut()
-    say(t('Signed out'))
+    try {
+      if (!await signOut()) {
+        say(t('Sign out failed. Try again.'))
+        return
+      }
+      say(t('Signed out'))
+    }
+    catch {
+      say(t('Sign out failed. Try again.'))
+    }
   }
+
+  const signInTrigger = (
+    <Menu.Trigger
+      className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt`}
+      aria-label={t('Sign in')}
+      data-bar-trigger="account"
+      data-bar-chip=""
+      onMouseEnter={onTriggerEnter}
+    >
+      <MorphIcon icon={CircleUserRound} size={15} strokeWidth={1.75} />
+    </Menu.Trigger>
+  )
 
   return (
     <Menu.Root open={open} onOpenChange={onOpenChange}>
@@ -307,22 +327,9 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
               {email}
             </Menu.Trigger>
           )
-        : (
-            <Tip
-              label={pending ? '' : t('Sign in')}
-              trigger={(
-                <Menu.Trigger
-                  className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt`}
-                  aria-label={t('Sign in')}
-                  data-bar-trigger="account"
-                  data-bar-chip=""
-                  onMouseEnter={onTriggerEnter}
-                >
-                  <MorphIcon icon={CircleUserRound} size={15} strokeWidth={1.75} />
-                </Menu.Trigger>
-              )}
-            />
-          )}
+        : pending
+          ? signInTrigger
+          : <Tip label={t('Sign in')} trigger={signInTrigger} />}
       {email && (
         <Menu.Portal>
           <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
