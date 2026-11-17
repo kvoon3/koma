@@ -51,7 +51,7 @@ export type UploadRead
   = | { ok: true, head: UploadHead, body: ReadableStream<Uint8Array>, size: number }
     | { ok: false, status: 400 | 411 | 413, error: string }
 
-/** Raised by the stream when more bytes arrive than the declared length allowed. */
+/** Raised by the stream when the arriving bytes pass the cap despite the declared length. */
 export class AssetTooLargeError extends Error {
   constructor() {
     super('asset too large')
