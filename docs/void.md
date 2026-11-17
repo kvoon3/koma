@@ -153,6 +153,40 @@ them within 7 days on Workers Free (30 on Workers Paid), and only the void
 deploy path prints a bookmark. After a CI wrangler deploy, a migration
 rollback is manual: write a reversing migration instead.
 
+## R2 asset bucket
+
+Uploaded library photos live in R2 behind the `STORAGE` binding; the `assets`
+table holds their metadata and the key `assets/{userId}/{assetId}` (derived in
+`src/lib/assetKeys.ts`). The bucket is declared in `void.config.ts` under
+`cloudflare.r2_buckets`.
+
+Local development needs no bucket and no login: void's dev server runs
+Miniflare's file-backed R2 under `.void/v3/r2`, and the upload and serve routes
+work against it. Clearing `.void/v3/r2` deletes the local objects; the
+`assets` rows in local D1 outlive that, so a GET then answers 404.
+
+### Production (operator, once)
+
+```sh
+bunx wrangler r2 bucket create koma-assets
+bunx wrangler r2 bucket list   # shows koma-assets
+```
+
+`void deploy --platform cloudflare --provision` also creates the bucket from
+the config. The bucket needs no custom domain and no public access: the serve
+route reads it with the Worker's binding and answers behind `requireAuth`.
+Never make the bucket public, and never create it from CI.
+
+The first deploy after that succeeds proves the binding end to end: sign in,
+save a session with a photo, then open the served URL with the session cookie.
+A missing binding fails the upload route, not the editor.
+
+The per-PR preview Worker (`koma-pr-<n>`) gets its own bindings from the
+preview workflow. Check one preview's upload after the first PR that carries
+this route; if the binding is absent there, previews can still load the
+editor but cannot store assets. That is an operator check, not a gate on this
+PR.
+
 ## Run the server code locally
 
 `voidPlugin()` in `vite.config.ts` runs the dev server on Cloudflare's
