@@ -33,7 +33,6 @@ export function parseCloudDocument(value: unknown): CloudDocument | null {
   return session ? { version: CLOUD_DOCUMENT_VERSION, session } : null
 }
 
-/** Parse the `document` text the server returned. */
 export function parseCloudDocumentText(text: string): CloudDocument | null {
   try {
     const raw: unknown = JSON.parse(text)
@@ -48,8 +47,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-/** A row of `GET /api/projects`: identity and freshness, never the body. */
-function readSummary(value: unknown): CloudProjectSummary | null {
+export function parseProjectSummary(value: unknown): CloudProjectSummary | null {
   if (!isRecord(value))
     return null
   const { id, name, createdAt, updatedAt } = value
@@ -58,21 +56,17 @@ function readSummary(value: unknown): CloudProjectSummary | null {
   return { id, name, createdAt, updatedAt }
 }
 
-export function parseProjectSummary(value: unknown): CloudProjectSummary | null {
-  return readSummary(value)
-}
-
 export function parseProjectSummaryList(value: unknown): CloudProjectSummary[] {
   if (!Array.isArray(value))
     return []
   return value.flatMap((entry) => {
-    const summary = readSummary(entry)
+    const summary = parseProjectSummary(entry)
     return summary ? [summary] : []
   })
 }
 
 export function parseProjectDetail(value: unknown): CloudProjectDetail | null {
-  const summary = readSummary(value)
+  const summary = parseProjectSummary(value)
   if (!summary || !isRecord(value) || typeof value.userId !== 'string' || typeof value.document !== 'string')
     return null
   return { ...summary, userId: value.userId, document: value.document }

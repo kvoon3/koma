@@ -1,9 +1,3 @@
-/**
- * The write bodies `routes/api/projects` accepts, parsed at the HTTP
- * boundary. Absent or wrong-kind fields read as a refusal, so the handlers
- * below never see a shape the database would store wrongly.
- */
-
 export interface CreateProjectBody {
   name: string
   document: string

@@ -38,12 +38,6 @@ function projectName(now = new Date()): string {
  * owns what the account menu shows. A reload keeps the row identity per
  * email (lib/cloudIdentity), so the next save overwrites instead of adding a
  * second row.
- *
- * Requests use the typed `fetch` from `void/client`; `src/cloudRoutes.d.ts`
- * declares the two routes to the browser program, which cannot take void's
- * generated map (it imports handler types, and those pull Cloudflare's worker
- * globals over the DOM). The response parsers in lib/cloudSession are the
- * runtime boundary either way, so the payload is never trusted blindly.
  */
 export function useCloudSync({ email, t }: { email: string | null, t: Translate }) {
   const { state, send } = useFlow(SYNC_IDLE, syncTransition)
@@ -72,7 +66,6 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       if (!saved)
         throw new Error('unexpected cloud response')
       const project = { id: saved.id, updatedAt: saved.updatedAt }
-      useStore.getState().setCloudProject(project)
       saveCloudIdentity({ email, projectId: project.id, updatedAt: project.updatedAt })
       send({ type: 'saved', projectId: project.id, updatedAt: project.updatedAt })
       say(t('Saved to cloud'))
@@ -85,6 +78,8 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       }
       if (status === 404)
         clearCloudIdentity()
+      if (status === undefined)
+        console.warn('[cloudSync] save:', error)
       send({ type: 'failed', message: t('Cloud save failed. Try again.') })
       say(t('Cloud save failed. Try again.'))
     }
@@ -95,12 +90,6 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
     return parseProjectSummaryList(await fetch('/api/projects'))
   }, [])
 
-  /**
-   * Replace the open board with a cloud copy. Local photos are kept in the
-   * library: on the device that saved the row their ids match and the panes
-   * draw immediately, while a second device has none and waits for the asset
-   * upload PR. The document carries no bytes either way.
-   */
   const openProject = useCallback(async (id: string): Promise<boolean> => {
     if (!email)
       return false
@@ -115,13 +104,14 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       const local = await loadSession()
       useStore.getState().hydrate({ meta: document.session, photos: local?.photos ?? [] })
       const saved = { id: project.id, updatedAt: project.updatedAt }
-      useStore.getState().setCloudProject(saved)
       saveCloudIdentity({ email, projectId: saved.id, updatedAt: saved.updatedAt })
       send({ type: 'reset' })
       say(t('Loaded from cloud'))
       return true
     }
-    catch {
+    catch (error) {
+      if (httpStatus(error) === undefined)
+        console.warn('[cloudSync] open:', error)
       say(t('Could not open the cloud session.'))
       return false
     }

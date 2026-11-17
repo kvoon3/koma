@@ -332,7 +332,6 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
     }
   }
 
-  /** The menu's status line: the saved mark, the conflict ask, or the failed save. */
   const cloudStatus
     = cloudState.phase === 'saved'
       ? t('Saved to cloud')

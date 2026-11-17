@@ -8,12 +8,6 @@ import { Button } from './ui/button'
 import { dialogButton } from './ui/buttonStyles'
 import { Spinner } from './ui/spinner'
 
-/**
- * The signed-in user's saved sessions, drawn from the list flow its parent
- * owns. Picking one replaces the open board (see `useCloudSync.openProject`);
- * there is no merge view, and a photo pane on a device without the asset draws
- * empty until the upload PR fills it.
- */
 export function CloudProjectsDialog({ open, onOpenChange, state, onRetry, onOpen }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -35,10 +29,7 @@ export function CloudProjectsDialog({ open, onOpenChange, state, onRetry, onOpen
   return (
     <Dialog.Root
       open={open}
-      onOpenChange={(next) => {
-        if (!next)
-          onOpenChange(false)
-      }}
+      onOpenChange={onOpenChange}
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed z-(--z-modal) inset-0 bg-overlay-dim backdrop-blur-[3px] transition-opacity duration-(--dur-dialog) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-ending-style:opacity-0" />
