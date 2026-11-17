@@ -13,3 +13,9 @@ build
 .wrangler
 .void
 .void-wrangler.jsonc
+
+# local/agent work artifacts
+.audit
+shots
+.claude/worktrees
+eslint.config.audit.mjs
