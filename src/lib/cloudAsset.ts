@@ -47,8 +47,7 @@ export function parseAssetSummaryList(value: unknown): CloudAssetSummary[] {
 
 /**
  * The public half of a photo record, ready for the `meta` column: everything
- * but the file bytes. A Live Photo's motion file is bytes too, so it stays
- * local in this PR; the still photo still uploads and renders.
+ * but the file bytes.
  */
 export function sessionPhotoMeta(record: SessionPhotoRecord): Record<string, unknown> {
   return {

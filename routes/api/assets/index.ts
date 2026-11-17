@@ -43,7 +43,7 @@ export const GET = defineHandler(async (c) => {
  * the R2 object are written here together, and the id is the client's photo id
  * so references already in the cloud document keep pointing at it.
  *
- * The 50 MB cap is safe under the worker memory limit because the bytes never
+ * The cap is safe under the worker memory limit because the bytes never
  * gather in memory: the head is capped at 2 MB and the file streams chunk by
  * chunk into `storage.put`. The cap bounds request cost and R2 object size,
  * not this isolate's heap.
