@@ -8,6 +8,13 @@
       "when": 1794938959730,
       "tag": "20261117180919_broken_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1794947332967,
+      "tag": "20261117202852_slow_namora",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@schema": ["./db/schema.ts"],
+      "void/db": ["./.void/db.d.ts"],
+      "void/routes": ["./.void/routes.d.ts"]
+    },
     "types": ["vite/client"]
   },
   "include": ["routes", "env.ts"]
