@@ -79,6 +79,56 @@ server values must be secrets.
 For local development, put values in a root `.env` file. `.dev.vars` is not
 supported.
 
+## D1, auth, and migrations
+
+Auth (Better Auth through void) and the app's tables live in one D1 database
+behind the `DB` binding. Void infers the binding from the `void/auth` /
+`void/db` imports; there is no database id in `void.config.ts`, and none is
+needed for local development: the dev server owns a local database under
+`.void/` and creates the auth tables in it on first start.
+
+### Local database
+
+```sh
+bunx void db status    # migrations applied or pending locally
+bunx void db generate  # write SQL under db/migrations/ (review, then commit)
+bunx void db migrate   # apply pending migrations to the local database
+bunx void db seed      # reset the local database and run a seed file
+```
+
+The dev server shares that database. Changing `db/schema.ts` or the auth
+config means: `void db generate`, review the SQL, commit it, `void db
+migrate`, restart the dev server.
+
+### Production (operator)
+
+The GitHub Actions deploy runs `wrangler deploy` directly, so void's
+deploy-time provisioning and migration apply do not fire. The workflow now
+applies the pending migrations itself with
+`bunx wrangler d1 migrations apply DB --config dist/ssr/wrangler.json
+--remote` before the deploy step. Two operator steps are still manual, once,
+from a logged-in machine:
+
+1. Provision the production D1 database. Either void's path
+   (`bunx void deploy --platform cloudflare --provision`, which also writes
+   the resolved id into `void.lock.json`) or wrangler's
+   (`bunx wrangler d1 create koma`, then paste the id into
+   `cloudflare.d1_databases` in `void.config.ts` as
+   `{ binding: 'DB', database_name: 'koma', database_id: '<id>' }`).
+   Verify with `bunx void db status`, which prints the remote target.
+2. Set the auth secret: `bunx void secret put BETTER_AUTH_SECRET` (void
+   preserves it on later deploys) or, against the worker directly,
+   `bunx wrangler secret put BETTER_AUTH_SECRET --config dist/ssr/wrangler.json`.
+   Deploys through GitHub Actions never auto-create it, because the wrangler
+   path bypasses void's deploy checks.
+
+The first production deploy also runs the new workflow step; watch its log
+line "Apply D1 migrations" for the applied count. A rollback does not reverse
+migrations; `void db restore --bookmark <printed-by-deploy>` undoes them
+within 7 days on Workers Free (30 on Workers Paid), and only the void deploy
+path prints a bookmark. After a CI wrangler deploy, a migration rollback is
+manual: write a reversing migration instead.
+
 ## Run the server code locally
 
 `voidPlugin()` in `vite.config.ts` runs the dev server on Cloudflare's
