@@ -12,8 +12,19 @@ import { useFlow } from './useFlow'
 /** Load void's route fetch once, on the first cloud action; it stays out of the editor entry. */
 let clientModule: Promise<typeof import('void/client')> | null = null
 function client() {
-  clientModule ??= import('void/client')
+  clientModule ??= import('void/client').catch((error: unknown) => {
+    // A failed chunk load (offline, a redeploy) must not poison every retry.
+    clientModule = null
+    throw error instanceof Error ? error : new Error('cloud client failed to load')
+  })
   return clientModule
+}
+
+/** The HTTP status an ofetch error carries, without importing its class. */
+function httpStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('status' in error))
+    return undefined
+  return typeof error.status === 'number' ? error.status : undefined
 }
 
 /** A saved session's default name: data, not interface copy, so no translation key. */
@@ -67,12 +78,12 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       say(t('Saved to cloud'))
     }
     catch (error) {
-      const { FetchError } = await client()
-      if (error instanceof FetchError && error.status === 409) {
+      const status = httpStatus(error)
+      if (status === 409) {
         send({ type: 'conflict' })
         return
       }
-      if (error instanceof FetchError && error.status === 404)
+      if (status === 404)
         clearCloudIdentity()
       send({ type: 'failed', message: t('Cloud save failed. Try again.') })
       say(t('Cloud save failed. Try again.'))
