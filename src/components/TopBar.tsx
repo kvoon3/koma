@@ -5,11 +5,12 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, Moon, Save, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, CircleUserRound, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, LogOut, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import wordmark from '../assets/fonts/wordmark.json'
 import { useMediaQuery } from '../hooks'
+import { auth, useAuthEmail } from '../lib/authSession'
 import { cssVars } from '../lib/cssVars'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { boxIn } from '../lib/dockBox'
@@ -19,7 +20,7 @@ import { isTKey, setLang, useLang, useT } from '../lib/i18n'
 import { clearImageCaches } from '../lib/imageStore'
 import { EASE_OUT_CSS } from '../lib/motionTokens'
 import { leafList } from '../lib/panes'
-import { isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
+import { AUTH_PATH, isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/routes'
 import { clearSession } from '../lib/sessionStore'
 import { paneAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
@@ -174,7 +175,7 @@ const hintCls = 'ml-auto flex items-center gap-1.5 pl-4 text-[10px] tabular-nums
 const popupCls = 'min-w-[190px] rounded-none border border-line-strong bg-panel p-1 text-txt shadow-pop outline-0 origin-[var(--transform-origin)] transition-[opacity,scale] duration-(--dur-surface) ease-(--ease-out) data-ending-style:duration-(--dur-fast) data-starting-style:opacity-0 data-starting-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:scale-[0.97] data-instant:transition-none data-instant:not-data-ending-style:animate-[menu-hop_var(--dur-surface)_var(--ease-out)]'
 
 /** The top bar's dropdowns: they trade the open panel with each other on hover. */
-type HeaderMenuId = 'workspace' | 'photo' | 'help' | 'lang'
+type HeaderMenuId = 'workspace' | 'photo' | 'help' | 'lang' | 'account'
 type HeaderTarget = HeaderMenuId | 'settings'
 
 function isHeaderTarget(value: string): value is HeaderTarget {
@@ -183,6 +184,7 @@ function isHeaderTarget(value: string): value is HeaderTarget {
     case 'photo':
     case 'help':
     case 'lang':
+    case 'account':
     case 'settings':
       return true
     default:
@@ -281,6 +283,79 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
   )
 }
 
+/**
+ * The account chip: the signed-in user's email as the label, a popup with
+ * Sign out; signed out, a chip that opens the auth screen's route. The
+ * session lives in `lib/authSession`, so this module never pulls the auth
+ * screen's chunk.
+ */
+function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: MenuWiring & { email: string | null, pending: boolean }) {
+  const t = useT()
+  const navigate = useNavigate()
+
+  const signOut = async () => {
+    await auth.signOut()
+    say(t('Signed out'))
+  }
+
+  return (
+    <Menu.Root open={open} onOpenChange={onOpenChange}>
+      {email
+        ? (
+            <Menu.Trigger
+              className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt max-sm:max-w-[92px] max-sm:truncate`}
+              aria-label={t('Account')}
+              data-bar-trigger="account"
+              data-bar-chip=""
+              onMouseEnter={onTriggerEnter}
+            >
+              {email}
+            </Menu.Trigger>
+          )
+        : (
+            <Tip
+              label={pending ? '' : t('Sign in')}
+              trigger={(
+                <Menu.Trigger
+                  className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt`}
+                  aria-label={t('Sign in')}
+                  data-bar-trigger="account"
+                  data-bar-chip=""
+                  onMouseEnter={onTriggerEnter}
+                >
+                  <MorphIcon icon={CircleUserRound} size={15} strokeWidth={1.75} />
+                </Menu.Trigger>
+              )}
+            />
+          )}
+      {email && (
+        <Menu.Portal>
+          <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
+            <Menu.Popup className={popupCls}>
+              <Menu.Item className={itemCls} closeOnClick onClick={() => void signOut()}>
+                <MorphIcon icon={LogOut} size={13} strokeWidth={1.75} className="text-dim" />
+                {t('Sign out')}
+              </Menu.Item>
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      )}
+      {!email && (
+        <Menu.Portal>
+          <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
+            <Menu.Popup className={popupCls}>
+              <Menu.Item className={itemCls} closeOnClick onClick={() => void navigate({ to: AUTH_PATH })}>
+                <MorphIcon icon={CircleUserRound} size={13} strokeWidth={1.75} className="text-dim" />
+                {t('Sign in')}
+              </Menu.Item>
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      )}
+    </Menu.Root>
+  )
+}
+
 function TopBarActions({
   grid,
   settingsOpen,
@@ -305,6 +380,7 @@ function TopBarActions({
   dark: boolean
 }) {
   const t = useT()
+  const { email, pending: authPending } = useAuthEmail()
   return (
     <div className="flex items-center gap-[5px] max-sm:gap-0.5">
       {/* The dropdown hangs off this button, so the panel and its trigger are one component. */}
@@ -331,6 +407,7 @@ function TopBarActions({
         )}
       />
       <LangMenu {...menuAt('lang')} />
+      <AccountMenu {...menuAt('account')} email={email} pending={authPending} />
       <Tip
         label={dark ? t('Switch to light theme') : t('Switch to dark theme')}
         trigger={(

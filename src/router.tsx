@@ -3,7 +3,7 @@ import type { AppCommands } from './lib/appCommands'
 import type { RenderedItem } from './lib/exportRun'
 import type { LibrarySearch } from './lib/library'
 import { Tooltip } from '@base-ui/react/tooltip'
-import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet, redirect, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
+import { createHashHistory, createRootRoute, createRoute, createRouter, lazyRouteComponent, Outlet, redirect, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { CropDialog } from './components/CropDialog'
@@ -29,7 +29,7 @@ import { EXPORT_IDLE, exportBusy, exportItems, exportRunToRelease, exportTransit
 import { hubKeyForPath, markHubSeen } from './lib/hubSeen'
 import { t } from './lib/i18n'
 import { parseLibraryType } from './lib/library'
-import { EDITOR_PATH, GROUPS_PATH, isGridPath, isGroupsPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
+import { AUTH_PATH, EDITOR_PATH, GROUPS_PATH, isGridPath, isGroupsPath, isHubPath, LEGACY_INDEX_PATH, LIBRARY_PATH, OVERVIEW_PATH, PHOTOS_PATH, STICKERS_PATH } from './lib/routes'
 import { say } from './lib/toast'
 import { useFlow } from './lib/useFlow'
 import { viewTransitionOption } from './lib/viewTransition'
@@ -320,6 +320,16 @@ const workspaceRoute = createRoute({
   component: WorkspaceRoute,
 })
 
+/**
+ * `/auth`: the sign-in / sign-up screen, behind a lazy component so the auth
+ * client and its form stay out of the editor entry chunk.
+ */
+const authRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: AUTH_PATH,
+  component: lazyRouteComponent(() => import('./components/AuthScreen').then(m => ({ default: m.AuthScreen }))),
+})
+
 const libraryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: LIBRARY_PATH,
@@ -347,7 +357,7 @@ const stickerRoute = createRoute({
   },
 })
 
-const routeTree = rootRoute.addChildren([overviewRoute, groupsRoute, legacyIndexRoute, workspaceRoute, libraryRoute, photoRoute, stickerRoute])
+const routeTree = rootRoute.addChildren([overviewRoute, groupsRoute, legacyIndexRoute, workspaceRoute, libraryRoute, photoRoute, stickerRoute, authRoute])
 
 export const router = createRouter({
   routeTree,
