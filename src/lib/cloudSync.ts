@@ -6,7 +6,7 @@ import type { UploadFlowEvent } from './uploadFlow'
 import { useCallback } from 'react'
 import { useStore } from '../store'
 import { ASSET_MAX_MB, motionAssetId } from './assetKeys'
-import { motionAssetIdFromMeta, parseAssetSummaryList, photoRecordFromAsset, sessionPhotoMeta } from './cloudAsset'
+import { motionAssetIdFromMeta, motionFillTargets, parseAssetSummaryList, photoRecordFromAsset, sessionPhotoMeta, stillRowNeedsWrite } from './cloudAsset'
 import { clearCloudIdentity, loadCloudIdentity, saveCloudIdentity } from './cloudIdentity'
 import { captureCloudSave, parseCloudDocumentText, parseProjectDetail, parseProjectSummary, parseProjectSummaryList, referencedPhotoIds } from './cloudSession'
 import { loadSession } from './sessionStore'
@@ -103,13 +103,14 @@ function motionJob(photo: SessionPhotoRecord): UploadJob | null {
 
 /**
  * The files a save still has to send: the photo itself when the account lacks
- * it, then its motion when only the still is known. Both checks read the same
- * asset list, so a retry converges.
+ * it, then its motion when only the still is known. A still the account already
+ * has is rewritten when motion is new, so `meta.motionAssetId` lands with the
+ * motion object. Both checks read the same asset list, so a retry converges.
  */
 function pendingUploads(photos: SessionPhotoRecord[], known: ReadonlySet<string>): UploadJob[] {
   const jobs: UploadJob[] = []
   for (const photo of photos) {
-    if (!known.has(photo.id))
+    if (stillRowNeedsWrite(photo.id, photo.videoFile !== undefined, known))
       jobs.push(photoJob(photo))
     const motion = photo.videoFile ? motionAssetId(photo.id) : null
     if (motion && !known.has(motion)) {
@@ -173,15 +174,22 @@ async function downloadFile(asset: CloudAssetSummary): Promise<File | null> {
 /**
  * The photo library a saved document draws on: what this device already has,
  * plus the assets the document references that it does not, and the motion
- * asset each downloaded still's meta names. Only referenced ids download, so a
- * second device gets this board's photos without this account's other
- * projects filling its library. A missing or broken asset costs that photo,
- * not the whole open.
+ * asset each downloaded still's meta names. A local still without `videoFile`
+ * still pulls motion when cloud meta names it, so a later Live Photo glue or a
+ * failed first download does not freeze a still-only record. Only referenced
+ * ids download, so a second device gets this board's photos without this
+ * account's other projects filling its library. A missing or broken asset
+ * costs that photo, not the whole open.
  */
 async function resolvePhotos(session: SessionMeta, localPhotos: SessionPhotoRecord[]): Promise<SessionPhotoRecord[]> {
   const merged = new Map(localPhotos.map(photo => [photo.id, photo]))
-  const missing = referencedPhotoIds(session).filter(id => !merged.has(id))
-  if (missing.length === 0)
+  const referenced = referencedPhotoIds(session)
+  const missing = referenced.filter(id => !merged.has(id))
+  const maybeMotionless = referenced.some((id) => {
+    const local = merged.get(id)
+    return local !== undefined && local.videoFile === undefined
+  })
+  if (missing.length === 0 && !maybeMotionless)
     return [...merged.values()]
 
   let assets
@@ -211,6 +219,21 @@ async function resolvePhotos(session: SessionMeta, localPhotos: SessionPhotoReco
         merged.set(id, record)
     }))
   }
+
+  const metaById = new Map(assets.map(asset => [asset.id, asset.meta]))
+  const fills = motionFillTargets(referenced, merged, metaById)
+  await Promise.all(fills.map(async ({ photoId, motionId }) => {
+    const local = merged.get(photoId)
+    if (!local || local.videoFile !== undefined)
+      return
+    const motionAsset = byId.get(motionId)
+    if (!motionAsset)
+      return
+    const motion = await downloadFile(motionAsset)
+    if (motion)
+      merged.set(photoId, { ...local, videoFile: motion })
+  }))
+
   return [...merged.values()]
 }
 

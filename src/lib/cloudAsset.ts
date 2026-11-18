@@ -81,6 +81,47 @@ export function motionAssetIdFromMeta(meta: string | null): string | null {
 }
 
 /**
+ * Whether the still row must be POSTed. A still the account already has is
+ * rewritten when a new motion file arrives, so `meta.motionAssetId` lands on
+ * the same save that uploads `{id}~motion`. Skipping that rewrite leaves the
+ * motion object orphaned from every other device.
+ */
+export function stillRowNeedsWrite(
+  photoId: string,
+  hasMotionFile: boolean,
+  known: ReadonlySet<string>,
+): boolean {
+  if (!known.has(photoId))
+    return true
+  if (!hasMotionFile)
+    return false
+  const motion = motionAssetId(photoId)
+  return motion !== null && !known.has(motion)
+}
+
+/**
+ * Local stills that should pull a cloud motion file: the document references
+ * them, this device already has the still without `videoFile`, and the cloud
+ * row's meta names a motion asset.
+ */
+export function motionFillTargets(
+  referencedIds: readonly string[],
+  localById: ReadonlyMap<string, { videoFile?: File | undefined }>,
+  metaById: ReadonlyMap<string, string | null>,
+): { photoId: string, motionId: string }[] {
+  const out: { photoId: string, motionId: string }[] = []
+  for (const id of referencedIds) {
+    const local = localById.get(id)
+    if (local === undefined || local.videoFile !== undefined)
+      continue
+    const motionId = motionAssetIdFromMeta(metaById.get(id) ?? null)
+    if (motionId !== null)
+      out.push({ photoId: id, motionId })
+  }
+  return out
+}
+
+/**
  * Rebuild the library record a second device needs from the row plus the
  * downloaded bytes. The server's columns win over `meta`, whose interior is
  * still untrusted, and the existing `parseSessionPhotoRecord` is the one
