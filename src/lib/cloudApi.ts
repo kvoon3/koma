@@ -14,3 +14,18 @@ export interface CloudProjectDetail extends CloudProjectSummary {
   userId: string
   document: string
 }
+
+/**
+ * One row from `/api/assets`. `kind` stays a plain string on the wire because
+ * the column is text; `lib/cloudAsset` narrows it before it reaches the photo
+ * library. `meta` is the stored `SessionPhotoRecord` minus its file bytes.
+ */
+export interface CloudAssetSummary {
+  id: string
+  kind: string
+  name: string
+  trueW: number
+  trueH: number
+  meta: string | null
+  createdAt: string
+}

@@ -869,6 +869,12 @@ const zhHans = {
   'Sign in to load from cloud': '登录后可从此云端载入',
   'Could not open the cloud session.': '无法打开云端会话。',
   'Loaded from cloud': '已从云端载入',
+
+  // Assets (wave12/assets): upload progress and its failures in the account menu
+  'Uploading photos… {done} of {total}': '正在上传照片… {done}/{total}',
+  'Photos uploaded': '照片已上传',
+  'Upload failed. Try again.': '上传失败。请重试。',
+  'File too large. The limit is {mb} MB.': '文件太大。上限为 {mb} MB。',
 } satisfies Record<string, string>
 
 export default zhHans

@@ -6,7 +6,7 @@
  * instead. `routes/_cloudRoutes.check.ts` asserts it beside the generated map
  * in the program that can see both.
  */
-import type { CloudProjectDetail, CloudProjectSummary } from './lib/cloudApi'
+import type { CloudAssetSummary, CloudProjectDetail, CloudProjectSummary } from './lib/cloudApi'
 
 export interface CloudRouteMap {
   '/api/projects': {
@@ -16,6 +16,15 @@ export interface CloudRouteMap {
   '/api/projects/:id': {
     GET: { input: object, output: CloudProjectDetail }
     PUT: { input: object, output: CloudProjectSummary }
+    DELETE: { input: object, output: { id: string } }
+  }
+  '/api/assets': {
+    GET: { input: object, output: CloudAssetSummary[] }
+    POST: { input: object, output: CloudAssetSummary }
+  }
+  '/api/assets/:id': {
+    /** Binary: the handler returns a Response, which serializes to never. */
+    GET: { input: object, output: never }
     DELETE: { input: object, output: { id: string } }
   }
 }

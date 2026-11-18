@@ -1,6 +1,7 @@
 import type { MouseEvent, ReactNode } from 'react'
 import type { DockBox } from '../lib/dockHighlight'
-import type { Lang } from '../lib/i18n'
+import type { Lang, Translate } from '../lib/i18n'
+import type { UploadFlowState } from '../lib/uploadFlow'
 import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
@@ -287,13 +288,27 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
   )
 }
 
+/** The account menu's upload line: progress, the finish, or the failure that retry clears. */
+function uploadStatusText(state: UploadFlowState, t: Translate): string | null {
+  switch (state.phase) {
+    case 'idle':
+      return null
+    case 'running':
+      return t('Uploading photos… {done} of {total}', { done: state.done, total: state.total })
+    case 'done':
+      return t('Photos uploaded')
+    case 'failed':
+      return state.message
+  }
+}
+
 /** The account chip; session state comes from lib/authSession, so this module never pulls the auth screen's chunk. */
 function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: MenuWiring & { email: string | null, pending: boolean }) {
   const t = useT()
   const navigate = useNavigate()
   const [cloudOpen, setCloudOpen] = useState(false)
   const cloud = useCloudSync({ email, t })
-  const { state: cloudState, listProjects, openProject } = cloud
+  const { state: cloudState, uploadState, listProjects, openProject } = cloud
   const { state: cloudList, send: sendCloudList } = useFlow(CLOUD_OPEN_IDLE, cloudOpenTransition)
 
   /** Fetch the list on the click that opens the dialog, not in an effect. */
@@ -312,6 +327,19 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
     setCloudOpen(true)
     void loadCloudList()
   }
+
+  /**
+   * A loaded document carries its own workspace ids. The route still names the
+   * id this device booted with, so move it to the loaded active board; the
+   * workspace route otherwise bounces to the overview and the photos never
+   * render.
+   */
+  const openCloudProject = useCallback(async (id: string) => {
+    const opened = await openProject(id)
+    if (opened)
+      void navigate({ to: '/w/$wsId', params: { wsId: useStore.getState().activeId } })
+    return opened
+  }, [navigate, openProject])
 
   const changeCloudOpen = (next: boolean) => {
     if (!next)
@@ -340,6 +368,10 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
         : cloudState.phase === 'error'
           ? cloudState.message
           : null
+
+  const uploadStatus = uploadStatusText(uploadState, t)
+
+  const cloudBusy = cloudState.phase === 'saving' || uploadState.phase === 'running'
 
   const signInTrigger = (
     <Menu.Trigger
@@ -384,17 +416,19 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
               <Menu.Popup className={popupCls}>
                 <Menu.Item
                   data-cloud-save=""
+                  data-upload-state={uploadState.phase}
                   className={itemCls}
                   closeOnClick={false}
-                  disabled={cloudState.phase === 'saving' || cloudState.phase === 'conflict'}
+                  disabled={cloudBusy || cloudState.phase === 'conflict'}
                   onClick={() => void cloud.save()}
                 >
-                  {cloudState.phase === 'saving'
+                  {cloudBusy
                     ? <Spinner size={13} className="flex text-dim" />
                     : <MorphIcon icon={CloudUpload} size={13} strokeWidth={1.75} className="text-dim" />}
                   <span className="flex flex-col">
-                    <span>{cloudState.phase === 'saving' ? t('Saving…') : t('Save to cloud')}</span>
-                    {cloudStatus && <span role="status" className="text-[10px] text-dim">{cloudStatus}</span>}
+                    <span>{cloudBusy ? t('Saving…') : t('Save to cloud')}</span>
+                    {uploadStatus && <span role="status" className="text-[10px] text-dim">{uploadStatus}</span>}
+                    {cloudStatus && cloudStatus !== uploadStatus && <span role="status" className="text-[10px] text-dim">{cloudStatus}</span>}
                   </span>
                 </Menu.Item>
                 <Menu.Item
@@ -446,7 +480,7 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
         onOpenChange={changeCloudOpen}
         state={cloudList}
         onRetry={() => void loadCloudList()}
-        onOpen={openProject}
+        onOpen={openCloudProject}
       />
     </>
   )

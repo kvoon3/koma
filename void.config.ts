@@ -44,5 +44,11 @@ export default defineConfig({
     d1_databases: [
       { binding: 'DB', database_name: 'default', migrations_dir: './db/migrations' },
     ],
+    // Uploaded library assets (routes/api/assets). Local dev uses Miniflare's
+    // file-backed R2, so no bucket has to exist to run the editor; a deploy
+    // needs `koma-assets` provisioned once (docs/void.md).
+    r2_buckets: [
+      { binding: 'STORAGE', bucket_name: 'koma-assets' },
+    ],
   },
 })

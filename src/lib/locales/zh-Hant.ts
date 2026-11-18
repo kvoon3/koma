@@ -867,6 +867,12 @@ const zhHant: Record<TKey, string> = {
   'Sign in to load from cloud': '登入後可從雲端載入',
   'Could not open the cloud session.': '無法開啟雲端工作階段。',
   'Loaded from cloud': '已從雲端載入',
+
+  // Assets (wave12/assets): upload progress and its failures in the account menu
+  'Uploading photos… {done} of {total}': '正在上傳照片… {done}/{total}',
+  'Photos uploaded': '照片已上傳',
+  'Upload failed. Try again.': '上傳失敗。請重試。',
+  'File too large. The limit is {mb} MB.': '檔案太大。上限為 {mb} MB。',
 }
 
 export default zhHant

@@ -15,6 +15,13 @@
       "when": 1794947332967,
       "tag": "20261117202852_slow_namora",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794955097181,
+      "tag": "20261117223817_thick_multiple_man",
+      "breakpoints": true
     }
   ]
 }
