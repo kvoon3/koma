@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { MAX_ASSET_BYTES, MAX_HEAD_BYTES, parseUploadHead, readUploadBody } from './_upload'
+import { MAX_ASSET_BYTES, MAX_HEAD_BYTES, parseDeclaredLength, parseUploadHead, readUploadBody } from './_upload'
 
 function head(overrides: Record<string, unknown> = {}) {
   return {
@@ -22,6 +22,20 @@ function streamOf(parts: Uint8Array[]): ReadableStream<Uint8Array> {
       controller.close()
     },
   })
+}
+
+async function drain(stream: ReadableStream<Uint8Array>): Promise<void> {
+  const reader = stream.getReader()
+  try {
+    for (;;) {
+      const chunk = await reader.read()
+      if (chunk.done)
+        return
+    }
+  }
+  finally {
+    reader.releaseLock()
+  }
 }
 
 describe('parseUploadHead', () => {
@@ -74,5 +88,39 @@ describe('readUploadBody', () => {
   test('rejects a body with no head separator', async () => {
     const read = await readUploadBody(streamOf([new TextEncoder().encode('{}')]), 2)
     expect(read).toEqual({ ok: false, status: 400, error: 'invalid-body' })
+  })
+
+  test('errors the stream when the body is shorter than declared', async () => {
+    const bytes = new TextEncoder().encode(`${JSON.stringify(head())}\nhel`)
+    const read = await readUploadBody(streamOf([bytes]), bytes.byteLength + 1)
+    expect(read.ok).toBe(true)
+    if (read.ok)
+      await expect(drain(read.body)).rejects.toThrow('body length')
+  })
+
+  test('errors the stream when the body is longer than declared', async () => {
+    const text = `${JSON.stringify(head())}\nhel`
+    const split = text.length - 2
+    const declared = new TextEncoder().encode(text).byteLength - 1
+    const read = await readUploadBody(streamOf([
+      new TextEncoder().encode(text.slice(0, split)),
+      new TextEncoder().encode(text.slice(split)),
+    ]), declared)
+    expect(read.ok).toBe(true)
+    if (read.ok)
+      await expect(drain(read.body)).rejects.toThrow('body length')
+  })
+
+  test('requires a safe integer content-length', () => {
+    expect(parseDeclaredLength('12')).toBe(12)
+    expect(parseDeclaredLength('12.5')).toBeNull()
+    expect(parseDeclaredLength('-1')).toBeNull()
+    expect(parseDeclaredLength('1e3')).toBe(1000)
+    expect(parseDeclaredLength(undefined)).toBeNull()
+  })
+
+  test('rejects a fractional declared length handed in directly', async () => {
+    const read = await readUploadBody(streamOf([]), 1.5)
+    expect(read).toEqual({ ok: false, status: 411, error: 'length-required' })
   })
 })

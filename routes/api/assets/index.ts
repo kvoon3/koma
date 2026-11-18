@@ -4,7 +4,7 @@ import { requireAuth } from 'void/auth'
 import { and, db, desc, eq } from 'void/db'
 import { storage } from 'void/storage'
 import { assetStorageKey } from '../../../src/lib/assetKeys'
-import { AssetTooLargeError, readUploadBody } from './_upload'
+import { BodyLengthError, parseDeclaredLength, readUploadBody } from './_upload'
 
 /**
  * The summary the browser gets from the list and the upload. `storage_path`
@@ -19,13 +19,6 @@ const SUMMARY = {
   trueH: assets.trueH,
   meta: assets.meta,
   createdAt: assets.createdAt,
-}
-
-function declaredLength(raw: string | undefined): number | null {
-  if (raw === undefined)
-    return null
-  const value = Number(raw)
-  return Number.isFinite(value) && value >= 0 ? value : null
 }
 
 /** This user's assets, newest first: what a second device uses to resolve a saved document's ids. */
@@ -55,7 +48,7 @@ export const GET = defineHandler(async (c) => {
  */
 export const POST = defineHandler(async (c) => {
   const user = requireAuth(c)
-  const read = await readUploadBody(c.req.raw.body, declaredLength(c.req.header('content-length')))
+  const read = await readUploadBody(c.req.raw.body, parseDeclaredLength(c.req.header('content-length')))
   if (!read.ok)
     return c.json({ error: read.error }, read.status)
 
@@ -117,8 +110,8 @@ export const POST = defineHandler(async (c) => {
   catch (error) {
     if (stored && !hadRow)
       await storage.delete(key).catch(() => {})
-    if (error instanceof AssetTooLargeError)
-      return c.json({ error: 'too-large' }, 413)
+    if (error instanceof BodyLengthError)
+      return c.json({ error: 'invalid-body' }, 400)
     throw error
   }
 })
