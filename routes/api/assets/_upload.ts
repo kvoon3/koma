@@ -51,12 +51,20 @@ export type UploadRead
   = | { ok: true, head: UploadHead, body: ReadableStream<Uint8Array>, size: number }
     | { ok: false, status: 400 | 411 | 413, error: string }
 
-/** Raised by the stream when the arriving bytes pass the cap despite the declared length. */
-export class AssetTooLargeError extends Error {
+/** Raised by the stream when the bytes that arrive do not match the declared length. */
+export class BodyLengthError extends Error {
   constructor() {
-    super('asset too large')
-    this.name = 'AssetTooLargeError'
+    super('body length mismatch')
+    this.name = 'BodyLengthError'
   }
+}
+
+/** `content-length` must be a safe integer from 0 up; anything else is absent. */
+export function parseDeclaredLength(raw: string | undefined): number | null {
+  if (raw === undefined)
+    return null
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value >= 0 ? value : null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,15 +131,15 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
  * Split the head from the bytes and hand back a stream still backed by the
  * request. R2 needs a stream of known length, so a declared `content-length` is
  * required (the browser's Blob body always has one) and the returned `size` is
- * exactly the file bytes the route wraps in a `FixedLengthStream`. The cap is
- * enforced on both the declared length and the bytes that actually arrive, so
- * a lying length costs an aborted R2 write, not memory.
+ * exactly the file bytes the route wraps in a `FixedLengthStream`. A body that
+ * sends fewer or more bytes than declared errors the stream, which the route
+ * answers as a 400.
  */
 export async function readUploadBody(
   source: ReadableStream<Uint8Array> | null,
   declaredLength: number | null,
 ): Promise<UploadRead> {
-  if (declaredLength === null)
+  if (declaredLength === null || !Number.isSafeInteger(declaredLength) || declaredLength < 0)
     return { ok: false, status: 411, error: 'length-required' }
   if (declaredLength > MAX_ASSET_BYTES + MAX_HEAD_BYTES + 1)
     return { ok: false, status: 413, error: 'too-large' }
@@ -185,9 +193,9 @@ export async function readUploadBody(
   }
 
   let received = buffered.byteLength - headEnd - 1
-  if (received > MAX_ASSET_BYTES) {
+  if (received > size) {
     await reader.cancel().catch(() => {})
-    return { ok: false, status: 413, error: 'too-large' }
+    return { ok: false, status: 400, error: 'invalid-body' }
   }
   let rest: Uint8Array<ArrayBuffer> | null = buffered.subarray(headEnd + 1)
 
@@ -207,15 +215,18 @@ export async function readUploadBody(
         return
       }
       if (chunk.done) {
-        controller.close()
+        if (received !== size)
+          controller.error(new BodyLengthError())
+        else
+          controller.close()
+        return
+      }
+      if (received + chunk.value.byteLength > size) {
+        await reader.cancel().catch(() => {})
+        controller.error(new BodyLengthError())
         return
       }
       received += chunk.value.byteLength
-      if (received > MAX_ASSET_BYTES) {
-        await reader.cancel().catch(() => {})
-        controller.error(new AssetTooLargeError())
-        return
-      }
       controller.enqueue(new Uint8Array(chunk.value))
     },
     cancel(reason) {
