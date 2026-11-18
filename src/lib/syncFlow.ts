@@ -23,7 +23,9 @@ export type SyncFlowEvent
  * A save starts only from rest. `saved` is rest for the next save; `error`
  * is retryable; `conflict` is not, because the client no longer holds the
  * row's timestamp and another attempt would answer 409 again. `reset` is the
- * way out (loading the cloud copy or clearing the project).
+ * way out (loading the cloud copy or clearing the project). It also cancels
+ * an in-flight save so a later `saved` / `failed` / `conflict` is refused and
+ * cannot rewrite the identity the open just wrote.
  */
 export function syncTransition(state: SyncFlowState, event: SyncFlowEvent): SyncFlowState {
   switch (event.type) {
@@ -42,7 +44,7 @@ export function syncTransition(state: SyncFlowState, event: SyncFlowEvent): Sync
     case 'dismissed':
       return state.phase === 'saved' || state.phase === 'error' ? { phase: 'idle' } : state
     case 'reset':
-      return state.phase === 'saving' ? state : { phase: 'idle' }
+      return { phase: 'idle' }
   }
 }
 
