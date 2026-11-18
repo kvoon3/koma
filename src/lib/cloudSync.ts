@@ -2,6 +2,7 @@ import type { CloudAssetSummary } from './cloudApi'
 import type { CloudProjectSummary } from './cloudSession'
 import type { Translate } from './i18n'
 import type { SessionMeta, SessionPhotoRecord } from './sessionStore'
+import type { SyncFlowEvent } from './syncFlow'
 import type { UploadFlowEvent } from './uploadFlow'
 import { useCallback } from 'react'
 import { useStore } from '../store'
@@ -249,6 +250,70 @@ function projectName(now = new Date()): string {
   return `Session ${now.toISOString().slice(0, 16).replace('T', ' ')}`
 }
 
+type RouteFetch = Awaited<ReturnType<typeof client>>['fetch']
+type SyncSend = (event: SyncFlowEvent) => boolean
+
+/** PUT the known row, or POST a new one when this email has no identity yet. */
+async function writeCloudDocument(
+  fetch: RouteFetch,
+  email: string,
+  document: string,
+): Promise<CloudProjectSummary> {
+  const identity = loadCloudIdentity(email)
+  const saved = identity
+    ? parseProjectSummary(await fetch('/api/projects/:id', {
+        method: 'PUT',
+        params: { id: identity.projectId },
+        body: { document, updatedAt: identity.updatedAt },
+        headers: JSON_ACCEPT,
+      }))
+    : parseProjectSummary(await fetch('/api/projects', {
+        method: 'POST',
+        body: { name: projectName(), document },
+        headers: JSON_ACCEPT,
+      }))
+  if (!saved)
+    throw new Error('unexpected cloud response')
+  return saved
+}
+
+/**
+ * Apply a successful save only when the flow still owns it. Open may have
+ * reset while the request flew; then identity must stay with the open.
+ */
+function commitSave(
+  email: string,
+  project: { id: string, updatedAt: string },
+  send: SyncSend,
+  t: Translate,
+): void {
+  if (!send({ type: 'saved', projectId: project.id, updatedAt: project.updatedAt }))
+    return
+  saveCloudIdentity({ email, projectId: project.id, updatedAt: project.updatedAt })
+  say(t('Saved to cloud'))
+}
+
+/** Fold a save failure into the flow; a cancelled save leaves open's identity alone. */
+function reportSaveFailure(error: unknown, send: SyncSend, t: Translate): void {
+  if (error instanceof UploadFailure) {
+    if (send({ type: 'failed', message: error.message }))
+      say(error.message)
+    return
+  }
+  const status = httpStatus(error)
+  if (status === 409) {
+    void send({ type: 'conflict' })
+    return
+  }
+  if (status === undefined)
+    console.warn('[cloudSync] save:', error)
+  if (!send({ type: 'failed', message: t('Cloud save failed. Try again.') }))
+    return
+  if (status === 404)
+    clearCloudIdentity()
+  say(t('Cloud save failed. Try again.'))
+}
+
 /**
  * The explicit Save to cloud action and the cloud open path. No effect ever
  * saves: the user clicks, one request runs, and the flow (see lib/syncFlow)
@@ -273,52 +338,11 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       const jobs = pendingUploads(plan.photos, known)
       if (jobs.length > 0)
         await uploadPending(jobs, t, sendUpload)
-      const document = plan.document
-      const identity = loadCloudIdentity(email)
-      let saved: CloudProjectSummary | null
-      if (identity) {
-        saved = parseProjectSummary(await fetch('/api/projects/:id', {
-          method: 'PUT',
-          params: { id: identity.projectId },
-          body: { document, updatedAt: identity.updatedAt },
-          headers: JSON_ACCEPT,
-        }))
-      }
-      else {
-        saved = parseProjectSummary(await fetch('/api/projects', {
-          method: 'POST',
-          body: { name: projectName(), document },
-          headers: JSON_ACCEPT,
-        }))
-      }
-      if (!saved)
-        throw new Error('unexpected cloud response')
-      const project = { id: saved.id, updatedAt: saved.updatedAt }
-      // Open may have reset while this request flew; refuse to clobber its identity.
-      if (!send({ type: 'saved', projectId: project.id, updatedAt: project.updatedAt }))
-        return
-      saveCloudIdentity({ email, projectId: project.id, updatedAt: project.updatedAt })
-      say(t('Saved to cloud'))
+      const saved = await writeCloudDocument(fetch, email, plan.document)
+      commitSave(email, { id: saved.id, updatedAt: saved.updatedAt }, send, t)
     }
     catch (error) {
-      if (error instanceof UploadFailure) {
-        if (!send({ type: 'failed', message: error.message }))
-          return
-        say(error.message)
-        return
-      }
-      const status = httpStatus(error)
-      if (status === 409) {
-        void send({ type: 'conflict' })
-        return
-      }
-      if (status === undefined)
-        console.warn('[cloudSync] save:', error)
-      if (!send({ type: 'failed', message: t('Cloud save failed. Try again.') }))
-        return
-      if (status === 404)
-        clearCloudIdentity()
-      say(t('Cloud save failed. Try again.'))
+      reportSaveFailure(error, send, t)
     }
   }, [email, send, sendUpload, t])
 
