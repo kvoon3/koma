@@ -1,6 +1,5 @@
 import type { CloudAssetSummary } from './cloudApi'
 import type { SessionPhotoRecord } from './sessionStore'
-import { isAssetId, motionAssetId } from './assetKeys'
 import { parseSessionPhotoRecord } from './sessionStore'
 
 /** The three kinds an asset row may hold; the column is text, so narrow here. */
@@ -48,10 +47,9 @@ export function parseAssetSummaryList(value: unknown): CloudAssetSummary[] {
 
 /**
  * The public half of a photo record, ready for the `meta` column: everything
- * but the file bytes.
+ * but the file bytes. Live Photo motion stays local and is never named here.
  */
 export function sessionPhotoMeta(record: SessionPhotoRecord): Record<string, unknown> {
-  const motion = record.videoFile === undefined ? null : motionAssetId(record.id)
   return {
     ...(record.kind === undefined ? {} : { kind: record.kind }),
     ...(record.folder === undefined ? {} : { folder: record.folder }),
@@ -61,22 +59,6 @@ export function sessionPhotoMeta(record: SessionPhotoRecord): Record<string, unk
     ...(record.recipe === undefined ? {} : { recipe: record.recipe }),
     ...(record.gps === undefined ? {} : { gps: record.gps }),
     ...(record.takenAt === undefined ? {} : { takenAt: record.takenAt }),
-    ...(motion === null ? {} : { motionAssetId: motion }),
-  }
-}
-
-/** The motion asset a still's `meta` points at, or null when it has none. */
-export function motionAssetIdFromMeta(meta: string | null): string | null {
-  if (meta === null)
-    return null
-  try {
-    const raw: unknown = JSON.parse(meta)
-    if (!isRecord(raw) || typeof raw.motionAssetId !== 'string')
-      return null
-    return isAssetId(raw.motionAssetId) ? raw.motionAssetId : null
-  }
-  catch {
-    return null
   }
 }
 
@@ -86,7 +68,7 @@ export function motionAssetIdFromMeta(meta: string | null): string | null {
  * still untrusted, and the existing `parseSessionPhotoRecord` is the one
  * validator that decides whether the result is a record at all.
  */
-export function photoRecordFromAsset(asset: CloudAssetSummary, file: File, motion?: File): SessionPhotoRecord | null {
+export function photoRecordFromAsset(asset: CloudAssetSummary, file: File): SessionPhotoRecord | null {
   if (!isCloudAssetKind(asset.kind))
     return null
   let meta: unknown = {}
@@ -102,7 +84,6 @@ export function photoRecordFromAsset(asset: CloudAssetSummary, file: File, motio
     return null
   return parseSessionPhotoRecord({
     ...meta,
-    ...(motion === undefined ? {} : { videoFile: motion }),
     id: asset.id,
     name: asset.name,
     kind: asset.kind,
