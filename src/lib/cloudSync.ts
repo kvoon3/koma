@@ -302,7 +302,8 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
     }
     catch (error) {
       if (error instanceof UploadFailure) {
-        send({ type: 'failed', message: error.message })
+        if (!send({ type: 'failed', message: error.message }))
+          return
         say(error.message)
         return
       }
