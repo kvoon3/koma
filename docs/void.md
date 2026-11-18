@@ -158,7 +158,15 @@ rollback is manual: write a reversing migration instead.
 Uploaded library photos live in R2 behind the `STORAGE` binding; the `assets`
 table holds their metadata and the key `assets/{userId}/{assetId}` (derived in
 `src/lib/assetKeys.ts`). The bucket is declared in `void.config.ts` under
-`cloudflare.r2_buckets`.
+`cloudflare.r2_buckets`. A Live Photo uploads twice: the still under its photo
+id, and its motion file under `{photoId}~motion`. The still's `meta`
+carries a `motionAssetId` pointer, so a second device restores press-and-hold
+playback with the still.
+
+The upload's JSON head is capped at 2 MB. A sticker maker record larger than
+that is rejected and the whole save fails with the generic upload error, not a
+per-photo skip. `ORIGINAL_MAX` (1600 px) keeps normal records well under the
+cap; if a recipe approaches it, split the recipe or lower the original size.
 
 Local development needs no bucket and no login: void's dev server runs
 Miniflare's file-backed R2 under `.void/v3/r2`, and the upload and serve routes

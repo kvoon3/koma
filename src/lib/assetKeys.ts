@@ -14,7 +14,7 @@
 export const ASSET_MAX_MB = 50
 
 /** Ids this app generates: timestamp/random photo ids and Better Auth user ids. */
-const PART = /^[\w-]{1,128}$/
+const PART = /^[\w~-]{1,128}$/
 
 /** True when a value can be one path part without changing the key's shape. */
 export function isAssetId(value: string): boolean {
@@ -26,4 +26,16 @@ export function assetStorageKey(userId: string, assetId: string): string | null 
   if (!isAssetId(userId) || !isAssetId(assetId))
     return null
   return `assets/${userId}/${assetId}`
+}
+
+/**
+ * The second asset holding a Live Photo's motion file. `~` is outside every id
+ * this app generates, so this cannot collide with a real photo id, and the
+ * still's `meta.motionAssetId` points a second device at it.
+ */
+export function motionAssetId(photoId: string): string | null {
+  if (!isAssetId(photoId))
+    return null
+  const id = `${photoId}~motion`
+  return isAssetId(id) ? id : null
 }

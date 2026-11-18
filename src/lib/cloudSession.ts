@@ -1,7 +1,7 @@
 import type { CloudProjectDetail, CloudProjectSummary } from './cloudApi'
 import type { Node } from './panes'
-import type { SessionMeta } from './sessionStore'
-import { parseSessionMeta } from './sessionStore'
+import type { SessionMeta, SessionPhotoRecord, SessionSource } from './sessionStore'
+import { parseSessionMeta, sessionMeta } from './sessionStore'
 
 export type { CloudProjectDetail, CloudProjectSummary } from './cloudApi'
 
@@ -71,6 +71,28 @@ export function parseProjectDetail(value: unknown): CloudProjectDetail | null {
   if (!summary || !isRecord(value) || typeof value.userId !== 'string' || typeof value.document !== 'string')
     return null
   return { ...summary, userId: value.userId, document: value.document }
+}
+
+/** The store fields a save reads, plus the library it must upload first. */
+export interface CloudSaveSource extends SessionSource {
+  photos: SessionPhotoRecord[]
+}
+
+export interface CloudSavePlan {
+  /** The library as it was when the save started; upload these pending ids. */
+  photos: SessionPhotoRecord[]
+  /** Built from that same read, so it cannot reference a later placement. */
+  document: string
+}
+
+/**
+ * One read for both halves of a save. A save takes time; if the document were
+ * serialized after the uploads, a photo placed in between would be referenced
+ * by the document but never uploaded, and a second device would draw an empty
+ * pane. The later edit stays local until the next save.
+ */
+export function captureCloudSave(source: CloudSaveSource): CloudSavePlan {
+  return { photos: source.photos, document: serializeCloudDocument(sessionMeta(source)) }
 }
 
 function collectNode(node: Node, ids: Set<string>): void {
