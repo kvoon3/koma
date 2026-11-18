@@ -833,6 +833,24 @@ const zhHant: Record<TKey, string> = {
   'The camera is in use by another app.': '相機正被其他應用程式占用。',
   'The camera could not be used.': '無法使用相機。',
   'Could not take the photo.': '拍照失敗。',
+
+  // Auth (wave10/auth): the sign-in screen and the account chip
+  'Sign in to koma': '登入 koma',
+  'Create your account': '建立帳號',
+  'Email': '信箱',
+  'Password': '密碼',
+  'Sign in': '登入',
+  'Sign up': '註冊',
+  'Sign out': '登出',
+  'Signed out': '已登出',
+  'Sign out failed. Try again.': '登出失敗。請重試。',
+  'Account': '帳號',
+  'Need an account? Sign up': '還沒有帳號？註冊',
+  'Have an account? Sign in': '已有帳號？登入',
+  'Sign in failed. Check your email and password.': '登入失敗。請檢查信箱和密碼。',
+  'Too many attempts. Try again in a moment.': '嘗試次數過多。請稍後再試。',
+  'Signed in as {email}': '已登入：{email}',
+  'Back to the board': '返回版面',
 }
 
 export default zhHant

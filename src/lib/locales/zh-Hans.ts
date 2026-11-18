@@ -835,6 +835,24 @@ const zhHans = {
   'The camera is in use by another app.': '相机正被其他应用占用。',
   'The camera could not be used.': '无法使用相机。',
   'Could not take the photo.': '拍照失败。',
+
+  // Auth (wave10/auth): the sign-in screen and the account chip
+  'Sign in to koma': '登录 koma',
+  'Create your account': '创建账号',
+  'Email': '邮箱',
+  'Password': '密码',
+  'Sign in': '登录',
+  'Sign up': '注册',
+  'Sign out': '退出登录',
+  'Signed out': '已退出登录',
+  'Sign out failed. Try again.': '退出登录失败。请重试。',
+  'Account': '账号',
+  'Need an account? Sign up': '还没有账号？注册',
+  'Have an account? Sign in': '已有账号？登录',
+  'Sign in failed. Check your email and password.': '登录失败。请检查邮箱和密码。',
+  'Too many attempts. Try again in a moment.': '尝试次数过多。请稍后再试。',
+  'Signed in as {email}': '已登录：{email}',
+  'Back to the board': '返回版面',
 } satisfies Record<string, string>
 
 export default zhHans

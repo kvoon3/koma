@@ -829,6 +829,24 @@ const ja: Record<TKey, string> = {
   'The camera is in use by another app.': 'カメラは他のアプリで使用中です。',
   'The camera could not be used.': 'カメラを使用できませんでした。',
   'Could not take the photo.': '写真を撮影できませんでした。',
+
+  // Auth (wave10/auth): the sign-in screen and the account chip
+  'Sign in to koma': 'koma にログイン',
+  'Create your account': 'アカウントを作成',
+  'Email': 'メールアドレス',
+  'Password': 'パスワード',
+  'Sign in': 'ログイン',
+  'Sign up': '登録',
+  'Sign out': 'ログアウト',
+  'Signed out': 'ログアウトしました',
+  'Sign out failed. Try again.': 'ログアウトに失敗しました。もう一度お試しください。',
+  'Account': 'アカウント',
+  'Need an account? Sign up': 'アカウントをお持ちでない場合：登録',
+  'Have an account? Sign in': 'アカウントをお持ちの場合：ログイン',
+  'Sign in failed. Check your email and password.': 'ログインに失敗しました。メールアドレスとパスワードを確認してください。',
+  'Too many attempts. Try again in a moment.': '試行回数が多すぎます。しばらくしてからもう一度お試しください。',
+  'Signed in as {email}': '{email} でログイン中',
+  'Back to the board': 'ボードに戻る',
 }
 
 export default ja

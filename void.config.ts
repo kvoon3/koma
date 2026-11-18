@@ -34,5 +34,12 @@ export default defineConfig({
     routes: [
       { pattern: 'koma.kvoon.me', custom_domain: true },
     ],
+    // Auth and the app's tables share this database. The binding is inferred;
+    // this entry pins the migrations directory, because the generated config
+    // otherwise points at `<repo>/migrations`. The id arrives from
+    // void.lock.json once the operator provisions the database.
+    d1_databases: [
+      { binding: 'DB', database_name: 'default', migrations_dir: './db/migrations' },
+    ],
   },
 })
