@@ -5,8 +5,8 @@ import type { SessionMeta, SessionPhotoRecord } from './sessionStore'
 import type { UploadFlowEvent } from './uploadFlow'
 import { useCallback } from 'react'
 import { useStore } from '../store'
-import { ASSET_MAX_MB, motionAssetId } from './assetKeys'
-import { motionAssetIdFromMeta, parseAssetSummaryList, photoRecordFromAsset, sessionPhotoMeta } from './cloudAsset'
+import { ASSET_MAX_MB } from './assetKeys'
+import { parseAssetSummaryList, photoRecordFromAsset, sessionPhotoMeta } from './cloudAsset'
 import { clearCloudIdentity, loadCloudIdentity, saveCloudIdentity } from './cloudIdentity'
 import { captureCloudSave, parseCloudDocumentText, parseProjectDetail, parseProjectSummary, parseProjectSummaryList, referencedPhotoIds } from './cloudSession'
 import { loadSession } from './sessionStore'
@@ -82,41 +82,16 @@ function photoJob(photo: SessionPhotoRecord): UploadJob {
   }
 }
 
-/** A Live Photo's motion file is a second asset; the still's meta points at it. */
-function motionJob(photo: SessionPhotoRecord): UploadJob | null {
-  const id = motionAssetId(photo.id)
-  if (!photo.videoFile || !id)
-    return null
-  return {
-    file: photo.videoFile,
-    head: {
-      id,
-      kind: 'photo',
-      name: photo.videoFile.name,
-      trueW: 0,
-      trueH: 0,
-      meta: null,
-      type: photo.videoFile.type || 'video/quicktime',
-    },
-  }
-}
-
 /**
- * The files a save still has to send: the photo itself when the account lacks
- * it, then its motion when only the still is known. Both checks read the same
- * asset list, so a retry converges.
+ * The stills a save still has to send when the account lacks them. Live Photo
+ * motion stays on this device only; cloud sync does not upload or restore it.
+ * Retry converges on the same asset list.
  */
 function pendingUploads(photos: SessionPhotoRecord[], known: ReadonlySet<string>): UploadJob[] {
   const jobs: UploadJob[] = []
   for (const photo of photos) {
     if (!known.has(photo.id))
       jobs.push(photoJob(photo))
-    const motion = photo.videoFile ? motionAssetId(photo.id) : null
-    if (motion && !known.has(motion)) {
-      const job = motionJob(photo)
-      if (job)
-        jobs.push(job)
-    }
   }
   return jobs
 }
@@ -172,11 +147,10 @@ async function downloadFile(asset: CloudAssetSummary): Promise<File | null> {
 
 /**
  * The photo library a saved document draws on: what this device already has,
- * plus the assets the document references that it does not, and the motion
- * asset each downloaded still's meta names. Only referenced ids download, so a
- * second device gets this board's photos without this account's other
- * projects filling its library. A missing or broken asset costs that photo,
- * not the whole open.
+ * plus the assets the document references that it does not. Only referenced
+ * ids download, so a second device gets this board's photos without this
+ * account's other projects filling its library. A missing or broken asset
+ * costs that photo, not the whole open. Live Photo motion is not restored.
  */
 async function resolvePhotos(session: SessionMeta, localPhotos: SessionPhotoRecord[]): Promise<SessionPhotoRecord[]> {
   const merged = new Map(localPhotos.map(photo => [photo.id, photo]))
@@ -203,10 +177,7 @@ async function resolvePhotos(session: SessionMeta, localPhotos: SessionPhotoReco
       const file = await downloadFile(asset)
       if (!file)
         return
-      const motionId = motionAssetIdFromMeta(asset.meta)
-      const motionAsset = motionId === null ? undefined : byId.get(motionId)
-      const motion = motionAsset ? await downloadFile(motionAsset) : null
-      const record = photoRecordFromAsset(asset, file, motion ?? undefined)
+      const record = photoRecordFromAsset(asset, file)
       if (record)
         merged.set(id, record)
     }))

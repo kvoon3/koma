@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { assetStorageKey, isAssetId, motionAssetId } from './assetKeys'
+import { assetStorageKey, isAssetId } from './assetKeys'
 
 describe('assetStorageKey', () => {
   test('derives one flat key under the user prefix', () => {
@@ -24,18 +24,7 @@ describe('assetStorageKey', () => {
     expect(isAssetId('photo 1')).toBe(false)
     expect(isAssetId('photo.1')).toBe(false)
     expect(isAssetId('photo:1')).toBe(false)
+    expect(isAssetId('photo~1')).toBe(false)
     expect(isAssetId('a'.repeat(129))).toBe(false)
-  })
-})
-
-describe('motionAssetId', () => {
-  test('derives a second id a real photo id cannot collide with', () => {
-    expect(motionAssetId('photo-1')).toBe('photo-1~motion')
-    expect(isAssetId(motionAssetId('photo-1') ?? '')).toBe(true)
-  })
-
-  test('refuses an unsafe still id or one too long for a derived id', () => {
-    expect(motionAssetId('bad/id')).toBeNull()
-    expect(motionAssetId('a'.repeat(122))).toBeNull()
   })
 })
