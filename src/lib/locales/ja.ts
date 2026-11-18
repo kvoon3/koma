@@ -868,7 +868,7 @@ const ja: Record<TKey, string> = {
   'Uploading photos… {done} of {total}': '写真をアップロード中… {done}/{total}',
   'Photos uploaded': '写真をアップロードしました',
   'Upload failed. Try again.': 'アップロードに失敗しました。もう一度お試しください。',
-  'Photo too large. The limit is {mb} MB.': '写真が大きすぎます。上限は {mb} MB です。',
+  'File too large. The limit is {mb} MB.': 'ファイルが大きすぎます。上限は {mb} MB です。',
 }
 
 export default ja

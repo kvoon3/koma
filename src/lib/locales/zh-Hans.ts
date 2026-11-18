@@ -874,7 +874,7 @@ const zhHans = {
   'Uploading photos… {done} of {total}': '正在上传照片… {done}/{total}',
   'Photos uploaded': '照片已上传',
   'Upload failed. Try again.': '上传失败。请重试。',
-  'Photo too large. The limit is {mb} MB.': '照片太大。上限为 {mb} MB。',
+  'File too large. The limit is {mb} MB.': '文件太大。上限为 {mb} MB。',
 } satisfies Record<string, string>
 
 export default zhHans

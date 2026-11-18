@@ -5,11 +5,11 @@ import type { SessionMeta, SessionPhotoRecord } from './sessionStore'
 import type { UploadFlowEvent } from './uploadFlow'
 import { useCallback } from 'react'
 import { useStore } from '../store'
-import { ASSET_MAX_MB } from './assetKeys'
-import { parseAssetSummaryList, photoRecordFromAsset, sessionPhotoMeta } from './cloudAsset'
+import { ASSET_MAX_MB, motionAssetId } from './assetKeys'
+import { motionAssetIdFromMeta, parseAssetSummaryList, photoRecordFromAsset, sessionPhotoMeta } from './cloudAsset'
 import { clearCloudIdentity, loadCloudIdentity, saveCloudIdentity } from './cloudIdentity'
-import { parseCloudDocumentText, parseProjectDetail, parseProjectSummary, parseProjectSummaryList, referencedPhotoIds, serializeCloudDocument } from './cloudSession'
-import { loadSession, sessionMeta } from './sessionStore'
+import { captureCloudSave, parseCloudDocumentText, parseProjectDetail, parseProjectSummary, parseProjectSummaryList, referencedPhotoIds } from './cloudSession'
+import { loadSession } from './sessionStore'
 import { SYNC_IDLE, syncTransition } from './syncFlow'
 import { say } from './toast'
 import { UPLOAD_IDLE, uploadTransition } from './uploadFlow'
@@ -54,22 +54,76 @@ class UploadFailure extends Error {
   }
 }
 
-/**
- * Send one photo as head + newline + bytes. The id is the client photo id, so
- * the document's references keep resolving; the server validates it, derives
- * the storage key, and scopes both to the caller.
- */
-async function uploadOne(photo: SessionPhotoRecord): Promise<void> {
-  const head = {
-    id: photo.id,
-    kind: photo.kind ?? 'photo',
-    name: photo.name,
-    trueW: Math.round(photo.trueW),
-    trueH: Math.round(photo.trueH),
-    meta: JSON.stringify(sessionPhotoMeta(photo)),
-    type: photo.file.type || ASSET_CONTENT_TYPE,
+interface UploadJob {
+  file: File
+  head: {
+    id: string
+    kind: 'photo' | 'sticker' | 'music'
+    name: string
+    trueW: number
+    trueH: number
+    meta: string | null
+    type: string
   }
-  const body = new Blob([JSON.stringify(head), '\n', photo.file])
+}
+
+function photoJob(photo: SessionPhotoRecord): UploadJob {
+  return {
+    file: photo.file,
+    head: {
+      id: photo.id,
+      kind: photo.kind ?? 'photo',
+      name: photo.name,
+      trueW: Math.round(photo.trueW),
+      trueH: Math.round(photo.trueH),
+      meta: JSON.stringify(sessionPhotoMeta(photo)),
+      type: photo.file.type || ASSET_CONTENT_TYPE,
+    },
+  }
+}
+
+/** A Live Photo's motion file is a second asset; the still's meta points at it. */
+function motionJob(photo: SessionPhotoRecord): UploadJob | null {
+  const id = motionAssetId(photo.id)
+  if (!photo.videoFile || !id)
+    return null
+  return {
+    file: photo.videoFile,
+    head: {
+      id,
+      kind: 'photo',
+      name: photo.videoFile.name,
+      trueW: 0,
+      trueH: 0,
+      meta: null,
+      type: photo.videoFile.type || 'video/quicktime',
+    },
+  }
+}
+
+/**
+ * The files a save still has to send: the photo itself when the account lacks
+ * it, then its motion when only the still is known. Both checks read the same
+ * asset list, so a retry converges.
+ */
+function pendingUploads(photos: SessionPhotoRecord[], known: ReadonlySet<string>): UploadJob[] {
+  const jobs: UploadJob[] = []
+  for (const photo of photos) {
+    if (!known.has(photo.id))
+      jobs.push(photoJob(photo))
+    const motion = photo.videoFile ? motionAssetId(photo.id) : null
+    if (motion && !known.has(motion)) {
+      const job = motionJob(photo)
+      if (job)
+        jobs.push(job)
+    }
+  }
+  return jobs
+}
+
+/** Send one file as head + newline + bytes; the server derives the key. */
+async function uploadOne(job: UploadJob): Promise<void> {
+  const body = new Blob([JSON.stringify(job.head), '\n', job.file])
   const response = await globalThis.fetch('/api/assets', {
     method: 'POST',
     body,
@@ -80,19 +134,19 @@ async function uploadOne(photo: SessionPhotoRecord): Promise<void> {
 }
 
 async function uploadPending(
-  photos: SessionPhotoRecord[],
+  jobs: UploadJob[],
   t: Translate,
   send: (event: UploadFlowEvent) => boolean,
 ): Promise<void> {
   let done = 0
-  send({ type: 'start', total: photos.length })
-  for (const photo of photos) {
+  send({ type: 'start', total: jobs.length })
+  for (const job of jobs) {
     try {
-      await uploadOne(photo)
+      await uploadOne(job)
     }
     catch (error) {
       const message = error instanceof AssetUploadError && error.status === 413
-        ? t('Photo too large. The limit is {mb} MB.', { mb: ASSET_MAX_MB })
+        ? t('File too large. The limit is {mb} MB.', { mb: ASSET_MAX_MB })
         : t('Upload failed. Try again.')
       send({ type: 'failed', message })
       throw new UploadFailure(message)
@@ -100,16 +154,16 @@ async function uploadPending(
     done++
     send({ type: 'progress', done })
   }
-  send({ type: 'finished', uploaded: photos.length })
+  send({ type: 'finished', uploaded: jobs.length })
 }
 
-async function downloadOne(asset: CloudAssetSummary): Promise<SessionPhotoRecord | null> {
+async function downloadFile(asset: CloudAssetSummary): Promise<File | null> {
   try {
     const response = await globalThis.fetch(`/api/assets/${encodeURIComponent(asset.id)}`)
     if (!response.ok)
       return null
     const blob = await response.blob()
-    return photoRecordFromAsset(asset, new File([blob], asset.name, { type: blob.type || ASSET_CONTENT_TYPE }))
+    return new File([blob], asset.name, { type: blob.type || ASSET_CONTENT_TYPE })
   }
   catch {
     return null
@@ -118,10 +172,11 @@ async function downloadOne(asset: CloudAssetSummary): Promise<SessionPhotoRecord
 
 /**
  * The photo library a saved document draws on: what this device already has,
- * plus the assets the document references that it does not. Only referenced
- * ids download, so a second device gets this board's photos without this
- * account's other projects filling its library. A missing or broken asset
- * costs that photo, not the whole open.
+ * plus the assets the document references that it does not, and the motion
+ * asset each downloaded still's meta names. Only referenced ids download, so a
+ * second device gets this board's photos without this account's other
+ * projects filling its library. A missing or broken asset costs that photo,
+ * not the whole open.
  */
 async function resolvePhotos(session: SessionMeta, localPhotos: SessionPhotoRecord[]): Promise<SessionPhotoRecord[]> {
   const merged = new Map(localPhotos.map(photo => [photo.id, photo]))
@@ -145,7 +200,13 @@ async function resolvePhotos(session: SessionMeta, localPhotos: SessionPhotoReco
       const asset = byId.get(id)
       if (!asset)
         return
-      const record = await downloadOne(asset)
+      const file = await downloadFile(asset)
+      if (!file)
+        return
+      const motionId = motionAssetIdFromMeta(asset.meta)
+      const motionAsset = motionId === null ? undefined : byId.get(motionId)
+      const motion = motionAsset ? await downloadFile(motionAsset) : null
+      const record = photoRecordFromAsset(asset, file, motion ?? undefined)
       if (record)
         merged.set(id, record)
     }))
@@ -181,12 +242,15 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       return
     try {
       const { fetch } = await client()
-      const photos = useStore.getState().photos
+      // One read for the upload list and the document: an edit made while the
+      // uploads run stays local to the next save instead of being referenced
+      // by a document that never uploaded its bytes.
+      const plan = captureCloudSave(useStore.getState())
       const known = new Set(parseAssetSummaryList(await fetch('/api/assets', { headers: JSON_ACCEPT })).map(asset => asset.id))
-      const pending = photos.filter(photo => !known.has(photo.id))
-      if (pending.length > 0)
-        await uploadPending(pending, t, sendUpload)
-      const document = serializeCloudDocument(sessionMeta(useStore.getState()))
+      const jobs = pendingUploads(plan.photos, known)
+      if (jobs.length > 0)
+        await uploadPending(jobs, t, sendUpload)
+      const document = plan.document
       const identity = loadCloudIdentity(email)
       let saved: CloudProjectSummary | null
       if (identity) {

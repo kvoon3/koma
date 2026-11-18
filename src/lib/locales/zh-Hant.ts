@@ -872,7 +872,7 @@ const zhHant: Record<TKey, string> = {
   'Uploading photos… {done} of {total}': '正在上傳照片… {done}/{total}',
   'Photos uploaded': '照片已上傳',
   'Upload failed. Try again.': '上傳失敗。請重試。',
-  'Photo too large. The limit is {mb} MB.': '照片太大。上限為 {mb} MB。',
+  'File too large. The limit is {mb} MB.': '檔案太大。上限為 {mb} MB。',
 }
 
 export default zhHant
