@@ -294,8 +294,10 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       if (!saved)
         throw new Error('unexpected cloud response')
       const project = { id: saved.id, updatedAt: saved.updatedAt }
+      // Open may have reset while this request flew; refuse to clobber its identity.
+      if (!send({ type: 'saved', projectId: project.id, updatedAt: project.updatedAt }))
+        return
       saveCloudIdentity({ email, projectId: project.id, updatedAt: project.updatedAt })
-      send({ type: 'saved', projectId: project.id, updatedAt: project.updatedAt })
       say(t('Saved to cloud'))
     }
     catch (error) {
@@ -306,14 +308,15 @@ export function useCloudSync({ email, t }: { email: string | null, t: Translate 
       }
       const status = httpStatus(error)
       if (status === 409) {
-        send({ type: 'conflict' })
+        void send({ type: 'conflict' })
         return
       }
-      if (status === 404)
-        clearCloudIdentity()
       if (status === undefined)
         console.warn('[cloudSync] save:', error)
-      send({ type: 'failed', message: t('Cloud save failed. Try again.') })
+      if (!send({ type: 'failed', message: t('Cloud save failed. Try again.') }))
+        return
+      if (status === 404)
+        clearCloudIdentity()
       say(t('Cloud save failed. Try again.'))
     }
   }, [email, send, sendUpload, t])

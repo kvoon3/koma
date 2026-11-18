@@ -431,7 +431,12 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
                     {cloudStatus && cloudStatus !== uploadStatus && <span role="status" className="text-[10px] text-dim">{cloudStatus}</span>}
                   </span>
                 </Menu.Item>
-                <Menu.Item className={itemCls} closeOnClick onClick={openCloud}>
+                <Menu.Item
+                  className={itemCls}
+                  closeOnClick
+                  disabled={cloudState.phase === 'saving' || cloudState.phase === 'conflict'}
+                  onClick={openCloud}
+                >
                   <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="text-dim" />
                   {t('Open from cloud…')}
                 </Menu.Item>

@@ -44,11 +44,19 @@ describe('syncTransition', () => {
     expect(syncTransition(SYNC_IDLE, { type: 'dismissed' })).toBe(SYNC_IDLE)
   })
 
-  test('reset is the only way out of conflict, and never interrupts a save', () => {
+  test('reset clears conflict and cancels an in-flight save so open can win', () => {
     expect(syncTransition(conflict, { type: 'reset' })).toEqual(SYNC_IDLE)
     expect(syncTransition(saved, { type: 'reset' })).toEqual(SYNC_IDLE)
     expect(syncTransition(error, { type: 'reset' })).toEqual(SYNC_IDLE)
-    expect(syncTransition(saving, { type: 'reset' })).toBe(saving)
+    expect(syncTransition(saving, { type: 'reset' })).toEqual(SYNC_IDLE)
+  })
+
+  test('a save that finishes after reset does not re-enter saved', () => {
+    const cancelled = syncTransition(saving, { type: 'reset' })
+    expect(cancelled).toEqual(SYNC_IDLE)
+    expect(syncTransition(cancelled, { type: 'saved', projectId: 'old', updatedAt: 't' })).toBe(cancelled)
+    expect(syncTransition(cancelled, { type: 'failed', message: 'x' })).toBe(cancelled)
+    expect(syncTransition(cancelled, { type: 'conflict' })).toBe(cancelled)
   })
 
   test('every phase is reachable and every event answers', () => {
