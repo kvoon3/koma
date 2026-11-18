@@ -851,6 +851,22 @@ const zhHant: Record<TKey, string> = {
   'Too many attempts. Try again in a moment.': '嘗試次數過多。請稍後再試。',
   'Signed in as {email}': '已登入：{email}',
   'Back to the board': '返回版面',
+
+  // Cloud session (wave11/cloud-sessions): the account menu's save and open entries
+  'Save to cloud': '儲存到雲端',
+  'Saving…': '正在儲存…',
+  'Saved to cloud': '已儲存到雲端',
+  'Cloud save failed. Try again.': '雲端儲存失敗。請重試。',
+  'This session changed on another device. Reload it from the cloud.': '此工作階段已在另一台裝置上變更。請從雲端重新載入。',
+  'Open from cloud…': '從雲端開啟…',
+  'Cloud sessions': '雲端工作階段',
+  'Loading…': '正在載入…',
+  'Load': '載入',
+  'No cloud sessions yet.': '還沒有雲端工作階段。',
+  'Sign in to save to cloud': '登入後可儲存到雲端',
+  'Sign in to load from cloud': '登入後可從雲端載入',
+  'Could not open the cloud session.': '無法開啟雲端工作階段。',
+  'Loaded from cloud': '已從雲端載入',
 }
 
 export default zhHant

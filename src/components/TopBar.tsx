@@ -5,12 +5,14 @@ import type { WorkspaceDocV1 } from '../lib/workspaceFile'
 import { Menu } from '@base-ui/react/menu'
 import { Menubar } from '@base-ui/react/menubar'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Check, ChevronDown, CircleHelp, CircleUserRound, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, LogOut, Moon, Save, Sun } from 'lucide'
+import { Check, ChevronDown, CircleHelp, CircleUserRound, CloudUpload, Download, FileText, FolderOpen, FolderPlus, Image as ImageIcon, ImagePlus, Languages, LayoutDashboard, LayoutGrid, Library, LogOut, Moon, Save, Sun } from 'lucide'
 import { MorphIcon } from 'morphicons/react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import wordmark from '../assets/fonts/wordmark.json'
 import { useMediaQuery } from '../hooks'
 import { signOut, useAuthEmail } from '../lib/authSession'
+import { CLOUD_OPEN_IDLE, cloudOpenTransition } from '../lib/cloudOpenFlow'
+import { useCloudSync } from '../lib/cloudSync'
 import { cssVars } from '../lib/cssVars'
 import { normalizeCutoutSets, pruneCutoutSets } from '../lib/cutoutVariants'
 import { boxIn } from '../lib/dockBox'
@@ -24,10 +26,12 @@ import { AUTH_PATH, isGridPath, LIBRARY_PATH, OVERVIEW_PATH } from '../lib/route
 import { clearSession } from '../lib/sessionStore'
 import { paneAssetsOf } from '../lib/stickerLibrary'
 import { say } from '../lib/toast'
+import { useFlow } from '../lib/useFlow'
 import { buildDoc, downloadDoc, parseWorkspaceFile } from '../lib/workspaceFile'
 import { activeWs, migrateWorkspaceInserts, normalizeWorkspaces, useStore } from '../store'
 import { isDarkSnapshot, subscribeTheme, toggleDark } from '../theme'
 import { BrandMark } from './BrandMark'
+import { CloudProjectsDialog } from './CloudProjectsDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SettingsPanel } from './SettingsPanel'
 import { Button } from './ui/button'
@@ -287,6 +291,33 @@ function LangMenu({ open, onOpenChange, onTriggerEnter }: MenuWiring) {
 function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: MenuWiring & { email: string | null, pending: boolean }) {
   const t = useT()
   const navigate = useNavigate()
+  const [cloudOpen, setCloudOpen] = useState(false)
+  const cloud = useCloudSync({ email, t })
+  const { state: cloudState, listProjects, openProject } = cloud
+  const { state: cloudList, send: sendCloudList } = useFlow(CLOUD_OPEN_IDLE, cloudOpenTransition)
+
+  /** Fetch the list on the click that opens the dialog, not in an effect. */
+  const loadCloudList = useCallback(async () => {
+    if (!sendCloudList({ type: 'open' }))
+      return
+    try {
+      sendCloudList({ type: 'loaded', projects: await listProjects() })
+    }
+    catch {
+      sendCloudList({ type: 'failed', message: t('Could not open the cloud session.') })
+    }
+  }, [listProjects, sendCloudList, t])
+
+  const openCloud = () => {
+    setCloudOpen(true)
+    void loadCloudList()
+  }
+
+  const changeCloudOpen = (next: boolean) => {
+    if (!next)
+      sendCloudList({ type: 'close' })
+    setCloudOpen(next)
+  }
 
   const doSignOut = async () => {
     try {
@@ -301,6 +332,15 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
     }
   }
 
+  const cloudStatus
+    = cloudState.phase === 'saved'
+      ? t('Saved to cloud')
+      : cloudState.phase === 'conflict'
+        ? t('This session changed on another device. Reload it from the cloud.')
+        : cloudState.phase === 'error'
+          ? cloudState.message
+          : null
+
   const signInTrigger = (
     <Menu.Trigger
       className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt`}
@@ -314,47 +354,101 @@ function AccountMenu({ open, onOpenChange, onTriggerEnter, email, pending }: Men
   )
 
   return (
-    <Menu.Root open={open} onOpenChange={onOpenChange}>
-      {email
-        ? (
-            <Menu.Trigger
-              className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt max-sm:max-w-[92px] max-sm:truncate`}
-              aria-label={t('Account')}
-              data-bar-trigger="account"
-              data-bar-chip=""
-              onMouseEnter={onTriggerEnter}
-            >
-              {email}
-            </Menu.Trigger>
-          )
-        : pending
-          ? signInTrigger
-          : <Tip label={t('Sign in')} trigger={signInTrigger} />}
-      {email && (
-        <Menu.Portal>
-          <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
-            <Menu.Popup className={popupCls}>
-              <Menu.Item className={itemCls} closeOnClick onClick={() => void doSignOut()}>
-                <MorphIcon icon={LogOut} size={13} strokeWidth={1.75} className="text-dim" />
-                {t('Sign out')}
-              </Menu.Item>
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      )}
-      {!email && (
-        <Menu.Portal>
-          <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
-            <Menu.Popup className={popupCls}>
-              <Menu.Item className={itemCls} closeOnClick onClick={() => void navigate({ to: AUTH_PATH })}>
-                <MorphIcon icon={CircleUserRound} size={13} strokeWidth={1.75} className="text-dim" />
-                {t('Sign in')}
-              </Menu.Item>
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      )}
-    </Menu.Root>
+    <>
+      <Menu.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (!next)
+            cloud.dismiss()
+          onOpenChange(next)
+        }}
+      >
+        {email
+          ? (
+              <Menu.Trigger
+                className={`${buttonBase} ${buttonVariants.bar} aria-expanded:bg-chip-hover aria-expanded:text-txt max-sm:max-w-[92px] max-sm:truncate`}
+                aria-label={t('Account')}
+                data-bar-trigger="account"
+                data-bar-chip=""
+                onMouseEnter={onTriggerEnter}
+              >
+                {email}
+              </Menu.Trigger>
+            )
+          : pending
+            ? signInTrigger
+            : <Tip label={t('Sign in')} trigger={signInTrigger} />}
+        {email && (
+          <Menu.Portal>
+            <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
+              <Menu.Popup className={popupCls}>
+                <Menu.Item
+                  data-cloud-save=""
+                  className={itemCls}
+                  closeOnClick={false}
+                  disabled={cloudState.phase === 'saving' || cloudState.phase === 'conflict'}
+                  onClick={() => void cloud.save()}
+                >
+                  {cloudState.phase === 'saving'
+                    ? <Spinner size={13} className="flex text-dim" />
+                    : <MorphIcon icon={CloudUpload} size={13} strokeWidth={1.75} className="text-dim" />}
+                  <span className="flex flex-col">
+                    <span>{cloudState.phase === 'saving' ? t('Saving…') : t('Save to cloud')}</span>
+                    {cloudStatus && <span role="status" className="text-[10px] text-dim">{cloudStatus}</span>}
+                  </span>
+                </Menu.Item>
+                <Menu.Item
+                  className={itemCls}
+                  closeOnClick
+                  disabled={cloudState.phase === 'saving' || cloudState.phase === 'conflict'}
+                  onClick={openCloud}
+                >
+                  <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="text-dim" />
+                  {t('Open from cloud…')}
+                </Menu.Item>
+                <Menu.Item className={itemCls} closeOnClick onClick={() => void doSignOut()}>
+                  <MorphIcon icon={LogOut} size={13} strokeWidth={1.75} className="text-dim" />
+                  {t('Sign out')}
+                </Menu.Item>
+              </Menu.Popup>
+            </Menu.Positioner>
+          </Menu.Portal>
+        )}
+        {!email && (
+          <Menu.Portal>
+            <Menu.Positioner sideOffset={4} align="end" className="z-[260] select-none outline-0">
+              <Menu.Popup className={popupCls}>
+                <Menu.Item data-cloud-save-disabled="" className={itemCls} disabled>
+                  <MorphIcon icon={CloudUpload} size={13} strokeWidth={1.75} className="text-dim" />
+                  <span className="flex flex-col">
+                    <span>{t('Save to cloud')}</span>
+                    <span className="text-[10px] text-dim">{t('Sign in to save to cloud')}</span>
+                  </span>
+                </Menu.Item>
+                <Menu.Item className={itemCls} disabled>
+                  <MorphIcon icon={FolderOpen} size={13} strokeWidth={1.75} className="text-dim" />
+                  <span className="flex flex-col">
+                    <span>{t('Open from cloud…')}</span>
+                    <span className="text-[10px] text-dim">{t('Sign in to load from cloud')}</span>
+                  </span>
+                </Menu.Item>
+                <Menu.Item className={itemCls} closeOnClick onClick={() => void navigate({ to: AUTH_PATH })}>
+                  <MorphIcon icon={CircleUserRound} size={13} strokeWidth={1.75} className="text-dim" />
+                  {t('Sign in')}
+                </Menu.Item>
+              </Menu.Popup>
+            </Menu.Positioner>
+          </Menu.Portal>
+        )}
+      </Menu.Root>
+      <CloudProjectsDialog
+        open={cloudOpen}
+        onOpenChange={changeCloudOpen}
+        state={cloudList}
+        onRetry={() => void loadCloudList()}
+        onOpen={openProject}
+      />
+    </>
   )
 }
 

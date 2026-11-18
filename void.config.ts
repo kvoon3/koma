@@ -15,8 +15,11 @@ export default defineConfig({
     build: 'bun run build:void',
   },
   routing: {
-    // The client owns routing; unmatched paths fall back to index.html.
-    notFound: 'single-page-application',
+    // Hash routing only needs the shell at `/`. A route's intentional 404
+    // must survive, which `single-page-application` breaks by serving
+    // index.html; the explicit fallback covers only paths no route matched.
+    notFound: 'none',
+    fallbacks: { '/*': '/index.html' },
   },
   cloudflare: {
     name: 'koma',
